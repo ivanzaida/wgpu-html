@@ -28,7 +28,13 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
     // Background fills the border-box (default `background-clip: border-box`).
     if let Some(color) = b.background {
         if b.border_rect.w > 0.0 && b.border_rect.h > 0.0 {
-            out.push_quad(to_renderer_rect(b.border_rect), color);
+            let rect = to_renderer_rect(b.border_rect);
+            let radii = corner_radii(b);
+            if has_any_radius(&radii) {
+                out.push_quad_rounded(rect, color, radii);
+            } else {
+                out.push_quad(rect, color);
+            }
         }
     }
 
@@ -38,6 +44,19 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
     for child in &b.children {
         paint_box(child, out);
     }
+}
+
+fn corner_radii(b: &LayoutBox) -> [f32; 4] {
+    [
+        b.border_radius.top_left,
+        b.border_radius.top_right,
+        b.border_radius.bottom_right,
+        b.border_radius.bottom_left,
+    ]
+}
+
+fn has_any_radius(r: &[f32; 4]) -> bool {
+    r.iter().any(|v| *v > 0.0)
 }
 
 /// Emit up to four solid edge quads for the box border. Each side is
@@ -128,6 +147,31 @@ mod tests {
         );
         let list = paint_tree(&tree, 800.0, 600.0);
         assert_eq!(list.quads.len(), 5);
+    }
+
+    #[test]
+    fn radii_carry_through_to_display_list() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             background-color: red;
+                             border-radius: 1px 2px 3px 4px;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 1);
+        let q = list.quads[0];
+        // Order: TL, TR, BR, BL.
+        assert_eq!(q.radii, [1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn no_radius_keeps_sharp_quad() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             background-color: red;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 1);
+        assert_eq!(list.quads[0].radii, [0.0; 4]);
     }
 
     #[test]

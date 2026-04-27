@@ -19,15 +19,20 @@ impl Rect {
     }
 }
 
-/// One filled rectangle.
+/// Per-corner radii in physical pixels: top-left, top-right, bottom-right, bottom-left.
+pub type CornerRadii = [f32; 4];
+
+/// One filled rectangle, optionally with rounded corners.
 #[derive(Debug, Clone, Copy)]
 pub struct Quad {
     pub rect: Rect,
     pub color: Color,
+    /// `[0; 4]` for a sharp axis-aligned rectangle.
+    pub radii: CornerRadii,
 }
 
-/// Flat list of paint commands. For M2 this is just quads; later
-/// milestones will add glyph runs, images, clips, borders.
+/// Flat list of paint commands. Currently just quads; later milestones
+/// will add glyph runs, images, clips.
 #[derive(Debug, Default, Clone)]
 pub struct DisplayList {
     pub quads: Vec<Quad>,
@@ -39,7 +44,21 @@ impl DisplayList {
     }
 
     pub fn push_quad(&mut self, rect: Rect, color: Color) -> &mut Self {
-        self.quads.push(Quad { rect, color });
+        self.quads.push(Quad {
+            rect,
+            color,
+            radii: [0.0; 4],
+        });
+        self
+    }
+
+    pub fn push_quad_rounded(
+        &mut self,
+        rect: Rect,
+        color: Color,
+        radii: CornerRadii,
+    ) -> &mut Self {
+        self.quads.push(Quad { rect, color, radii });
         self
     }
 
