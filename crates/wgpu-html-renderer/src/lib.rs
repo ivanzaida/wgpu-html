@@ -2,7 +2,10 @@
 //!
 //! Owns the GPU device/queue, a window-bound surface, and a single
 //! pipeline that renders a `DisplayList` of colored rectangles.
+//! Also exposes a screenshot API: schedule a capture, the next rendered
+//! frame is copied into a staging buffer and saved as a PNG.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 pub use wgpu;
@@ -10,9 +13,11 @@ use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 
 mod paint;
 mod quad_pipeline;
+mod screenshot;
 
 pub use paint::{Color, DisplayList, Quad, Rect};
 pub use quad_pipeline::QuadPipeline;
+pub use screenshot::ScreenshotError;
 
 pub struct Renderer {
     pub instance: wgpu::Instance,
@@ -23,6 +28,7 @@ pub struct Renderer {
     pub surface_config: wgpu::SurfaceConfiguration,
     pub clear_color: wgpu::Color,
     quads: QuadPipeline,
+    pending_capture: Option<PathBuf>,
 }
 
 impl Renderer {
@@ -72,7 +78,9 @@ impl Renderer {
             .unwrap_or(caps.formats[0]);
 
         let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            // COPY_SRC is required so we can read the surface texture back
+            // for screenshots.
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             format,
             width: width.max(1),
             height: height.max(1),
@@ -100,7 +108,14 @@ impl Renderer {
                 a: 1.0,
             },
             quads,
+            pending_capture: None,
         }
+    }
+
+    /// Schedule the next rendered frame to be saved to `path` as a PNG.
+    /// Capture happens on the next call to [`Renderer::render`].
+    pub fn capture_next_frame_to(&mut self, path: impl Into<PathBuf>) {
+        self.pending_capture = Some(path.into());
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -162,7 +177,36 @@ impl Renderer {
             self.quads.record(&mut pass);
         }
 
+        // If a capture was requested, append a texture-to-buffer copy to
+        // the same encoder so it sees the just-rendered surface texture.
+        let capture_target = self.pending_capture.take();
+        let staging = capture_target.as_ref().map(|_| {
+            screenshot::begin_capture(
+                &self.device,
+                &mut encoder,
+                &frame.texture,
+                self.surface_config.width,
+                self.surface_config.height,
+            )
+        });
+
         self.queue.submit(Some(encoder.finish()));
+
+        if let (Some(stg), Some(path)) = (staging, capture_target) {
+            if let Err(e) = screenshot::finish_capture(
+                &self.device,
+                stg,
+                self.surface_config.width,
+                self.surface_config.height,
+                self.surface_config.format,
+                &path,
+            ) {
+                eprintln!("screenshot failed: {e}");
+            } else {
+                eprintln!("saved screenshot to {}", path.display());
+            }
+        }
+
         frame.present();
         FrameOutcome::Presented
     }

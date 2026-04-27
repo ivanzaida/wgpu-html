@@ -1,11 +1,13 @@
 //! M4 demo: parse an HTML string, lay it out via block flow, paint, render.
 
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 use wgpu_html::renderer::{FrameOutcome, Renderer};
@@ -57,6 +59,24 @@ impl ApplicationHandler for App {
                 renderer.resize(size.width, size.height);
                 window.request_redraw();
             }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        state: ElementState::Pressed,
+                        physical_key: PhysicalKey::Code(key),
+                        repeat: false,
+                        ..
+                    },
+                ..
+            } => match key {
+                KeyCode::F12 => {
+                    let path = format!("screenshot-{}.png", timestamp());
+                    renderer.capture_next_frame_to(path);
+                    window.request_redraw();
+                }
+                KeyCode::Escape => event_loop.exit(),
+                _ => {}
+            },
             WindowEvent::RedrawRequested => {
                 let size = window.inner_size();
                 let tree = wgpu_html::parser::parse(DOC);
@@ -79,7 +99,19 @@ impl ApplicationHandler for App {
     }
 }
 
+/// Seconds since the Unix epoch, used as a unique-ish screenshot filename.
+fn timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 fn main() {
+    println!("wgpu-html demo:");
+    println!("  12  →  save current frame as screenshot-<unix>.png");
+    println!("  Esc      →  quit");
+
     let event_loop = EventLoop::new().expect("event loop");
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
     let mut app = App::default();

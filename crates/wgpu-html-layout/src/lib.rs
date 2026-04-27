@@ -14,7 +14,7 @@
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
 use wgpu_html_models::Style;
-use wgpu_html_models::common::css_enums::CssLength;
+use wgpu_html_models::common::css_enums::{BoxSizing, CssLength};
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_tree::Element;
 
@@ -142,10 +142,22 @@ fn layout_block(
     let border = Insets::zero(); // borders deferred (M7)
     let padding = resolve_insets_padding(style, container_w, ctx);
 
+    let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
+
     // Inner width: explicit `width` or fill the parent.
-    let frame_h = margin.horizontal() + border.horizontal() + padding.horizontal();
-    let inner_width = length::resolve(style.width.as_ref(), container_w, ctx)
-        .unwrap_or((container_w - frame_h).max(0.0));
+    // - `content-box` (CSS default): `width` is the content-box width.
+    // - `border-box`: `width` is the border-box width, so we subtract
+    //   horizontal border + padding to get the content-box width.
+    let frame_w = margin.horizontal() + border.horizontal() + padding.horizontal();
+    let inner_width = match length::resolve(style.width.as_ref(), container_w, ctx) {
+        Some(specified) => match box_sizing {
+            BoxSizing::ContentBox => specified,
+            BoxSizing::BorderBox => {
+                (specified - border.horizontal() - padding.horizontal()).max(0.0)
+            }
+        },
+        None => (container_w - frame_w).max(0.0),
+    };
 
     // Lay out children top-down inside the content box.
     let content_x = origin_x + margin.left + border.left + padding.left;
@@ -168,8 +180,15 @@ fn layout_block(
     let content_h_from_children = cursor;
 
     // Inner height: explicit `height` or fit content.
-    let inner_height = length::resolve(style.height.as_ref(), container_h, ctx)
-        .unwrap_or(content_h_from_children);
+    let inner_height = match length::resolve(style.height.as_ref(), container_h, ctx) {
+        Some(specified) => match box_sizing {
+            BoxSizing::ContentBox => specified,
+            BoxSizing::BorderBox => {
+                (specified - border.vertical() - padding.vertical()).max(0.0)
+            }
+        },
+        None => content_h_from_children,
+    };
 
     // Compose the rects.
     let border_rect = Rect::new(
