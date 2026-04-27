@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use cosmic_text::{Attrs, Buffer, CacheKey, Metrics, Shaping};
 
-use wgpu_html_tree::{FontHandle, FontRegistry};
+use wgpu_html_tree::{FontHandle, FontRegistry, FontStyleAxis};
 
 use crate::atlas::{Atlas, AtlasRect};
 use crate::font_db::FontDb;
@@ -69,6 +69,11 @@ struct AtlasGlyph {
 /// keep across frames.
 pub struct TextContext {
     pub font_db: FontDb,
+    /// Mirror of the document's `FontRegistry`. Populated by
+    /// `sync_fonts`; consulted by `pick_font` for CSS-aware font
+    /// matching (family list + weight + style). Cheap to clone — the
+    /// underlying byte arcs are shared.
+    pub fonts: FontRegistry,
     pub atlas: Atlas,
     swash: cosmic_text::SwashCache,
     glyph_cache: HashMap<CacheKey, AtlasGlyph>,
@@ -81,6 +86,7 @@ impl TextContext {
     pub fn new(atlas_size: u32) -> Self {
         Self {
             font_db: FontDb::new(),
+            fonts: FontRegistry::default(),
             atlas: Atlas::new(atlas_size, atlas_size),
             swash: cosmic_text::SwashCache::new(),
             glyph_cache: HashMap::new(),
@@ -88,13 +94,34 @@ impl TextContext {
     }
 
     /// Reconcile the cosmic-text font system against `registry`.
-    /// Convenience that delegates to `font_db.sync`.
+    /// Stores a clone of the registry so `pick_font` can do
+    /// CSS-aware family / weight / style matching without a fresh
+    /// borrow from the host.
     pub fn sync_fonts(&mut self, registry: &FontRegistry) {
+        self.fonts = registry.clone();
         self.font_db.sync(registry);
     }
 
+    /// Pick a `FontHandle` for a CSS `font-family` list, weight, and
+    /// style. Walks the comma-separated family list left-to-right,
+    /// returning the first match per CSS-Fonts-3-style scoring (see
+    /// `wgpu_html_tree::FontRegistry::find`). Falls back to the
+    /// first registered face if no listed family matches; returns
+    /// `None` only when the registry is empty.
+    pub fn pick_font(
+        &self,
+        families: &[&str],
+        weight: u16,
+        style: FontStyleAxis,
+    ) -> Option<FontHandle> {
+        self.fonts
+            .find_first(families, weight, style)
+            .or_else(|| self.font_db.first_handle())
+    }
+
     /// Shape `text` using the registered face `font`, at `size_px`
-    /// font size, with `line_height_px` total line box height. Returns
+    /// font size, with `line_height_px` total line box height and
+    /// `letter_spacing_px` extra advance after each glyph. Returns
     /// `None` if the font isn't loaded into the bridge.
     ///
     /// For T3 the buffer is laid out at unbounded width (no breaks)
@@ -106,6 +133,7 @@ impl TextContext {
         font: FontHandle,
         size_px: f32,
         line_height_px: f32,
+        letter_spacing_px: f32,
     ) -> Option<ShapedRun> {
         let fontdb_id = self.font_db.fontdb_id(font)?;
 
@@ -122,8 +150,11 @@ impl TextContext {
         };
 
         let metrics = Metrics::new(size_px, line_height_px.max(size_px));
-        let attrs = Attrs::new()
-            .family(cosmic_text::Family::Name(&family_name));
+        let attrs = Attrs::new().family(cosmic_text::Family::Name(&family_name));
+        // cosmic-text 0.12's `Attrs` doesn't expose letter-spacing,
+        // so we apply it post-shape: each glyph past the first gains
+        // a cumulative `letter_spacing_px` shift, and the run's
+        // reported width grows by `(n - 1) * letter_spacing_px`.
 
         // Build a single-line BufferLine directly so we get full control
         // over the shaping and don't pay for cosmic-text's
@@ -159,7 +190,11 @@ impl TextContext {
             .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w))
             .collect();
 
-        for (physical, layout_x, layout_w) in layout_glyphs {
+        for (glyph_index, (physical, layout_x, layout_w)) in layout_glyphs.iter().enumerate() {
+            // Cumulative `letter-spacing` offset for this glyph (zero
+            // for the first one, then `letter_spacing_px` per logical
+            // glyph step).
+            let spacing_dx = (glyph_index as f32) * letter_spacing_px;
             let key = physical.cache_key;
             let entry = match self.glyph_cache.get(&key).copied() {
                 Some(e) => e,
@@ -208,7 +243,7 @@ impl TextContext {
             // pixel grid. Without this, the linear sampler blends the
             // mask with the zeroed padding rows above/below it, and
             // the entire glyph reads as low-coverage grey.
-            let pos_x = (physical.x as f32 + entry.left as f32).round();
+            let pos_x = (physical.x as f32 + entry.left as f32 + spacing_dx).round();
             let pos_y = (ascent_px - entry.top as f32).round();
 
             let quad_w = entry.w as f32;
@@ -235,8 +270,9 @@ impl TextContext {
 
             // Run width tracks the right edge of the *advance*, not
             // the rasterised glyph. `layout_x + layout_w` matches
-            // cosmic-text's pen position after this glyph.
-            let advance_right = layout_x + layout_w;
+            // cosmic-text's pen position after this glyph; the
+            // cumulative letter-spacing shifts the right edge along.
+            let advance_right = layout_x + layout_w + spacing_dx;
             if advance_right > max_x {
                 max_x = advance_right;
             }

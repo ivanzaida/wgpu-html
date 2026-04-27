@@ -98,6 +98,29 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
     if let Some(run) = &b.text_run {
         let color = b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]);
         let origin = b.content_rect;
+
+        // Decorations sit relative to the run's baseline, behind the
+        // glyphs (under-line / line-through draw under the strokes;
+        // over-line above). Stroke thickness scales with the font:
+        // ascent / 12 keeps it ~1px at 12px text and ~2.7px at 32px.
+        if !b.text_decorations.is_empty() && run.width > 0.0 && run.ascent > 0.0 {
+            let baseline_y = origin.y + run.ascent;
+            let thickness = (run.ascent / 12.0).max(1.0);
+            for line in &b.text_decorations {
+                let y = match line {
+                    wgpu_html_layout::TextDecorationLine::Underline => baseline_y + thickness,
+                    wgpu_html_layout::TextDecorationLine::LineThrough => {
+                        baseline_y - run.ascent * 0.30
+                    }
+                    wgpu_html_layout::TextDecorationLine::Overline => origin.y,
+                };
+                out.push_quad(
+                    Rect::new(origin.x, y, run.width, thickness),
+                    color,
+                );
+            }
+        }
+
         for g in &run.glyphs {
             out.push_glyph(
                 Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),

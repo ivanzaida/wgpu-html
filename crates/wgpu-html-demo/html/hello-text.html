@@ -1,18 +1,48 @@
 <style>
     body {
         background-color: white;
-        padding: 24px;
+        padding: 32px;
+        font-family: DemoSans, sans-serif;
     }
-    p {
+    .card {
         background-color: rgb(255, 248, 220);
         padding: 16px 20px;
-        margin: 0;
-        border: 2px solid red;
+        margin: 0 0 24px 0;
+        border: 2px solid rgb(212, 175, 55);
         border-radius: 8px;
-        width: 360px;
-        color: black;
-        font-size: 60px;
+        width: 600px;
     }
+    .title {
+        text-align: center;
+        margin: 0 0 16px 0;
+    }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    .spaced { letter-spacing: 3px; }
+    .upper { text-transform: uppercase; }
 </style>
 
-<p>Hello, world.</p>
+<h1 class="title">Hello, world.</h1>
+bn
+<p class="card">
+    Plain, then <strong>strong bold</strong>, then <em>italic emphasis</em>,
+    a <a>link</a>, some <code>monospace()</code>, a <mark>highlighted</mark>
+    span, and <small>smaller text</small>.
+</p>
+
+<p class="card center">
+    With <s>strikethrough</s> and <u>underline</u>, centered.
+</p>
+
+<p class="card right">
+    Right-aligned line — including a <b>boldface</b> word.
+</p>
+
+<p class="card spaced upper">
+    spaced &amp; uppercased
+</p>
+
+<p class="card" style="color: white; background-color: rgb(40, 40, 60);">
+    Light text on a dark background; <strong style="color: yellow;">yellow strong</strong>
+    inline, <span style="color: cyan;">cyan span</span>, and back to white.
+</p>

@@ -418,14 +418,16 @@ fn parse_border_side_shorthand(value: &str, style: &mut Style, side: Side) {
 }
 
 /// Tokenise a `border` / `border-<side>` value into (width, style, color)
-/// pieces. Each whitespace-separated token is tried first as a length
-/// (rejecting the `Raw` / `Auto` fallback so non-numeric tokens don't get
-/// gobbled), then as a border-style keyword, and finally as a color.
+/// pieces. Each top-level-whitespace-separated token is tried first as a
+/// length (rejecting the `Raw` / `Auto` fallback so non-numeric tokens
+/// don't get gobbled), then as a border-style keyword, and finally as a
+/// color. "Top-level" means the splitter ignores spaces inside `(...)`,
+/// so functional values like `rgb(212, 175, 55)` stay intact.
 fn parse_border_pieces(value: &str) -> (Option<CssLength>, Option<BorderStyle>, Option<CssColor>) {
     let mut w = None;
     let mut s = None;
     let mut c = None;
-    for token in value.split_whitespace() {
+    for token in split_top_level_whitespace(value) {
         if w.is_none() {
             if let Some(v) = parse_definite_length(token) {
                 w = Some(v);
@@ -446,6 +448,46 @@ fn parse_border_pieces(value: &str) -> (Option<CssLength>, Option<BorderStyle>, 
         }
     }
     (w, s, c)
+}
+
+/// Split `value` on whitespace, but only at parenthesis depth 0 — so
+/// `rgb(1, 2, 3)`, `hsl(...)`, `calc(...)` survive intact as a single
+/// token. Used by shorthand parsers (`border`, …) where the value
+/// can mix bare keywords / lengths and functional values.
+fn split_top_level_whitespace(value: &str) -> Vec<&str> {
+    let bytes = value.as_bytes();
+    let mut out: Vec<&str> = Vec::new();
+    let mut start: Option<usize> = None;
+    let mut depth: i32 = 0;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'(' => {
+                if start.is_none() {
+                    start = Some(i);
+                }
+                depth += 1;
+            }
+            b')' => {
+                if depth > 0 {
+                    depth -= 1;
+                }
+            }
+            _ if (b as char).is_ascii_whitespace() && depth == 0 => {
+                if let Some(s_idx) = start.take() {
+                    out.push(&value[s_idx..i]);
+                }
+            }
+            _ => {
+                if start.is_none() {
+                    start = Some(i);
+                }
+            }
+        }
+    }
+    if let Some(s_idx) = start {
+        out.push(&value[s_idx..]);
+    }
+    out
 }
 
 /// `border-width: 1 / 2 / 3 / 4 values` → fans into the four per-side widths.
@@ -1244,5 +1286,26 @@ mod tests {
         // bucket stays untouched.
         let decls = parse_inline_style_decls("color: red important;");
         assert!(decls.important.color.is_none());
+    }
+
+    #[test]
+    fn border_shorthand_with_rgb_color_keeps_function_intact() {
+        // `border: 2px solid rgb(212, 175, 55)` — the shorthand
+        // tokenizer must respect parentheses and hand the whole
+        // `rgb(...)` chunk to the colour parser as a single token,
+        // not split it on the inner whitespace.
+        let style = parse_inline_style("border: 2px solid rgb(212, 175, 55);");
+        let top_color = style
+            .border_top_color
+            .as_ref()
+            .expect("border-top-color should be set");
+        match top_color {
+            wgpu_html_models::common::css_enums::CssColor::Rgb(212, 175, 55) => {}
+            other => panic!("expected Rgb(212, 175, 55), got {:?}", other),
+        }
+        assert!(matches!(
+            style.border_top_style,
+            Some(wgpu_html_models::common::css_enums::BorderStyle::Solid)
+        ));
     }
 }

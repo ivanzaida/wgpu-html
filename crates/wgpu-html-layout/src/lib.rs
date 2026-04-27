@@ -191,7 +191,19 @@ pub struct LayoutBox {
     /// For text leaves: the resolved foreground color used when paint
     /// emits glyph quads. Defaults to opaque black if unset.
     pub text_color: Option<Color>,
+    /// CSS `text-decoration-line`s active on this box (parsed from
+    /// the `text-decoration` shorthand). Painted as solid quads at
+    /// the appropriate vertical offset for text leaves.
+    pub text_decorations: Vec<TextDecorationLine>,
     pub children: Vec<LayoutBox>,
+}
+
+/// Single decoration line drawn over / under / through a text run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextDecorationLine {
+    Underline,
+    LineThrough,
+    Overline,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -351,32 +363,8 @@ fn layout_block(
     // If no font is registered, the run is `None` and the box has
     // zero size, matching pre-text behaviour.
     if let Element::Text(s) = &node.element {
-        let (run, w, h) = shape_text_run(s, &node.style, ctx);
-        // The text node's `style.color` was filled in by cascade
-        // inheritance from the nearest ancestor that set `color`.
-        // Fall back to opaque black when no ancestor specified one.
-        let text_color = node
-            .style
-            .color
-            .as_ref()
-            .and_then(resolve_color)
-            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
-        return LayoutBox {
-            margin_rect: Rect::new(origin_x, origin_y, w, h),
-            border_rect: Rect::new(origin_x, origin_y, w, h),
-            content_rect: Rect::new(origin_x, origin_y, w, h),
-            background: None,
-            background_rect: Rect::new(origin_x, origin_y, w, h),
-            background_radii: CornerRadii::zero(),
-            border: Insets::zero(),
-            border_colors: BorderColors::default(),
-            border_styles: BorderStyles::default(),
-            border_radius: CornerRadii::zero(),
-            kind: BoxKind::Text,
-            text_run: run,
-            text_color: Some(text_color),
-            children: Vec::new(),
-        };
+        let (box_, _w, _h, _ascent) = make_text_leaf(s, &node.style, origin_x, origin_y, ctx);
+        return box_;
     }
 
     let style = &node.style;
@@ -436,21 +424,37 @@ fn layout_block(
             (kids, content_h_used)
         }
         _ => {
-            let mut children = Vec::with_capacity(node.children.len());
-            let mut cursor = 0.0_f32;
-            for child in &node.children {
-                let child_box = layout_block(
-                    child,
+            // Inline formatting context: when every child of this
+            // block is inline-level (text, <strong>, <em>, …), pack
+            // them onto a single line box at the parent's content
+            // origin. Otherwise fall back to the block flow that
+            // stacks children vertically.
+            if all_children_inline_level(node) {
+                let (kids, _w_used, h_used) = layout_inline_block_children(
+                    node,
                     content_x,
-                    content_y_top + cursor,
+                    content_y_top,
                     inner_width,
-                    container_h,
                     ctx,
                 );
-                cursor += child_box.margin_rect.h;
-                children.push(child_box);
+                (kids, h_used)
+            } else {
+                let mut children = Vec::with_capacity(node.children.len());
+                let mut cursor = 0.0_f32;
+                for child in &node.children {
+                    let child_box = layout_block(
+                        child,
+                        content_x,
+                        content_y_top + cursor,
+                        inner_width,
+                        container_h,
+                        ctx,
+                    );
+                    cursor += child_box.margin_rect.h;
+                    children.push(child_box);
+                }
+                (children, cursor)
             }
-            (children, cursor)
         }
     };
 
@@ -542,6 +546,7 @@ fn layout_block(
         kind: BoxKind::Block,
         text_run: None,
         text_color: None,
+        text_decorations: Vec::new(),
         children,
     }
 }
@@ -555,24 +560,474 @@ fn shape_text_run(
     text: &str,
     style: &Style,
     ctx: &mut Ctx,
-) -> (Option<ShapedRun>, f32, f32) {
+) -> (Option<ShapedRun>, f32, f32, f32) {
     if text.is_empty() {
-        return (None, 0.0, 0.0);
+        return (None, 0.0, 0.0, 0.0);
     }
-    let Some(handle) = ctx.text.ctx.font_db.first_handle() else {
-        return (None, 0.0, 0.0);
+
+    // `text-transform` re-cases the *visible* text before shaping. Do
+    // it once here so `font-feature` style ligatures still apply to
+    // the transformed forms.
+    let transformed = apply_text_transform(text, style.text_transform.as_ref());
+    let display_text: &str = match transformed.as_ref() {
+        Some(s) => s.as_str(),
+        None => text,
     };
+
+    // Family / weight / style come from the cascaded style. The text
+    // node itself has no rules applied, but cascade inheritance has
+    // already pulled these from the nearest ancestor that set them
+    // (or from UA defaults for `<b>`, `<strong>`, `<em>`, …).
+    let families = parse_family_list(style.font_family.as_deref());
+    let family_refs: Vec<&str> = families.iter().map(String::as_str).collect();
+    let weight = font_weight_value(style.font_weight.as_ref());
+    let axis = font_style_axis(style.font_style.as_ref());
+
+    let Some(handle) = ctx.text.ctx.pick_font(&family_refs, weight, axis) else {
+        return (None, 0.0, 0.0, 0.0);
+    };
+
     let size_css = font_size_px(style).unwrap_or(16.0);
     let line_h_css = line_height_px(style, size_css);
     let size_px = size_css * ctx.scale;
     let line_height = line_h_css * ctx.scale;
-    match ctx.text.ctx.shape_and_pack(text, handle, size_px, line_height) {
+    let letter_spacing = letter_spacing_px(style, size_css) * ctx.scale;
+    match ctx.text.ctx.shape_and_pack(
+        display_text,
+        handle,
+        size_px,
+        line_height,
+        letter_spacing,
+    ) {
         Some(run) => {
             let w = run.width;
             let h = run.height;
-            (Some(run), w, h)
+            let a = run.ascent;
+            (Some(run), w, h, a)
         }
-        None => (None, 0.0, 0.0),
+        None => (None, 0.0, 0.0, 0.0),
+    }
+}
+
+/// Resolve `letter-spacing` to CSS pixels. `Px` is literal; `Em` /
+/// `Rem` multiply against `font_size`. Anything else (percent,
+/// unset) is treated as zero.
+fn letter_spacing_px(style: &Style, font_size: f32) -> f32 {
+    use wgpu_html_models::common::css_enums::CssLength;
+    match style.letter_spacing.as_ref() {
+        Some(CssLength::Px(v)) => *v,
+        Some(CssLength::Em(v)) | Some(CssLength::Rem(v)) => v * font_size,
+        _ => 0.0,
+    }
+}
+
+/// Apply CSS `text-transform`. Returns `None` when no transform is
+/// set (caller can keep using the original `&str` without an extra
+/// allocation), otherwise the transformed string.
+fn apply_text_transform(
+    text: &str,
+    tt: Option<&wgpu_html_models::common::css_enums::TextTransform>,
+) -> Option<String> {
+    use wgpu_html_models::common::css_enums::TextTransform as Tt;
+    match tt {
+        Some(Tt::Uppercase) => Some(text.to_uppercase()),
+        Some(Tt::Lowercase) => Some(text.to_lowercase()),
+        Some(Tt::Capitalize) => Some(capitalize_words(text)),
+        // None / FullWidth / FullSizeKana — pass through unchanged.
+        _ => None,
+    }
+}
+
+/// `text-transform: capitalize` — uppercase the first letter of each
+/// run of non-whitespace characters; pass everything else through.
+fn capitalize_words(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut at_word_start = true;
+    for ch in s.chars() {
+        if ch.is_whitespace() {
+            at_word_start = true;
+            out.push(ch);
+        } else if at_word_start {
+            for u in ch.to_uppercase() {
+                out.push(u);
+            }
+            at_word_start = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Build a text-leaf `LayoutBox` for an `Element::Text`. Used both
+/// from block-flow (text as a degenerate "block" of one line) and
+/// from the inline-formatting context.
+fn make_text_leaf(
+    text: &str,
+    style: &Style,
+    origin_x: f32,
+    origin_y: f32,
+    ctx: &mut Ctx,
+) -> (LayoutBox, f32, f32, f32) {
+    let (run, w, h, ascent) = shape_text_run(text, style, ctx);
+    let text_color = style
+        .color
+        .as_ref()
+        .and_then(resolve_color)
+        .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+    let decorations = resolve_text_decorations(style);
+    let r = Rect::new(origin_x, origin_y, w, h);
+    let box_ = LayoutBox {
+        margin_rect: r,
+        border_rect: r,
+        content_rect: r,
+        background: None,
+        background_rect: r,
+        background_radii: CornerRadii::zero(),
+        border: Insets::zero(),
+        border_colors: BorderColors::default(),
+        border_styles: BorderStyles::default(),
+        border_radius: CornerRadii::zero(),
+        kind: BoxKind::Text,
+        text_run: run,
+        text_color: Some(text_color),
+        text_decorations: decorations,
+        children: Vec::new(),
+    };
+    (box_, w, h, ascent)
+}
+
+/// Parse the raw `text-decoration` shorthand string into the set of
+/// active decoration lines. Whitespace-separated tokens; `none`
+/// resets any previously-collected lines.
+fn parse_text_decorations(s: &str) -> Vec<TextDecorationLine> {
+    let mut out = Vec::new();
+    for tok in s.split_ascii_whitespace() {
+        match tok.to_ascii_lowercase().as_str() {
+            "underline" => out.push(TextDecorationLine::Underline),
+            "line-through" => out.push(TextDecorationLine::LineThrough),
+            "overline" => out.push(TextDecorationLine::Overline),
+            "none" => out.clear(),
+            // Other tokens (colour names, "wavy", "solid", …) — the
+            // value parser hands them along as part of the same raw
+            // string; we ignore everything but the line keywords for
+            // now.
+            _ => {}
+        }
+    }
+    out
+}
+
+fn resolve_text_decorations(style: &Style) -> Vec<TextDecorationLine> {
+    style
+        .text_decoration
+        .as_deref()
+        .map(parse_text_decorations)
+        .unwrap_or_default()
+}
+
+/// Inline-level test: an element whose default formatting puts it on
+/// a line with its siblings. Honours an explicit `display` override
+/// (`inline / inline-block / inline-flex`) but otherwise defaults by
+/// HTML element kind. Block-by-default elements like `<div>` /
+/// `<p>` / headings are *not* inline-level.
+fn is_inline_level(node: &CascadedNode) -> bool {
+    if let Some(d) = node.style.display.as_ref() {
+        use wgpu_html_models::common::css_enums::Display::*;
+        return matches!(d, Inline | InlineBlock | InlineFlex);
+    }
+    matches!(
+        &node.element,
+        Element::Text(_)
+            | Element::Span(_)
+            | Element::A(_)
+            | Element::Strong(_)
+            | Element::B(_)
+            | Element::Em(_)
+            | Element::I(_)
+            | Element::U(_)
+            | Element::S(_)
+            | Element::Small(_)
+            | Element::Mark(_)
+            | Element::Code(_)
+            | Element::Kbd(_)
+            | Element::Samp(_)
+            | Element::Var(_)
+            | Element::Abbr(_)
+            | Element::Cite(_)
+            | Element::Dfn(_)
+            | Element::Sub(_)
+            | Element::Sup(_)
+            | Element::Time(_)
+            | Element::Br(_)
+            | Element::Wbr(_)
+            | Element::Bdi(_)
+            | Element::Bdo(_)
+            | Element::Ins(_)
+            | Element::Del(_)
+            | Element::Label(_)
+            | Element::Output(_)
+            | Element::Data(_)
+            | Element::Ruby(_)
+            | Element::Rt(_)
+            | Element::Rp(_)
+    )
+}
+
+/// True when every child of `node` is an inline-level box, so the
+/// whole block becomes one inline formatting context. Empty parents
+/// stay in block-flow (with zero content) — they have nothing to
+/// flow.
+fn all_children_inline_level(node: &CascadedNode) -> bool {
+    !node.children.is_empty() && node.children.iter().all(is_inline_level)
+}
+
+/// Result of laying out one inline-level subtree at a temporary
+/// origin. The caller composes these on a horizontal cursor and
+/// re-aligns each on the line's baseline by adjusting `box_.y` after
+/// the fact.
+struct InlineLayout {
+    box_: LayoutBox,
+    width: f32,
+    ascent: f32,
+    descent: f32,
+}
+
+/// Lay out one inline-level subtree starting at `(origin_x, origin_y)`.
+/// Text leaves shape into a single `BoxKind::Text` with the run +
+/// foreground colour. Inline elements recurse, position their
+/// children on a baseline (so a `<small>` and a `<strong>` flow on
+/// the same line), and wrap the result in a `BoxKind::Block` whose
+/// background — if any — covers the inline element's content extent
+/// (this is what makes `<mark>` paintable).
+fn layout_inline_subtree(
+    node: &CascadedNode,
+    origin_x: f32,
+    origin_y: f32,
+    container_w: f32,
+    ctx: &mut Ctx,
+) -> InlineLayout {
+    if let Element::Text(s) = &node.element {
+        let (box_, w, h, ascent) = make_text_leaf(s, &node.style, origin_x, origin_y, ctx);
+        let descent = (h - ascent).max(0.0);
+        return InlineLayout {
+            box_,
+            width: w,
+            ascent,
+            descent,
+        };
+    }
+
+    // Inline element: walk children at a horizontal cursor, then
+    // baseline-align them inside this element.
+    let mut cursor_x = 0.0_f32;
+    let mut max_ascent = 0.0_f32;
+    let mut max_descent = 0.0_f32;
+    let mut child_layouts: Vec<InlineLayout> = Vec::new();
+    for child in &node.children {
+        let cl = layout_inline_subtree(
+            child,
+            origin_x + cursor_x,
+            origin_y,
+            (container_w - cursor_x).max(0.0),
+            ctx,
+        );
+        if cl.ascent > max_ascent {
+            max_ascent = cl.ascent;
+        }
+        if cl.descent > max_descent {
+            max_descent = cl.descent;
+        }
+        cursor_x += cl.width;
+        child_layouts.push(cl);
+    }
+
+    let line_h = max_ascent + max_descent;
+    let baseline_y = origin_y + max_ascent;
+    let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
+    for cl in child_layouts {
+        let cur_top = cl.box_.margin_rect.y;
+        let target_top = baseline_y - cl.ascent;
+        let dy = target_top - cur_top;
+        let mut b = cl.box_;
+        translate_box_y_in_place(&mut b, dy);
+        final_children.push(b);
+    }
+
+    let bg = node.style.background_color.as_ref().and_then(resolve_color);
+    let r = Rect::new(origin_x, origin_y, cursor_x, line_h);
+    let box_ = LayoutBox {
+        margin_rect: r,
+        border_rect: r,
+        content_rect: r,
+        background: bg,
+        background_rect: r,
+        background_radii: CornerRadii::zero(),
+        border: Insets::zero(),
+        border_colors: BorderColors::default(),
+        border_styles: BorderStyles::default(),
+        border_radius: CornerRadii::zero(),
+        kind: BoxKind::Block,
+        text_run: None,
+        text_color: None,
+        // Decorations live on text leaves (cascade inheritance has
+        // already propagated `text-decoration` down to every text
+        // descendant). The inline wrapper itself draws nothing.
+        text_decorations: Vec::new(),
+        children: final_children,
+    };
+    InlineLayout {
+        box_,
+        width: cursor_x,
+        ascent: max_ascent,
+        descent: max_descent,
+    }
+}
+
+/// Lay out a block's inline-level children as a single line box at
+/// `(origin_x, origin_y)`. Returns the final children (already
+/// baseline-aligned in absolute coords) plus the line's used width
+/// and height. Multi-line breaking is M6's job; today the line just
+/// keeps growing past `container_w` if its contents overflow.
+///
+/// `text_align` from the parent's cascaded style shifts the entire
+/// line horizontally inside `container_w` once the line's used width
+/// is known. `justify` falls through to `left` for now.
+fn layout_inline_block_children(
+    node: &CascadedNode,
+    origin_x: f32,
+    origin_y: f32,
+    container_w: f32,
+    ctx: &mut Ctx,
+) -> (Vec<LayoutBox>, f32, f32) {
+    let mut cursor_x = 0.0_f32;
+    let mut max_ascent = 0.0_f32;
+    let mut max_descent = 0.0_f32;
+    let mut child_layouts: Vec<InlineLayout> = Vec::new();
+    for child in &node.children {
+        let cl = layout_inline_subtree(
+            child,
+            origin_x + cursor_x,
+            origin_y,
+            (container_w - cursor_x).max(0.0),
+            ctx,
+        );
+        if cl.ascent > max_ascent {
+            max_ascent = cl.ascent;
+        }
+        if cl.descent > max_descent {
+            max_descent = cl.descent;
+        }
+        cursor_x += cl.width;
+        child_layouts.push(cl);
+    }
+
+    let baseline_y = origin_y + max_ascent;
+    let line_width = cursor_x;
+    let align_dx = horizontal_align_offset(node.style.text_align.as_ref(), container_w, line_width);
+    let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
+    for cl in child_layouts {
+        let cur_top = cl.box_.margin_rect.y;
+        let target_top = baseline_y - cl.ascent;
+        let dy = target_top - cur_top;
+        let mut b = cl.box_;
+        if dy != 0.0 {
+            translate_box_y_in_place(&mut b, dy);
+        }
+        if align_dx != 0.0 {
+            translate_box_x_in_place(&mut b, align_dx);
+        }
+        final_children.push(b);
+    }
+
+    (final_children, line_width, max_ascent + max_descent)
+}
+
+/// CSS `text-align` → number of pixels to shift each child of the
+/// line. `start`/`end` follow `dir: ltr` (no bidi yet). `justify`
+/// falls through to `left`.
+fn horizontal_align_offset(
+    text_align: Option<&wgpu_html_models::common::css_enums::TextAlign>,
+    container_w: f32,
+    line_w: f32,
+) -> f32 {
+    use wgpu_html_models::common::css_enums::TextAlign as Ta;
+    let free = (container_w - line_w).max(0.0);
+    match text_align {
+        Some(Ta::Center) => free * 0.5,
+        Some(Ta::Right) | Some(Ta::End) => free,
+        // Left, Start, Justify, None — flush to the inline-start edge.
+        _ => 0.0,
+    }
+}
+
+/// Recursively shift every rect on `b` and its descendants by `dx`
+/// pixels along the x axis. Used to apply `text-align` after the
+/// inline pass has positioned children at the line's left edge.
+fn translate_box_x_in_place(b: &mut LayoutBox, dx: f32) {
+    b.margin_rect.x += dx;
+    b.border_rect.x += dx;
+    b.content_rect.x += dx;
+    b.background_rect.x += dx;
+    for child in &mut b.children {
+        translate_box_x_in_place(child, dx);
+    }
+}
+
+/// Recursively shift every rect on `b` and its descendants by `dy`
+/// pixels along the y axis. Used by the inline pass to baseline-
+/// align children after laying them all out at the line's top.
+fn translate_box_y_in_place(b: &mut LayoutBox, dy: f32) {
+    b.margin_rect.y += dy;
+    b.border_rect.y += dy;
+    b.content_rect.y += dy;
+    b.background_rect.y += dy;
+    for child in &mut b.children {
+        translate_box_y_in_place(child, dy);
+    }
+}
+
+/// Split a CSS `font-family` value into individual family names.
+/// Each entry is trimmed and stripped of surrounding quotes; empty
+/// entries are dropped. The empty list means "no family preference".
+fn parse_family_list(s: Option<&str>) -> Vec<String> {
+    let Some(raw) = s else { return Vec::new() };
+    raw.split(',')
+        .map(|p| {
+            p.trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .trim()
+                .to_string()
+        })
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// CSS `font-weight` → numeric weight in [100, 900]. `None` falls
+/// back to 400 (CSS initial). `Lighter` / `Bolder` are treated as
+/// fixed shifts here (no parent context yet) — 300 / 700.
+fn font_weight_value(fw: Option<&wgpu_html_models::common::css_enums::FontWeight>) -> u16 {
+    use wgpu_html_models::common::css_enums::FontWeight as Fw;
+    match fw {
+        Some(Fw::Bold) => 700,
+        Some(Fw::Lighter) => 300,
+        Some(Fw::Bolder) => 700,
+        Some(Fw::Weight(n)) => *n,
+        Some(Fw::Normal) | None => 400,
+    }
+}
+
+/// CSS `font-style` → font-registry style axis.
+fn font_style_axis(
+    fs: Option<&wgpu_html_models::common::css_enums::FontStyle>,
+) -> wgpu_html_text::FontStyleAxis {
+    use wgpu_html_models::common::css_enums::FontStyle as Fs;
+    use wgpu_html_text::FontStyleAxis as A;
+    match fs {
+        Some(Fs::Italic) => A::Italic,
+        Some(Fs::Oblique) => A::Oblique,
+        Some(Fs::Normal) | None => A::Normal,
     }
 }
 

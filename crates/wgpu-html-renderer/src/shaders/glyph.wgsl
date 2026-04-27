@@ -41,22 +41,32 @@ fn vs_main(in: VsIn) -> VsOut {
     return out;
 }
 
+// Per-channel sRGB encode: linear → display-space byte value. Used
+// below so the foreground colour lives in the same gamma space as the
+// surface bytes the glyph pass blends against.
+fn srgb_encode_one(c: f32) -> f32 {
+    if (c <= 0.0031308) {
+        return c * 12.92;
+    }
+    return 1.055 * pow(c, 1.0 / 2.4) - 0.055;
+}
+
+fn srgb_encode(c: vec3<f32>) -> vec3<f32> {
+    return vec3<f32>(srgb_encode_one(c.x), srgb_encode_one(c.y), srgb_encode_one(c.z));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    // Coverage from cosmic-text / swash is perceptually-weighted (the
-    // rasteriser's "looks like X% ink" estimate). Blending it raw on
-    // an sRGB surface — where the GPU blends in linear space then
-    // sRGB-encodes for display — washes out anti-aliased strokes: a
-    // pixel marked 50%-covered ends up rendered as ~74%-gray on
-    // screen instead of the ~50% the rasteriser asked for, and small
-    // text reads gray.
-    //
-    // Lift the curve so that after the linear blend + sRGB encode the
-    // visual weight matches what gamma-space blending would have
-    // produced. Exponent 1/1.43 is the empirical "reduced gamma" fit
-    // Skia and most UI text engines use for a single-channel alpha
-    // mask path.
-    let raw = textureSample(atlas, atlas_sampler, in.uv).r;
-    let coverage = pow(raw, 1.0 / 1.43);
-    return vec4<f32>(in.color.rgb, in.color.a * coverage);
+    // The glyph pass renders through a non-sRGB view of the surface,
+    // so the GPU's blend step doesn't decode `dst` from sRGB and
+    // doesn't sRGB-encode the result on write — both sides see the
+    // raw byte values, i.e. the *display-space* representation. To
+    // composite text correctly we therefore write the foreground
+    // colour in display space too: encode `in.color.rgb` (which
+    // arrives as linear from `resolve_color`) into sRGB before the
+    // blend. Coverage from the rasteriser is already perceptually
+    // weighted in 0..1 and feeds straight into alpha — no curve hack.
+    let coverage = textureSample(atlas, atlas_sampler, in.uv).r;
+    let rgb_srgb = srgb_encode(in.color.rgb);
+    return vec4<f32>(rgb_srgb, in.color.a * coverage);
 }

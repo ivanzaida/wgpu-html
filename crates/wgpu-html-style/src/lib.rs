@@ -23,6 +23,7 @@ use wgpu_html_tree::{Element, Node, Tree};
 
 mod element_attrs;
 mod merge;
+mod ua;
 
 pub use element_attrs::{element_class, element_id, element_style_attr, element_tag};
 pub use merge::merge;
@@ -56,7 +57,10 @@ pub struct CascadedNode {
 ///    resolved style (CSS-Cascade-3 §3.3 — `color`, font-related
 ///    properties, line-height, text-align, etc.).
 pub fn cascade(tree: &Tree) -> CascadedTree {
-    let stylesheet = collect_stylesheet(tree);
+    // UA defaults sit before author rules in the rules list, so on
+    // a specificity tie the author rule wins on source order.
+    let mut stylesheet = ua::ua_stylesheet().clone();
+    stylesheet.append(collect_stylesheet(tree));
     CascadedTree {
         root: tree
             .root

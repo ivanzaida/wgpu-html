@@ -34,6 +34,14 @@ pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub clear_color: wgpu::Color,
+    /// Non-sRGB equivalent of `surface_config.format`, used as the
+    /// view format for the glyph pass. The same physical pixel bytes
+    /// are interpreted as raw values (no sRGB decode on read, no
+    /// sRGB encode on write), which makes the GPU's linear-space
+    /// alpha blend behave like a gamma-space blend — the right thing
+    /// for anti-aliased text. Equal to `surface_config.format` when
+    /// the surface picked a non-sRGB format already.
+    glyph_view_format: wgpu::TextureFormat,
     quads: QuadPipeline,
     glyphs: GlyphPipeline,
     pending_capture: Option<PathBuf>,
@@ -85,6 +93,16 @@ impl Renderer {
             .find(|f| f.is_srgb())
             .unwrap_or(caps.formats[0]);
 
+        // `glyph_view_format` is the same texture interpreted without
+        // sRGB encoding; if `format` is already non-sRGB the call
+        // returns it unchanged. We always add it to `view_formats` so
+        // the surface texture is created allowing both views.
+        let glyph_view_format = format.remove_srgb_suffix();
+        let mut extra_view_formats: Vec<wgpu::TextureFormat> = Vec::new();
+        if glyph_view_format != format {
+            extra_view_formats.push(glyph_view_format);
+        }
+
         let surface_config = wgpu::SurfaceConfiguration {
             // COPY_SRC is required so we can read the surface texture back
             // for screenshots.
@@ -94,14 +112,16 @@ impl Renderer {
             height: height.max(1),
             present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode: caps.alpha_modes[0],
-            view_formats: vec![],
+            view_formats: extra_view_formats,
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &surface_config);
 
         let quads = QuadPipeline::new(&device, format);
         quads.upload_static(&queue);
-        let glyphs = GlyphPipeline::new(&device, format, GLYPH_ATLAS_SIZE);
+        // Glyph pipeline targets the *non-sRGB* view of the surface,
+        // so its blend equation runs on already-encoded byte values.
+        let glyphs = GlyphPipeline::new(&device, glyph_view_format, GLYPH_ATLAS_SIZE);
         glyphs.upload_static(&queue);
 
         Self {
@@ -112,6 +132,7 @@ impl Renderer {
             surface,
             surface_config,
             clear_color: wgpu::Color::WHITE,
+            glyph_view_format,
             quads,
             glyphs,
             pending_capture: None,
@@ -153,9 +174,19 @@ impl Renderer {
             | wgpu::CurrentSurfaceTexture::Validation => return FrameOutcome::Skipped,
         };
 
-        let view = frame
+        // Two views over the same surface texture: the default sRGB
+        // view (matching the surface format) for the quad pass, and a
+        // non-sRGB unorm view for the glyph pass. Same memory; the
+        // glyph pass treats the bytes as raw so the alpha blend runs
+        // in display space.
+        let srgb_view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let glyph_view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("glyph non-srgb view"),
+            format: Some(self.glyph_view_format),
+            ..Default::default()
+        });
 
         let viewport = [
             self.surface_config.width as f32,
@@ -172,11 +203,14 @@ impl Renderer {
                 label: Some("wgpu-html frame encoder"),
             });
 
+        // Pass 1: quads, sRGB view, clear → store. Pixel values land
+        // in the surface as sRGB-encoded bytes (the GPU does the
+        // linear→sRGB encode on write).
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("main pass"),
+                label: Some("quad pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &srgb_view,
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
@@ -190,6 +224,30 @@ impl Renderer {
                 multiview_mask: None,
             });
             self.quads.record(&mut pass);
+        }
+
+        // Pass 2: glyphs, non-sRGB view, load → store. The dst pixels
+        // are read as raw (already-sRGB-encoded) bytes; the shader
+        // outputs a likewise-sRGB-encoded foreground; the GPU's
+        // standard linear-space alpha blend therefore composites in
+        // display space, which is what the eye expects from text.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("glyph pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &glyph_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
             self.glyphs.record(&mut pass);
         }
 
