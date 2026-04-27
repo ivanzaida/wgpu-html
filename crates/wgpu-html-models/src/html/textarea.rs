@@ -1,4 +1,5 @@
 use crate::common::html_enums::{AriaRole, HtmlDirection, TextareaWrap};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct Textarea {
@@ -16,10 +17,10 @@ pub struct Textarea {
   pub spellcheck: Option<bool>,
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
-  // html attr: aria-*
-  pub aria_star: Option<String>,
-  // html attr: data-*
-  pub data_star: Option<String>,
+  // html attr: aria-* (suffix → value)
+  pub aria_attrs: HashMap<String, String>,
+  // html attr: data-* (suffix → value)
+  pub data_attrs: HashMap<String, String>,
   pub name: Option<String>,
   pub placeholder: Option<String>,
   pub required: Option<bool>,

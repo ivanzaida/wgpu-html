@@ -34,7 +34,7 @@ pub fn build(tokens: Vec<Token>) -> Tree {
             children: roots,
         }),
     };
-    Tree { root }
+    Tree { root, ..Tree::default() }
 }
 
 struct TreeBuilder {

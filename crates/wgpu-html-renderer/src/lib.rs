@@ -11,13 +11,20 @@ use std::sync::Arc;
 pub use wgpu;
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 
+mod glyph_pipeline;
 mod paint;
 mod quad_pipeline;
 mod screenshot;
 
-pub use paint::{Color, DisplayList, Quad, Rect};
+pub use glyph_pipeline::GlyphPipeline;
+pub use paint::{Color, DisplayList, GlyphQuad, Quad, Rect};
 pub use quad_pipeline::QuadPipeline;
 pub use screenshot::ScreenshotError;
+
+/// Glyph atlas dimensions (square). The CPU-side atlas in
+/// `wgpu-html-text` must be created with the same size so its uploads
+/// land in the renderer's GPU texture without scaling.
+pub const GLYPH_ATLAS_SIZE: u32 = 2048;
 
 pub struct Renderer {
     pub instance: wgpu::Instance,
@@ -28,6 +35,7 @@ pub struct Renderer {
     pub surface_config: wgpu::SurfaceConfiguration,
     pub clear_color: wgpu::Color,
     quads: QuadPipeline,
+    glyphs: GlyphPipeline,
     pending_capture: Option<PathBuf>,
 }
 
@@ -93,6 +101,8 @@ impl Renderer {
 
         let quads = QuadPipeline::new(&device, format);
         quads.upload_static(&queue);
+        let glyphs = GlyphPipeline::new(&device, format, GLYPH_ATLAS_SIZE);
+        glyphs.upload_static(&queue);
 
         Self {
             instance,
@@ -103,8 +113,16 @@ impl Renderer {
             surface_config,
             clear_color: wgpu::Color::WHITE,
             quads,
+            glyphs,
             pending_capture: None,
         }
+    }
+
+    /// Borrow the glyph atlas's GPU texture so the host's CPU-side
+    /// atlas can upload pending glyph rasters into it via
+    /// `wgpu-html-text::Atlas::upload`.
+    pub fn glyph_atlas_texture(&self) -> &wgpu::Texture {
+        self.glyphs.atlas_texture()
     }
 
     /// Schedule the next rendered frame to be saved to `path` as a PNG.
@@ -145,6 +163,8 @@ impl Renderer {
         ];
         self.quads
             .prepare(&self.device, &self.queue, viewport, list);
+        self.glyphs
+            .prepare(&self.device, &self.queue, viewport, list);
 
         let mut encoder = self
             .device
@@ -170,6 +190,7 @@ impl Renderer {
                 multiview_mask: None,
             });
             self.quads.record(&mut pass);
+            self.glyphs.record(&mut pass);
         }
 
         // If a capture was requested, append a texture-to-buffer copy to

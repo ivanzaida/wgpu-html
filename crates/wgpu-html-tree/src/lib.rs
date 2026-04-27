@@ -8,14 +8,33 @@
 
 use wgpu_html_models as m;
 
+mod fonts;
+
+pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
+
 #[derive(Debug, Clone, Default)]
 pub struct Tree {
     pub root: Option<Node>,
+    /// Fonts available to this document. Populated by the host before
+    /// layout / paint; consulted by the cascade and the text crate.
+    /// See `docs/text.md` §3.
+    pub fonts: FontRegistry,
 }
 
 impl Tree {
     pub fn new(root: Node) -> Self {
-        Self { root: Some(root) }
+        Self {
+            root: Some(root),
+            fonts: FontRegistry::new(),
+        }
+    }
+
+    /// Register a font face with this document and return its handle.
+    /// Re-registering a face with the same `(family, weight, style)`
+    /// overrides the previous one (later registration wins on ties
+    /// during matching).
+    pub fn register_font(&mut self, face: FontFace) -> FontHandle {
+        self.fonts.register(face)
     }
 }
 

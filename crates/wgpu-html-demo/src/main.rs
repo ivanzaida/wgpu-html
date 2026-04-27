@@ -1,6 +1,9 @@
-//! M4 demo: parse an HTML string, lay it out via block flow, paint, render.
+//! M5 demo (T3): parse HTML, register an external font on the tree,
+//! shape text via cosmic-text, render the resulting glyph quads
+//! through the renderer's textured pipeline.
 
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
 
 use winit::application::ApplicationHandler;
@@ -10,15 +13,71 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use wgpu_html::renderer::{FrameOutcome, Renderer};
+use wgpu_html::renderer::{FrameOutcome, Renderer, GLYPH_ATLAS_SIZE};
+use wgpu_html_text::TextContext;
+use wgpu_html_tree::{FontFace, FontStyleAxis};
 
-/// Block flow: body fills the viewport, header on top, then three cards
-/// stacking below it. Each card has padding and an inner highlight strip.
-const DOC: &str = include_str!("../html/flex-test.html");
-#[derive(Default)]
+const DOC: &str = include_str!("../html/hello-text.html");
+
+/// Search a few common system-font locations for a TTF the host can
+/// register. T3 only needs *some* font to demonstrate shaping; the
+/// constraint we care about is that fonts go through the tree, not
+/// where the bytes come from. Hosts that ship their own asset can
+/// replace this with `include_bytes!(...)`.
+fn load_demo_font_bytes() -> Option<Vec<u8>> {
+    let candidates = [
+        // Windows
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\calibri.ttf",
+        "C:\\Windows\\Fonts\\tahoma.ttf",
+        // Linux (covers most distros)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        // macOS
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/Library/Fonts/Arial.ttf",
+    ];
+    for path in candidates {
+        if let Ok(bytes) = std::fs::read(path) {
+            eprintln!("demo: loaded font from {path}");
+            return Some(bytes);
+        }
+    }
+    None
+}
+
+/// Stable shared `Arc<[u8]>` for the demo font — re-using the same
+/// `Arc` across frames means `TextContext::sync_fonts` recognises the
+/// font as already loaded (`Arc::as_ptr` cache key) and skips
+/// re-ingestion.
+fn demo_font_data() -> Option<Arc<[u8]>> {
+    static DATA: OnceLock<Option<Arc<[u8]>>> = OnceLock::new();
+    DATA.get_or_init(|| {
+        load_demo_font_bytes()
+            .map(|v| Arc::from(v.into_boxed_slice()))
+    })
+    .clone()
+}
+
 struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
+    text_ctx: TextContext,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            window: None,
+            renderer: None,
+            // CPU atlas size must match the renderer's GPU atlas so
+            // uploads land 1:1 without scaling. See
+            // `wgpu_html_renderer::GLYPH_ATLAS_SIZE`.
+            text_ctx: TextContext::new(GLYPH_ATLAS_SIZE),
+        }
+    }
 }
 
 impl ApplicationHandler for App {
@@ -28,8 +87,8 @@ impl ApplicationHandler for App {
         }
 
         let attrs = Window::default_attributes()
-            .with_title("wgpu-html — M4: block layout")
-            .with_inner_size(PhysicalSize::new(1920u32, 1080u32));
+            .with_title("wgpu-html — T3: text rendering")
+            .with_inner_size(PhysicalSize::new(1280u32, 720u32));
         let window = Arc::new(
             event_loop
                 .create_window(attrs)
@@ -70,7 +129,7 @@ impl ApplicationHandler for App {
                 ..
             } => match key {
                 KeyCode::F12 => {
-                    let path = format!("screenshot-{}.png", timestamp());
+                    let path: PathBuf = format!("screenshot-{}.png", timestamp()).into();
                     renderer.capture_next_frame_to(path);
                     window.request_redraw();
                 }
@@ -79,8 +138,34 @@ impl ApplicationHandler for App {
             },
             WindowEvent::RedrawRequested => {
                 let size = window.inner_size();
-                let tree = wgpu_html::parser::parse(DOC);
-                let list = wgpu_html::paint_tree(&tree, size.width as f32, size.height as f32);
+
+                // Parse HTML and register the demo font on the tree.
+                // The shared `Arc` returned by `demo_font_data` keeps
+                // the cosmic-text bridge cache valid across frames.
+                let mut tree = wgpu_html::parser::parse(DOC);
+                if let Some(data) = demo_font_data() {
+                    tree.register_font(FontFace {
+                        family: "DemoSans".into(),
+                        weight: 400,
+                        style: FontStyleAxis::Normal,
+                        data,
+                    });
+                }
+
+                let list = wgpu_html::paint_tree_with_text(
+                    &tree,
+                    &mut self.text_ctx,
+                    size.width as f32,
+                    size.height as f32,
+                    1.0, // T3: fixed scale; T7 honours `scale_factor_changed`.
+                );
+
+                // Push any newly-rasterised glyph rasters into the
+                // renderer's GPU atlas before the draw.
+                self.text_ctx
+                    .atlas
+                    .upload(&renderer.queue, renderer.glyph_atlas_texture());
+
                 match renderer.render(&list) {
                     FrameOutcome::Presented | FrameOutcome::Skipped => {}
                     FrameOutcome::Reconfigure => {
@@ -109,8 +194,15 @@ fn timestamp() -> u64 {
 
 fn main() {
     println!("wgpu-html demo:");
-    println!("  12  →  save current frame as screenshot-<unix>.png");
-    println!("  Esc      →  quit");
+    println!("  F12  →  save current frame as screenshot-<unix>.png");
+    println!("  Esc  →  quit");
+    if demo_font_data().is_none() {
+        eprintln!(
+            "demo: no system font found at the candidate paths — text \
+             will render as zero-size. Edit `load_demo_font_bytes` in \
+             main.rs to point at a TTF on your machine."
+        );
+    }
 
     let event_loop = EventLoop::new().expect("event loop");
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);

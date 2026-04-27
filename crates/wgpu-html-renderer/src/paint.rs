@@ -70,11 +70,23 @@ pub struct Quad {
     pub pattern: Pattern,
 }
 
-/// Flat list of paint commands. Currently just quads; later milestones
-/// will add glyph runs, images, clips.
+/// One glyph quad. The renderer's glyph pipeline samples a single
+/// `R8Unorm` atlas and multiplies coverage by `color`. UVs are in
+/// `[0, 1]` across the atlas.
+#[derive(Debug, Clone, Copy)]
+pub struct GlyphQuad {
+    pub rect: Rect,
+    pub color: Color,
+    pub uv_min: [f32; 2],
+    pub uv_max: [f32; 2],
+}
+
+/// Flat list of paint commands. The renderer draws `quads` first, then
+/// `glyphs` on top, in source order within each list.
 #[derive(Debug, Default, Clone)]
 pub struct DisplayList {
     pub quads: Vec<Quad>,
+    pub glyphs: Vec<GlyphQuad>,
 }
 
 impl DisplayList {
@@ -194,7 +206,27 @@ impl DisplayList {
         self
     }
 
+    /// Push one glyph quad. The renderer's glyph pipeline samples the
+    /// shared atlas at `[uv_min, uv_max]` and multiplies coverage by
+    /// `color`.
+    pub fn push_glyph(
+        &mut self,
+        rect: Rect,
+        color: Color,
+        uv_min: [f32; 2],
+        uv_max: [f32; 2],
+    ) -> &mut Self {
+        self.glyphs.push(GlyphQuad {
+            rect,
+            color,
+            uv_min,
+            uv_max,
+        });
+        self
+    }
+
     pub fn clear(&mut self) {
         self.quads.clear();
+        self.glyphs.clear();
     }
 }

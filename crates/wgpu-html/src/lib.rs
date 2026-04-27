@@ -10,5 +10,7 @@ pub use wgpu_html_renderer as renderer;
 pub use wgpu_html_style as style;
 pub use wgpu_html_tree as tree;
 
+pub use wgpu_html_text as text;
+
 pub mod paint;
-pub use paint::paint_tree;
+pub use paint::{paint_tree, paint_tree_with_text};

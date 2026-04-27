@@ -1,4 +1,5 @@
 use crate::common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, LinkAs, ReferrerPolicy};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct Link {
@@ -16,10 +17,10 @@ pub struct Link {
   pub spellcheck: Option<bool>,
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
-  // html attr: aria-*
-  pub aria_star: Option<String>,
-  // html attr: data-*
-  pub data_star: Option<String>,
+  // html attr: aria-* (suffix → value)
+  pub aria_attrs: HashMap<String, String>,
+  // html attr: data-* (suffix → value)
+  pub data_attrs: HashMap<String, String>,
   pub href: Option<String>,
   pub rel: Option<String>,
   // html attr: type

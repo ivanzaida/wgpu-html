@@ -420,3 +420,32 @@ fn inline_style_ignores_unknown_props() {
     // Should not panic, returns a (otherwise default) Style.
     let _ = parse_inline_style("nonsense: 123; color: blue;");
 }
+
+// --------------------------------------------------------------------------
+// data-* / aria-* preserved as maps (every attribute kept, not last-wins)
+// --------------------------------------------------------------------------
+
+#[test]
+fn multiple_data_attrs_are_all_preserved() {
+    let r = root(r#"<div data-id="42" data-name="hello" data-foo="bar"></div>"#);
+    let Element::Div(d) = &r.element else {
+        panic!("expected div");
+    };
+    assert_eq!(d.data_attrs.len(), 3);
+    assert_eq!(d.data_attrs.get("id").map(String::as_str), Some("42"));
+    assert_eq!(d.data_attrs.get("name").map(String::as_str), Some("hello"));
+    assert_eq!(d.data_attrs.get("foo").map(String::as_str), Some("bar"));
+    assert!(d.aria_attrs.is_empty());
+}
+
+#[test]
+fn multiple_aria_attrs_are_all_preserved() {
+    let r = root(r#"<button aria-label="Close" aria-pressed="false" aria-controls="menu"></button>"#);
+    let Element::Button(b) = &r.element else {
+        panic!("expected button");
+    };
+    assert_eq!(b.aria_attrs.len(), 3);
+    assert_eq!(b.aria_attrs.get("label").map(String::as_str), Some("Close"));
+    assert_eq!(b.aria_attrs.get("pressed").map(String::as_str), Some("false"));
+    assert_eq!(b.aria_attrs.get("controls").map(String::as_str), Some("menu"));
+}

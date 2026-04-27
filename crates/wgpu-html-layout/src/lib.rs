@@ -16,6 +16,7 @@
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{BorderStyle, BoxSizing, CssLength, Display};
 use wgpu_html_style::{CascadedNode, CascadedTree};
+use wgpu_html_text::{ShapedRun, TextContext};
 use wgpu_html_tree::{Element, Node, Tree};
 
 mod color;
@@ -182,6 +183,14 @@ pub struct LayoutBox {
     /// rendered** (paint emits straight-edge quads).
     pub border_radius: CornerRadii,
     pub kind: BoxKind,
+    /// For text leaves (`BoxKind::Text`): the shaped + atlas-packed
+    /// glyph run, in run-relative pixel coordinates with `(0, 0)` at
+    /// the line-box top-left. `None` when no font is registered or
+    /// the text was empty.
+    pub text_run: Option<ShapedRun>,
+    /// For text leaves: the resolved foreground color used when paint
+    /// emits glyph quads. Defaults to opaque black if unset.
+    pub text_color: Option<Color>,
     pub children: Vec<LayoutBox>,
 }
 
@@ -189,7 +198,7 @@ pub struct LayoutBox {
 pub enum BoxKind {
     /// A regular block element.
     Block,
-    /// A text leaf. Contains no laid-out content yet.
+    /// A text leaf. The shaped run lives in `LayoutBox::text_run`.
     Text,
 }
 
@@ -271,19 +280,45 @@ fn collect_hit_path(b: &LayoutBox, x: f32, y: f32, path: &mut Vec<usize>) {
 // ---------------------------------------------------------------------------
 
 /// Lay the cascaded tree out into a viewport of `viewport_w × viewport_h`
-/// physical pixels. The returned root box's `margin_rect` covers the viewport.
-pub fn layout(tree: &CascadedTree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox> {
+/// physical pixels, using `text_ctx` to shape any text leaves. The
+/// returned root box's `margin_rect` covers the viewport.
+pub fn layout_with_text(
+    tree: &CascadedTree,
+    text_ctx: &mut TextContext,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+) -> Option<LayoutBox> {
     let root = tree.root.as_ref()?;
     let mut ctx = Ctx {
         viewport_w,
         viewport_h,
+        scale,
+        text: TextCtx { ctx: text_ctx },
     };
     Some(layout_block(root, 0.0, 0.0, viewport_w, viewport_h, &mut ctx))
 }
 
-pub(crate) struct Ctx {
+/// Compatibility wrapper for callers that don't render text. Builds a
+/// throw-away `TextContext` (no fonts registered → text leaves shape
+/// to zero size) at scale 1.0.
+pub fn layout(tree: &CascadedTree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox> {
+    let mut text_ctx = TextContext::new(64);
+    layout_with_text(tree, &mut text_ctx, viewport_w, viewport_h, 1.0)
+}
+
+pub(crate) struct Ctx<'a> {
     pub viewport_w: f32,
     pub viewport_h: f32,
+    pub scale: f32,
+    pub text: TextCtx<'a>,
+}
+
+/// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
+/// every caller to thread a lifetime through. Passes shaping calls
+/// through to the underlying context.
+pub(crate) struct TextCtx<'a> {
+    pub ctx: &'a mut TextContext,
 }
 
 // ---------------------------------------------------------------------------
@@ -311,20 +346,35 @@ fn layout_block(
     container_h: f32,
     ctx: &mut Ctx,
 ) -> LayoutBox {
-    // Text leaves: no styling, zero size — placeholder until M5.
-    if let Element::Text(_) = &node.element {
+    // Text leaves: shape with the first registered font (T3
+    // simplification — proper font-family inheritance lands in T4).
+    // If no font is registered, the run is `None` and the box has
+    // zero size, matching pre-text behaviour.
+    if let Element::Text(s) = &node.element {
+        let (run, w, h) = shape_text_run(s, &node.style, ctx);
+        // The text node's `style.color` was filled in by cascade
+        // inheritance from the nearest ancestor that set `color`.
+        // Fall back to opaque black when no ancestor specified one.
+        let text_color = node
+            .style
+            .color
+            .as_ref()
+            .and_then(resolve_color)
+            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
         return LayoutBox {
-            margin_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
-            border_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
-            content_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
+            margin_rect: Rect::new(origin_x, origin_y, w, h),
+            border_rect: Rect::new(origin_x, origin_y, w, h),
+            content_rect: Rect::new(origin_x, origin_y, w, h),
             background: None,
-            background_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
+            background_rect: Rect::new(origin_x, origin_y, w, h),
             background_radii: CornerRadii::zero(),
             border: Insets::zero(),
             border_colors: BorderColors::default(),
             border_styles: BorderStyles::default(),
             border_radius: CornerRadii::zero(),
             kind: BoxKind::Text,
+            text_run: run,
+            text_color: Some(text_color),
             children: Vec::new(),
         };
     }
@@ -490,7 +540,67 @@ fn layout_block(
         border_styles,
         border_radius,
         kind: BoxKind::Block,
+        text_run: None,
+        text_color: None,
         children,
+    }
+}
+
+/// Shape a text-node string against the current `TextContext`. Reads
+/// `font-size` and `line-height` from the cascaded style (which the
+/// inheritance pass filled in from the nearest ancestor that set
+/// them); falls back to 16px / 1.25× when unset. Picks the first
+/// registered font for now — proper `font-family` matching is T4.
+fn shape_text_run(
+    text: &str,
+    style: &Style,
+    ctx: &mut Ctx,
+) -> (Option<ShapedRun>, f32, f32) {
+    if text.is_empty() {
+        return (None, 0.0, 0.0);
+    }
+    let Some(handle) = ctx.text.ctx.font_db.first_handle() else {
+        return (None, 0.0, 0.0);
+    };
+    let size_css = font_size_px(style).unwrap_or(16.0);
+    let line_h_css = line_height_px(style, size_css);
+    let size_px = size_css * ctx.scale;
+    let line_height = line_h_css * ctx.scale;
+    match ctx.text.ctx.shape_and_pack(text, handle, size_px, line_height) {
+        Some(run) => {
+            let w = run.width;
+            let h = run.height;
+            (Some(run), w, h)
+        }
+        None => (None, 0.0, 0.0),
+    }
+}
+
+/// Resolve `font-size` to CSS pixels. `Em` and `Rem` use 16px as the
+/// reference (the T3 placeholder — proper `em` against the parent's
+/// computed font size lands in T4 once the cascade tracks computed
+/// values). `Percent`, viewport-relative units, and `auto` aren't
+/// meaningful here yet and fall through.
+fn font_size_px(style: &Style) -> Option<f32> {
+    use wgpu_html_models::common::css_enums::CssLength;
+    match style.font_size.as_ref()? {
+        CssLength::Px(v) => Some(*v),
+        CssLength::Em(v) | CssLength::Rem(v) => Some(v * 16.0),
+        _ => None,
+    }
+}
+
+/// Resolve `line-height` to CSS pixels. CSS allows a unitless number
+/// (multiplier of font size); we currently parse line-height as
+/// `CssLength`, so a `Px` value is the literal height and `Em` /
+/// `Rem` multiply against `font_size_px`. Falls back to 1.25× the
+/// font size.
+fn line_height_px(style: &Style, font_size: f32) -> f32 {
+    use wgpu_html_models::common::css_enums::CssLength;
+    match style.line_height.as_ref() {
+        Some(CssLength::Px(v)) => *v,
+        Some(CssLength::Em(v)) | Some(CssLength::Rem(v)) => v * font_size,
+        _ => font_size * 1.25,
     }
 }
 

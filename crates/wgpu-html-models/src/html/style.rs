@@ -1,4 +1,5 @@
 use crate::common::html_enums::{AriaRole, HtmlDirection};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct StyleElement {
@@ -16,10 +17,10 @@ pub struct StyleElement {
   pub spellcheck: Option<bool>,
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
-  // html attr: aria-*
-  pub aria_star: Option<String>,
-  // html attr: data-*
-  pub data_star: Option<String>,
+  // html attr: aria-* (suffix → value)
+  pub aria_attrs: HashMap<String, String>,
+  // html attr: data-* (suffix → value)
+  pub data_attrs: HashMap<String, String>,
   // html attr: type
   pub r#type: Option<String>,
   pub media: Option<String>,

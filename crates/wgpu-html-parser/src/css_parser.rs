@@ -1,9 +1,80 @@
+use std::collections::HashMap;
+
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::*;
 
-/// Parse an inline CSS style string (e.g. `"display: flex; color: red;"`) into a `Style` struct.
+use crate::style_props::clear_value_for;
+
+/// CSS-wide keyword that any property can take as its value.
+/// Resolution against the parent's resolved style happens in the
+/// cascade — see `wgpu_html_style::keywords`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum CssWideKeyword {
+    /// Use the parent's resolved value for this property, regardless
+    /// of whether the property is normally inherited.
+    Inherit,
+    /// Use the property's initial value (no UA defaults are tracked,
+    /// so this resolves to "unset" in the typed `Style`).
+    Initial,
+    /// Behaves like `inherit` for inherited properties, like `initial`
+    /// for non-inherited ones.
+    Unset,
+}
+
+impl CssWideKeyword {
+    pub fn from_value(v: &str) -> Option<Self> {
+        let trimmed = v.trim();
+        if trimmed.eq_ignore_ascii_case("inherit") {
+            Some(Self::Inherit)
+        } else if trimmed.eq_ignore_ascii_case("initial") {
+            Some(Self::Initial)
+        } else if trimmed.eq_ignore_ascii_case("unset") {
+            Some(Self::Unset)
+        } else {
+            None
+        }
+    }
+}
+
+/// One block's worth of CSS declarations, partitioned by importance.
+/// Per CSS-Cascade-3 the cascade applies normal declarations first
+/// (with rule + inline ordering) and then important declarations on
+/// top, so we keep the two `Style` payloads separate from parse time.
+///
+/// CSS-wide keywords (`inherit / initial / unset`) live in side-car
+/// hash maps keyed by the property's CSS name (kebab-case). They
+/// override any value the same property might have on `normal` /
+/// `important` from a different layer; the cascade resolves them
+/// against the parent's resolved style.
+#[derive(Debug, Clone, Default)]
+pub struct StyleDecls {
+    pub normal: Style,
+    pub important: Style,
+    pub keywords_normal: HashMap<String, CssWideKeyword>,
+    pub keywords_important: HashMap<String, CssWideKeyword>,
+}
+
+/// Parse an inline CSS style string (e.g. `"display: flex; color: red;"`)
+/// into a `Style` struct. `!important` is recognised and stripped from
+/// values so they parse correctly, but its effect is folded back in:
+/// when a property is given as `!important`, it overrides the same
+/// property declared as normal in the *same* string. CSS-wide
+/// keywords (`inherit / initial / unset`) are recognised but dropped
+/// — this back-compat surface returns `Style` only, so a keyword
+/// resolution would need a parent. Use [`parse_inline_style_decls`]
+/// to preserve the keywords for the cascade to handle.
 pub fn parse_inline_style(css: &str) -> Style {
-    let mut style = Style::default();
+    let decls = parse_inline_style_decls(css);
+    let mut out = decls.normal;
+    overlay(&mut out, &decls.important);
+    out
+}
+
+/// Full-fidelity parse: separate `normal` and `important` `Style`
+/// payloads plus per-property CSS-wide keyword side-cars. Cascade-3
+/// uses all four to compose final values.
+pub fn parse_inline_style_decls(css: &str) -> StyleDecls {
+    let mut decls = StyleDecls::default();
     for declaration in css.split(';') {
         let declaration = declaration.trim();
         if declaration.is_empty() {
@@ -11,11 +82,110 @@ pub fn parse_inline_style(css: &str) -> Style {
         }
         if let Some((property, value)) = declaration.split_once(':') {
             let property = property.trim().to_ascii_lowercase();
-            let value = value.trim();
-            apply_css_property(&mut style, &property, value);
+            let (value, important) = strip_important(value.trim());
+
+            // CSS-wide keywords pre-empt the value parsers. They go
+            // into the side-car keyword map and clear any matching
+            // value the same bucket may have set earlier in this same
+            // declaration block — within a layer, last-write-wins,
+            // so a later keyword has to displace any earlier value.
+            if let Some(kw) = CssWideKeyword::from_value(value) {
+                if important {
+                    clear_value_for(&property, &mut decls.important);
+                    decls.keywords_important.insert(property, kw);
+                } else {
+                    clear_value_for(&property, &mut decls.normal);
+                    decls.keywords_normal.insert(property, kw);
+                }
+                continue;
+            }
+
+            // Conversely: a value declaration drops any keyword
+            // override the same bucket may have recorded earlier in
+            // the block.
+            if important {
+                decls.keywords_important.remove(&property);
+                apply_css_property(&mut decls.important, &property, value);
+            } else {
+                decls.keywords_normal.remove(&property);
+                apply_css_property(&mut decls.normal, &property, value);
+            }
         }
     }
-    style
+    decls
+}
+
+/// Recognise a trailing `!important` (or `! important`, with arbitrary
+/// whitespace between the bang and the keyword, per CSS spec). Returns
+/// the cleaned value and a flag.
+fn strip_important(value: &str) -> (&str, bool) {
+    let trimmed = value.trim_end();
+    // Take the trailing alphabetic word; if it's `important` (case-
+    // insensitive), look back for the `!` allowing whitespace between.
+    let bytes = trimmed.as_bytes();
+    let mut i = bytes.len();
+    while i > 0 && bytes[i - 1].is_ascii_alphabetic() {
+        i -= 1;
+    }
+    let word = &trimmed[i..];
+    if !word.eq_ignore_ascii_case("important") {
+        return (trimmed, false);
+    }
+    // Walk back over whitespace, then expect `!`.
+    let mut j = i;
+    while j > 0 && bytes[j - 1].is_ascii_whitespace() {
+        j -= 1;
+    }
+    if j == 0 || bytes[j - 1] != b'!' {
+        return (trimmed, false);
+    }
+    let cleaned = trimmed[..j - 1].trim_end();
+    (cleaned, true)
+}
+
+/// Right-merge: copy each `Some` field from `src` over the matching
+/// field on `dst`. Lives here (instead of in `wgpu-html-style::merge`)
+/// so the parser is self-contained when folding `!important` back into
+/// the legacy `parse_inline_style` API. The full Style cascade still
+/// uses `wgpu_html_style::merge` which is identical in behaviour.
+fn overlay(dst: &mut Style, src: &Style) {
+    macro_rules! overlay_fields {
+        ($($field:ident),* $(,)?) => {
+            $(
+                if src.$field.is_some() {
+                    dst.$field = src.$field.clone();
+                }
+            )*
+        };
+    }
+    overlay_fields!(
+        display, position,
+        top, right, bottom, left,
+        width, height, min_width, min_height, max_width, max_height,
+        margin, margin_top, margin_right, margin_bottom, margin_left,
+        padding, padding_top, padding_right, padding_bottom, padding_left,
+        color,
+        background, background_color, background_image, background_size,
+        background_position, background_repeat, background_clip,
+        border,
+        border_top_width, border_right_width, border_bottom_width, border_left_width,
+        border_top_style, border_right_style, border_bottom_style, border_left_style,
+        border_top_color, border_right_color, border_bottom_color, border_left_color,
+        border_top_left_radius, border_top_right_radius,
+        border_bottom_right_radius, border_bottom_left_radius,
+        border_top_left_radius_v, border_top_right_radius_v,
+        border_bottom_right_radius_v, border_bottom_left_radius_v,
+        font_family, font_size, font_weight, font_style,
+        line_height, letter_spacing, text_align, text_decoration,
+        text_transform, white_space,
+        overflow, overflow_x, overflow_y, opacity, visibility, z_index,
+        flex_direction, flex_wrap, justify_content, align_items, align_content,
+        gap, row_gap, column_gap,
+        flex, flex_grow, flex_shrink, flex_basis,
+        grid_template_columns, grid_template_rows, grid_column, grid_row,
+        transform, transform_origin, transition, animation,
+        cursor, pointer_events, user_select, box_shadow, box_sizing,
+    );
 }
 
 fn apply_css_property(style: &mut Style, property: &str, value: &str) {
@@ -1005,5 +1175,74 @@ mod tests {
         assert_eq!(style.z_index, Some(10));
         assert!(matches!(style.box_sizing, Some(BoxSizing::BorderBox)));
         assert!(matches!(style.cursor, Some(Cursor::Pointer)));
+    }
+
+    // ---------------------------------------------------------------------
+    // !important
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn important_routes_to_important_bucket() {
+        let decls = parse_inline_style_decls("color: red !important;");
+        assert!(decls.normal.color.is_none());
+        assert!(decls.important.color.is_some());
+    }
+
+    #[test]
+    fn normal_and_important_in_same_block_split_by_property() {
+        let decls = parse_inline_style_decls(
+            "color: red !important; background-color: blue;",
+        );
+        assert!(decls.normal.color.is_none());
+        assert!(decls.normal.background_color.is_some());
+        assert!(decls.important.color.is_some());
+        assert!(decls.important.background_color.is_none());
+    }
+
+    #[test]
+    fn important_value_parses_as_if_it_were_normal() {
+        // The trailing `!important` must not bleed into the value.
+        let decls = parse_inline_style_decls("width: 100px !important;");
+        assert!(matches!(decls.important.width, Some(CssLength::Px(v)) if v == 100.0));
+    }
+
+    #[test]
+    fn important_is_case_insensitive_and_whitespace_tolerant() {
+        // CSS spec allows whitespace between `!` and `important`,
+        // and the keyword is case-insensitive.
+        for css in [
+            "color: red !important;",
+            "color: red ! important;",
+            "color: red  !  IMPORTANT  ;",
+            "color: red !IMPORTANT;",
+        ] {
+            let decls = parse_inline_style_decls(css);
+            assert!(
+                decls.important.color.is_some(),
+                "expected `{css}` to be marked important"
+            );
+            assert!(decls.normal.color.is_none(), "`{css}` leaked into normal");
+        }
+    }
+
+    #[test]
+    fn parse_inline_style_folds_important_back_in() {
+        // Back-compat path: `parse_inline_style` returns a single
+        // `Style` with !important values overlaid on top of normal
+        // ones, so existing callers see the "winning" value.
+        let style = parse_inline_style("color: red; color: blue !important;");
+        let c = style.color.expect("color set");
+        assert!(matches!(c, CssColor::Named(s) if s == "blue"));
+    }
+
+    #[test]
+    fn bare_word_important_without_bang_is_not_important() {
+        // `important` without the `!` must not flip the !important
+        // bit. Whether the value parses into `decls.normal.color` at
+        // all depends on the property's own permissiveness; the
+        // invariant we're asserting here is just that the important
+        // bucket stays untouched.
+        let decls = parse_inline_style_decls("color: red important;");
+        assert!(decls.important.color.is_none());
     }
 }

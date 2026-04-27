@@ -4,9 +4,11 @@
 //! single element), comma-separated selector lists. No combinators
 //! (descendant, child, sibling). Universal `*` matches anything.
 
+use std::collections::HashMap;
+
 use wgpu_html_models::Style;
 
-use crate::css_parser::parse_inline_style;
+use crate::css_parser::{CssWideKeyword, parse_inline_style_decls};
 
 /// One simple selector: optionally a tag (or universal), optionally an id,
 /// any number of classes. All conditions must hold for a match.
@@ -34,10 +36,21 @@ impl Selector {
 }
 
 /// One rule: any of the listed selectors triggers the declarations.
-#[derive(Debug, Clone)]
+/// `declarations` holds the normal-importance properties; `important`
+/// holds the ones marked `!important`. Cascade applies them in
+/// separate passes per CSS-Cascade-3 §6.4.
+///
+/// `keywords` and `important_keywords` carry per-property CSS-wide
+/// keywords (`inherit / initial / unset`) that override any matching
+/// value the cascade has accumulated. Keys are CSS property names in
+/// kebab-case (`color`, `font-size`, …).
+#[derive(Debug, Clone, Default)]
 pub struct Rule {
     pub selectors: Vec<Selector>,
     pub declarations: Style,
+    pub important: Style,
+    pub keywords: HashMap<String, CssWideKeyword>,
+    pub important_keywords: HashMap<String, CssWideKeyword>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -72,11 +85,14 @@ pub fn parse_stylesheet(css: &str) -> Stylesheet {
         let body = &after_open[..close];
 
         let selectors = parse_selector_list(&header);
-        let declarations = parse_inline_style(body);
+        let decls = parse_inline_style_decls(body);
         if !selectors.is_empty() {
             rules.push(Rule {
                 selectors,
-                declarations,
+                declarations: decls.normal,
+                important: decls.important,
+                keywords: decls.keywords_normal,
+                important_keywords: decls.keywords_important,
             });
         }
 

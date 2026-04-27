@@ -1,0 +1,9 @@
+[package]
+name = "wgpu-html-text"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu-html-tree.workspace = true
+wgpu.workspace = true
+cosmic-text = { version = "0.12", default-features = false, features = ["std", "swash", "shape-run-cache"] }

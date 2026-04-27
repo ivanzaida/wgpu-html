@@ -52,11 +52,13 @@ Frame on surface
 - Global attributes: `id, class, style, title, lang, dir, hidden,
   tabindex, accesskey, contenteditable, draggable, spellcheck,
   translate, role`.
+- `aria-*` and `data-*` captured into per-element
+  `aria_attrs: HashMap<String, String>` and
+  `data_attrs: HashMap<String, String>` (key = the suffix after the
+  prefix). All attributes preserved.
 
 **Missing / partial**
 - Comments + DOCTYPE are tokenized then **dropped** at tree-build time.
-- `aria-*` and `data-*` collapsed into single `aria_star` / `data_star`
-  slots (last one wins).
 - Unknown tags drop their **entire subtree** silently — no diagnostics.
 - No HTML5 insertion-mode state machine (no `<table>` foster-parenting,
   no `</br>` → `<br>` quirk, etc.).

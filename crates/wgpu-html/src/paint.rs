@@ -5,15 +5,40 @@
 
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_renderer::{DisplayList, Rect};
+use wgpu_html_text::TextContext;
 use wgpu_html_tree::Tree;
 
 /// Convenience: cascade `tree` against any embedded `<style>` blocks,
 /// lay it out at `(viewport_w × viewport_h)`, and paint the result into
-/// a fresh display list.
+/// a fresh display list. No text rendering — text leaves contribute
+/// zero size. Use [`paint_tree_with_text`] when fonts are registered.
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
+    let mut ctx = TextContext::new(64);
+    paint_tree_with_text(tree, &mut ctx, viewport_w, viewport_h, 1.0)
+}
+
+/// Cascade + lay out + paint, threading a long-lived `TextContext`
+/// through. Syncs the context's font db against `tree.fonts` first so
+/// any newly-registered face is loaded before shaping.
+///
+/// `scale` is the CSS-px → physical-px factor (winit's `scale_factor`).
+pub fn paint_tree_with_text(
+    tree: &Tree,
+    text_ctx: &mut TextContext,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+) -> DisplayList {
+    text_ctx.sync_fonts(&tree.fonts);
     let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
-    if let Some(root) = wgpu_html_layout::layout(&cascaded, viewport_w, viewport_h) {
+    if let Some(root) = wgpu_html_layout::layout_with_text(
+        &cascaded,
+        text_ctx,
+        viewport_w,
+        viewport_h,
+        scale,
+    ) {
         paint_box(&root, &mut list);
     }
     list
@@ -64,6 +89,23 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
         }
     } else {
         paint_border_edges(b, out);
+    }
+
+    // Text leaves: emit one glyph quad per shaped glyph, positioned
+    // relative to the text box's content origin. Glyph UVs were
+    // computed at shaping time; the renderer samples its single R8
+    // atlas with them.
+    if let Some(run) = &b.text_run {
+        let color = b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]);
+        let origin = b.content_rect;
+        for g in &run.glyphs {
+            out.push_glyph(
+                Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),
+                color,
+                g.uv_min,
+                g.uv_max,
+            );
+        }
     }
 
     for child in &b.children {

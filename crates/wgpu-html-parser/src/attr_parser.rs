@@ -624,10 +624,10 @@ macro_rules! set_global {
                 "translate" => $el.translate = Some(parse_bool_attr(value)),
                 "role" => $el.role = parse_aria_role(value),
                 _ => {
-                    if name.starts_with("aria-") {
-                        $el.aria_star = Some(value.clone());
-                    } else if name.starts_with("data-") {
-                        $el.data_star = Some(value.clone());
+                    if let Some(suffix) = name.strip_prefix("aria-") {
+                        $el.aria_attrs.insert(suffix.to_string(), value.clone());
+                    } else if let Some(suffix) = name.strip_prefix("data-") {
+                        $el.data_attrs.insert(suffix.to_string(), value.clone());
                     }
                 }
             }

@@ -9,4 +9,5 @@ wgpu-html-models.workspace   = true
 wgpu-html-parser.workspace   = true
 wgpu-html-renderer.workspace = true
 wgpu-html-style.workspace    = true
+wgpu-html-text.workspace     = true
 wgpu-html-tree.workspace     = true
