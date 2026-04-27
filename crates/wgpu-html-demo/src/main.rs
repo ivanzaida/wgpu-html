@@ -12,24 +12,7 @@ use wgpu_html::renderer::{FrameOutcome, Renderer};
 
 /// Block flow: body fills the viewport, header on top, then three cards
 /// stacking below it. Each card has padding and an inner highlight strip.
-const DOC: &str = r#"
-<body style="width: 100vw; height: 100vh; background-color: #f2f2f5; padding: 32px;">
-  <div style="height: 64px; background-color: #3366d9; margin-bottom: 16px;"></div>
-
-  <div style="background-color: #ec5c5c; padding: 12px; margin-bottom: 12px;">
-    <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
-  </div>
-
-  <div style="background-color: #5cc775; padding: 12px; margin-bottom: 12px;">
-    <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
-  </div>
-
-  <div style="background-color: #f7bd4d; padding: 12px;">
-    <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
-  </div>
-</body>
-"#;
-
+const DOC: &str = include_str!("../html/base.html");
 #[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,
