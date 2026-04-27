@@ -1,8 +1,12 @@
 //! CSS stylesheet parsing — selectors + rules.
 //!
-//! Scope: simple selectors only (combinations of tag, id, classes on a
-//! single element), comma-separated selector lists. No combinators
-//! (descendant, child, sibling). Universal `*` matches anything.
+//! Scope: comma-separated selector lists, each entry being a chain of
+//! compound selectors joined by the descendant combinator (whitespace).
+//! A compound selector is the same simple-selector mix supported
+//! before: optional tag (or universal `*`), optional id, any number
+//! of classes. Other combinators (`>`, `+`, `~`) and pseudo-classes /
+//! pseudo-elements are not recognized — selectors using them are
+//! dropped during parsing.
 
 use std::collections::HashMap;
 
@@ -10,8 +14,16 @@ use wgpu_html_models::Style;
 
 use crate::css_parser::{CssWideKeyword, parse_inline_style_decls};
 
-/// One simple selector: optionally a tag (or universal), optionally an id,
-/// any number of classes. All conditions must hold for a match.
+/// One selector: a "subject" compound (tag/id/classes/universal) for
+/// the element itself, plus an optional ordered list of ancestor
+/// compounds that must be found somewhere up the parent chain
+/// (descendant combinator).
+///
+/// `ancestors[0]` is the closest ancestor (the compound that appears
+/// immediately to the left of the subject in the source); deeper
+/// entries have to be found further up. Each ancestor compound is
+/// itself a `Selector` with `ancestors` empty — the chain is flat by
+/// convention.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Selector {
     /// `Some("div")` for `div`, `None` for universal `*` or no tag part.
@@ -22,12 +34,28 @@ pub struct Selector {
     /// the selector still matches even if no tag/id/class constraints
     /// remain after the universal.
     pub universal: bool,
+    /// Required ancestor compounds, ordered closest → furthest. Empty
+    /// for the common simple-selector case. Entries are themselves
+    /// `Selector`s but always have `ancestors` empty.
+    pub ancestors: Vec<Selector>,
 }
 
 impl Selector {
     /// Standard CSS specificity packed into a u32:
-    /// (id_count << 16) | (class_count << 8) | tag_count.
+    /// `(id_count << 16) | (class_count << 8) | tag_count`. For
+    /// descendant chains, every compound contributes (so `.a .b`
+    /// has specificity 2-classes, not 1).
     pub fn specificity(&self) -> u32 {
+        let mut total = self.compound_specificity();
+        for a in &self.ancestors {
+            total += a.compound_specificity();
+        }
+        total
+    }
+
+    /// Specificity of just this compound, ignoring any ancestors. Used
+    /// internally and by `specificity()`.
+    pub fn compound_specificity(&self) -> u32 {
         let id = if self.id.is_some() { 1 } else { 0 };
         let cls = self.classes.len() as u32;
         let tag = if self.tag.is_some() { 1 } else { 0 };
@@ -108,13 +136,38 @@ fn parse_selector_list(s: &str) -> Vec<Selector> {
         .collect()
 }
 
+/// Parse a comma-separated entry into a (possibly descendant-chained)
+/// selector. Returns `None` if the input contains an unsupported
+/// combinator (`>`, `+`, `~`) or syntax we don't recognize.
 fn parse_selector(s: &str) -> Option<Selector> {
+    if s.is_empty() {
+        return None;
+    }
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.is_empty() {
+        return None;
+    }
+    let mut compounds: Vec<Selector> = Vec::with_capacity(parts.len());
+    for p in parts {
+        compounds.push(parse_compound(p)?);
+    }
+    let mut subject = compounds.pop().expect("non-empty");
+    // `compounds` now holds the non-subject parts in source order
+    // (left → right). `ancestors[0]` is the closest ancestor (the
+    // compound immediately to the subject's left), so reverse.
+    compounds.reverse();
+    subject.ancestors = compounds;
+    Some(subject)
+}
+
+/// Parse one whitespace-free compound (tag/id/classes/universal).
+/// Returns `None` if the compound contains anything we don't handle.
+fn parse_compound(s: &str) -> Option<Selector> {
     if s.is_empty() {
         return None;
     }
     let mut sel = Selector::default();
     let mut buf = String::new();
-    // What kind of identifier is currently in `buf`?
     #[derive(Copy, Clone)]
     enum Kind {
         Tag,
@@ -152,8 +205,9 @@ fn parse_selector(s: &str) -> Option<Selector> {
                 kind = Kind::Class;
             }
             c if c.is_alphanumeric() || c == '-' || c == '_' || c == '*' => buf.push(c),
-            // Anything else (whitespace, combinators, attribute selectors, …)
-            // means we don't yet support this selector — skip the rule.
+            // Unsupported character in a single compound (combinators
+            // were already split off as whitespace; pseudo-classes and
+            // attribute selectors land here): skip the whole rule.
             _ => return None,
         }
     }
@@ -237,9 +291,39 @@ mod tests {
     }
 
     #[test]
-    fn rejects_combinators() {
-        assert!(parse_selector("div p").is_none());
+    fn parses_descendant_combinator() {
+        // `div p` → subject `p` with required ancestor `div`.
+        let s = parse_selector("div p").unwrap();
+        assert_eq!(s.tag.as_deref(), Some("p"));
+        assert_eq!(s.ancestors.len(), 1);
+        assert_eq!(s.ancestors[0].tag.as_deref(), Some("div"));
+    }
+
+    #[test]
+    fn parses_three_level_descendant_chain() {
+        // Subject `.c`, immediate ancestor `.b`, further `.a`.
+        let s = parse_selector(".a .b .c").unwrap();
+        assert_eq!(s.classes, vec!["c"]);
+        assert_eq!(s.ancestors.len(), 2);
+        assert_eq!(s.ancestors[0].classes, vec!["b"]);
+        assert_eq!(s.ancestors[1].classes, vec!["a"]);
+    }
+
+    #[test]
+    fn descendant_specificity_sums_compounds() {
+        // `.a .b` → 2 classes worth of specificity, not 1.
+        let two = parse_selector(".a .b").unwrap().specificity();
+        let one = parse_selector(".b").unwrap().specificity();
+        assert!(two > one);
+    }
+
+    #[test]
+    fn rejects_unsupported_combinators() {
+        // `>`, `+`, `~` (and pseudo-classes etc.) still drop the rule.
         assert!(parse_selector("div > p").is_none());
+        assert!(parse_selector("div + p").is_none());
+        assert!(parse_selector("div ~ p").is_none());
+        assert!(parse_selector("a:hover").is_none());
     }
 
     #[test]

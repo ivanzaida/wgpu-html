@@ -108,18 +108,23 @@ fn comma_separated_selector_list() {
 }
 
 #[test]
-fn descendant_combinator_drops_rule() {
-    // We don't support combinators yet → the entire selector is rejected
-    // and the rule with that single selector is dropped.
+fn descendant_combinator_keeps_rule() {
+    // `div p` parses into a `p`-subject selector with `div` as a
+    // required ancestor. The rule is preserved.
     let sheet = parse_stylesheet("div p { color: red; }");
-    assert!(sheet.rules.is_empty());
+    assert_eq!(sheet.rules.len(), 1);
+    let sel = &sheet.rules[0].selectors[0];
+    assert_eq!(sel.tag.as_deref(), Some("p"));
+    assert_eq!(sel.ancestors.len(), 1);
+    assert_eq!(sel.ancestors[0].tag.as_deref(), Some("div"));
 }
 
 #[test]
-fn descendant_in_comma_list_skips_only_that_selector() {
-    let sheet = parse_stylesheet("div p, .ok { color: red; }");
+fn child_combinator_drops_rule_in_comma_list() {
+    // The unsupported `>` combinator drops just that selector;
+    // sibling entries in the comma list survive.
+    let sheet = parse_stylesheet("div > p, .ok { color: red; }");
     let sels = &sheet.rules[0].selectors;
-    // Unsupported `div p` was filtered out; `.ok` survives.
     assert_eq!(sels.len(), 1);
     assert_eq!(sels[0].classes, vec!["ok"]);
 }

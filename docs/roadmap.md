@@ -7,8 +7,19 @@ A GPU renderer for **a static tree of HTML elements**, drawn through `wgpu`.
 Explicit non-goals:
 
 - Not a browser. No HTML parsing, no CSS parsing, no DOM.
-- No JavaScript, no scripting hooks, no networking, no plugins.
-- No interactivity / events / hit-testing yet (revisit later).
+- **No JavaScript, ever.** Not "deferred", not "later" — out of
+  scope for the lifetime of the project. No `<script>` execution,
+  no JS engine embed (V8 / SpiderMonkey / QuickJS / …), no
+  `eval`-equivalent, no scripting hooks, no `addEventListener`-
+  style callbacks, no `requestAnimationFrame` JS callback, no
+  `eval` of inline `on*=` attributes, no JS bridge from the host.
+  Interactivity is expressed entirely through CSS pseudo-classes
+  and host-driven element-state mutation (see
+  `spec/interactivity.md`). `<script>` content stays parsed-but-
+  inert.
+- No networking, no plugins.
+- Interactivity / events / hit-testing — covered by
+  `spec/interactivity.md` as a separate, non-JS surface.
 - No accessibility tree, no print layout, no SVG rendering.
 
 The user constructs a `Tree` programmatically from typed model structs and
@@ -111,16 +122,23 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 ### M4½ — CSS stylesheets (selectors + cascade) ✅
 
 - `wgpu-html-parser::parse_stylesheet` parses `<style>` block contents
-  into a list of `Rule { selectors, declarations }` with `Selector
-  { tag, id, classes, universal }` (simple selectors only — no
-  combinators yet) and standard CSS specificity
+  into a list of `Rule { selectors, declarations }`. A `Selector`
+  carries one subject compound (`tag`, `id`, `classes`, `universal`)
+  plus an optional `ancestors` chain for descendant combinators
+  (`.row .item`, `div p span`, …). Specificity sums across all
+  compounds in the chain, matching standard CSS. Other combinators
+  (`>`, `+`, `~`) and pseudo-classes / pseudo-elements still drop
+  the rule.
 - New `wgpu-html-style` crate:
   - `cascade(&Tree) -> CascadedTree` walks the tree, collects every
     `<style>` block's text, parses it once, and computes a final
     `Style` per element
   - Cascade order: matched rules in ascending specificity → element's
     inline `style="…"` attribute on top
-  - `matches_selector` checks tag / id / multi-class / universal
+  - `matches_selector_in_tree` checks the subject compound and walks
+    the element's ancestor chain to evaluate descendant requirements;
+    `matches_selector` is the simple-case wrapper used when no
+    ancestor context is available
 - `wgpu-html-layout::layout` now takes `&CascadedTree`; styles are
   precomputed once per node, never re-parsed during layout
 - `paint_tree` chains parse → cascade → layout → paint internally
@@ -154,11 +172,44 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 - `<img>` with width / height
 - Demo: a card with an inline image
 
-### M9 — flexbox
+### M9 — flexbox ✅ (landed early)
 
-- `display: flex`, main / cross axis, basis / grow / shrink
-- Wrap, justify-content, align-items, gap
-- Demo: a flex toolbar + content area
+The full CSS-Flexbox-1 algorithm now lives in
+`wgpu-html-layout::flex`. Covered:
+
+- `display: flex` / `inline-flex`
+- `flex-direction` (row / row-reverse / column / column-reverse)
+- `flex-wrap` (nowrap / wrap / wrap-reverse), multi-line lines
+- `flex-grow` / `flex-shrink` / `flex-basis` with the iterative
+  freeze loop (CSS-Flex-1 §9.7), min/max clamping, and proper
+  `flex` shorthand expansion in the parser
+- `justify-content` (flex-start / flex-end / center / space-between /
+  space-around / space-evenly, plus the start / end / left / right
+  aliases)
+- `align-items` and per-item `align-self`
+- `align-content` for multi-line containers (default `stretch`)
+- `order` (stable sort by order, then source index)
+- `gap` / `row-gap` / `column-gap` (per-axis longhands win over
+  the shorthand)
+- `margin: auto` on flex items: absorbs free space on the main axis
+  and consumes leftover line cross space on the cross axis
+- `min-width` / `max-width` / `min-height` / `max-height` clamping
+  on flex items (and on plain blocks too, via the shared
+  `clamp_axis` helper in `lib.rs`)
+- Block-level `margin-left: auto; margin-right: auto;` centering for
+  fixed-width blocks outside flex containers
+
+Deferred:
+
+- Baseline alignment of non-text-bearing flex items (we currently
+  track ascent/descent only inside the inline pass). Falls back to
+  `flex-start`.
+- Intrinsic `flex-basis: content` measurement (we currently treat an
+  unspecified basis with no main size as 0; good enough for the
+  ubiquitous `flex: 1` pattern).
+
+Demo: `crates/wgpu-html-demo/html/flex-grow.html` exercises grow,
+clamping, wrap + align-content, align-self, auto-margin, and order.
 
 ### M10 — clipping & overflow
 
@@ -184,11 +235,16 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 
 ## Possible follow-ups (post-M10)
 
-- Hit-testing → coarse pointer interactivity
+- Pointer interactivity (mouse events, hover / focus pseudo-classes,
+  text selection) — see `spec/interactivity.md`. Stays JS-free; the
+  surface is host-driven element-state mutation that re-feeds the
+  cascade.
 - Scroll containers
 - CSS `transform`
 - `@font-face` / multiple fonts
-- Animations (`requestAnimationFrame`-equivalent via render-loop hooks)
+- Render-loop hooks for animation (engine-side, no JS callback) —
+  *not* `requestAnimationFrame`; that name implies a JS callback
+  contract we will never have.
 - Embedding into `egui` or another host (we already do this elsewhere)
 
 ## Versioning

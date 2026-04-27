@@ -65,7 +65,7 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
         root: tree
             .root
             .as_ref()
-            .map(|n| cascade_node(n, &stylesheet, None)),
+            .map(|n| cascade_node(n, &stylesheet, None, &[])),
     }
 }
 
@@ -93,12 +93,16 @@ fn gather(node: &Node, out: &mut Stylesheet) {
     }
 }
 
+/// Recursive cascade. `ancestors[0]` is the immediate parent element,
+/// deeper indices going further up — used by the selector matcher so
+/// descendant-combinator rules (`.row .item`) actually fire.
 fn cascade_node(
     node: &Node,
     sheet: &Stylesheet,
     parent_style: Option<&Style>,
+    ancestors: &[&Element],
 ) -> CascadedNode {
-    let (mut style, keywords) = computed_decls(&node.element, sheet);
+    let (mut style, keywords) = computed_decls_in_tree(&node.element, sheet, ancestors);
 
     // Resolve every CSS-wide keyword override against the parent's
     // already-resolved style. Each entry replaces the matching field
@@ -115,10 +119,15 @@ fn cascade_node(
         inherit_into(&mut style, parent, &keywords);
     }
 
+    // Build the child ancestor chain by prepending this element.
+    let mut child_ancestors: Vec<&Element> = Vec::with_capacity(ancestors.len() + 1);
+    child_ancestors.push(&node.element);
+    child_ancestors.extend_from_slice(ancestors);
+
     let children = node
         .children
         .iter()
-        .map(|c| cascade_node(c, sheet, Some(&style)))
+        .map(|c| cascade_node(c, sheet, Some(&style), &child_ancestors))
         .collect();
     CascadedNode {
         element: node.element.clone(),
@@ -166,6 +175,10 @@ fn inherit_into(
 /// dropping any CSS-wide keyword overrides. Kept for callers that
 /// don't have a parent style on hand and just want the typed values.
 /// Use [`computed_decls`] in the cascade itself.
+///
+/// This convenience does NOT evaluate descendant-combinator rules
+/// (it has no ancestor context); for that, use the cascade walk in
+/// [`cascade`].
 pub fn computed_style(element: &Element, sheet: &Stylesheet) -> Style {
     computed_decls(element, sheet).0
 }
@@ -190,6 +203,17 @@ pub fn computed_decls(
     element: &Element,
     sheet: &Stylesheet,
 ) -> (Style, HashMap<String, CssWideKeyword>) {
+    computed_decls_in_tree(element, sheet, &[])
+}
+
+/// Same as [`computed_decls`] but evaluates descendant-combinator
+/// selectors against the supplied ancestor chain (`ancestors[0]` is
+/// the immediate parent, deeper indices going further up).
+pub fn computed_decls_in_tree(
+    element: &Element,
+    sheet: &Stylesheet,
+    ancestors: &[&Element],
+) -> (Style, HashMap<String, CssWideKeyword>) {
     let mut values = Style::default();
     let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
     let inline = element_style_attr(element).map(parse_inline_style_decls);
@@ -201,7 +225,7 @@ pub fn computed_decls(
         .filter_map(|rule| {
             rule.selectors
                 .iter()
-                .filter(|s| matches_selector(s, element))
+                .filter(|s| matches_selector_in_tree(s, element, ancestors))
                 .map(|s| s.specificity())
                 .max()
                 .map(|spec| (spec, &rule.declarations, &rule.keywords))
@@ -229,7 +253,7 @@ pub fn computed_decls(
         .filter_map(|rule| {
             rule.selectors
                 .iter()
-                .filter(|s| matches_selector(s, element))
+                .filter(|s| matches_selector_in_tree(s, element, ancestors))
                 .map(|s| s.specificity())
                 .max()
                 .map(|spec| (spec, &rule.important, &rule.important_keywords))
@@ -275,7 +299,59 @@ fn apply_layer(
 // Selector matching
 // ---------------------------------------------------------------------------
 
+/// Match the selector's *subject* compound against `element`. Selectors
+/// that carry ancestor requirements (e.g. parsed from `.row .item`)
+/// always fail this check — they need [`matches_selector_in_tree`]
+/// with an ancestor chain to evaluate the descendant combinator.
 pub fn matches_selector(sel: &Selector, element: &Element) -> bool {
+    if !sel.ancestors.is_empty() {
+        return false;
+    }
+    matches_compound(sel, element)
+}
+
+/// Match `sel` against `element` with the element's ancestor chain
+/// available. `ancestors[0]` must be the immediate parent, deeper
+/// indices going further up to the root. Used by the cascade so
+/// descendant-combinator selectors (`.row .item`) actually fire.
+pub fn matches_selector_in_tree(
+    sel: &Selector,
+    element: &Element,
+    ancestors: &[&Element],
+) -> bool {
+    if !matches_compound(sel, element) {
+        return false;
+    }
+    if sel.ancestors.is_empty() {
+        return true;
+    }
+    // Walk `sel.ancestors` (closest required ancestor first) against
+    // the element's actual ancestor chain. Each required ancestor
+    // must be found *somewhere* up the chain; later requirements
+    // continue from where the previous match left off (so the chain
+    // order is preserved).
+    let mut idx = 0usize;
+    for required in &sel.ancestors {
+        let mut matched = false;
+        while idx < ancestors.len() {
+            let cand = ancestors[idx];
+            idx += 1;
+            if matches_compound(required, cand) {
+                matched = true;
+                break;
+            }
+        }
+        if !matched {
+            return false;
+        }
+    }
+    true
+}
+
+/// Pure compound match: tag/id/classes/universal. Ignores the
+/// `ancestors` list; the descendant combinator is handled by
+/// [`matches_selector_in_tree`].
+fn matches_compound(sel: &Selector, element: &Element) -> bool {
     if let Some(tag) = &sel.tag {
         match element_tag(element) {
             Some(t) if t == tag => {}

@@ -305,30 +305,12 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "justify-content" => style.justify_content = parse_justify_content(value),
         "align-items" => style.align_items = parse_align_items(value),
         "align-content" => style.align_content = parse_align_content(value),
+        "align-self" => style.align_self = parse_align_self(value),
+        "order" => style.order = value.trim().parse().ok(),
         "gap" => style.gap = parse_css_length(value),
         "row-gap" => style.row_gap = parse_css_length(value),
         "column-gap" => style.column_gap = parse_css_length(value),
-        "flex" => {
-            style.flex = Some(value.to_string());
-            // Extract flex-grow from the shorthand so layout passes can
-            // act on it without re-parsing. Per CSS:
-            //   `flex: <number>` → grow=<number>, shrink=1, basis=0%
-            //   `flex: auto`     → grow=1
-            //   `flex: none`     → grow=0
-            //   `flex: initial`  → grow=0
-            // Anything else (e.g. multi-value forms) is left for callers
-            // that read `style.flex` directly.
-            if let Some(first) = value.split_whitespace().next() {
-                let lower = first.to_ascii_lowercase();
-                if let Ok(n) = first.parse::<f32>() {
-                    style.flex_grow = Some(n);
-                } else if lower == "auto" {
-                    style.flex_grow = Some(1.0);
-                } else if lower == "none" || lower == "initial" {
-                    style.flex_grow = Some(0.0);
-                }
-            }
-        }
+        "flex" => apply_flex_shorthand(value, style),
         "flex-grow" => style.flex_grow = value.parse().ok(),
         "flex-shrink" => style.flex_shrink = value.parse().ok(),
         "flex-basis" => style.flex_basis = parse_css_length(value),
@@ -999,6 +981,114 @@ fn parse_align_content(value: &str) -> Option<AlignContent> {
         "space-around" => Some(AlignContent::SpaceAround),
         "space-evenly" => Some(AlignContent::SpaceEvenly),
         _ => None,
+    }
+}
+
+fn parse_align_self(value: &str) -> Option<AlignSelf> {
+    match value.to_ascii_lowercase().as_str() {
+        "auto" => Some(AlignSelf::Auto),
+        "normal" => Some(AlignSelf::Normal),
+        "stretch" => Some(AlignSelf::Stretch),
+        "center" => Some(AlignSelf::Center),
+        "start" => Some(AlignSelf::Start),
+        "end" => Some(AlignSelf::End),
+        "flex-start" => Some(AlignSelf::FlexStart),
+        "flex-end" => Some(AlignSelf::FlexEnd),
+        "baseline" => Some(AlignSelf::Baseline),
+        _ => None,
+    }
+}
+
+/// Expand the `flex` shorthand into the three longhands per CSS-Flex-1
+/// §7.2 (`flex` shorthand).
+///
+/// Recognized forms:
+/// - `none`    → 0 0 auto
+/// - `auto`    → 1 1 auto
+/// - `initial` → 0 1 auto
+/// - `<number>`            → grow=<n>, shrink=1, basis=0%
+/// - `<basis>`             → grow=1, shrink=1, basis=<basis>
+/// - `<grow> <shrink>`     → grow, shrink, basis=0%
+/// - `<grow> <basis>`      → grow, shrink=1, basis
+/// - `<grow> <shrink> <basis>` (full form)
+///
+/// Token classification:
+/// - A bare positive number (`1`, `0.5`) is a flex factor.
+/// - Anything else (`100px`, `30%`, `auto`) is treated as basis.
+fn apply_flex_shorthand(value: &str, style: &mut Style) {
+    style.flex = Some(value.to_string());
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    match lower.as_str() {
+        "none" => {
+            style.flex_grow = Some(0.0);
+            style.flex_shrink = Some(0.0);
+            style.flex_basis = Some(CssLength::Auto);
+            return;
+        }
+        "auto" => {
+            style.flex_grow = Some(1.0);
+            style.flex_shrink = Some(1.0);
+            style.flex_basis = Some(CssLength::Auto);
+            return;
+        }
+        "initial" => {
+            style.flex_grow = Some(0.0);
+            style.flex_shrink = Some(1.0);
+            style.flex_basis = Some(CssLength::Auto);
+            return;
+        }
+        _ => {}
+    }
+
+    let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+    let is_number = |t: &str| t.parse::<f32>().is_ok();
+    let mut grow: Option<f32> = None;
+    let mut shrink: Option<f32> = None;
+    let mut basis: Option<CssLength> = None;
+
+    match tokens.len() {
+        0 => return,
+        1 => {
+            let t = tokens[0];
+            if is_number(t) {
+                grow = t.parse().ok();
+                shrink = Some(1.0);
+                basis = Some(CssLength::Px(0.0));
+            } else if let Some(b) = parse_css_length(t) {
+                grow = Some(1.0);
+                shrink = Some(1.0);
+                basis = Some(b);
+            }
+        }
+        2 => {
+            let (a, b) = (tokens[0], tokens[1]);
+            if is_number(a) && is_number(b) {
+                grow = a.parse().ok();
+                shrink = b.parse().ok();
+                basis = Some(CssLength::Px(0.0));
+            } else if is_number(a) {
+                grow = a.parse().ok();
+                shrink = Some(1.0);
+                basis = parse_css_length(b);
+            }
+        }
+        _ => {
+            // Three (or more — extra ignored) tokens: grow shrink basis.
+            grow = tokens[0].parse().ok();
+            shrink = tokens[1].parse().ok();
+            basis = parse_css_length(tokens[2]);
+        }
+    }
+
+    if let Some(g) = grow {
+        style.flex_grow = Some(g);
+    }
+    if let Some(s) = shrink {
+        style.flex_shrink = Some(s);
+    }
+    if let Some(b) = basis {
+        style.flex_basis = Some(b);
     }
 }
 

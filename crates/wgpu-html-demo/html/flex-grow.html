@@ -1,0 +1,108 @@
+<style>
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: white;
+    }
+
+    .row {
+        display: flex;
+        margin: 12px;
+        padding: 8px;
+        gap: 8px;
+        border-radius: 6px;
+        background-color: #2a2a2a;
+    }
+
+    .item {
+        height: 40px;
+        background-color: #4a8fe7;
+        border-radius: 4px;
+    }
+
+    /* flex-grow: equal split */
+    .row-grow .a { flex: 1; }
+    .row-grow .b { flex: 1; }
+    .row-grow .c { flex: 2; background-color: #e74a8f; }
+
+    /* min/max clamping */
+    .row-clamp .a { flex: 1; max-width: 80px; background-color: #4ae78f; }
+    .row-clamp .b { flex: 1; }
+    .row-clamp .c { flex: 1; min-width: 200px; background-color: #e7e74a; }
+
+    /* wrap + align-content */
+    .row-wrap {
+        flex-wrap: wrap;
+        height: 160px;
+        align-content: center;
+    }
+    .row-wrap .item {
+        width: 120px;
+        flex-shrink: 0;
+    }
+
+    /* align-self override */
+    .row-align {
+        height: 100px;
+        align-items: center;
+    }
+    .row-align .a { width: 80px; }
+    .row-align .b {
+        width: 80px;
+        align-self: flex-start;
+        background-color: #e74a8f;
+    }
+    .row-align .c {
+        width: 80px;
+        align-self: flex-end;
+        background-color: #4ae78f;
+    }
+
+    /* auto-margin push */
+    .row-auto .a { width: 80px; }
+    .row-auto .b { width: 80px; margin-left: auto; }
+
+    /* order swap */
+    .row-order .a { width: 80px; }
+    .row-order .b { width: 80px; background-color: #e74a8f; }
+    .row-order .c { width: 80px; order: -1; background-color: #4ae78f; }
+</style>
+
+<div class="row row-grow">
+    <div class="item a"></div>
+    <div class="item b"></div>
+    <div class="item c"></div>
+</div>
+
+<div class="row row-clamp">
+    <div class="item a"></div>
+    <div class="item b"></div>
+    <div class="item c"></div>
+</div>
+
+<div class="row row-wrap">
+    <div class="item"></div>
+    <div class="item"></div>
+    <div class="item"></div>
+    <div class="item"></div>
+    <div class="item"></div>
+    <div class="item"></div>
+</div>
+
+<div class="row row-align">
+    <div class="item a"></div>
+    <div class="item b"></div>
+    <div class="item c"></div>
+</div>
+
+<div class="row row-auto">
+    <div class="item a"></div>
+    <div class="item b"></div>
+</div>
+
+<div class="row row-order">
+    <div class="item a"></div>
+    <div class="item b"></div>
+    <div class="item c"></div>
+</div>

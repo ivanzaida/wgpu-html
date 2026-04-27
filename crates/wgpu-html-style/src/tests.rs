@@ -87,6 +87,48 @@ fn universal_matches_any() {
     assert!(matches_selector(&sel, &elem_p()));
 }
 
+#[test]
+fn matches_selector_rejects_descendant_without_ancestors() {
+    // `.row .item` against an `.item` element with no ancestor
+    // context must NOT match — the simple wrapper has no chain.
+    let sel = Selector {
+        classes: vec!["item".into()],
+        ancestors: vec![Selector {
+            classes: vec!["row".into()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let item = elem_div_with(None, Some("item"));
+    assert!(!matches_selector(&sel, &item));
+}
+
+#[test]
+fn matches_selector_in_tree_walks_ancestors() {
+    let sel = Selector {
+        classes: vec!["item".into()],
+        ancestors: vec![Selector {
+            classes: vec!["row".into()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let row = elem_div_with(None, Some("row"));
+    let item = elem_div_with(None, Some("item"));
+    // Direct parent matches → fires.
+    assert!(matches_selector_in_tree(&sel, &item, &[&row]));
+    // No ancestor `.row` → fails.
+    let neutral = elem_div_with(None, Some("box"));
+    assert!(!matches_selector_in_tree(&sel, &item, &[&neutral]));
+    // Deeper ancestor `.row` (with an unrelated parent in between) →
+    // descendant combinator is non-adjacent, still fires.
+    assert!(matches_selector_in_tree(
+        &sel,
+        &item,
+        &[&neutral, &row]
+    ));
+}
+
 // --------------------------------------------------------------------------
 // computed_style: cascade order
 // --------------------------------------------------------------------------

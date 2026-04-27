@@ -196,6 +196,8 @@ style_props! {
     justify_content => "justify-content";
     align_items => "align-items";
     align_content => "align-content";
+    align_self => "align-self";
+    order => "order";
     gap => "gap";
     row_gap => "row-gap";
     column_gap => "column-gap";

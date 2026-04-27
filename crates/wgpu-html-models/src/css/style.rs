@@ -1,7 +1,8 @@
 use crate::common::css_enums::{
-  AlignContent, AlignItems, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor,
-  CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, JustifyContent,
-  Overflow, PointerEvents, Position, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
+  AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing,
+  CssColor, CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight,
+  JustifyContent, Overflow, PointerEvents, Position, TextAlign, TextTransform, UserSelect,
+  Visibility, WhiteSpace,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -129,6 +130,10 @@ pub struct Style {
   pub align_items: Option<AlignItems>,
   // css property: align-content
   pub align_content: Option<AlignContent>,
+  // css property: align-self (per-item override of `align-items`)
+  pub align_self: Option<AlignSelf>,
+  // css property: order (visual order of flex items)
+  pub order: Option<i32>,
   pub gap: Option<CssLength>,
   // css property: row-gap
   pub row_gap: Option<CssLength>,

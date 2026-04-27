@@ -187,6 +187,20 @@ pub enum AlignContent {
 }
 
 #[derive(Debug, Clone)]
+pub enum AlignSelf {
+  /// Defer to the parent flex container's `align-items`.
+  Auto,
+  Normal,
+  Stretch,
+  Center,
+  Start,
+  End,
+  FlexStart,
+  FlexEnd,
+  Baseline,
+}
+
+#[derive(Debug, Clone)]
 pub enum Cursor {
   Auto,
   Default,
