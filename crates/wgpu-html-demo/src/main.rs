@@ -17,7 +17,7 @@ use wgpu_html::renderer::{FrameOutcome, Renderer, GLYPH_ATLAS_SIZE};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{FontFace, FontStyleAxis};
 
-const DOC: &str = include_str!("../html/flex-grow.html");
+const DOC: &str = include_str!("../html/overflow.html");
 
 /// One font family's worth of system-font paths: regular, bold,
 /// italic, bold-italic. An empty path means "this variant isn't on

@@ -200,6 +200,87 @@ pub enum AlignSelf {
   Baseline,
 }
 
+/// CSS Grid: default inline-axis alignment for items inside their
+/// grid cell. Mirrors `JustifyContent`'s shape minus the
+/// space-* distribution variants (those don't apply to per-item
+/// alignment).
+#[derive(Debug, Clone)]
+pub enum JustifyItems {
+  Normal,
+  Stretch,
+  Center,
+  Start,
+  End,
+  FlexStart,
+  FlexEnd,
+  Left,
+  Right,
+  Baseline,
+}
+
+/// CSS Grid: per-item override of `justify-items`. Shares the same
+/// shape but adds the `Auto` variant that means "defer to parent's
+/// `justify-items`".
+#[derive(Debug, Clone)]
+pub enum JustifySelf {
+  Auto,
+  Normal,
+  Stretch,
+  Center,
+  Start,
+  End,
+  FlexStart,
+  FlexEnd,
+  Left,
+  Right,
+  Baseline,
+}
+
+/// `grid-auto-flow` direction. `RowDense` / `ColumnDense` accept
+/// the value through the cascade for fidelity but currently lay
+/// out the same as the non-dense variants.
+#[derive(Debug, Clone)]
+pub enum GridAutoFlow {
+  Row,
+  Column,
+  RowDense,
+  ColumnDense,
+}
+
+/// One entry in `grid-template-columns` / `grid-template-rows` (or
+/// the implicit-track sizes). Kept distinct from `CssLength`
+/// because the `<flex>` (`fr`) unit is only legal in track-sizing
+/// contexts.
+#[derive(Debug, Clone)]
+pub enum GridTrackSize {
+  /// A length / percent / em / etc. — anything `CssLength` can
+  /// represent.
+  Length(CssLength),
+  /// `auto` — track sized to the max-content of items spanning it
+  /// (or the implicit `grid-auto-rows` / `-columns` size).
+  Auto,
+  /// `<flex>` (1fr, 2fr, …). Stored as the raw factor.
+  Fr(f32),
+}
+
+/// One end of a `grid-row` / `grid-column` placement.
+///
+/// We deliberately don't model named lines yet — those need a
+/// stylesheet-wide line-name registry that doesn't exist in the
+/// engine.
+#[derive(Debug, Clone)]
+pub enum GridLine {
+  /// `auto` — the value is decided by the auto-placement algorithm.
+  Auto,
+  /// 1-based explicit line number, matching CSS conventions
+  /// (`grid-column: 1 / 3` covers columns 1 and 2).
+  Line(i32),
+  /// `span <N>` — extends `N` tracks from the resolved opposite
+  /// edge. Stored as a positive integer; `0` is invalid in CSS so
+  /// we never produce one.
+  Span(u32),
+}
+
 #[derive(Debug, Clone)]
 pub enum Cursor {
   Auto,

@@ -1,0 +1,81 @@
+<style>
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: white;
+    }
+
+    .row {
+        display: flex;
+        gap: 12px;
+        margin: 12px;
+        padding: 12px;
+        border-radius: 6px;
+        background-color: #2a2a2a;
+    }
+
+    .panel {
+        width: 200px;
+        height: 200px;
+        padding: 12px;
+        border: 4px solid #4a8fe7;
+        background-color: #303030;
+        flex-shrink: 0;
+    }
+    .panel.clipped { overflow: hidden; }
+    .panel.rounded {
+        overflow: hidden;
+        border-radius: 24px;
+    }
+    .panel.scroll { overflow: scroll; }
+    .panel.auto   { overflow: auto; }
+
+    .blob {
+        width: 280px;
+        height: 280px;
+        background-color: #e74a8f;
+        border-radius: 8px;
+    }
+
+    .label {
+        margin: 0 12px 4px 12px;
+        color: #aaa;
+        font-size: 14px;
+    }
+</style>
+
+<div class="label">overflow: visible (default) — child overflows the panel</div>
+<div class="row">
+    <div class="panel">
+        <div class="blob"></div>
+    </div>
+</div>
+
+<div class="label">overflow: hidden — clipped at the padding-box rect</div>
+<div class="row">
+    <div class="panel clipped">
+        <div class="blob"></div>
+    </div>
+</div>
+
+<div class="label">overflow: hidden + border-radius — child cut off by the rounded inner-padding edge</div>
+<div class="row">
+    <div class="panel rounded">
+        <div class="blob"></div>
+    </div>
+</div>
+
+<div class="label">overflow: scroll — clips like hidden (no scroll position / scroll bars yet)</div>
+<div class="row">
+    <div class="panel scroll">
+        <div class="blob"></div>
+    </div>
+</div>
+
+<div class="label">overflow: auto — same: clips like hidden until scroll containers land</div>
+<div class="row">
+    <div class="panel auto">
+        <div class="blob"></div>
+    </div>
+</div>

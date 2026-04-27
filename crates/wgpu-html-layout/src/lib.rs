@@ -14,13 +14,14 @@
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
 use wgpu_html_models::Style;
-use wgpu_html_models::common::css_enums::{BorderStyle, BoxSizing, CssLength, Display};
+use wgpu_html_models::common::css_enums::{BorderStyle, BoxSizing, CssLength, Display, Overflow};
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedRun, TextContext};
 use wgpu_html_tree::{Element, Node, Tree};
 
 mod color;
 mod flex;
+mod grid;
 mod length;
 
 pub use color::{Color, resolve_color};
@@ -195,6 +196,15 @@ pub struct LayoutBox {
     /// the `text-decoration` shorthand). Painted as solid quads at
     /// the appropriate vertical offset for text leaves.
     pub text_decorations: Vec<TextDecorationLine>,
+    /// Effective `overflow` value (after `overflow-x` / `overflow-y`
+    /// resolution). `Visible` is the no-op default; anything else
+    /// asks the paint pass to clip descendants to this box's
+    /// padding-box rect.
+    ///
+    /// v1 collapses the two axes: when either axis is non-`Visible`,
+    /// both axes clip together. Independent per-axis clipping is a
+    /// follow-up.
+    pub overflow: Overflow,
     pub children: Vec<LayoutBox>,
 }
 
@@ -535,6 +545,18 @@ fn layout_block(
             );
             (kids, content_h_used)
         }
+        Display::Grid | Display::InlineGrid => {
+            let (kids, _content_w_used, content_h_used) = grid::layout_grid_children(
+                node,
+                style,
+                content_x,
+                content_y_top,
+                inner_width,
+                inner_height_explicit,
+                ctx,
+            );
+            (kids, content_h_used)
+        }
         _ => {
             // Inline formatting context: when every child of this
             // block is inline-level (text, <strong>, <em>, …), pack
@@ -674,8 +696,27 @@ fn layout_block(
         text_run: None,
         text_color: None,
         text_decorations: Vec::new(),
+        overflow: effective_overflow(style),
         children,
     }
+}
+
+/// Collapse `overflow` / `overflow-x` / `overflow-y` to a single
+/// effective value. v1 doesn't honour per-axis hidden / visible
+/// mismatch — when either axis is non-`Visible`, both axes clip.
+fn effective_overflow(style: &Style) -> Overflow {
+    let pick = style
+        .overflow_x
+        .as_ref()
+        .filter(|v| !matches!(v, Overflow::Visible))
+        .or_else(|| {
+            style
+                .overflow_y
+                .as_ref()
+                .filter(|v| !matches!(v, Overflow::Visible))
+        })
+        .or(style.overflow.as_ref());
+    pick.cloned().unwrap_or(Overflow::Visible)
 }
 
 /// Shape a text-node string against the current `TextContext`. Reads
@@ -851,6 +892,7 @@ fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         text_run: None,
         text_color: None,
         text_decorations: Vec::new(),
+        overflow: Overflow::Visible,
         children: Vec::new(),
     }
 }
@@ -889,6 +931,7 @@ fn make_text_leaf(
         text_run: run,
         text_color: Some(text_color),
         text_decorations: decorations,
+        overflow: Overflow::Visible,
         children: Vec::new(),
     };
     (box_, w, h, ascent)
@@ -1114,6 +1157,7 @@ fn layout_inline_subtree(
         // already propagated `text-decoration` down to every text
         // descendant). The inline wrapper itself draws nothing.
         text_decorations: Vec::new(),
+        overflow: Overflow::Visible,
         children: final_children,
     };
     InlineLayout {
@@ -1333,6 +1377,7 @@ fn make_anon_bg_box(rect: Rect, color: Color) -> LayoutBox {
         text_run: None,
         text_color: None,
         text_decorations: Vec::new(),
+        overflow: Overflow::Visible,
         children: Vec::new(),
     }
 }
@@ -1500,6 +1545,7 @@ fn layout_inline_paragraph(
         text_run: Some(run),
         text_color: None,
         text_decorations: Vec::new(),
+        overflow: Overflow::Visible,
         children: Vec::new(),
     };
     boxes.push(text_box);

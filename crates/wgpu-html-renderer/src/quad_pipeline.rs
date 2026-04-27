@@ -9,12 +9,31 @@ const UNIT_QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]
 /// Two triangles: TL-TR-BL, BL-TR-BR.
 const UNIT_QUAD_INDICES: [u16; 6] = [0, 1, 2, 2, 1, 3];
 
+/// Per-clip-range uniform block. The viewport sits at the top
+/// (vertex shader needs it for NDC conversion), then the active
+/// rounded clip in fragment-shader-friendly form. `clip_active.x`
+/// is `1.0` when this range carries any non-zero corner radius —
+/// the fragment shader skips the SDF discard otherwise.
+///
+/// All-vec4 layout dodges WGSL std140 alignment headaches.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 struct Globals {
-    viewport: [f32; 2],
-    _pad: [f32; 2],
+    /// `[viewport_w, viewport_h, _, _]`.
+    viewport: [f32; 4],
+    /// `[pos.x, pos.y, size.w, size.h]` of the rounded clip rect.
+    clip_rect: [f32; 4],
+    /// Horizontal corner radii (TL, TR, BR, BL) at the rect's corners.
+    clip_radii_h: [f32; 4],
+    /// Vertical corner radii (TL, TR, BR, BL).
+    clip_radii_v: [f32; 4],
+    /// `[active, _, _, _]`. `1.0` when the fragment shader should
+    /// run the rounded SDF discard; `0.0` for plain rectangular or
+    /// no clip (the rectangular scissor handles those upstream).
+    clip_active: [f32; 4],
 }
+
+const CLIP_SLOT_STRIDE: u64 = 256;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -50,13 +69,36 @@ impl From<&Quad> for QuadInstance {
 
 pub struct QuadPipeline {
     pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
     globals_buffer: wgpu::Buffer,
+    /// Current capacity of `globals_buffer` in 256-byte slots.
+    globals_capacity_slots: u64,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
     instance_capacity: u64,
     instance_count: u32,
+    /// One scissor-tagged run per `(rect, instance_range)` slice of
+    /// the prepared instance buffer. Built from `DisplayList::clips`
+    /// at `prepare` time and walked in `record` to issue one
+    /// `set_scissor_rect` + `draw_indexed` per entry.
+    clip_runs: Vec<ClipRun>,
+    /// Cached viewport extents so `record` can clamp out-of-bounds
+    /// scissor rects (wgpu panics on out-of-bounds values) and emit
+    /// a full-viewport scissor for `rect == None`.
+    viewport: [u32; 2],
+}
+
+/// Pre-resolved per-run scissor, instance range, and dynamic-offset
+/// slot index into `globals_buffer`. `rect` is already clamped to
+/// viewport bounds (so `set_scissor_rect` can be called directly); a
+/// full-viewport rect signals "no rectangular clip" upstream.
+#[derive(Clone, Copy)]
+struct ClipRun {
+    rect: [u32; 4], // x, y, w, h in physical pixels
+    instances: (u32, u32),
+    slot: u32,
 }
 
 impl QuadPipeline {
@@ -70,10 +112,14 @@ impl QuadPipeline {
             label: Some("quad bgl"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                // Vertex needs the viewport for NDC mapping; fragment
+                // needs the clip data for the rounded-SDF discard.
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
+                    // Dynamic offset → one shared buffer with one
+                    // slot per clip range, addressed at draw time.
+                    has_dynamic_offset: true,
                     min_binding_size: wgpu::BufferSize::new(
                         std::mem::size_of::<Globals>() as u64
                     ),
@@ -175,9 +221,11 @@ impl QuadPipeline {
             cache: None,
         });
 
+        // One slot up-front; `prepare` grows the buffer to fit the
+        // current frame's clip-range count.
         let globals_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("quad globals"),
-            size: std::mem::size_of::<Globals>() as u64,
+            size: CLIP_SLOT_STRIDE,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -187,7 +235,13 @@ impl QuadPipeline {
             layout: &bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: globals_buffer.as_entire_binding(),
+                // The dynamic-offset binding always sees a single
+                // `Globals`-sized window into the buffer.
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &globals_buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
+                }),
             }],
         });
 
@@ -215,13 +269,17 @@ impl QuadPipeline {
 
         Self {
             pipeline,
+            bind_group_layout,
             bind_group,
             globals_buffer,
+            globals_capacity_slots: 1,
             vertex_buffer,
             index_buffer,
             instance_buffer,
             instance_capacity: initial_instances,
             instance_count: 0,
+            clip_runs: Vec::new(),
+            viewport: [0, 0],
         }
     }
 
@@ -235,7 +293,8 @@ impl QuadPipeline {
         );
     }
 
-    /// Update viewport + instance data for this frame.
+    /// Update viewport + instance + per-clip-range globals for this
+    /// frame.
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -243,14 +302,79 @@ impl QuadPipeline {
         viewport: [f32; 2],
         list: &DisplayList,
     ) {
-        let globals = Globals {
-            viewport,
-            _pad: [0.0; 2],
-        };
-        queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
-
         let count = list.quads.len() as u32;
         self.instance_count = count;
+        self.viewport = [
+            viewport[0].max(0.0).round() as u32,
+            viewport[1].max(0.0).round() as u32,
+        ];
+
+        // Build the per-clip-range globals + clip runs. We allocate
+        // one slot per *non-empty* clip range; a list with no clipping
+        // emits a single slot covering everything.
+        self.clip_runs.clear();
+        let mut globals_blocks: Vec<Globals> = Vec::new();
+        for clip in &list.clips {
+            if clip.quad_range.0 == clip.quad_range.1 {
+                continue;
+            }
+            let rect = clamp_scissor_rect(clip.rect, self.viewport);
+            let slot = globals_blocks.len() as u32;
+            globals_blocks.push(globals_for(viewport, clip));
+            self.clip_runs.push(ClipRun {
+                rect,
+                instances: clip.quad_range,
+                slot,
+            });
+        }
+        if globals_blocks.is_empty() {
+            // No quads at all → still need one slot for any future
+            // record() call to see the right viewport.
+            globals_blocks.push(globals_for(
+                viewport,
+                &crate::paint::ClipRange {
+                    rect: None,
+                    radii_h: [0.0; 4],
+                    radii_v: [0.0; 4],
+                    quad_range: (0, 0),
+                    glyph_range: (0, 0),
+                },
+            ));
+        }
+
+        // Grow the globals buffer if needed and re-bind. The buffer
+        // holds `n_slots × CLIP_SLOT_STRIDE` bytes; each slot starts
+        // with a `Globals` block followed by padding.
+        let needed_slots = globals_blocks.len() as u64;
+        if needed_slots > self.globals_capacity_slots {
+            let new_cap = needed_slots.next_power_of_two().max(1);
+            self.globals_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("quad globals"),
+                size: new_cap * CLIP_SLOT_STRIDE,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("quad bg"),
+                layout: &self.bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &self.globals_buffer,
+                        offset: 0,
+                        size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
+                    }),
+                }],
+            });
+            self.globals_capacity_slots = new_cap;
+        }
+
+        // Write each `Globals` block at its slot's offset.
+        for (i, block) in globals_blocks.iter().enumerate() {
+            let offset = (i as u64) * CLIP_SLOT_STRIDE;
+            queue.write_buffer(&self.globals_buffer, offset, bytemuck::bytes_of(block));
+        }
+
         if count == 0 {
             return;
         }
@@ -277,10 +401,58 @@ impl QuadPipeline {
             return;
         }
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        pass.draw_indexed(0..6, 0, 0..self.instance_count);
+
+        if self.clip_runs.is_empty() {
+            // Fast path for display lists that didn't carry any
+            // explicit clip ranges (legacy producers). Bind slot 0
+            // unconditionally — `prepare` always populates it.
+            pass.set_bind_group(0, &self.bind_group, &[0]);
+            pass.draw_indexed(0..6, 0, 0..self.instance_count);
+            return;
+        }
+
+        for run in &self.clip_runs {
+            let offset = (run.slot as u32) * (CLIP_SLOT_STRIDE as u32);
+            pass.set_bind_group(0, &self.bind_group, &[offset]);
+            pass.set_scissor_rect(run.rect[0], run.rect[1], run.rect[2], run.rect[3]);
+            pass.draw_indexed(0..6, 0, run.instances.0..run.instances.1);
+        }
+    }
+}
+
+/// Convert a paint-side `Option<Rect>` into integer scissor
+/// coordinates clamped to the viewport. `None` (no scissor) becomes
+/// the full viewport rect, the wgpu equivalent of "no clip".
+fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2]) -> [u32; 4] {
+    let vw = viewport[0];
+    let vh = viewport[1];
+    let Some(r) = rect else {
+        return [0, 0, vw, vh];
+    };
+    let x0 = r.x.max(0.0).round().min(vw as f32) as u32;
+    let y0 = r.y.max(0.0).round().min(vh as f32) as u32;
+    let x1 = (r.x + r.w).max(0.0).round().min(vw as f32) as u32;
+    let y1 = (r.y + r.h).max(0.0).round().min(vh as f32) as u32;
+    [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
+}
+
+/// Build the per-clip-range `Globals` block from the active clip and
+/// the current viewport. `clip_active.x` is `1.0` when the clip
+/// carries any non-zero corner radius — that's what tells the
+/// fragment shader to do the rounded-SDF discard.
+fn globals_for(viewport: [f32; 2], clip: &crate::paint::ClipRange) -> Globals {
+    let (rect, active) = match (clip.rect, clip.is_rounded()) {
+        (Some(r), true) => ([r.x, r.y, r.w, r.h], 1.0),
+        _ => ([0.0; 4], 0.0),
+    };
+    Globals {
+        viewport: [viewport[0], viewport[1], 0.0, 0.0],
+        clip_rect: rect,
+        clip_radii_h: clip.radii_h,
+        clip_radii_v: clip.radii_v,
+        clip_active: [active, 0.0, 0.0, 0.0],
     }
 }

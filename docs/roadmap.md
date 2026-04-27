@@ -211,11 +211,87 @@ Deferred:
 Demo: `crates/wgpu-html-demo/html/flex-grow.html` exercises grow,
 clamping, wrap + align-content, align-self, auto-margin, and order.
 
-### M10 — clipping & overflow
+### M10 — grid ✅ (landed early)
 
-- Scissor stack from `PaintCmd::PushClip` / `PopClip`
-- `overflow: hidden`
-- Later: stencil-based non-rectangular clips if we ever need them
+CSS-Grid-Layout-1 lives in `wgpu-html-layout::grid`. Covered:
+
+- `display: grid` / `inline-grid`
+- `grid-template-columns` / `grid-template-rows` with `<length>`,
+  `<percent>`, `auto`, `<flex>` (`fr`), and `repeat(<int>, <list>)`
+  expansion
+- `grid-auto-rows` / `grid-auto-columns` for implicit tracks
+- Explicit placement (`grid-column-start/end`, `grid-row-start/end`,
+  and the `grid-column` / `grid-row` shorthands) — line numbers
+  and `span <n>`
+- Auto-placement for unplaced items in source order, with
+  `grid-auto-flow: row | column` (the `dense` variants accept the
+  keyword for cascade fidelity)
+- `gap` / `row-gap` / `column-gap`
+- `justify-items` / `justify-self` / `align-items` / `align-self`
+  (default `stretch`)
+- `justify-content` / `align-content` for distributing the track
+  block when the explicit tracks underfill the container
+- 14 dedicated unit tests in `crates/wgpu-html-layout/src/tests.rs`
+
+Deferred (see `spec/grid.md` §6):
+
+- `grid-template-areas` and `grid-area` shorthand
+- `minmax()` two-bound clamping (parsed; uses the max bound for
+  now)
+- `min-content` / `max-content` / `fit-content()` track sizes
+- `repeat(auto-fill | auto-fit, …)` track-count resolution
+- `dense` packing
+- Named grid lines, negative line numbers, subgrid, masonry
+
+Demo: `crates/wgpu-html-demo/html/grid.html` exercises a holy-
+grail layout, a `repeat(4, 1fr)` photo gallery, and the row /
+column auto-flow modes.
+
+### M11 — clipping & overflow ✅ (landed early)
+
+`overflow: hidden` clips descendants to the padding-box rect of
+their containing block, including the rounded inner-padding edge
+when the container has a `border-radius`. Implemented as a
+CPU-side clip stack at paint time, a per-range scissor pre-pass,
+and a fragment-shader SDF discard against a rounded mask.
+Covered:
+
+- `Style::overflow / overflow-x / overflow-y` resolution with
+  `effective_overflow()` collapsing both axes
+- `LayoutBox::overflow` carrying the resolved value into paint
+- `DisplayList::clips: Vec<ClipRange>` partitioning quad / glyph
+  instances into scissor-tagged runs, each carrying optional
+  rounded corner radii
+- `paint_box_in_clip()` clip stack with rectangle intersection
+  for nested clips and inner-padding-edge radii (outer
+  `border-radius` shrunk by the matching border thickness,
+  matching browser behaviour)
+- `QuadPipeline` and `GlyphPipeline` use a dynamic-offset
+  uniform buffer to ship the active clip rect + radii per draw
+  call; fragment shaders run a rounded-SDF discard on top of
+  the rectangular `set_scissor_rect` pre-pass
+- 3 layout tests + 6 paint tests covering propagation, range
+  emission, rounded clipping, and padding-box-radii inset
+
+Deferred (see `spec/overflow.md` §5):
+
+- Independent per-axis clipping (`overflow-x: hidden;
+  overflow-y: visible;`)
+- Scroll containers / scroll bars / scroll position
+- Composing more than one nested rounded clip
+- `overflow: clip` distinct semantics
+- Stacking-context promotion
+- `clip-path`
+
+Demo: `crates/wgpu-html-demo/html/overflow.html` — `visible` /
+`hidden` / `hidden + border-radius` side by side.
+
+### M12 — future work
+
+- Mask-texture / SDF non-rectangular clips (`clip-path`)
+- Pointer interactivity (`spec/interactivity.md`)
+- Scroll containers
+- CSS `transform`
 
 ## Cross-cutting concerns
 

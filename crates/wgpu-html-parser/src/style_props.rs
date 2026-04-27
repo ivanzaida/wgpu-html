@@ -207,8 +207,17 @@ style_props! {
     flex_basis => "flex-basis";
     grid_template_columns => "grid-template-columns";
     grid_template_rows => "grid-template-rows";
+    grid_auto_columns => "grid-auto-columns";
+    grid_auto_rows => "grid-auto-rows";
+    grid_auto_flow => "grid-auto-flow";
     grid_column => "grid-column";
+    grid_column_start => "grid-column-start";
+    grid_column_end => "grid-column-end";
     grid_row => "grid-row";
+    grid_row_start => "grid-row-start";
+    grid_row_end => "grid-row-end";
+    justify_items => "justify-items";
+    justify_self => "justify-self";
 
     // Effects / interaction -------------------------------------------
     transform => "transform";

@@ -19,8 +19,17 @@
 // be elliptical (h != v); when h == v it reduces to the usual circular
 // case.
 
+// `Globals` is a per-clip-range uniform block — `prepare` writes one
+// entry per `DisplayList::clips` slot and `record` rebinds it via a
+// dynamic offset. Vertex stage reads `viewport.xy` for NDC mapping;
+// fragment stage uses `clip_*` to discard fragments outside the
+// active rounded clip.
 struct Globals {
-    viewport: vec2<f32>,
+    viewport:     vec4<f32>,
+    clip_rect:    vec4<f32>,   // x, y, w, h
+    clip_radii_h: vec4<f32>,
+    clip_radii_v: vec4<f32>,
+    clip_active:  vec4<f32>,   // x = 1.0 to enable SDF discard
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -51,9 +60,10 @@ struct VsOut {
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
     let px = in.pos + in.corner * in.size;
+    let viewport = globals.viewport.xy;
     let ndc = vec2<f32>(
-        (px.x / globals.viewport.x) * 2.0 - 1.0,
-        1.0 - (px.y / globals.viewport.y) * 2.0,
+        (px.x / viewport.x) * 2.0 - 1.0,
+        1.0 - (px.y / viewport.y) * 2.0,
     );
 
     var out: VsOut;
@@ -181,6 +191,28 @@ fn nonzero_side_count(s: vec4<f32>) -> i32 {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    // Rounded-clip discard. The active clip's rect + radii are
+    // supplied by the per-range `Globals` uniform; we recover the
+    // fragment's screen-space pixel position from the @builtin
+    // (which the rasteriser fills as the un-normalised pixel
+    // coord) and reuse the same SDF helper as the box itself uses
+    // for its own corners.
+    if (globals.clip_active.x > 0.5) {
+        let frag_pos = in.clip.xy;
+        let cr = globals.clip_rect;
+        let half = vec2<f32>(cr.z, cr.w) * 0.5;
+        let centre = vec2<f32>(cr.x + half.x, cr.y + half.y);
+        let local_clip = frag_pos - centre;
+        let r = pick_radius(local_clip, globals.clip_radii_h, globals.clip_radii_v);
+        let d = sd_rounded_box(local_clip, half, r);
+        // Half-pixel AA band on the clip edge. Anything past the
+        // outer rounded edge is hard-discarded; everything else
+        // proceeds to the box's own shading.
+        if (d > 0.5) {
+            discard;
+        }
+    }
+
     let outer_r = pick_radius(in.local, in.radii_h, in.radii_v);
     let outer_dist = sd_rounded_box(in.local, in.half_size, outer_r);
 

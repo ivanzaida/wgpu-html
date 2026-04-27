@@ -39,17 +39,95 @@ pub fn paint_tree_with_text(
         viewport_h,
         scale,
     ) {
-        paint_box(&root, &mut list);
+        let mut clip_stack: Vec<ClipFrame> = Vec::new();
+        paint_box_in_clip(&root, &mut list, &mut clip_stack);
     }
+    list.finalize();
     list
+}
+
+/// One frame of the active clip stack: the rectangular scissor plus
+/// optional rounded corner radii at the rect's corners (TL / TR /
+/// BR / BL, matching CSS shorthand order). All-zero radii arrays
+/// represent a plain rectangular clip.
+#[derive(Debug, Clone, Copy)]
+struct ClipFrame {
+    rect: Rect,
+    radii_h: [f32; 4],
+    radii_v: [f32; 4],
 }
 
 /// Walk a laid-out tree, pushing one quad per styled background.
 pub fn paint_layout(root: &LayoutBox, list: &mut DisplayList) {
-    paint_box(root, list);
+    let mut clip_stack: Vec<ClipFrame> = Vec::new();
+    paint_box_in_clip(root, list, &mut clip_stack);
+    list.finalize();
 }
 
-fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
+/// Compute the padding-box rect of a layout box. CSS-2.2 §11.1.1
+/// specifies that `overflow: hidden` clips at the *padding* edge —
+/// children may extend over the border but not past the padding.
+fn padding_box(b: &LayoutBox) -> Rect {
+    let br = b.border_rect;
+    Rect::new(
+        br.x + b.border.left,
+        br.y + b.border.top,
+        (br.w - b.border.horizontal()).max(0.0),
+        (br.h - b.border.vertical()).max(0.0),
+    )
+}
+
+/// Compute the rounded-corner radii at the *padding-box* edge —
+/// shrink each component of `b.border_radius` by the matching side
+/// border thickness so the inner rounded shape stays concentric with
+/// the outer one. Mirrors `inset_radii` in `wgpu-html-layout`.
+fn padding_box_radii(b: &LayoutBox) -> ([f32; 4], [f32; 4]) {
+    let outer_h = [
+        b.border_radius.top_left.h,
+        b.border_radius.top_right.h,
+        b.border_radius.bottom_right.h,
+        b.border_radius.bottom_left.h,
+    ];
+    let outer_v = [
+        b.border_radius.top_left.v,
+        b.border_radius.top_right.v,
+        b.border_radius.bottom_right.v,
+        b.border_radius.bottom_left.v,
+    ];
+    // Per-corner shrink: TL by left+top, TR by right+top, BR by
+    // right+bottom, BL by left+bottom.
+    let h = [
+        (outer_h[0] - b.border.left).max(0.0),
+        (outer_h[1] - b.border.right).max(0.0),
+        (outer_h[2] - b.border.right).max(0.0),
+        (outer_h[3] - b.border.left).max(0.0),
+    ];
+    let v = [
+        (outer_v[0] - b.border.top).max(0.0),
+        (outer_v[1] - b.border.top).max(0.0),
+        (outer_v[2] - b.border.bottom).max(0.0),
+        (outer_v[3] - b.border.bottom).max(0.0),
+    ];
+    (h, v)
+}
+
+/// Intersect two scissor rects, clamping the result to non-negative
+/// width / height. Used to nest clips correctly: a child's effective
+/// clip is the intersection of its own padding-box rect with every
+/// enclosing parent clip.
+fn intersect_rects(a: Rect, b: Rect) -> Rect {
+    let x0 = a.x.max(b.x);
+    let y0 = a.y.max(b.y);
+    let x1 = (a.x + a.w).min(b.x + b.w);
+    let y1 = (a.y + a.h).min(b.y + b.h);
+    Rect::new(x0, y0, (x1 - x0).max(0.0), (y1 - y0).max(0.0))
+}
+
+fn paint_box_in_clip(
+    b: &LayoutBox,
+    out: &mut DisplayList,
+    clip_stack: &mut Vec<ClipFrame>,
+) {
     let rect = to_renderer_rect(b.border_rect);
     let (rh, rv) = corner_radii(b);
     let rounded = has_any_radius(&rh) || has_any_radius(&rv);
@@ -135,8 +213,54 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
         }
     }
 
+    // `overflow != Visible` clips children to the box's padding-box
+    // rect (CSS-2.2 §11.1.1) plus the rounded inner-padding edge if
+    // the box carries a `border-radius`. The decoration quads
+    // emitted above (background + borders) stay outside the clip —
+    // they belong to the box itself, not to its children.
+    //
+    // Nesting rules:
+    // - The rectangular scissor is the *intersection* of every
+    //   ancestor's clip rect — that's the cheap pre-discard.
+    // - The rounded SDF discard only honours the *innermost* clip's
+    //   radii. We don't try to compose multiple rounded shapes;
+    //   browsers don't either when nesting `overflow: hidden`
+    //   containers with rounded corners.
+    let clips_children = !matches!(
+        b.overflow,
+        wgpu_html_models::common::css_enums::Overflow::Visible,
+    );
+    let pushed = if clips_children {
+        let pad = padding_box(b);
+        let (inner_h, inner_v) = padding_box_radii(b);
+        let effective_rect = match clip_stack.last() {
+            Some(parent) => intersect_rects(parent.rect, pad),
+            None => pad,
+        };
+        let frame = ClipFrame {
+            rect: effective_rect,
+            radii_h: inner_h,
+            radii_v: inner_v,
+        };
+        clip_stack.push(frame);
+        out.push_clip(Some(effective_rect), inner_h, inner_v);
+        true
+    } else {
+        false
+    };
+
     for child in &b.children {
-        paint_box(child, out);
+        paint_box_in_clip(child, out, clip_stack);
+    }
+
+    if pushed {
+        clip_stack.pop();
+        let parent = clip_stack.last().copied();
+        out.pop_clip(
+            parent.map(|f| f.rect),
+            parent.map(|f| f.radii_h).unwrap_or([0.0; 4]),
+            parent.map(|f| f.radii_v).unwrap_or([0.0; 4]),
+        );
     }
 }
 
@@ -781,6 +905,184 @@ mod tests {
         let list = paint_tree(&tree, 800.0, 600.0);
         // Per-side fallback path; bottom side skipped → 3 solid edges.
         assert_eq!(list.quads.len(), 3);
+    }
+
+    // --- overflow / clipping --------------------------------------
+
+    #[test]
+    fn overflow_visible_emits_single_clip_range() {
+        // The display list carries one all-encompassing range with
+        // `rect: None` whenever no `overflow: hidden` is in play.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px; background-color: red;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.clips.len(), 1);
+        assert!(list.clips[0].rect.is_none());
+        assert_eq!(list.clips[0].quad_range.0, 0);
+        assert_eq!(list.clips[0].quad_range.1, list.quads.len() as u32);
+    }
+
+    #[test]
+    fn overflow_hidden_emits_clip_range_at_padding_box() {
+        // The clipping container has a 5px solid border, so the
+        // padding-box rect (which is what `overflow: hidden` clips at
+        // per CSS-2.2 §11.1.1) is the border-rect inset by the
+        // border thickness. Container is 80+10*2=100 wide with the
+        // padding contributing inside the padding-box. With a 5px
+        // border, padding-box becomes 100×100 minus 5px on every
+        // side → 90×90 at (5, 5).
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 80px; height: 80px; padding: 10px;
+                             border: 5px solid black;
+                             overflow: hidden; background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clip = list
+            .clips
+            .iter()
+            .find(|c| c.rect.is_some())
+            .expect("an overflow:hidden clip range");
+        let r = clip.rect.unwrap();
+        assert_eq!(r.x, 5.0);
+        assert_eq!(r.y, 5.0);
+        assert_eq!(r.w, 100.0);
+        assert_eq!(r.h, 100.0);
+    }
+
+    #[test]
+    fn overflow_clip_range_only_covers_descendants() {
+        // The container's own background quad should sit *outside* the
+        // clip range — the clip applies to its children, not its own
+        // border / background.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 50px; height: 50px;
+                             overflow: hidden; background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clipped = list
+            .clips
+            .iter()
+            .find(|c| c.rect.is_some())
+            .expect("clip range");
+        // The container's own background is the first red quad and
+        // sits before the clip range starts.
+        assert!(clipped.quad_range.0 >= 1);
+        // The blue child quad falls inside the range.
+        assert!(clipped.quad_range.0 < clipped.quad_range.1);
+        let blue_idx = list
+            .quads
+            .iter()
+            .position(|q| q.color == [0.0, 0.0, 1.0, 1.0])
+            .expect("blue quad emitted");
+        let blue = blue_idx as u32;
+        assert!(blue >= clipped.quad_range.0 && blue < clipped.quad_range.1);
+    }
+
+    #[test]
+    fn overflow_hidden_with_border_radius_emits_rounded_clip() {
+        // A box with `overflow: hidden` AND a border-radius produces a
+        // clip range whose `radii_h` / `radii_v` are populated. The
+        // padding-box radii are the outer radii inset by the border
+        // thickness — with no border here, they pass through.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; height: 100px;
+                             overflow: hidden;
+                             border-radius: 16px;
+                             background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clip = list
+            .clips
+            .iter()
+            .find(|c| c.rect.is_some() && c.is_rounded())
+            .expect("a rounded clip range");
+        assert_eq!(clip.radii_h, [16.0, 16.0, 16.0, 16.0]);
+        assert_eq!(clip.radii_v, [16.0, 16.0, 16.0, 16.0]);
+    }
+
+    #[test]
+    fn overflow_hidden_padding_box_radii_inset_by_border() {
+        // Border thickness shrinks the rounded-clip radii at the
+        // padding-box edge, matching how browsers draw the inner
+        // rounded path. A 5px border on a `border-radius: 20px` box
+        // leaves the inner rounded clip at radius 15px.
+        //
+        // The child needs a paintable quad so its presence keeps the
+        // clip range alive through `finalize()`.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; height: 100px;
+                             overflow: hidden;
+                             border: 5px solid black;
+                             border-radius: 20px;
+                             background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clip = list
+            .clips
+            .iter()
+            .find(|c| c.is_rounded())
+            .expect("rounded clip");
+        for r in &clip.radii_h {
+            assert!((r - 15.0).abs() < 0.05, "got {}", r);
+        }
+        for r in &clip.radii_v {
+            assert!((r - 15.0).abs() < 0.05, "got {}", r);
+        }
+    }
+
+    #[test]
+    fn nested_overflow_hidden_intersects_clips() {
+        // Outer 100×100 at (0,0); inner 200×200 at (0,0) with
+        // overflow:hidden too. The grandchild's effective scissor is
+        // the intersection: 100×100 at (0,0). A second clip range
+        // exists for the inner element with the same rect because
+        // outer ∩ inner = outer here.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; height: 100px;
+                             overflow: hidden; background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 overflow: hidden; background-color: green;">
+                        <div style="width: 400px; height: 400px;
+                                     background-color: blue;"></div>
+                    </div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clip_rects: Vec<_> = list.clips.iter().filter_map(|c| c.rect).collect();
+        assert!(
+            clip_rects.len() >= 2,
+            "expected ≥2 clip rects for nested overflow, got {}",
+            clip_rects.len()
+        );
+        // Every nested clip is contained within the outer 100×100 rect.
+        for r in &clip_rects {
+            assert!(r.x >= 0.0 && r.y >= 0.0);
+            assert!(r.x + r.w <= 100.0 + 0.5);
+            assert!(r.y + r.h <= 100.0 + 0.5);
+        }
     }
 
     #[test]

@@ -314,10 +314,29 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "flex-grow" => style.flex_grow = value.parse().ok(),
         "flex-shrink" => style.flex_shrink = value.parse().ok(),
         "flex-basis" => style.flex_basis = parse_css_length(value),
-        "grid-template-columns" => style.grid_template_columns = Some(value.to_string()),
-        "grid-template-rows" => style.grid_template_rows = Some(value.to_string()),
-        "grid-column" => style.grid_column = Some(value.to_string()),
-        "grid-row" => style.grid_row = Some(value.to_string()),
+        "grid-template-columns" => {
+            let list = parse_grid_track_list(value);
+            if !list.is_empty() {
+                style.grid_template_columns = Some(list);
+            }
+        }
+        "grid-template-rows" => {
+            let list = parse_grid_track_list(value);
+            if !list.is_empty() {
+                style.grid_template_rows = Some(list);
+            }
+        }
+        "grid-auto-columns" => style.grid_auto_columns = parse_grid_track_size(value),
+        "grid-auto-rows" => style.grid_auto_rows = parse_grid_track_size(value),
+        "grid-auto-flow" => style.grid_auto_flow = parse_grid_auto_flow(value),
+        "grid-column" => apply_grid_axis_shorthand(value, style, GridAxis::Column),
+        "grid-column-start" => style.grid_column_start = parse_grid_line(value),
+        "grid-column-end" => style.grid_column_end = parse_grid_line(value),
+        "grid-row" => apply_grid_axis_shorthand(value, style, GridAxis::Row),
+        "grid-row-start" => style.grid_row_start = parse_grid_line(value),
+        "grid-row-end" => style.grid_row_end = parse_grid_line(value),
+        "justify-items" => style.justify_items = parse_justify_items(value),
+        "justify-self" => style.justify_self = parse_justify_self(value),
         "transform" => style.transform = Some(value.to_string()),
         "transform-origin" => style.transform_origin = Some(value.to_string()),
         "transition" => style.transition = Some(value.to_string()),
@@ -996,6 +1015,290 @@ fn parse_align_self(value: &str) -> Option<AlignSelf> {
         "flex-end" => Some(AlignSelf::FlexEnd),
         "baseline" => Some(AlignSelf::Baseline),
         _ => None,
+    }
+}
+
+fn parse_justify_items(value: &str) -> Option<JustifyItems> {
+    match value.to_ascii_lowercase().as_str() {
+        "normal" => Some(JustifyItems::Normal),
+        "stretch" => Some(JustifyItems::Stretch),
+        "center" => Some(JustifyItems::Center),
+        "start" => Some(JustifyItems::Start),
+        "end" => Some(JustifyItems::End),
+        "flex-start" => Some(JustifyItems::FlexStart),
+        "flex-end" => Some(JustifyItems::FlexEnd),
+        "left" => Some(JustifyItems::Left),
+        "right" => Some(JustifyItems::Right),
+        "baseline" => Some(JustifyItems::Baseline),
+        _ => None,
+    }
+}
+
+fn parse_justify_self(value: &str) -> Option<JustifySelf> {
+    match value.to_ascii_lowercase().as_str() {
+        "auto" => Some(JustifySelf::Auto),
+        "normal" => Some(JustifySelf::Normal),
+        "stretch" => Some(JustifySelf::Stretch),
+        "center" => Some(JustifySelf::Center),
+        "start" => Some(JustifySelf::Start),
+        "end" => Some(JustifySelf::End),
+        "flex-start" => Some(JustifySelf::FlexStart),
+        "flex-end" => Some(JustifySelf::FlexEnd),
+        "left" => Some(JustifySelf::Left),
+        "right" => Some(JustifySelf::Right),
+        "baseline" => Some(JustifySelf::Baseline),
+        _ => None,
+    }
+}
+
+/// `grid-auto-flow: row | column | row dense | column dense | dense`.
+/// `dense` packing isn't honoured at layout time yet; we accept the
+/// keyword for cascade fidelity.
+fn parse_grid_auto_flow(value: &str) -> Option<GridAutoFlow> {
+    let lower = value.to_ascii_lowercase();
+    let tokens: Vec<&str> = lower.split_whitespace().collect();
+    let dense = tokens.iter().any(|t| *t == "dense");
+    let column = tokens.iter().any(|t| *t == "column");
+    match (column, dense) {
+        (true, true) => Some(GridAutoFlow::ColumnDense),
+        (true, false) => Some(GridAutoFlow::Column),
+        (false, true) => Some(GridAutoFlow::RowDense),
+        (false, false) => {
+            // Empty token list is invalid; otherwise default to Row.
+            if tokens.is_empty() { None } else { Some(GridAutoFlow::Row) }
+        }
+    }
+}
+
+/// Parse a single grid track size token: `auto`, `<flex>` (`1fr`), or
+/// any `CssLength`. Returns `None` for unrecognized input.
+fn parse_grid_track_size(value: &str) -> Option<GridTrackSize> {
+    let trimmed = value.trim();
+    if trimmed.eq_ignore_ascii_case("auto") {
+        return Some(GridTrackSize::Auto);
+    }
+    if let Some(stripped) = strip_suffix_ci(trimmed, "fr") {
+        if let Ok(n) = stripped.trim().parse::<f32>() {
+            if n.is_finite() && n >= 0.0 {
+                return Some(GridTrackSize::Fr(n));
+            }
+        }
+    }
+    parse_css_length(trimmed).map(GridTrackSize::Length)
+}
+
+/// Parse `grid-template-columns` / `grid-template-rows` as a flat list
+/// of typed track sizes. Expands `repeat(<int>, <list>)` inline; leaves
+/// `repeat(auto-fill, ...)` / `repeat(auto-fit, ...)` as a single `Auto`
+/// track for now (still parses but doesn't auto-fit). Skips
+/// `minmax()` / `fit-content()` (returns the inner length when
+/// recognizable, otherwise `Auto`).
+fn parse_grid_track_list(value: &str) -> Vec<GridTrackSize> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
+        return Vec::new();
+    }
+    let tokens = split_track_tokens(trimmed);
+    let mut out: Vec<GridTrackSize> = Vec::new();
+    for tok in tokens {
+        if let Some(rest) = strip_function(&tok, "repeat") {
+            // `repeat(<count>, <track-list>)`. Top-level comma split.
+            let parts: Vec<&str> = split_top_level_commas(&rest);
+            if parts.len() >= 2 {
+                let count_tok = parts[0].trim();
+                let inner = parts[1..].join(",");
+                if let Ok(n) = count_tok.parse::<u32>() {
+                    let inner_list = parse_grid_track_list(&inner);
+                    for _ in 0..n {
+                        out.extend(inner_list.iter().cloned());
+                    }
+                    continue;
+                }
+                // `auto-fill` / `auto-fit` — single Auto placeholder
+                // for now. Track-count resolution is a future job.
+                if count_tok.eq_ignore_ascii_case("auto-fill")
+                    || count_tok.eq_ignore_ascii_case("auto-fit")
+                {
+                    out.push(GridTrackSize::Auto);
+                    continue;
+                }
+            }
+            continue;
+        }
+        if let Some(rest) = strip_function(&tok, "minmax") {
+            // `minmax(<min>, <max>)` — for v1 we use the max as the
+            // track size. Real two-bound clamping is deferred.
+            let parts: Vec<&str> = split_top_level_commas(&rest);
+            if let Some(max_tok) = parts.get(1) {
+                if let Some(s) = parse_grid_track_size(max_tok.trim()) {
+                    out.push(s);
+                    continue;
+                }
+            }
+            out.push(GridTrackSize::Auto);
+            continue;
+        }
+        if let Some(rest) = strip_function(&tok, "fit-content") {
+            // `fit-content(<length>)` — degrade to the inner length
+            // for v1; the ceiling-by-content semantics are deferred.
+            if let Some(s) = parse_grid_track_size(rest.trim()) {
+                out.push(s);
+                continue;
+            }
+            out.push(GridTrackSize::Auto);
+            continue;
+        }
+        // Plain tokens.
+        if let Some(size) = parse_grid_track_size(&tok) {
+            out.push(size);
+        }
+    }
+    out
+}
+
+/// Tokenize a track list into whitespace-separated entries while
+/// keeping `repeat(...)`, `minmax(...)`, and `fit-content(...)` calls
+/// intact.
+fn split_track_tokens(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut buf = String::new();
+    let mut depth: i32 = 0;
+    for ch in s.chars() {
+        match ch {
+            '(' => {
+                depth += 1;
+                buf.push(ch);
+            }
+            ')' => {
+                depth -= 1;
+                buf.push(ch);
+            }
+            c if c.is_whitespace() && depth == 0 => {
+                if !buf.is_empty() {
+                    out.push(std::mem::take(&mut buf));
+                }
+            }
+            c => buf.push(c),
+        }
+    }
+    if !buf.is_empty() {
+        out.push(buf);
+    }
+    out
+}
+
+/// Split a string on commas at parenthesis depth 0. Used inside
+/// `repeat(…)` / `minmax(…)` argument lists.
+fn split_top_level_commas(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let bytes = s.as_bytes();
+    let mut depth: i32 = 0;
+    let mut start = 0;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            b',' if depth == 0 => {
+                out.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&s[start..]);
+    out
+}
+
+/// If `s` looks like `<name>(<inside>)`, return `<inside>` (trimmed).
+/// Case-insensitive on the function name. Returns `None` otherwise.
+fn strip_function(s: &str, name: &str) -> Option<String> {
+    let trimmed = s.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let prefix = format!("{name}(");
+    if !lower.starts_with(&prefix) || !trimmed.ends_with(')') {
+        return None;
+    }
+    let inside = &trimmed[prefix.len()..trimmed.len() - 1];
+    Some(inside.to_string())
+}
+
+/// Strip a case-insensitive suffix; returns the prefix when matched.
+fn strip_suffix_ci<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
+    if s.len() < suffix.len() {
+        return None;
+    }
+    let cut = s.len() - suffix.len();
+    if s[cut..].eq_ignore_ascii_case(suffix) {
+        Some(&s[..cut])
+    } else {
+        None
+    }
+}
+
+/// Parse one end of a `grid-row` / `grid-column` placement.
+/// Recognized: `auto`, a positive integer line number, `span <n>`.
+/// Negative line numbers and named lines fall through to `None`.
+fn parse_grid_line(value: &str) -> Option<GridLine> {
+    let trimmed = value.trim();
+    if trimmed.eq_ignore_ascii_case("auto") || trimmed.is_empty() {
+        return Some(GridLine::Auto);
+    }
+    let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+    if tokens.len() == 2 && tokens[0].eq_ignore_ascii_case("span") {
+        if let Ok(n) = tokens[1].parse::<u32>() {
+            if n >= 1 {
+                return Some(GridLine::Span(n));
+            }
+        }
+        return None;
+    }
+    if tokens.len() == 1 {
+        if let Ok(n) = tokens[0].parse::<i32>() {
+            if n != 0 {
+                return Some(GridLine::Line(n));
+            }
+        }
+    }
+    None
+}
+
+#[derive(Copy, Clone)]
+enum GridAxis {
+    Column,
+    Row,
+}
+
+/// Expand `grid-column` / `grid-row` shorthand into the start / end
+/// longhands. Accepts:
+/// - `<line>` → start=line, end=auto
+/// - `<line> / <line>` → start, end
+/// - `span <n> / <line>` (and the reverse), etc.
+fn apply_grid_axis_shorthand(value: &str, style: &mut Style, axis: GridAxis) {
+    // Round-trip the raw value for cascade introspection.
+    match axis {
+        GridAxis::Column => style.grid_column = Some(value.to_string()),
+        GridAxis::Row => style.grid_row = Some(value.to_string()),
+    }
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let parts: Vec<&str> = trimmed.split('/').map(|p| p.trim()).collect();
+    let (start_tok, end_tok) = match parts.len() {
+        1 => (parts[0], "auto"),
+        _ => (parts[0], parts[1]),
+    };
+    let start = parse_grid_line(start_tok).unwrap_or(GridLine::Auto);
+    let end = parse_grid_line(end_tok).unwrap_or(GridLine::Auto);
+    match axis {
+        GridAxis::Column => {
+            style.grid_column_start = Some(start);
+            style.grid_column_end = Some(end);
+        }
+        GridAxis::Row => {
+            style.grid_row_start = Some(start);
+            style.grid_row_end = Some(end);
+        }
     }
 }
 

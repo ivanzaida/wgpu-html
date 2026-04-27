@@ -11,12 +11,20 @@ use crate::paint::{DisplayList, GlyphQuad};
 const UNIT_QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 const UNIT_QUAD_INDICES: [u16; 6] = [0, 1, 2, 2, 1, 3];
 
+/// Per-clip-range uniform block. Mirrors `quad_pipeline::Globals`
+/// — vertex stage uses `viewport.xy`, fragment stage uses
+/// `clip_*` for the rounded-SDF discard.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 struct Globals {
-    viewport: [f32; 2],
-    _pad: [f32; 2],
+    viewport: [f32; 4],
+    clip_rect: [f32; 4],
+    clip_radii_h: [f32; 4],
+    clip_radii_v: [f32; 4],
+    clip_active: [f32; 4],
 }
+
+const CLIP_SLOT_STRIDE: u64 = 256;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -57,6 +65,24 @@ pub struct GlyphPipeline {
     instance_buffer: wgpu::Buffer,
     instance_capacity: u64,
     instance_count: u32,
+    /// Mirror of `QuadPipeline::clip_runs` — one entry per
+    /// `(scissor, instance_range)` slice produced by the paint-time
+    /// clip stack. Kept on the pipeline to avoid threading the
+    /// `DisplayList` through the render pass.
+    clip_runs: Vec<GlyphClipRun>,
+    viewport: [u32; 2],
+    /// Layout reused at `prepare` time when the globals buffer
+    /// grows and the bind group has to be re-built around it.
+    bind_group_layout: wgpu::BindGroupLayout,
+    /// Capacity of `globals_buffer` in 256-byte clip slots.
+    globals_capacity_slots: u64,
+}
+
+#[derive(Clone, Copy)]
+struct GlyphClipRun {
+    rect: [u32; 4],
+    instances: (u32, u32),
+    slot: u32,
 }
 
 impl GlyphPipeline {
@@ -104,10 +130,12 @@ impl GlyphPipeline {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    // Fragment now reads the clip data too.
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
+                        // Dynamic offset → one slot per clip range.
+                        has_dynamic_offset: true,
                         min_binding_size: wgpu::BufferSize::new(
                             std::mem::size_of::<Globals>() as u64
                         ),
@@ -218,7 +246,9 @@ impl GlyphPipeline {
 
         let globals_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("glyph globals"),
-            size: std::mem::size_of::<Globals>() as u64,
+            // One slot up-front; `prepare` grows the buffer to fit
+            // the current frame's clip-range count.
+            size: CLIP_SLOT_STRIDE,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -229,7 +259,12 @@ impl GlyphPipeline {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: globals_buffer.as_entire_binding(),
+                    // Dynamic-offset window of one `Globals` worth.
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &globals_buffer,
+                        offset: 0,
+                        size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -263,10 +298,6 @@ impl GlyphPipeline {
             mapped_at_creation: false,
         });
 
-        // The bind-group layout was only needed to create the pipeline
-        // and bind group; it can drop here.
-        drop(bind_group_layout);
-
         Self {
             pipeline,
             bind_group,
@@ -279,6 +310,10 @@ impl GlyphPipeline {
             instance_buffer,
             instance_capacity: initial_instances,
             instance_count: 0,
+            clip_runs: Vec::new(),
+            viewport: [0, 0],
+            bind_group_layout,
+            globals_capacity_slots: 1,
         }
     }
 
@@ -308,14 +343,90 @@ impl GlyphPipeline {
         viewport: [f32; 2],
         list: &DisplayList,
     ) {
-        let globals = Globals {
-            viewport,
-            _pad: [0.0; 2],
-        };
-        queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
-
         let count = list.glyphs.len() as u32;
         self.instance_count = count;
+        self.viewport = [
+            viewport[0].max(0.0).round() as u32,
+            viewport[1].max(0.0).round() as u32,
+        ];
+
+        // Build per-clip-range globals + clip runs. Empty ranges are
+        // skipped; an all-empty list still gets one default slot so
+        // record() can bind something.
+        self.clip_runs.clear();
+        let mut globals_blocks: Vec<Globals> = Vec::new();
+        for clip in &list.clips {
+            if clip.glyph_range.0 == clip.glyph_range.1 {
+                continue;
+            }
+            let rect = clamp_scissor_rect(clip.rect, self.viewport);
+            let slot = globals_blocks.len() as u32;
+            globals_blocks.push(globals_for(viewport, clip));
+            self.clip_runs.push(GlyphClipRun {
+                rect,
+                instances: clip.glyph_range,
+                slot,
+            });
+        }
+        if globals_blocks.is_empty() {
+            globals_blocks.push(globals_for(
+                viewport,
+                &crate::paint::ClipRange {
+                    rect: None,
+                    radii_h: [0.0; 4],
+                    radii_v: [0.0; 4],
+                    quad_range: (0, 0),
+                    glyph_range: (0, 0),
+                },
+            ));
+        }
+
+        let needed_slots = globals_blocks.len() as u64;
+        if needed_slots > self.globals_capacity_slots {
+            let new_cap = needed_slots.next_power_of_two().max(1);
+            self.globals_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("glyph globals"),
+                size: new_cap * CLIP_SLOT_STRIDE,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            // Re-create the bind group around the new buffer; the
+            // texture / sampler bindings are unchanged but
+            // `wgpu::BindGroup` is monolithic so we rebuild the whole
+            // thing.
+            let atlas_view = self
+                .atlas_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("glyph bg"),
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.globals_buffer,
+                            offset: 0,
+                            size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
+                        }),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&atlas_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+            });
+            self.globals_capacity_slots = new_cap;
+        }
+
+        for (i, block) in globals_blocks.iter().enumerate() {
+            let offset = (i as u64) * CLIP_SLOT_STRIDE;
+            queue.write_buffer(&self.globals_buffer, offset, bytemuck::bytes_of(block));
+        }
+
         if count == 0 {
             return;
         }
@@ -342,10 +453,53 @@ impl GlyphPipeline {
             return;
         }
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        pass.draw_indexed(0..6, 0, 0..self.instance_count);
+
+        if self.clip_runs.is_empty() {
+            // Bind slot 0 unconditionally — `prepare` always populates
+            // it.
+            pass.set_bind_group(0, &self.bind_group, &[0]);
+            pass.draw_indexed(0..6, 0, 0..self.instance_count);
+            return;
+        }
+        for run in &self.clip_runs {
+            let offset = (run.slot as u32) * (CLIP_SLOT_STRIDE as u32);
+            pass.set_bind_group(0, &self.bind_group, &[offset]);
+            pass.set_scissor_rect(run.rect[0], run.rect[1], run.rect[2], run.rect[3]);
+            pass.draw_indexed(0..6, 0, run.instances.0..run.instances.1);
+        }
     }
+}
+
+/// Same per-clip-range Globals constructor as the quad pipeline.
+fn globals_for(viewport: [f32; 2], clip: &crate::paint::ClipRange) -> Globals {
+    let (rect, active) = match (clip.rect, clip.is_rounded()) {
+        (Some(r), true) => ([r.x, r.y, r.w, r.h], 1.0),
+        _ => ([0.0; 4], 0.0),
+    };
+    Globals {
+        viewport: [viewport[0], viewport[1], 0.0, 0.0],
+        clip_rect: rect,
+        clip_radii_h: clip.radii_h,
+        clip_radii_v: clip.radii_v,
+        clip_active: [active, 0.0, 0.0, 0.0],
+    }
+}
+
+/// Same scissor clamp as the quad pipeline; duplicated rather than
+/// shared to keep the pipelines decoupled (no cross-module helper
+/// crate exists yet).
+fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2]) -> [u32; 4] {
+    let vw = viewport[0];
+    let vh = viewport[1];
+    let Some(r) = rect else {
+        return [0, 0, vw, vh];
+    };
+    let x0 = r.x.max(0.0).round().min(vw as f32) as u32;
+    let y0 = r.y.max(0.0).round().min(vh as f32) as u32;
+    let x1 = (r.x + r.w).max(0.0).round().min(vw as f32) as u32;
+    let y1 = (r.y + r.h).max(0.0).round().min(vh as f32) as u32;
+    [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
 }

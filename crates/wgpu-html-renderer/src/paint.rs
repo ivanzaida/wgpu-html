@@ -81,17 +81,160 @@ pub struct GlyphQuad {
     pub uv_max: [f32; 2],
 }
 
+/// One scissor-tagged run inside a `DisplayList`. The list's quads
+/// and glyphs are partitioned into a sequence of `ClipRange`s in
+/// render order; each range is recorded as a single `draw_indexed`
+/// call after `set_scissor_rect(rect)`.
+///
+/// When `rect` is `None`, no scissor is active (the renderer uses
+/// the full viewport). Otherwise the rectangular `rect` acts as a
+/// pre-discard scissor. If any of `radii_h` / `radii_v` is non-zero,
+/// the fragment shader additionally discards pixels outside the
+/// rounded SDF — that's how `overflow: hidden` on a box with
+/// `border-radius` clips on the rounded inner-padding edge instead
+/// of the rectangular bounding box.
+///
+/// Corner order matches CSS `border-radius` longhands:
+/// `[TL, TR, BR, BL]`.
+#[derive(Debug, Clone, Copy)]
+pub struct ClipRange {
+    pub rect: Option<Rect>,
+    pub radii_h: [f32; 4],
+    pub radii_v: [f32; 4],
+    pub quad_range: (u32, u32),
+    pub glyph_range: (u32, u32),
+}
+
+impl ClipRange {
+    pub fn quad_start(&self) -> u32 {
+        self.quad_range.0
+    }
+    pub fn quad_end(&self) -> u32 {
+        self.quad_range.1
+    }
+    pub fn glyph_start(&self) -> u32 {
+        self.glyph_range.0
+    }
+    pub fn glyph_end(&self) -> u32 {
+        self.glyph_range.1
+    }
+
+    /// True when at least one corner of the clip rect has a
+    /// non-zero radius — i.e. the fragment shader needs to do an
+    /// SDF discard, not just rely on the rectangular scissor.
+    pub fn is_rounded(&self) -> bool {
+        self.radii_h.iter().any(|r| *r > 0.0) || self.radii_v.iter().any(|r| *r > 0.0)
+    }
+}
+
 /// Flat list of paint commands. The renderer draws `quads` first, then
 /// `glyphs` on top, in source order within each list.
-#[derive(Debug, Default, Clone)]
+///
+/// `clips` partitions both instance vectors into render-order runs;
+/// for a list with no `overflow: hidden` boxes the partition has a
+/// single entry covering everything.
+#[derive(Debug, Clone)]
 pub struct DisplayList {
     pub quads: Vec<Quad>,
     pub glyphs: Vec<GlyphQuad>,
+    pub clips: Vec<ClipRange>,
+}
+
+impl Default for DisplayList {
+    fn default() -> Self {
+        // Start with a single all-encompassing clip range. The paint
+        // pass can split / nest it; producers that only push quads /
+        // glyphs without ever touching `clips` keep one range that
+        // grows to cover every instance.
+        Self {
+            quads: Vec::new(),
+            glyphs: Vec::new(),
+            clips: vec![ClipRange {
+                rect: None,
+                radii_h: [0.0; 4],
+                radii_v: [0.0; 4],
+                quad_range: (0, 0),
+                glyph_range: (0, 0),
+            }],
+        }
+    }
 }
 
 impl DisplayList {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Update the trailing clip range to cover any quads / glyphs
+    /// pushed since the last range opened. Called automatically by
+    /// the `push_*` helpers below; producers that bypass them must
+    /// call this before `clips` is consumed by the renderer.
+    fn extend_open_range(&mut self) {
+        if let Some(last) = self.clips.last_mut() {
+            last.quad_range.1 = self.quads.len() as u32;
+            last.glyph_range.1 = self.glyphs.len() as u32;
+        }
+    }
+
+    /// Open a new clip range with the given scissor rect and rounded
+    /// corner radii. `radii_h` / `radii_v` are zeros for a plain
+    /// rectangular clip; non-zero values trigger SDF discard at the
+    /// fragment level so a rounded `overflow: hidden` cuts children
+    /// off at the rounded inner-padding edge.
+    pub fn push_clip(&mut self, rect: Option<Rect>, radii_h: [f32; 4], radii_v: [f32; 4]) {
+        self.extend_open_range();
+        let qs = self.quads.len() as u32;
+        let gs = self.glyphs.len() as u32;
+        self.clips.push(ClipRange {
+            rect,
+            radii_h,
+            radii_v,
+            quad_range: (qs, qs),
+            glyph_range: (gs, gs),
+        });
+    }
+
+    /// Close the most recently pushed clip range and return to
+    /// whatever scissor was active before. Pushes a fresh range
+    /// using the *enclosing* clip (so subsequent paint commands
+    /// aren't clipped by the popped scope).
+    pub fn pop_clip(
+        &mut self,
+        parent_rect: Option<Rect>,
+        parent_radii_h: [f32; 4],
+        parent_radii_v: [f32; 4],
+    ) {
+        self.extend_open_range();
+        let qs = self.quads.len() as u32;
+        let gs = self.glyphs.len() as u32;
+        self.clips.push(ClipRange {
+            rect: parent_rect,
+            radii_h: parent_radii_h,
+            radii_v: parent_radii_v,
+            quad_range: (qs, qs),
+            glyph_range: (gs, gs),
+        });
+    }
+
+    /// Final fix-up before consumption — make sure the trailing
+    /// range covers every instance.
+    pub fn finalize(&mut self) {
+        self.extend_open_range();
+        // Drop any leading / trailing empty ranges that didn't get any
+        // instances. We keep at least one range so the renderer can
+        // always iterate.
+        self.clips.retain(|r| {
+            r.quad_range.0 != r.quad_range.1 || r.glyph_range.0 != r.glyph_range.1
+        });
+        if self.clips.is_empty() {
+            self.clips.push(ClipRange {
+                rect: None,
+                radii_h: [0.0; 4],
+                radii_v: [0.0; 4],
+                quad_range: (0, 0),
+                glyph_range: (0, 0),
+            });
+        }
     }
 
     pub fn push_quad(&mut self, rect: Rect, color: Color) -> &mut Self {
@@ -228,5 +371,13 @@ impl DisplayList {
     pub fn clear(&mut self) {
         self.quads.clear();
         self.glyphs.clear();
+        self.clips.clear();
+        self.clips.push(ClipRange {
+            rect: None,
+            radii_h: [0.0; 4],
+            radii_v: [0.0; 4],
+            quad_range: (0, 0),
+            glyph_range: (0, 0),
+        });
     }
 }
