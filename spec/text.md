@@ -349,28 +349,65 @@ wrapped in synthetic anonymous `<span>`-equivalents inside an
 anonymous block — handled in a small normalisation pass before
 layout, so the IFC builder only sees inline-only parents.
 
-## 9. CSS coverage today (post-T3 + inheritance pull-forward)
+## 9. CSS coverage today (post-T6)
 
-**Honoured during shaping right now:**
+**Honoured end-to-end:**
 
-- `color` — read from the text leaf's cascaded `style.color` (filled
-  in by inheritance), resolved through `wgpu_html_layout::resolve_color`.
-  Defaults to opaque black when no ancestor sets a color.
-- The "first registered font" picks family/weight/style today.
-  T4 will read `font-family / font-weight / font-style` from the
-  inherited cascade.
+- `color` — text leaf's cascaded `style.color`, resolved via
+  `resolve_color`. Defaults to opaque black if no ancestor sets one.
+- `font-family` — comma-separated list, parsed and stripped of
+  surrounding quotes. Layout's `pick_font` walks the list with
+  CSS-Fonts-3 scoring (style band first, then weight) and falls
+  back to the first registered face.
+- `font-weight` — `normal / bold / bolder / lighter / 100…900`.
+  Mapped to a numeric weight for matching: `bolder → 700`,
+  `lighter → 300` (no parent-context shift yet).
+- `font-style` — `normal / italic / oblique` → registry
+  `FontStyleAxis`.
+- `font-size` — `Px`, `Em` (×16px), `Rem` (×16px).
+- `line-height` — `Px`, `Em` / `Rem` (× font-size). Defaults to
+  `1.25 × font_size` when unset; `normal` keyword falls into the
+  default. Number-without-unit values aren't parsed yet.
+- `letter-spacing` — `Px`, `Em` / `Rem`. Applied as a per-glyph
+  cumulative offset post-shape (cosmic-text 0.12's `Attrs` doesn't
+  expose the field directly).
+- `text-transform` — `uppercase / lowercase / capitalize`. Applied
+  to the source string before shaping.
+- `text-align` — `left / right / center / start / end`. start/end
+  collapse to left/right pre-bidi. `justify` falls through to left.
+- `text-decoration` — `underline / line-through / overline`
+  (whitespace-separated; `none` resets). Painted as solid quads at
+  baseline+thickness / mid-cap / run-top using the foreground colour.
+- `background-color` on inline elements — `<mark>`'s yellow comes
+  out via the inline-element wrapper box.
 
-**Parsed and inherited but not yet consumed by the text path:**
+**UA stylesheet (`crates/wgpu-html-style/src/ua.rs`)**
 
-`font-family`, `font-size`, `font-weight`, `font-style`,
-`line-height`, `letter-spacing`, `text-align`, `text-transform`,
-`white-space`, `text-decoration` — they reach text leaves via the
-inheritance pass below; the text layout still hardcodes 16px /
-20px line-height / no spacing in T3.
+Browser defaults are pre-cascade rules with tag-only selectors,
+prepended to the user's stylesheet so author rules win on source-
+order ties. Today:
 
-**Cascade inheritance landed early.** `wgpu-html-style::cascade`
-gained a per-node `inherit_into(child, parent)` that fills in unset
-values for the standard inheriting set:
+```
+b, strong              → font-weight: bold
+i, em                  → font-style: italic
+u, ins                 → text-decoration: underline
+s, del, strike         → text-decoration: line-through
+code, kbd, samp        → font-family: monospace
+a                      → color: blue + text-decoration: underline
+mark                   → background-color: yellow + color: black
+small / sub / sup      → font-size: 13px
+h1 / h2 / h3 / h4      → bold + 32 / 24 / 19 / (default) px
+h5 / h6                → bold + 13 / 11 px
+```
+
+Block-level resets (default margins on `<p>`, `<ul>`, …) are
+deliberately *not* in the UA today — they would change layouts
+that don't expect browser-style spacing. Add when the layout is
+ready.
+
+**Cascade inheritance.** `wgpu-html-style::cascade` runs a per-node
+`inherit_into(child, parent, keywords)` that fills in unset values
+for the standard inheriting set:
 
 ```
 color, font_family, font_size, font_weight, font_style,
@@ -378,32 +415,40 @@ line_height, letter_spacing, text_align, text_transform,
 white_space, text_decoration, visibility, cursor
 ```
 
-Inheritance runs after rule-merge + inline-style merge, so an
-explicit child value still wins. UA defaults are still deferred:
-hosts must set `body { font-family, color, font-size, ... }`
-themselves (§9 of `status.md`).
+Inheritance runs after rule-merge + inline-style merge + CSS-wide
+keyword resolution, and skips properties already touched by an
+explicit `inherit / initial / unset` keyword in this layer. An
+explicit child value still wins.
 
-This list deviates slightly from the plan: `direction` and
-`text_decoration_color` weren't included because they aren't modelled
-in `wgpu-html-models` yet. Add them when the model gains the fields.
+`direction` and `text_decoration_color` aren't in the list because
+they aren't modelled in `wgpu-html-models` yet. Add when the model
+gains the fields.
 
-**Deferred to T4:**
+**Inline formatting context.** A block whose direct children are
+all inline-level (text or default-inline elements like
+`<span> / <strong> / <em> / <i> / <b> / <u> / <s> / <a> / <code> /
+<kbd> / <samp> / <var> / <abbr> / <cite> / <dfn> / <sub> / <sup> /
+<time> / <small> / <mark> / <br> / <wbr> / <bdi> / <bdo> / <ins> /
+<del> / <label> / <output> / <data> / <ruby> / <rt> / <rp>` —
+or anything with `display: inline / inline-block / inline-flex`)
+runs through `layout_inline_block_children` instead of the block-
+flow vertical stacker. Each inline subtree shapes with its own
+cascaded style; siblings baseline-align (so `<small>` and 16px
+text rest on the same baseline). Mixed inline+block children fall
+back to block flow today; anonymous block boxes are still pending.
 
-- `line-height` consumed for line-box height (only `<number>` and
-  `<length>`; `normal` resolves to `font.metrics.height * scale`).
-- `text-align: left | right | center | start | end` (start/end
-  collapse to left/right with `dir: ltr` until bidi lands).
-- `white-space: normal | nowrap | pre`.
+**Still deferred:**
 
-**Deferred to T5/T6:**
-
-- Mixed inline runs through `<span>`, `<strong>`, `<b>`, `<em>`,
-  `<i>`, `<u>`, `<a>`, `<code>`, `<small>`, `<mark>`, `<sub>`,
-  `<sup>`, `<kbd>`, `<samp>`, `<var>`.
-- `text-decoration: underline | line-through` painted as quads
-  beneath / through the run.
-- `vertical-align: baseline | super | sub` (only the three).
-- `letter-spacing: <length>` post-shape advance fixup.
+- Multi-line: cosmic-text's break opportunities aren't consulted
+  yet — the inline pass keeps growing one line past the container
+  width if its content overflows.
+- `white-space: nowrap | pre` plumbing past parse.
+- `vertical-align: super / sub`. UA `<sub>/<sup>` only changes
+  size right now; vertical baseline shift is T6.5 / T7 scope.
+- `font-stretch`, `font-variant`, `font-feature-settings`.
+- `text-shadow`, gradients, filters.
+- `text-decoration-color / -thickness / -style`.
+- `direction`, bidi.
 
 ## 10. Public API surface
 
@@ -415,29 +460,38 @@ wgpu-html-tree
 wgpu-html-text  (new crate)
   + Atlas (CPU shelf packer, dirty rects, upload)                (T2, done)
   + FontDb (cosmic-text bridge over a FontRegistry)              (T2, done)
-  + TextContext { font_db, atlas, swash, glyph_cache }           (T3, done)
-  + TextContext::shape_and_pack(text, font, size, line_height)   (T3, done)
+  + TextContext { font_db, fonts, atlas, swash, glyph_cache }    (T3, done)
+  + TextContext::shape_and_pack(text, font, size, line_h, ls)    (T3+T6, done)
+  + TextContext::pick_font(families, weight, style)              (T5, done)
+  + TextContext::sync_fonts(&FontRegistry)                       (T3, done)
   + ShapedRun { glyphs, width, height, ascent }                  (T3, done)
   + PositionedGlyph { x, y, w, h, uv_min, uv_max }               (T3, done)
 
 wgpu-html-style
   + cascade inheritance pass for the standard set                (T3, done)
+  + UA stylesheet (b/strong/em/i/u/s/code/a/mark/small/h1-h6)    (T4, done)
 
 wgpu-html-layout
   ! layout_with_text(tree, &mut TextContext, vw, vh, scale)      (T3, done)
   ! layout(...) is now a back-compat wrapper                     (T3, done)
   + LayoutBox.text_run + text_color                              (T3, done)
-  - Inline formatting context, BoxKind::LineBox                  (T4, planned)
+  + LayoutBox.text_decorations                                   (T6, done)
+  + TextDecorationLine enum                                      (T6, done)
+  + Inline formatting context (single-line, baseline-aligned)    (T5, done)
+  + horizontal_align_offset for text-align                       (T5, done)
 
 wgpu-html-renderer
   + GlyphPipeline (textured)                                     (T3, done)
   + R8 atlas texture + linear sampler + bind group               (T3, done)
   + GLYPH_ATLAS_SIZE constant; glyph_atlas_texture() accessor    (T3, done)
   + DisplayList.glyphs + push_glyph + GlyphQuad                  (T3, done)
+  + Two-pass render: quads via sRGB view, glyphs via unorm view  (T6, done)
+  + Shader-side sRGB encode for gamma-correct text blending      (T6, done)
 
 wgpu-html
   + paint_tree_with_text(tree, ctx, vw, vh, scale)               (T3, done)
   + paint::paint_box emits glyph quads from text_run             (T3, done)
+  + paint emits decoration quads (under/through/over)            (T6, done)
 ```
 
 `wgpu-html-text` ends up as the heaviest new dep (cosmic-text +
@@ -529,45 +583,90 @@ Deviations from the original T3 plan worth noting:
   common system-font paths. Hosts that ship their own asset can
   swap in `include_bytes!`.
 
-### T4 — Line breaking + multi-property consumption ▶ NEXT
+### T4 — UA defaults + cascade-aware shaping ✅ DONE
 
-- IFC builder lives in `wgpu-html-layout::inline`. Walks a block
-  parent's children, batches text into lines using cosmic-text's
-  break opportunities, fits each line to `inner_width`.
-- `white-space: normal | nowrap | pre`.
-- `text-align: left | right | center`.
-- `font-size`, `font-family`, `font-weight`, `font-style` from
-  the cascade (already inherited; just need to be read in
-  `shape_text_run`).
-- Demo: a paragraph that wraps cleanly across the viewport on
-  resize.
+- New `crates/wgpu-html-style/src/ua.rs` lazily-parses a UA
+  stylesheet (`b/strong → bold`, `i/em → italic`, `u/ins →
+  underline`, `s/del/strike → line-through`, `code/kbd/samp →
+  monospace`, `a → blue + underline`, `mark → yellow + black`,
+  `small/sub/sup → 13px`, `h1`–`h6` → bold + descending sizes).
+  Prepended in `cascade()` so author tag rules win on source-order
+  ties.
+- `TextContext` gained a `pub fonts: FontRegistry` mirror
+  (populated by `sync_fonts`) and `pick_font(families, weight,
+  style)`. Layout's `shape_text_run` now reads `font-family /
+  weight / style / size / line-height` from the cascaded style
+  (already filled in by inheritance) and feeds them through
+  `pick_font` + `shape_and_pack`.
+- Line breaking and `white-space: pre / nowrap` plumbing remain
+  deferred — the inline pass still keeps growing past the
+  container width if its contents overflow. Multi-line is M6's
+  first job.
 
-Inheritance was already done in T3. UA defaults (e.g. `<h1> {
-font-size: 2em }`) still out of scope; hosts set them explicitly.
+### T5 — Mixed inline runs ✅ DONE
 
-### T5 — Mixed inline runs ⏳
+- New helpers in `wgpu-html-layout/src/lib.rs`: `is_inline_level`,
+  `all_children_inline_level`, `layout_inline_subtree`,
+  `layout_inline_block_children`, plus `translate_box_y_in_place`
+  for baseline alignment and `translate_box_x_in_place` for
+  text-align shifts.
+- Inline subtrees flow through `<span> / <a> / <strong> / <b> /
+  <em> / <i> / <u> / <s> / <small> / <mark> / <code> / <kbd> /
+  <samp> / <var> / <abbr> / <cite> / <dfn> / <sub> / <sup> /
+  <time> / <br> / <wbr> / <bdi> / <bdo> / <ins> / <del> / <label> /
+  <output> / <data> / <ruby> / <rt> / <rp>` (default-inline
+  elements) plus anything with `display: inline / inline-block /
+  inline-flex`.
+- Each text leaf shapes with its own cascaded style — so a
+  `<strong>` inside Inter 400 picks Inter 700 if registered. No
+  fake-bold synthesis when the matching face is missing; falls
+  back through the registry's normal scoring.
+- Inline-element wrapper boxes carry their own
+  `background-color`, which is what makes `<mark>` paint yellow.
+- `text-align: left / right / center / start / end` shifts the
+  whole line by `(container_w − line_w) × {0, 1, 0.5, …}`. Justify
+  falls through to left.
+- Mixed inline + block children still fall back to vertical block
+  flow; anonymous block boxes around runs of inline content are a
+  T7 follow-up.
 
-- `<span>`, `<strong>`, `<em>`, `<a>`, `<code>` participate in the
-  same IFC with their own cascaded style.
-- Per-run font matching (a `<strong>` inside Inter 400 picks Inter
-  700 if registered; falls back to fake-bold synthesis as a
-  follow-up).
-- Demo: a paragraph with bold + italic + monospace + link runs.
+### T6 — Decorations + letter-spacing + text-transform ✅ DONE
 
-### T6 — Decorations + vertical alignment + letter-spacing ⏳
+- `LayoutBox.text_decorations: Vec<TextDecorationLine>` populated
+  from a parser of `text-decoration` (whitespace-separated tokens;
+  `none` resets). Inheritance carries the value to text leaves.
+- Paint emits one solid quad per decoration line: underline at
+  `baseline + thickness`, line-through at `baseline − 0.30 ×
+  ascent`, overline at run top. Thickness scales with ascent
+  (`ascent / 12`, clamped ≥ 1px).
+- `letter-spacing` (`Px / Em / Rem`) — `shape_and_pack` gained a
+  `letter_spacing_px` parameter. cosmic-text 0.12 doesn't expose
+  the field on `Attrs`, so we apply the offset post-shape: glyph
+  *i* shifts by `i × spacing` and the run width grows by
+  `(n − 1) × spacing`.
+- `text-transform: uppercase / lowercase / capitalize` applied to
+  the source string before shaping (small `capitalize_words`
+  helper for the third).
+- Renderer text path is now properly gamma-correct: a non-sRGB
+  view of the surface texture, glyph pass with `LoadOp::Load`,
+  shader-side sRGB-encode of the foreground colour. Empirical
+  coverage curves are gone.
+- `vertical-align: super / sub` baseline shift is *not* done —
+  UA defaults give `<sub>/<sup>` only the smaller font-size for
+  now. Bake-in is a tiny follow-up once the inline pass tracks
+  per-run y-offsets.
 
-- `text-decoration: underline | line-through` painted under /
-  through the run.
-- `vertical-align: super | sub` (1/3em raise + size scale of 0.83).
-- `letter-spacing: <length>` post-shape advance fixup.
+### T7 — Multi-line + DPI + atlas eviction ▶ NEXT
 
-### T7 — Atlas eviction + DPI changes ⏳
-
-- Hooking `winit`'s `scale_factor_changed` into a re-rasterise of
-  any cached glyphs at the new size (`Atlas::clear` already queues
-  the full-atlas dirty rect — the missing piece is invalidating
-  `TextContext::glyph_cache`).
-- LRU-style eviction in the atlas instead of "blow the cache".
+- Multi-line breaking via `cosmic-text` break opportunities;
+  `white-space: pre / nowrap` plumbing.
+- Anonymous block boxes around runs of inline content inside a
+  block whose siblings include block-level boxes.
+- `vertical-align: super / sub` baseline offsets.
+- Hook `winit::scale_factor_changed` into atlas re-raster
+  (`Atlas::clear` already queues the full-atlas dirty rect — the
+  missing piece is invalidating `TextContext::glyph_cache`).
+- LRU-style atlas eviction instead of "blow the cache".
 - Atlas grow / double when full.
 
 ## 12. Open questions
@@ -605,8 +704,15 @@ T1 landed the structural commitment first: fonts belong to the
 `Tree`. T2–T3 stood the renderer up to draw shaped glyphs from a
 single registered face, and pulled cascade inheritance forward
 because none of the text-related properties make sense without it.
-T4 will add real line breaking and start consuming the rest of the
-inherited typography properties; T5–T6 will polish multi-run text
-and decorations; T7 will cope with DPI and atlas pressure. The
-whole thing still hangs off the constraint in §3 — fonts owned by
-the `Tree`, no globals, no fetcher, no `@font-face` magic.
+T4 added a UA stylesheet for the inline-emphasis defaults and made
+`shape_text_run` read every font knob from the cascaded style.
+T5 turned `<p>Hello <strong>World</strong> <em>!</em></p>` into one
+flowing line by giving blocks-of-inlines a single-line IFC with
+baseline alignment, per-run font matching, and `text-align`. T6
+finished off `text-decoration`, `letter-spacing`, `text-transform`
+and made the renderer text path gamma-correct. T7 next: multi-line
+breaking, anonymous block boxes for mixed content, vertical-align
+baseline shifts, and DPI / atlas eviction.
+
+The whole thing still hangs off the constraint in §3 — fonts
+owned by the `Tree`, no globals, no fetcher, no `@font-face` magic.
