@@ -478,10 +478,60 @@ fn border_color_resolves_for_paint() {
                          border: 2px solid red;"></body>"#,
     );
     let root = layout(&tree, 800.0, 600.0).unwrap();
-    assert!(root.border_color.is_some());
-    let c = root.border_color.unwrap();
-    // sRGB red → linear (1, 0, 0).
+    // The shorthand fans red to all four sides.
+    let c = root.border_colors.top.expect("top");
     assert!((c[0] - 1.0).abs() < 1e-6);
     assert_eq!(c[1], 0.0);
     assert_eq!(c[2], 0.0);
+    assert!(root.border_colors.left.is_some());
+    assert!(root.border_colors.right.is_some());
+    assert!(root.border_colors.bottom.is_some());
+}
+
+#[test]
+fn per_side_border_widths_become_per_side_insets() {
+    let tree = make(
+        r#"<body style="width: 100px; height: 50px;
+                         border-width: 1px 2px 3px 4px;"></body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.border.top, 1.0);
+    assert_eq!(root.border.right, 2.0);
+    assert_eq!(root.border.bottom, 3.0);
+    assert_eq!(root.border.left, 4.0);
+    // border_rect = content + horizontal/vertical border.
+    assert_eq!(root.border_rect.w, 100.0 + 2.0 + 4.0);
+    assert_eq!(root.border_rect.h, 50.0 + 1.0 + 3.0);
+    // content offset by left/top borders.
+    assert_eq!(root.content_rect.x, 4.0);
+    assert_eq!(root.content_rect.y, 1.0);
+}
+
+#[test]
+fn per_side_border_colors_make_their_way_to_layout() {
+    let tree = make(
+        r#"<body style="width: 50px; height: 50px;
+                         border-width: 2px;
+                         border-color: red green blue orange;"></body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert!(root.border_colors.top.is_some());
+    assert!(root.border_colors.right.is_some());
+    assert!(root.border_colors.bottom.is_some());
+    assert!(root.border_colors.left.is_some());
+    // Different sides should resolve to different values.
+    assert_ne!(root.border_colors.top, root.border_colors.right);
+}
+
+#[test]
+fn border_radius_per_corner_lays_out() {
+    let tree = make(
+        r#"<body style="width: 50px; height: 50px;
+                         border-radius: 1px 2px 3px 4px;"></body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.border_radius.top_left, 1.0);
+    assert_eq!(root.border_radius.top_right, 2.0);
+    assert_eq!(root.border_radius.bottom_right, 3.0);
+    assert_eq!(root.border_radius.bottom_left, 4.0);
 }

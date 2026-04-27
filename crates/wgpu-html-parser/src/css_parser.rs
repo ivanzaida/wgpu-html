@@ -68,10 +68,35 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "background-position" => style.background_position = Some(value.to_string()),
         "background-repeat" => style.background_repeat = parse_background_repeat(value),
         "border" => parse_border_shorthand(value, style),
-        "border-width" => style.border_width = parse_css_length(value),
-        "border-style" => style.border_style = parse_border_style(value),
-        "border-color" => style.border_color = parse_css_color(value),
-        "border-radius" => style.border_radius = parse_css_length(value),
+        "border-top" => parse_border_side_shorthand(value, style, Side::Top),
+        "border-right" => parse_border_side_shorthand(value, style, Side::Right),
+        "border-bottom" => parse_border_side_shorthand(value, style, Side::Bottom),
+        "border-left" => parse_border_side_shorthand(value, style, Side::Left),
+
+        "border-width" => apply_border_widths(value, style),
+        "border-style" => apply_border_styles(value, style),
+        "border-color" => apply_border_colors(value, style),
+
+        "border-top-width" => style.border_top_width = parse_css_length(value),
+        "border-right-width" => style.border_right_width = parse_css_length(value),
+        "border-bottom-width" => style.border_bottom_width = parse_css_length(value),
+        "border-left-width" => style.border_left_width = parse_css_length(value),
+
+        "border-top-style" => style.border_top_style = parse_border_style(value),
+        "border-right-style" => style.border_right_style = parse_border_style(value),
+        "border-bottom-style" => style.border_bottom_style = parse_border_style(value),
+        "border-left-style" => style.border_left_style = parse_border_style(value),
+
+        "border-top-color" => style.border_top_color = parse_css_color(value),
+        "border-right-color" => style.border_right_color = parse_css_color(value),
+        "border-bottom-color" => style.border_bottom_color = parse_css_color(value),
+        "border-left-color" => style.border_left_color = parse_css_color(value),
+
+        "border-radius" => apply_border_radii(value, style),
+        "border-top-left-radius" => style.border_top_left_radius = parse_css_length(value),
+        "border-top-right-radius" => style.border_top_right_radius = parse_css_length(value),
+        "border-bottom-right-radius" => style.border_bottom_right_radius = parse_css_length(value),
+        "border-bottom-left-radius" => style.border_bottom_left_radius = parse_css_length(value),
         "font-family" => style.font_family = Some(value.to_string()),
         "font-size" => style.font_size = parse_css_length(value),
         "font-weight" => style.font_weight = parse_font_weight(value),
@@ -141,25 +166,193 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
 // CSS value parsers
 // ---------------------------------------------------------------------------
 
+/// Which side a per-side border helper writes to.
+#[derive(Copy, Clone)]
+enum Side {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
 /// Parse the `border` shorthand into width / style / color, in any order.
-/// Each whitespace-separated token is tried first as a length (rejecting
-/// the `Raw` fallback since it would gobble up arbitrary strings), then
-/// as a border-style keyword, and finally as a color.
+/// The values fan out to all four sides (per CSS spec: `border` is itself
+/// a shorthand for the four `border-<side>-<piece>` longhands).
 pub fn parse_border_shorthand(value: &str, style: &mut Style) {
     style.border = Some(value.to_string());
+    let (w, s, c) = parse_border_pieces(value);
+    if let Some(w) = w {
+        style.border_top_width = Some(w.clone());
+        style.border_right_width = Some(w.clone());
+        style.border_bottom_width = Some(w.clone());
+        style.border_left_width = Some(w);
+    }
+    if let Some(s) = s {
+        style.border_top_style = Some(s.clone());
+        style.border_right_style = Some(s.clone());
+        style.border_bottom_style = Some(s.clone());
+        style.border_left_style = Some(s);
+    }
+    if let Some(c) = c {
+        style.border_top_color = Some(c.clone());
+        style.border_right_color = Some(c.clone());
+        style.border_bottom_color = Some(c.clone());
+        style.border_left_color = Some(c);
+    }
+}
+
+/// Per-side `border-<side>` shorthand. Sets only that side's width / style /
+/// color, falling back to whatever was set previously (so the cascade order
+/// `border: 2px solid red; border-top: 4px dashed blue;` works correctly).
+fn parse_border_side_shorthand(value: &str, style: &mut Style, side: Side) {
+    let (w, s, c) = parse_border_pieces(value);
+    match side {
+        Side::Top => {
+            if let Some(w) = w { style.border_top_width = Some(w); }
+            if let Some(s) = s { style.border_top_style = Some(s); }
+            if let Some(c) = c { style.border_top_color = Some(c); }
+        }
+        Side::Right => {
+            if let Some(w) = w { style.border_right_width = Some(w); }
+            if let Some(s) = s { style.border_right_style = Some(s); }
+            if let Some(c) = c { style.border_right_color = Some(c); }
+        }
+        Side::Bottom => {
+            if let Some(w) = w { style.border_bottom_width = Some(w); }
+            if let Some(s) = s { style.border_bottom_style = Some(s); }
+            if let Some(c) = c { style.border_bottom_color = Some(c); }
+        }
+        Side::Left => {
+            if let Some(w) = w { style.border_left_width = Some(w); }
+            if let Some(s) = s { style.border_left_style = Some(s); }
+            if let Some(c) = c { style.border_left_color = Some(c); }
+        }
+    }
+}
+
+/// Tokenise a `border` / `border-<side>` value into (width, style, color)
+/// pieces. Each whitespace-separated token is tried first as a length
+/// (rejecting the `Raw` / `Auto` fallback so non-numeric tokens don't get
+/// gobbled), then as a border-style keyword, and finally as a color.
+fn parse_border_pieces(value: &str) -> (Option<CssLength>, Option<BorderStyle>, Option<CssColor>) {
+    let mut w = None;
+    let mut s = None;
+    let mut c = None;
     for token in value.split_whitespace() {
-        if let Some(w) = parse_definite_length(token) {
-            style.border_width = Some(w);
-            continue;
+        if w.is_none() {
+            if let Some(v) = parse_definite_length(token) {
+                w = Some(v);
+                continue;
+            }
         }
-        if let Some(s) = parse_border_style(token) {
-            style.border_style = Some(s);
-            continue;
+        if s.is_none() {
+            if let Some(v) = parse_border_style(token) {
+                s = Some(v);
+                continue;
+            }
         }
-        if let Some(c) = parse_css_color(token) {
-            style.border_color = Some(c);
-            continue;
+        if c.is_none() {
+            if let Some(v) = parse_css_color(token) {
+                c = Some(v);
+                continue;
+            }
         }
+    }
+    (w, s, c)
+}
+
+/// `border-width: 1 / 2 / 3 / 4 values` → fans into the four per-side widths.
+fn apply_border_widths(value: &str, style: &mut Style) {
+    let (t, r, b, l) = parse_box_shorthand(value);
+    if let Some(t) = t { style.border_top_width = Some(t); }
+    if let Some(r) = r { style.border_right_width = Some(r); }
+    if let Some(b) = b { style.border_bottom_width = Some(b); }
+    if let Some(l) = l { style.border_left_width = Some(l); }
+}
+
+/// `border-style: 1 / 2 / 3 / 4 values` → fans into the four per-side styles.
+fn apply_border_styles(value: &str, style: &mut Style) {
+    let (t, r, b, l) = parse_keyword_box_shorthand(value, parse_border_style);
+    if let Some(t) = t { style.border_top_style = Some(t); }
+    if let Some(r) = r { style.border_right_style = Some(r); }
+    if let Some(b) = b { style.border_bottom_style = Some(b); }
+    if let Some(l) = l { style.border_left_style = Some(l); }
+}
+
+/// `border-color: 1 / 2 / 3 / 4 values` → fans into the four per-side colors.
+fn apply_border_colors(value: &str, style: &mut Style) {
+    let (t, r, b, l) = parse_keyword_box_shorthand(value, parse_css_color);
+    if let Some(t) = t { style.border_top_color = Some(t); }
+    if let Some(r) = r { style.border_right_color = Some(r); }
+    if let Some(b) = b { style.border_bottom_color = Some(b); }
+    if let Some(l) = l { style.border_left_color = Some(l); }
+}
+
+/// `border-radius: 1 / 2 / 3 / 4 values` → per-corner.
+/// Order is TL, TR, BR, BL (CSS spec).
+fn apply_border_radii(value: &str, style: &mut Style) {
+    let parts: Vec<&str> = value.split_whitespace().collect();
+    let (tl, tr, br, bl) = match parts.len() {
+        0 => return,
+        1 => {
+            let v = parse_css_length(parts[0]);
+            (v.clone(), v.clone(), v.clone(), v)
+        }
+        2 => {
+            let a = parse_css_length(parts[0]); // TL & BR
+            let b = parse_css_length(parts[1]); // TR & BL
+            (a.clone(), b.clone(), a, b)
+        }
+        3 => {
+            let a = parse_css_length(parts[0]); // TL
+            let b = parse_css_length(parts[1]); // TR & BL
+            let c = parse_css_length(parts[2]); // BR
+            (a, b.clone(), c, b)
+        }
+        _ => (
+            parse_css_length(parts[0]),
+            parse_css_length(parts[1]),
+            parse_css_length(parts[2]),
+            parse_css_length(parts[3]),
+        ),
+    };
+    if let Some(v) = tl { style.border_top_left_radius = Some(v); }
+    if let Some(v) = tr { style.border_top_right_radius = Some(v); }
+    if let Some(v) = br { style.border_bottom_right_radius = Some(v); }
+    if let Some(v) = bl { style.border_bottom_left_radius = Some(v); }
+}
+
+/// Generic 1/2/3/4-value box shorthand for properties whose values are
+/// keyword-typed (border-style) or color-typed (border-color). Returns
+/// `(top, right, bottom, left)`.
+fn parse_keyword_box_shorthand<T: Clone>(
+    value: &str,
+    parse_one: fn(&str) -> Option<T>,
+) -> (Option<T>, Option<T>, Option<T>, Option<T>) {
+    let parts: Vec<&str> = value.split_whitespace().collect();
+    match parts.len() {
+        0 => (None, None, None, None),
+        1 => {
+            let v = parse_one(parts[0]);
+            (v.clone(), v.clone(), v.clone(), v)
+        }
+        2 => {
+            let v = parse_one(parts[0]);
+            let h = parse_one(parts[1]);
+            (v.clone(), h.clone(), v, h)
+        }
+        3 => {
+            let t = parse_one(parts[0]);
+            let h = parse_one(parts[1]);
+            let b = parse_one(parts[2]);
+            (t, h.clone(), b, h)
+        }
+        _ => (
+            parse_one(parts[0]),
+            parse_one(parts[1]),
+            parse_one(parts[2]),
+            parse_one(parts[3]),
+        ),
     }
 }
 

@@ -52,15 +52,33 @@ pub struct Style {
   pub background_position: Option<String>,
   // css property: background-repeat
   pub background_repeat: Option<BackgroundRepeat>,
+  /// Raw value of the `border` shorthand. Kept for round-tripping;
+  /// layout reads the per-side fields below instead.
   pub border: Option<String>,
-  // css property: border-width
-  pub border_width: Option<CssLength>,
-  // css property: border-style
-  pub border_style: Option<BorderStyle>,
-  // css property: border-color
-  pub border_color: Option<CssColor>,
-  // css property: border-radius
-  pub border_radius: Option<CssLength>,
+
+  // css property: border-top-width / -right- / -bottom- / -left-
+  pub border_top_width: Option<CssLength>,
+  pub border_right_width: Option<CssLength>,
+  pub border_bottom_width: Option<CssLength>,
+  pub border_left_width: Option<CssLength>,
+
+  // css property: border-top-style / -right- / -bottom- / -left-
+  pub border_top_style: Option<BorderStyle>,
+  pub border_right_style: Option<BorderStyle>,
+  pub border_bottom_style: Option<BorderStyle>,
+  pub border_left_style: Option<BorderStyle>,
+
+  // css property: border-top-color / -right- / -bottom- / -left-
+  pub border_top_color: Option<CssColor>,
+  pub border_right_color: Option<CssColor>,
+  pub border_bottom_color: Option<CssColor>,
+  pub border_left_color: Option<CssColor>,
+
+  // css property: border-top-left-radius / -top-right- / -bottom-right- / -bottom-left-
+  pub border_top_left_radius: Option<CssLength>,
+  pub border_top_right_radius: Option<CssLength>,
+  pub border_bottom_right_radius: Option<CssLength>,
+  pub border_bottom_left_radius: Option<CssLength>,
   // css property: font-family
   pub font_family: Option<String>,
   // css property: font-size

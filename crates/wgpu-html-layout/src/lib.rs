@@ -69,6 +69,41 @@ impl Insets {
     }
 }
 
+/// Per-corner radii in physical pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct CornerRadii {
+    pub top_left: f32,
+    pub top_right: f32,
+    pub bottom_right: f32,
+    pub bottom_left: f32,
+}
+
+impl CornerRadii {
+    pub const fn zero() -> Self {
+        Self {
+            top_left: 0.0,
+            top_right: 0.0,
+            bottom_right: 0.0,
+            bottom_left: 0.0,
+        }
+    }
+}
+
+/// Per-side border colors, top / right / bottom / left.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BorderColors {
+    pub top: Option<Color>,
+    pub right: Option<Color>,
+    pub bottom: Option<Color>,
+    pub left: Option<Color>,
+}
+
+impl BorderColors {
+    pub fn any(&self) -> bool {
+        self.top.is_some() || self.right.is_some() || self.bottom.is_some() || self.left.is_some()
+    }
+}
+
 /// One laid-out box. Coordinates are absolute (already translated for
 /// every parent on the path); the paint pass just reads them.
 #[derive(Debug, Clone)]
@@ -83,10 +118,13 @@ pub struct LayoutBox {
     pub background: Option<Color>,
     /// Per-side border thickness, in physical pixels.
     pub border: Insets,
-    /// Resolved border color (used for all four sides). `None` falls
-    /// back to the foreground color, which we don't track yet, so paint
-    /// skips the border in that case.
-    pub border_color: Option<Color>,
+    /// Per-side border color. `None` for a side means that edge is
+    /// skipped during paint (we don't track foreground color yet, so
+    /// there's no spec-default fallback).
+    pub border_colors: BorderColors,
+    /// Per-corner radii. Currently parsed and laid out but **not yet
+    /// rendered** (paint emits straight-edge quads).
+    pub border_radius: CornerRadii,
     pub kind: BoxKind,
     pub children: Vec<LayoutBox>,
 }
@@ -152,7 +190,8 @@ fn layout_block(
             content_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
             background: None,
             border: Insets::zero(),
-            border_color: None,
+            border_colors: BorderColors::default(),
+            border_radius: CornerRadii::zero(),
             kind: BoxKind::Text,
             children: Vec::new(),
         };
@@ -161,12 +200,12 @@ fn layout_block(
     let style = &node.style;
 
     let margin = resolve_insets_margin(style, container_w, ctx);
-    let border_width = length::resolve(style.border_width.as_ref(), container_w, ctx).unwrap_or(0.0);
     let border = Insets {
-        top: border_width,
-        right: border_width,
-        bottom: border_width,
-        left: border_width,
+        top: length::resolve(style.border_top_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+        right: length::resolve(style.border_right_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+        bottom: length::resolve(style.border_bottom_width.as_ref(), container_w, ctx)
+            .unwrap_or(0.0),
+        left: length::resolve(style.border_left_width.as_ref(), container_w, ctx).unwrap_or(0.0),
     };
     let padding = resolve_insets_padding(style, container_w, ctx);
 
@@ -251,7 +290,22 @@ fn layout_block(
     );
 
     let background = style.background_color.as_ref().and_then(resolve_color);
-    let border_color = style.border_color.as_ref().and_then(resolve_color);
+    let border_colors = BorderColors {
+        top: style.border_top_color.as_ref().and_then(resolve_color),
+        right: style.border_right_color.as_ref().and_then(resolve_color),
+        bottom: style.border_bottom_color.as_ref().and_then(resolve_color),
+        left: style.border_left_color.as_ref().and_then(resolve_color),
+    };
+    let border_radius = CornerRadii {
+        top_left: length::resolve(style.border_top_left_radius.as_ref(), container_w, ctx)
+            .unwrap_or(0.0),
+        top_right: length::resolve(style.border_top_right_radius.as_ref(), container_w, ctx)
+            .unwrap_or(0.0),
+        bottom_right: length::resolve(style.border_bottom_right_radius.as_ref(), container_w, ctx)
+            .unwrap_or(0.0),
+        bottom_left: length::resolve(style.border_bottom_left_radius.as_ref(), container_w, ctx)
+            .unwrap_or(0.0),
+    };
 
     LayoutBox {
         margin_rect,
@@ -259,7 +313,8 @@ fn layout_block(
         content_rect,
         background,
         border,
-        border_color,
+        border_colors,
+        border_radius,
         kind: BoxKind::Block,
         children,
     }

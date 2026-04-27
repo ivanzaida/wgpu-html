@@ -399,52 +399,165 @@ fn background_repeat_keywords() {
 }
 
 #[test]
-fn border_style_keywords() {
-    assert!(matches!(s("border-style: solid;").border_style,  Some(BorderStyle::Solid)));
-    assert!(matches!(s("border-style: dashed;").border_style, Some(BorderStyle::Dashed)));
-    assert!(matches!(s("border-style: dotted;").border_style, Some(BorderStyle::Dotted)));
-    assert!(matches!(s("border-style: none;").border_style,   Some(BorderStyle::None)));
+fn border_style_keyword_fans_to_all_sides() {
+    let style = s("border-style: solid;");
+    assert!(matches!(style.border_top_style,    Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_right_style,  Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_bottom_style, Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_left_style,   Some(BorderStyle::Solid)));
 }
 
 #[test]
-fn border_radius_length() {
-    assert!(matches!(s("border-radius: 8px;").border_radius, Some(CssLength::Px(v)) if v == 8.0));
+fn border_radius_one_value_fans_to_all_corners() {
+    let style = s("border-radius: 8px;");
+    assert!(matches!(style.border_top_left_radius,     Some(CssLength::Px(v)) if v == 8.0));
+    assert!(matches!(style.border_top_right_radius,    Some(CssLength::Px(v)) if v == 8.0));
+    assert!(matches!(style.border_bottom_right_radius, Some(CssLength::Px(v)) if v == 8.0));
+    assert!(matches!(style.border_bottom_left_radius,  Some(CssLength::Px(v)) if v == 8.0));
 }
 
 #[test]
-fn border_shorthand_splits_into_pieces() {
-    // `border: <width> <style> <color>` is split (in any order) into
-    // border_width / border_style / border_color. The raw string is
-    // also preserved on `style.border` for round-tripping.
+fn border_radius_four_values_per_corner() {
+    // Order: TL TR BR BL
+    let style = s("border-radius: 1px 2px 3px 4px;");
+    assert!(matches!(style.border_top_left_radius,     Some(CssLength::Px(v)) if v == 1.0));
+    assert!(matches!(style.border_top_right_radius,    Some(CssLength::Px(v)) if v == 2.0));
+    assert!(matches!(style.border_bottom_right_radius, Some(CssLength::Px(v)) if v == 3.0));
+    assert!(matches!(style.border_bottom_left_radius,  Some(CssLength::Px(v)) if v == 4.0));
+}
+
+#[test]
+fn border_shorthand_fans_to_all_sides() {
+    // `border: <width> <style> <color>` sets all 12 per-side fields.
     let style = s("border: 2px solid red;");
-    assert!(style.border.is_some());
-    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 2.0));
-    assert!(matches!(style.border_style, Some(BorderStyle::Solid)));
-    assert!(matches!(style.border_color, Some(CssColor::Named(ref n)) if n == "red"));
+    assert!(style.border.is_some()); // raw kept for round-tripping
+    for w in [
+        &style.border_top_width,
+        &style.border_right_width,
+        &style.border_bottom_width,
+        &style.border_left_width,
+    ] {
+        assert!(matches!(w, Some(CssLength::Px(v)) if *v == 2.0));
+    }
+    for s in [
+        &style.border_top_style,
+        &style.border_right_style,
+        &style.border_bottom_style,
+        &style.border_left_style,
+    ] {
+        assert!(matches!(s, Some(BorderStyle::Solid)));
+    }
+    for c in [
+        &style.border_top_color,
+        &style.border_right_color,
+        &style.border_bottom_color,
+        &style.border_left_color,
+    ] {
+        assert!(matches!(c, Some(CssColor::Named(n)) if n == "red"));
+    }
 }
 
 #[test]
 fn border_shorthand_token_order_does_not_matter() {
     let style = s("border: dashed #00f 4px;");
-    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 4.0));
-    assert!(matches!(style.border_style, Some(BorderStyle::Dashed)));
-    assert!(matches!(style.border_color, Some(CssColor::Hex(ref s)) if s == "#00f"));
+    assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 4.0));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
+    assert!(matches!(style.border_top_color, Some(CssColor::Hex(ref s)) if s == "#00f"));
 }
 
 #[test]
 fn border_shorthand_partial_only_fills_present_pieces() {
     let style = s("border: 1px solid;");
-    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 1.0));
-    assert!(matches!(style.border_style, Some(BorderStyle::Solid)));
-    assert!(style.border_color.is_none());
+    assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 1.0));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Solid)));
+    assert!(style.border_top_color.is_none());
+}
+
+#[test]
+fn per_side_longhand_only_fills_that_side() {
+    let style = s("border-top: 4px dashed blue;");
+    assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 4.0));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
+    assert!(style.border_top_color.is_some());
+    // Other sides untouched.
+    assert!(style.border_right_width.is_none());
+    assert!(style.border_bottom_color.is_none());
+}
+
+#[test]
+fn per_side_longhand_overrides_general_shorthand() {
+    // Source order: shorthand fills all sides, then per-side longhand
+    // overrides just that side.
+    let style = s("border: 2px solid red; border-top: 4px dashed blue;");
+    assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 4.0));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
+    // Other sides retain the shorthand values.
+    assert!(matches!(style.border_right_width, Some(CssLength::Px(v)) if v == 2.0));
+    assert!(matches!(style.border_bottom_style, Some(BorderStyle::Solid)));
+}
+
+#[test]
+fn border_width_box_shorthand_two_values() {
+    // 2 values: vertical, horizontal.
+    let style = s("border-width: 4px 8px;");
+    assert!(matches!(style.border_top_width,    Some(CssLength::Px(v)) if v == 4.0));
+    assert!(matches!(style.border_bottom_width, Some(CssLength::Px(v)) if v == 4.0));
+    assert!(matches!(style.border_right_width,  Some(CssLength::Px(v)) if v == 8.0));
+    assert!(matches!(style.border_left_width,   Some(CssLength::Px(v)) if v == 8.0));
+}
+
+#[test]
+fn border_width_box_shorthand_four_values() {
+    // T R B L
+    let style = s("border-width: 1px 2px 3px 4px;");
+    assert!(matches!(style.border_top_width,    Some(CssLength::Px(v)) if v == 1.0));
+    assert!(matches!(style.border_right_width,  Some(CssLength::Px(v)) if v == 2.0));
+    assert!(matches!(style.border_bottom_width, Some(CssLength::Px(v)) if v == 3.0));
+    assert!(matches!(style.border_left_width,   Some(CssLength::Px(v)) if v == 4.0));
+}
+
+#[test]
+fn border_color_box_shorthand_four_values() {
+    let style = s("border-color: red green blue gold;");
+    assert!(matches!(style.border_top_color,    Some(CssColor::Named(ref n)) if n == "red"));
+    assert!(matches!(style.border_right_color,  Some(CssColor::Named(ref n)) if n == "green"));
+    assert!(matches!(style.border_bottom_color, Some(CssColor::Named(ref n)) if n == "blue"));
+    assert!(matches!(style.border_left_color,   Some(CssColor::Named(ref n)) if n == "gold"));
+}
+
+#[test]
+fn border_style_box_shorthand_two_values() {
+    let style = s("border-style: solid dashed;");
+    assert!(matches!(style.border_top_style,    Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_bottom_style, Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_right_style,  Some(BorderStyle::Dashed)));
+    assert!(matches!(style.border_left_style,   Some(BorderStyle::Dashed)));
 }
 
 #[test]
 fn explicit_border_pieces_parse() {
-    let style = s("border-width: 2px; border-style: dashed; border-color: blue;");
-    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 2.0));
-    assert!(matches!(style.border_style, Some(BorderStyle::Dashed)));
-    assert!(style.border_color.is_some());
+    let style = s(
+        "border-top-width: 2px;
+         border-top-style: dashed;
+         border-top-color: blue;",
+    );
+    assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 2.0));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
+    assert!(style.border_top_color.is_some());
+}
+
+#[test]
+fn per_corner_radius_explicit_pieces_parse() {
+    let style = s(
+        "border-top-left-radius: 1px;
+         border-top-right-radius: 2px;
+         border-bottom-right-radius: 3px;
+         border-bottom-left-radius: 4px;",
+    );
+    assert!(matches!(style.border_top_left_radius,     Some(CssLength::Px(v)) if v == 1.0));
+    assert!(matches!(style.border_top_right_radius,    Some(CssLength::Px(v)) if v == 2.0));
+    assert!(matches!(style.border_bottom_right_radius, Some(CssLength::Px(v)) if v == 3.0));
+    assert!(matches!(style.border_bottom_left_radius,  Some(CssLength::Px(v)) if v == 4.0));
 }
 
 #[test]

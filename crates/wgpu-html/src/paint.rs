@@ -40,38 +40,44 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
     }
 }
 
-/// Emit up to four solid edge quads for the box border. Sides with zero
-/// thickness are skipped. If `border_color` is `None`, the whole border
-/// is skipped (we don't track foreground color yet for the spec-default
-/// fallback).
+/// Emit up to four solid edge quads for the box border. Each side is
+/// independently coloured: a side is skipped if its thickness is zero
+/// or its colour is unset (we don't track foreground color yet for the
+/// spec-default fallback).
 fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
-    let Some(color) = b.border_color else { return };
     let r = b.border_rect;
     let bd = b.border;
-    if r.w <= 0.0 || r.h <= 0.0 {
+    if r.w <= 0.0 || r.h <= 0.0 || !b.border_colors.any() {
         return;
     }
+    let bc = b.border_colors;
 
-    // Top edge spans the full width; left/right edges sit between
-    // top and bottom so corners are filled exactly once.
+    // Top edge spans the full width; left/right edges sit between top
+    // and bottom so the corners (which belong to the longer-axis edges
+    // top/bottom by convention) are filled exactly once.
     if bd.top > 0.0 {
-        out.push_quad(Rect::new(r.x, r.y, r.w, bd.top), color);
+        if let Some(c) = bc.top {
+            out.push_quad(Rect::new(r.x, r.y, r.w, bd.top), c);
+        }
     }
     if bd.bottom > 0.0 {
-        out.push_quad(
-            Rect::new(r.x, r.y + r.h - bd.bottom, r.w, bd.bottom),
-            color,
-        );
+        if let Some(c) = bc.bottom {
+            out.push_quad(Rect::new(r.x, r.y + r.h - bd.bottom, r.w, bd.bottom), c);
+        }
     }
     let inner_h = (r.h - bd.top - bd.bottom).max(0.0);
     if bd.left > 0.0 && inner_h > 0.0 {
-        out.push_quad(Rect::new(r.x, r.y + bd.top, bd.left, inner_h), color);
+        if let Some(c) = bc.left {
+            out.push_quad(Rect::new(r.x, r.y + bd.top, bd.left, inner_h), c);
+        }
     }
     if bd.right > 0.0 && inner_h > 0.0 {
-        out.push_quad(
-            Rect::new(r.x + r.w - bd.right, r.y + bd.top, bd.right, inner_h),
-            color,
-        );
+        if let Some(c) = bc.right {
+            out.push_quad(
+                Rect::new(r.x + r.w - bd.right, r.y + bd.top, bd.right, inner_h),
+                c,
+            );
+        }
     }
 }
 
