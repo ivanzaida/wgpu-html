@@ -29,6 +29,22 @@ pub type CornerRadii = [f32; 4];
 /// All zero means the quad is filled rather than stroked.
 pub type StrokeWidths = [f32; 4];
 
+/// Pattern descriptor for stroked rings: `[kind, dash, gap, _pad]`.
+/// - `kind`: 0 = solid, 1 = dashed, 2 = dotted.
+/// - `dash`: pixel length of each painted segment (along the path).
+/// - `gap`:  pixel length of each unpainted segment.
+///
+/// All-zero means "solid" (the shader's default).
+pub type Pattern = [f32; 4];
+
+/// Pattern kind values written into `Pattern[0]`.
+#[allow(dead_code)]
+pub mod pattern_kind {
+    pub const SOLID: f32 = 0.0;
+    pub const DASHED: f32 = 1.0;
+    pub const DOTTED: f32 = 2.0;
+}
+
 /// One quad. Two modes:
 /// - **Filled**: `stroke == [0; 4]`. The whole box (with rounded corners
 ///   from `radii_h` / `radii_v`) is filled with `color`.
@@ -47,6 +63,11 @@ pub struct Quad {
     pub radii_v: CornerRadii,
     /// Per-side ring thickness. `[0; 4]` → filled mode.
     pub stroke: StrokeWidths,
+    /// Stroke pattern: `(kind, dash, gap, _)`. `kind == 0` (solid) is
+    /// the default and ignores the rest. Only honoured when the quad
+    /// is a one-sided rounded ring (`stroke` has exactly one positive
+    /// component); other configurations render solid.
+    pub pattern: Pattern,
 }
 
 /// Flat list of paint commands. Currently just quads; later milestones
@@ -68,6 +89,7 @@ impl DisplayList {
             radii_h: [0.0; 4],
             radii_v: [0.0; 4],
             stroke: [0.0; 4],
+            pattern: [0.0; 4],
         });
         self
     }
@@ -85,6 +107,7 @@ impl DisplayList {
             radii_h: radii,
             radii_v: radii,
             stroke: [0.0; 4],
+            pattern: [0.0; 4],
         });
         self
     }
@@ -103,6 +126,7 @@ impl DisplayList {
             radii_h,
             radii_v,
             stroke: [0.0; 4],
+            pattern: [0.0; 4],
         });
         self
     }
@@ -121,6 +145,7 @@ impl DisplayList {
             radii_h: radii,
             radii_v: radii,
             stroke,
+            pattern: [0.0; 4],
         });
         self
     }
@@ -140,6 +165,31 @@ impl DisplayList {
             radii_h,
             radii_v,
             stroke,
+            pattern: [0.0; 4],
+        });
+        self
+    }
+
+    /// Push a stroked rounded ring with a dash/dot pattern. The shader
+    /// only honours the pattern on one-sided rings (i.e. exactly one
+    /// stroke component > 0); for any other configuration the pattern
+    /// is ignored and the ring renders solid.
+    pub fn push_quad_stroke_patterned(
+        &mut self,
+        rect: Rect,
+        color: Color,
+        radii_h: CornerRadii,
+        radii_v: CornerRadii,
+        stroke: StrokeWidths,
+        pattern: Pattern,
+    ) -> &mut Self {
+        self.quads.push(Quad {
+            rect,
+            color,
+            radii_h,
+            radii_v,
+            stroke,
+            pattern,
         });
         self
     }

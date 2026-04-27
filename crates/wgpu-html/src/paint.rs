@@ -165,9 +165,36 @@ fn paint_rounded_per_side_borders(
                 out.push_quad_stroke_ellipse(rect, color, rh, rv, stroke);
             }
             EdgeKind::Dashed | EdgeKind::Dotted => {
-                let edge_rect = side.edge_rect(r, bd);
-                let axis = side.axis();
-                paint_edge(edge_rect, axis, w, kind, color, out);
+                // If every corner is uniform-circular, the shader can
+                // dash along the rounded path itself. Otherwise fall
+                // back to straight dashed segments along the side's
+                // straight portion (corner curves stay bare — better
+                // than nothing while elliptical arc-length isn't yet
+                // implemented).
+                let radii = &b.border_radius;
+                if uniform_circular_radius(radii).is_some() {
+                    let stroke = side.one_sided_stroke(w);
+                    let (dash, gap) = match kind {
+                        EdgeKind::Dashed => ((w * 3.0).max(2.0), w.max(1.0)),
+                        EdgeKind::Dotted => (w.max(1.0), w.max(1.0)),
+                        _ => (0.0, 0.0),
+                    };
+                    let pattern = [
+                        match kind {
+                            EdgeKind::Dashed => 1.0,
+                            EdgeKind::Dotted => 2.0,
+                            _ => 0.0,
+                        },
+                        dash,
+                        gap,
+                        0.0,
+                    ];
+                    out.push_quad_stroke_patterned(rect, color, rh, rv, stroke, pattern);
+                } else {
+                    let edge_rect = side.edge_rect_rounded(r, bd, radii);
+                    let axis = side.axis();
+                    paint_edge(edge_rect, axis, w, kind, color, out);
+                }
             }
         }
     }
@@ -199,6 +226,7 @@ impl Side {
         }
     }
 
+    #[allow(dead_code)]
     fn edge_rect(self, r: wgpu_html_layout::Rect, bd: wgpu_html_layout::Insets) -> Rect {
         let inner_h = (r.h - bd.top - bd.bottom).max(0.0);
         match self {
@@ -208,6 +236,70 @@ impl Side {
             Side::Right => Rect::new(r.x + r.w - bd.right, r.y + bd.top, bd.right, inner_h),
         }
     }
+
+    /// Same as [`Self::edge_rect`] but on a rounded box: the strip is
+    /// clamped to the *straight* portion of the side, between the two
+    /// adjacent corner radii. With zero radii this collapses to the
+    /// regular corner-owning rectangle, so it's safe for the rounded
+    /// path even when only some corners are rounded.
+    fn edge_rect_rounded(
+        self,
+        r: wgpu_html_layout::Rect,
+        bd: wgpu_html_layout::Insets,
+        radii: &wgpu_html_layout::CornerRadii,
+    ) -> Rect {
+        match self {
+            Side::Top => {
+                let x_start = radii.top_left.h;
+                let x_end = (r.w - radii.top_right.h).max(x_start);
+                Rect::new(r.x + x_start, r.y, x_end - x_start, bd.top)
+            }
+            Side::Bottom => {
+                let x_start = radii.bottom_left.h;
+                let x_end = (r.w - radii.bottom_right.h).max(x_start);
+                Rect::new(
+                    r.x + x_start,
+                    r.y + r.h - bd.bottom,
+                    x_end - x_start,
+                    bd.bottom,
+                )
+            }
+            Side::Left => {
+                let y_start = radii.top_left.v.max(bd.top);
+                let y_end = (r.h - radii.bottom_left.v).max(y_start);
+                Rect::new(r.x, r.y + y_start, bd.left, y_end - y_start)
+            }
+            Side::Right => {
+                let y_start = radii.top_right.v.max(bd.top);
+                let y_end = (r.h - radii.bottom_right.v).max(y_start);
+                Rect::new(
+                    r.x + r.w - bd.right,
+                    r.y + y_start,
+                    bd.right,
+                    y_end - y_start,
+                )
+            }
+        }
+    }
+}
+
+/// Returns the shared radius if every corner has the same circular
+/// (h == v) radius; `None` otherwise. The dashed-along-curve shader
+/// path only handles the uniform-circular case for now.
+fn uniform_circular_radius(r: &wgpu_html_layout::CornerRadii) -> Option<f32> {
+    let corners = [
+        r.top_left,
+        r.top_right,
+        r.bottom_right,
+        r.bottom_left,
+    ];
+    let target = corners[0].h;
+    for c in corners {
+        if (c.h - target).abs() > 1e-3 || (c.v - target).abs() > 1e-3 {
+            return None;
+        }
+    }
+    Some(target)
 }
 
 fn corner_radii_from(r: &wgpu_html_layout::CornerRadii) -> ([f32; 4], [f32; 4]) {
@@ -620,10 +712,12 @@ mod tests {
     }
 
     #[test]
-    fn dashed_with_rounded_falls_back_to_segments_not_ring() {
-        // Non-solid style with a radius is not painted as a single SDF
-        // ring (which would render as solid). It falls back to segmented
-        // edges; the rounded background underneath fills the corners.
+    fn dashed_with_rounded_emits_per_side_patterned_rings() {
+        // Uniform-circular corners → dashed pattern goes through the
+        // shader as one one-sided ring quad per side; the dash pattern
+        // wraps around the corner curve in the fragment shader.
+        // 1 rounded background + 4 ring quads (top / right / bottom /
+        // left, each with pattern set).
         let tree = wgpu_html_parser::parse(
             r#"<body style="width: 200px; height: 100px;
                              background-color: white;
@@ -631,13 +725,15 @@ mod tests {
                              border-radius: 12px;"></body>"#,
         );
         let list = paint_tree(&tree, 800.0, 600.0);
-        // 1 rounded background + many dashed segments.
-        assert!(list.quads.len() > 9);
-        // Background is the first quad and uses radii.
-        assert_eq!(list.quads[0].radii_h, [12.0; 4]);
-        // The remaining quads have no stroke (sharp segments).
+        assert_eq!(list.quads.len(), 5);
+        // Background first, no stroke / pattern.
+        assert_eq!(list.quads[0].stroke, [0.0; 4]);
+        assert_eq!(list.quads[0].pattern, [0.0; 4]);
+        // Each border ring carries the dashed pattern (kind=1.0).
         for q in &list.quads[1..] {
-            assert_eq!(q.stroke, [0.0; 4]);
+            assert_eq!(q.pattern[0], 1.0);
+            let nonzero = q.stroke.iter().filter(|s| **s > 0.0).count();
+            assert_eq!(nonzero, 1);
         }
     }
 }

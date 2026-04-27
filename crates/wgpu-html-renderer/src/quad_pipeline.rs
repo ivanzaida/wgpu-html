@@ -29,6 +29,9 @@ struct QuadInstance {
     /// Per-side ring thickness in pixels: top, right, bottom, left. All
     /// zero → filled mode.
     stroke: [f32; 4],
+    /// Stroke pattern: (kind, dash, gap, _). `kind == 0` (solid) is the
+    /// default and ignores the rest.
+    pattern: [f32; 4],
 }
 
 impl From<&Quad> for QuadInstance {
@@ -40,6 +43,7 @@ impl From<&Quad> for QuadInstance {
             radii_h: q.radii_h,
             radii_v: q.radii_v,
             stroke: q.stroke,
+            pattern: q.pattern,
         }
     }
 }
@@ -136,6 +140,11 @@ impl QuadPipeline {
                                 format: wgpu::VertexFormat::Float32x4,
                                 offset: 64,
                                 shader_location: 6,
+                            },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 80,
+                                shader_location: 7,
                             },
                         ],
                     },

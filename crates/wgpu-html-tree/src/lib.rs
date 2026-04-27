@@ -42,6 +42,47 @@ impl Node {
         self.children.push(child);
         self
     }
+
+    /// Walk a child-index path from this node to a descendant. An empty
+    /// path returns `Some(self)`. Returns `None` if any index is out of
+    /// bounds.
+    pub fn at_path_mut(&mut self, path: &[usize]) -> Option<&mut Node> {
+        let mut cursor: &mut Node = self;
+        for &i in path {
+            cursor = cursor.children.get_mut(i)?;
+        }
+        Some(cursor)
+    }
+
+    /// Walk a child-index path and collect every node visited, ordered
+    /// deepest descendant → root. The first element is the deepest hit;
+    /// the last is `self`.
+    ///
+    /// Soundness: the returned `&mut` references all alias into nested
+    /// subtrees of the same borrow — each is an ancestor of the next.
+    /// Two of them must never be dereferenced concurrently. Walking the
+    /// chain one step at a time (event bubbling, etc.) is fine.
+    pub fn ancestry_at_path_mut(&mut self, path: &[usize]) -> Vec<&mut Node> {
+        let mut out: Vec<&mut Node> = Vec::with_capacity(path.len() + 1);
+        // SAFETY: every pointer is derived from `self`'s exclusive
+        // borrow and points at a strict subtree of the previous one.
+        // We rely on the documented contract that callers do not
+        // access two of the returned references simultaneously.
+        unsafe {
+            let mut cursor: *mut Node = self as *mut Node;
+            out.push(&mut *cursor);
+            for &i in path {
+                let children: *mut Vec<Node> = &raw mut (*cursor).children;
+                if i >= (*children).len() {
+                    break;
+                }
+                cursor = (*children).as_mut_ptr().add(i);
+                out.push(&mut *cursor);
+            }
+        }
+        out.reverse();
+        out
+    }
 }
 
 /// One variant per HTML element kind, plus raw text.

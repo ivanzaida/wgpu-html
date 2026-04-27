@@ -16,7 +16,7 @@
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{BorderStyle, BoxSizing, CssLength, Display};
 use wgpu_html_style::{CascadedNode, CascadedTree};
-use wgpu_html_tree::Element;
+use wgpu_html_tree::{Element, Node, Tree};
 
 mod color;
 mod flex;
@@ -194,61 +194,65 @@ pub enum BoxKind {
 }
 
 impl LayoutBox {
-    /// Return the deepest box whose `border_rect` contains `(x, y)`,
-    /// or `None` if the point falls outside this subtree. Children are
-    /// tested last-to-first so the topmost (last-painted) hit wins on
-    /// overlap.
-    pub fn find_element_from_point(&mut self, point: (f32, f32)) -> Option<&mut LayoutBox> {
+    /// Index path from `self` to the deepest descendant whose
+    /// `border_rect` contains `point`. An empty path means `self` is the
+    /// deepest match. `None` if the point is outside `self`.
+    ///
+    /// The layout tree mirrors the source element tree 1:1, so this
+    /// path can be applied to a [`Tree`] / [`Node`] to navigate to the
+    /// corresponding element.
+    pub fn hit_path(&self, point: (f32, f32)) -> Option<Vec<usize>> {
         let (x, y) = point;
         if !self.border_rect.contains(x, y) {
             return None;
         }
-        // Find the topmost (last-painted) child that contains the point,
-        // then recurse into it. We resolve the index immutably first so
-        // the recursive `&mut` borrow doesn't overlap with a fallback
-        // `Some(self)` return — a stable-Rust NLL workaround.
-        for i in (0..self.children.len()).rev() {
-            if self.children[i].border_rect.contains(x, y) {
-                return self.children[i].find_element_from_point(point);
-            }
-        }
-        Some(self)
-    }
-
-    /// Return every box whose `border_rect` contains `(x, y)` along the
-    /// hit path, ordered deepest-child → root. Empty if the point falls
-    /// outside `self`.
-    ///
-    /// Soundness: the returned `&mut` references all alias into the same
-    /// borrowed subtree (each is an ancestor of the next), so two of
-    /// them must never be dereferenced concurrently. The intended usage
-    /// is to walk the slice one step at a time (event bubbling, etc.).
-    pub fn find_elements_from_point(&mut self, point: (f32, f32)) -> Vec<&mut LayoutBox> {
-        let (x, y) = point;
-        if !self.border_rect.contains(x, y) {
-            return Vec::new();
-        }
-        // Discover the child-index path immutably first; this lets us
-        // splice raw pointers without ever borrow-overlapping safe refs.
         let mut path: Vec<usize> = Vec::new();
         collect_hit_path(self, x, y, &mut path);
+        Some(path)
+    }
 
-        let mut out: Vec<&mut LayoutBox> = Vec::with_capacity(path.len() + 1);
-        // SAFETY: every pointer is derived from `self`'s exclusive borrow
-        // and points at a strict subtree of the previous one. We rely on
-        // the documented contract that callers do not access two of the
-        // returned references simultaneously.
-        unsafe {
-            let mut cursor: *mut LayoutBox = self as *mut LayoutBox;
-            out.push(&mut *cursor);
-            for &i in &path {
-                let children: *mut Vec<LayoutBox> = &raw mut (*cursor).children;
-                cursor = (*children).as_mut_ptr().add(i);
-                out.push(&mut *cursor);
-            }
-        }
-        out.reverse();
-        out
+    /// Hit-test the layout at `point` and return a mutable reference
+    /// to the matching element node in `tree`. Use this to read or
+    /// modify the source element (style, text, attributes, etc.).
+    /// Returns `None` if the point is outside `self` or the tree has
+    /// no root.
+    ///
+    /// `tree` must be the same tree this layout was produced from; we
+    /// rely on the layout's child structure mirroring the element
+    /// tree's child structure 1:1.
+    ///
+    /// On overlap, children are walked last-to-first so the topmost
+    /// (last-painted) hit wins.
+    pub fn find_element_from_point<'a>(
+        &self,
+        tree: &'a mut Tree,
+        point: (f32, f32),
+    ) -> Option<&'a mut Node> {
+        let path = self.hit_path(point)?;
+        tree.root.as_mut()?.at_path_mut(&path)
+    }
+
+    /// Like [`Self::find_element_from_point`] but returns the entire
+    /// ancestor chain of element nodes from the deepest hit up to (and
+    /// including) the tree root. Empty when the point is outside or
+    /// the tree has no root.
+    ///
+    /// Soundness inherits from [`Node::ancestry_at_path_mut`]: the
+    /// returned `&mut` references alias into nested subtrees of the
+    /// same borrow, so two of them must never be dereferenced at the
+    /// same time.
+    pub fn find_elements_from_point<'a>(
+        &self,
+        tree: &'a mut Tree,
+        point: (f32, f32),
+    ) -> Vec<&'a mut Node> {
+        let Some(path) = self.hit_path(point) else {
+            return Vec::new();
+        };
+        let Some(root) = tree.root.as_mut() else {
+            return Vec::new();
+        };
+        root.ancestry_at_path_mut(&path)
     }
 }
 
