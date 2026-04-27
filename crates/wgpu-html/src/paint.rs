@@ -7,11 +7,13 @@ use wgpu_html_layout::LayoutBox;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_tree::Tree;
 
-/// Convenience: lay the tree out at `(viewport_w × viewport_h)` and paint
-/// the result into a fresh display list.
+/// Convenience: cascade `tree` against any embedded `<style>` blocks,
+/// lay it out at `(viewport_w × viewport_h)`, and paint the result into
+/// a fresh display list.
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
+    let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
-    if let Some(root) = wgpu_html_layout::layout(tree, viewport_w, viewport_h) {
+    if let Some(root) = wgpu_html_layout::layout(&cascaded, viewport_w, viewport_h) {
         paint_box(&root, &mut list);
     }
     list

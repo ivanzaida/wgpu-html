@@ -7,6 +7,7 @@ members = [
     "crates/wgpu-html-models",
     "crates/wgpu-html-parser",
     "crates/wgpu-html-renderer",
+    "crates/wgpu-html-style",
     "crates/wgpu-html-tree",
 ]
 
@@ -16,6 +17,7 @@ wgpu-html-layout       = { path = "crates/wgpu-html-layout" }
 wgpu-html-models       = { path = "crates/wgpu-html-models" }
 wgpu-html-parser       = { path = "crates/wgpu-html-parser" }
 wgpu-html-renderer     = { path = "crates/wgpu-html-renderer" }
+wgpu-html-style        = { path = "crates/wgpu-html-style" }
 wgpu-html-tree         = { path = "crates/wgpu-html-tree" }
 
 wgpu     = "29"

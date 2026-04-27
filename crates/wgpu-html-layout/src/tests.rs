@@ -4,15 +4,19 @@ fn first_child(b: &LayoutBox) -> &LayoutBox {
     b.children.first().expect("expected a child")
 }
 
+fn make(html: &str) -> CascadedTree {
+    wgpu_html_style::cascade(&wgpu_html_parser::parse(html))
+}
+
 #[test]
 fn empty_tree_has_no_layout() {
-    let tree = wgpu_html_parser::parse("");
+    let tree = make("");
     assert!(layout(&tree, 800.0, 600.0).is_none());
 }
 
 #[test]
 fn body_fills_viewport_with_no_explicit_size() {
-    let tree = wgpu_html_parser::parse("<body></body>");
+    let tree = make("<body></body>");
     let root = layout(&tree, 800.0, 600.0).unwrap();
     assert_eq!(root.margin_rect.x, 0.0);
     assert_eq!(root.margin_rect.y, 0.0);
@@ -23,7 +27,7 @@ fn body_fills_viewport_with_no_explicit_size() {
 
 #[test]
 fn explicit_size_used_verbatim() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body style="width: 400px; height: 200px;"></body>"#,
     );
     let root = layout(&tree, 800.0, 600.0).unwrap();
@@ -33,7 +37,7 @@ fn explicit_size_used_verbatim() {
 
 #[test]
 fn margin_offsets_border_rect() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body style="margin: 10px; width: 100px; height: 50px;"></body>"#,
     );
     let root = layout(&tree, 800.0, 600.0).unwrap();
@@ -51,7 +55,7 @@ fn margin_offsets_border_rect() {
 
 #[test]
 fn padding_shrinks_content_rect() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body style="padding: 8px; width: 100px; height: 50px;"></body>"#,
     );
     let root = layout(&tree, 800.0, 600.0).unwrap();
@@ -67,7 +71,7 @@ fn padding_shrinks_content_rect() {
 
 #[test]
 fn children_stack_vertically_with_auto_height() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body>
             <div style="height: 30px;"></div>
             <div style="height: 50px;"></div>
@@ -84,7 +88,7 @@ fn children_stack_vertically_with_auto_height() {
 
 #[test]
 fn child_margin_separates_siblings() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body>
             <div style="height: 30px; margin-bottom: 8px;"></div>
             <div style="height: 30px;"></div>
@@ -100,7 +104,7 @@ fn child_margin_separates_siblings() {
 
 #[test]
 fn child_inherits_full_inner_width_when_no_width_set() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body style="padding: 10px;">
             <div style="height: 20px;"></div>
         </body>"#,
@@ -117,7 +121,7 @@ fn child_inherits_full_inner_width_when_no_width_set() {
 
 #[test]
 fn percent_width_is_against_parent_content() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body style="width: 400px;">
             <div style="width: 50%; height: 10px;"></div>
         </body>"#,
@@ -129,7 +133,7 @@ fn percent_width_is_against_parent_content() {
 
 #[test]
 fn background_color_resolves() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body style="background-color: red; width: 10px; height: 10px;"></body>"#,
     );
     let root = layout(&tree, 800.0, 600.0).unwrap();
@@ -142,7 +146,7 @@ fn background_color_resolves() {
 
 #[test]
 fn text_nodes_are_zero_size_placeholders() {
-    let tree = wgpu_html_parser::parse("<p>hi</p>");
+    let tree = make("<p>hi</p>");
     let root = layout(&tree, 800.0, 600.0).unwrap();
     let text = first_child(&root);
     assert_eq!(text.kind, BoxKind::Text);
@@ -152,7 +156,7 @@ fn text_nodes_are_zero_size_placeholders() {
 
 #[test]
 fn nested_body_div_div_stacks_correctly() {
-    let tree = wgpu_html_parser::parse(
+    let tree = make(
         r#"<body>
             <div style="height: 64px; background-color: blue;"></div>
             <div style="padding: 10px;">

@@ -1,8 +1,8 @@
 //! Block layout.
 //!
-//! Walks a `Tree` and produces a `LayoutBox` tree positioned in physical
-//! pixels. The renderer (or paint pass) consumes this directly — it never
-//! re-resolves CSS lengths.
+//! Walks a `CascadedTree` (one Style per node, already cascaded) and
+//! produces a `LayoutBox` tree positioned in physical pixels. The renderer
+//! consumes the result directly — it never re-resolves CSS.
 //!
 //! Scope (M4):
 //! - Block formatting context only: every element stacks vertically inside
@@ -15,12 +15,11 @@
 
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::CssLength;
-use wgpu_html_parser::parse_inline_style;
-use wgpu_html_tree::{Element, Node, Tree};
+use wgpu_html_style::{CascadedNode, CascadedTree};
+use wgpu_html_tree::Element;
 
 mod color;
 mod length;
-mod style_attr;
 
 pub use color::{Color, resolve_color};
 
@@ -97,9 +96,9 @@ pub enum BoxKind {
 // Entry point
 // ---------------------------------------------------------------------------
 
-/// Lay the tree out into a viewport of `viewport_w × viewport_h` physical
-/// pixels. The returned root box's `margin_rect` covers the viewport.
-pub fn layout(tree: &Tree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox> {
+/// Lay the cascaded tree out into a viewport of `viewport_w × viewport_h`
+/// physical pixels. The returned root box's `margin_rect` covers the viewport.
+pub fn layout(tree: &CascadedTree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox> {
     let root = tree.root.as_ref()?;
     let mut ctx = Ctx {
         viewport_w,
@@ -108,9 +107,9 @@ pub fn layout(tree: &Tree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox
     Some(layout_block(root, 0.0, 0.0, viewport_w, viewport_h, &mut ctx))
 }
 
-struct Ctx {
-    viewport_w: f32,
-    viewport_h: f32,
+pub(crate) struct Ctx {
+    pub viewport_w: f32,
+    pub viewport_h: f32,
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +117,7 @@ struct Ctx {
 // ---------------------------------------------------------------------------
 
 fn layout_block(
-    node: &Node,
+    node: &CascadedNode,
     origin_x: f32,
     origin_y: f32,
     container_w: f32,
@@ -137,13 +136,11 @@ fn layout_block(
         };
     }
 
-    let style = style_attr::element_style_attr(&node.element)
-        .map(parse_inline_style)
-        .unwrap_or_default();
+    let style = &node.style;
 
-    let margin = resolve_insets_margin(&style, container_w, ctx);
+    let margin = resolve_insets_margin(style, container_w, ctx);
     let border = Insets::zero(); // borders deferred (M7)
-    let padding = resolve_insets_padding(&style, container_w, ctx);
+    let padding = resolve_insets_padding(style, container_w, ctx);
 
     // Inner width: explicit `width` or fill the parent.
     let frame_h = margin.horizontal() + border.horizontal() + padding.horizontal();

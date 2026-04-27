@@ -7,6 +7,7 @@ pub use wgpu_html_layout as layout;
 pub use wgpu_html_models as models;
 pub use wgpu_html_parser as parser;
 pub use wgpu_html_renderer as renderer;
+pub use wgpu_html_style as style;
 pub use wgpu_html_tree as tree;
 
 pub mod paint;

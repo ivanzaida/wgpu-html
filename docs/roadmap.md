@@ -41,20 +41,18 @@ stage is independently testable.
 |----------------------|-------------------------------------------------------------------------|--------|
 | `wgpu-html-models`   | Element structs (`Div`, `P`, `Body`, …), `css::Style`, enums            | done   |
 | `wgpu-html-tree`     | `Tree { root: Option<Node> }`, `Node { element, children }`, `Element`  | done   |
-| `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS parser → `Tree`              | done   |
-| `wgpu-html-layout`   | Block-flow layout: `Tree` → `LayoutBox`                                 | M4     |
+| `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser          | done   |
+| `wgpu-html-style`    | Selector matching + cascade: `Tree` → `CascadedTree`                    | M4½    |
+| `wgpu-html-layout`   | Block-flow layout: `CascadedTree` → `LayoutBox`                         | M4     |
 | `wgpu-html-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | M1+M2  |
-| `wgpu-html`          | Facade + `paint::paint_tree` (LayoutBox → DisplayList)                  | done   |
+| `wgpu-html`          | Facade + `paint::paint_tree` (parse → cascade → layout → paint)         | done   |
 | `wgpu-html-demo`     | winit binary; builds a sample scene and runs the loop                   | M4     |
 
-Future crates (split out only when they grow large enough to justify it):
+Future crate (split out only when it grows large enough to justify it):
 
-- `wgpu-html-style` — selector/cascade/inheritance, computes `Style` per node
-- `wgpu-html-layout` — box tree, block / inline / flex
 - `wgpu-html-paint` — produces `DisplayList` from layout, owns the glyph atlas
 
-For now `paint` types live inside `wgpu-html-renderer` and the rest are
-TBD.
+For now the paint code lives inside the `wgpu-html` facade.
 
 ## Milestones
 
@@ -109,6 +107,24 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
   background; coordinates are absolute
 - Demo: a header bar + three vertically-stacked colored cards with
   padding and inner highlight strips
+
+### M4½ — CSS stylesheets (selectors + cascade) ✅
+
+- `wgpu-html-parser::parse_stylesheet` parses `<style>` block contents
+  into a list of `Rule { selectors, declarations }` with `Selector
+  { tag, id, classes, universal }` (simple selectors only — no
+  combinators yet) and standard CSS specificity
+- New `wgpu-html-style` crate:
+  - `cascade(&Tree) -> CascadedTree` walks the tree, collects every
+    `<style>` block's text, parses it once, and computes a final
+    `Style` per element
+  - Cascade order: matched rules in ascending specificity → element's
+    inline `style="…"` attribute on top
+  - `matches_selector` checks tag / id / multi-class / universal
+- `wgpu-html-layout::layout` now takes `&CascadedTree`; styles are
+  precomputed once per node, never re-parsed during layout
+- `paint_tree` chains parse → cascade → layout → paint internally
+- 13 cascade unit tests + 9 selector parser tests
 
 ### M5 — text rendering
 
