@@ -1,4 +1,4 @@
-//! M3 demo: parse an HTML string, paint it to a `DisplayList`, render.
+//! M4 demo: parse an HTML string, lay it out via block flow, paint, render.
 
 use std::sync::Arc;
 
@@ -10,17 +10,22 @@ use winit::window::{Window, WindowId};
 
 use wgpu_html::renderer::{FrameOutcome, Renderer};
 
+/// Block flow: body fills the viewport, header on top, then three cards
+/// stacking below it. Each card has padding and an inner highlight strip.
 const DOC: &str = r#"
-<body style="width: 100vw; height: 100vh; background-color: #f2f2f5;">
-  <div style="left: 32px; top: 32px; width: 960px; height: 64px; background-color: #3366d9;"></div>
-  <div style="left: 32px; top: 112px; width: 308px; height: 600px; background-color: #ec5c5c;">
-    <div style="left: 12px; top: 12px; width: 284px; height: 40px; background-color: rgba(255,255,255,0.35);"></div>
+<body style="width: 100vw; height: 100vh; background-color: #f2f2f5; padding: 32px;">
+  <div style="height: 64px; background-color: #3366d9; margin-bottom: 16px;"></div>
+
+  <div style="background-color: #ec5c5c; padding: 12px; margin-bottom: 12px;">
+    <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
   </div>
-  <div style="left: 358px; top: 112px; width: 308px; height: 600px; background-color: #5cc775;">
-    <div style="left: 12px; top: 12px; width: 284px; height: 40px; background-color: rgba(255,255,255,0.35);"></div>
+
+  <div style="background-color: #5cc775; padding: 12px; margin-bottom: 12px;">
+    <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
   </div>
-  <div style="left: 684px; top: 112px; width: 308px; height: 600px; background-color: #f7bd4d;">
-    <div style="left: 12px; top: 12px; width: 284px; height: 40px; background-color: rgba(255,255,255,0.35);"></div>
+
+  <div style="background-color: #f7bd4d; padding: 12px;">
+    <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
   </div>
 </body>
 "#;
@@ -38,7 +43,7 @@ impl ApplicationHandler for App {
         }
 
         let attrs = Window::default_attributes()
-            .with_title("wgpu-html — M3: paint a parsed HTML tree")
+            .with_title("wgpu-html — M4: block layout")
             .with_inner_size(PhysicalSize::new(1024u32, 768u32));
         let window = Arc::new(
             event_loop

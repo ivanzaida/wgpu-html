@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/wgpu-html",
     "crates/wgpu-html-demo",
+    "crates/wgpu-html-layout",
     "crates/wgpu-html-models",
     "crates/wgpu-html-parser",
     "crates/wgpu-html-renderer",
@@ -11,6 +12,7 @@ members = [
 
 [workspace.dependencies]
 wgpu-html              = { path = "crates/wgpu-html" }
+wgpu-html-layout       = { path = "crates/wgpu-html-layout" }
 wgpu-html-models       = { path = "crates/wgpu-html-models" }
 wgpu-html-parser       = { path = "crates/wgpu-html-parser" }
 wgpu-html-renderer     = { path = "crates/wgpu-html-renderer" }

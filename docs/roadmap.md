@@ -41,9 +41,11 @@ stage is independently testable.
 |----------------------|-------------------------------------------------------------------------|--------|
 | `wgpu-html-models`   | Element structs (`Div`, `P`, `Body`, …), `css::Style`, enums            | done   |
 | `wgpu-html-tree`     | `Tree { root: Option<Node> }`, `Node { element, children }`, `Element`  | done   |
+| `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS parser → `Tree`              | done   |
+| `wgpu-html-layout`   | Block-flow layout: `Tree` → `LayoutBox`                                 | M4     |
 | `wgpu-html-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | M1+M2  |
-| `wgpu-html`          | Facade re-exporting `models`, `renderer`, `tree`                        | done   |
-| `wgpu-html-demo`     | winit binary; builds a sample scene and runs the loop                   | M2     |
+| `wgpu-html`          | Facade + `paint::paint_tree` (LayoutBox → DisplayList)                  | done   |
+| `wgpu-html-demo`     | winit binary; builds a sample scene and runs the loop                   | M4     |
 
 Future crates (split out only when they grow large enough to justify it):
 
@@ -93,13 +95,20 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
   to parent. No flow, no inheritance yet
 - Demo parses an HTML string and renders the M2 scene
 
-### M4 — block layout
+### M4 — block layout ✅
 
-- Box tree from styled tree (anonymous boxes for inline fixups)
-- Block formatting context: width-from-parent, height-from-content,
-  margin / border / padding
-- No floats, no flex yet
-- Demo: a header + a column of cards with auto-sized backgrounds
+- New `wgpu-html-layout` crate exposes `LayoutBox { margin_rect,
+  border_rect, content_rect, background, kind, children }` and a single
+  `layout(&Tree, vw, vh) -> Option<LayoutBox>` entry point
+- Block formatting context: vertical stacking inside the parent's
+  content box; width auto-fills parent, height fits content
+- Per-side margin and padding (with shorthand fall-through)
+- `position: absolute` removed; `top`/`left` no longer used
+- Borders deferred to M7 (treated as zero)
+- `wgpu-html::paint` walks the laid-out box tree and emits one quad per
+  background; coordinates are absolute
+- Demo: a header bar + three vertically-stacked colored cards with
+  padding and inner highlight strips
 
 ### M5 — text rendering
 

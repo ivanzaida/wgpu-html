@@ -2103,6 +2103,7 @@ dependencies = [
 name = "wgpu-html"
 version = "0.1.0"
 dependencies = [
+ "wgpu-html-layout",
  "wgpu-html-models",
  "wgpu-html-parser",
  "wgpu-html-renderer",
@@ -2116,6 +2117,15 @@ dependencies = [
  "pollster",
  "wgpu-html",
  "winit",
+]
+
+[[package]]
+name = "wgpu-html-layout"
+version = "0.1.0"
+dependencies = [
+ "wgpu-html-models",
+ "wgpu-html-parser",
+ "wgpu-html-tree",
 ]
 
 [[package]]
