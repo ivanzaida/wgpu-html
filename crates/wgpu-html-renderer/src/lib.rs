@@ -1,13 +1,18 @@
-//! M1: wgpu skeleton.
+//! M2: wgpu skeleton + solid quad pipeline.
 //!
-//! Owns the GPU device/queue and a window-bound surface. For now it only
-//! clears the surface to a solid color each frame; later milestones will add
-//! pipelines for solid quads, glyphs, and images.
+//! Owns the GPU device/queue, a window-bound surface, and a single
+//! pipeline that renders a `DisplayList` of colored rectangles.
 
 use std::sync::Arc;
 
 pub use wgpu;
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
+
+mod paint;
+mod quad_pipeline;
+
+pub use paint::{Color, DisplayList, Quad, Rect};
+pub use quad_pipeline::QuadPipeline;
 
 pub struct Renderer {
     pub instance: wgpu::Instance,
@@ -17,6 +22,7 @@ pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub clear_color: wgpu::Color,
+    quads: QuadPipeline,
 }
 
 impl Renderer {
@@ -77,6 +83,9 @@ impl Renderer {
         };
         surface.configure(&device, &surface_config);
 
+        let quads = QuadPipeline::new(&device, format);
+        quads.upload_static(&queue);
+
         Self {
             instance,
             adapter,
@@ -90,6 +99,7 @@ impl Renderer {
                 b: 0.08,
                 a: 1.0,
             },
+            quads,
         }
     }
 
@@ -102,8 +112,8 @@ impl Renderer {
         self.surface.configure(&self.device, &self.surface_config);
     }
 
-    /// Render one frame. Currently just clears.
-    pub fn render(&mut self) -> FrameOutcome {
+    /// Render one frame from a display list.
+    pub fn render(&mut self, list: &DisplayList) -> FrameOutcome {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) => t,
             wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
@@ -119,6 +129,13 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        let viewport = [
+            self.surface_config.width as f32,
+            self.surface_config.height as f32,
+        ];
+        self.quads
+            .prepare(&self.device, &self.queue, viewport, list);
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -126,8 +143,8 @@ impl Renderer {
             });
 
         {
-            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("clear pass"),
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("main pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -142,6 +159,7 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            self.quads.record(&mut pass);
         }
 
         self.queue.submit(Some(encoder.finish()));

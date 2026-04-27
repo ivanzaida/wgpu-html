@@ -1,0 +1,8 @@
+[package]
+name = "wgpu-html-parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu-html-models.workspace = true
+wgpu-html-tree.workspace   = true

@@ -4,6 +4,7 @@ members = [
     "crates/wgpu-html",
     "crates/wgpu-html-demo",
     "crates/wgpu-html-models",
+    "crates/wgpu-html-parser",
     "crates/wgpu-html-renderer",
     "crates/wgpu-html-tree",
 ]
@@ -11,9 +12,11 @@ members = [
 [workspace.dependencies]
 wgpu-html              = { path = "crates/wgpu-html" }
 wgpu-html-models       = { path = "crates/wgpu-html-models" }
+wgpu-html-parser       = { path = "crates/wgpu-html-parser" }
 wgpu-html-renderer     = { path = "crates/wgpu-html-renderer" }
 wgpu-html-tree         = { path = "crates/wgpu-html-tree" }
 
 wgpu     = "29"
 winit    = "0.30"
 pollster = "0.4"
+bytemuck = { version = "1", features = ["derive"] }
