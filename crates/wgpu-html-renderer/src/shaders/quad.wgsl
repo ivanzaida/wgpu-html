@@ -2,13 +2,17 @@
 //
 // Vertex buffer 0 (per-vertex):  unit quad corner in [0,1]^2.
 // Vertex buffer 1 (per-instance): pos / size in pixels, linear RGBA color,
-//                                 per-corner radii (TL, TR, BR, BL).
+//                                 per-corner radii (TL, TR, BR, BL), and
+//                                 per-side ring thickness (top, right,
+//                                 bottom, left).
 // Bind group 0 / binding 0: viewport size in pixels.
 //
-// The fragment shader computes a signed distance from the rounded
-// rectangle and alpha-blends a 1-pixel anti-alias band so edges stay
-// smooth at any radius. A quad with all-zero radii degenerates to a
-// sharp axis-aligned rectangle (alpha == 1 everywhere inside).
+// Two modes selected by whether any stroke component is > 0:
+//   - Filled:    paint the entire (rounded) box with `color`.
+//   - Stroked:   paint only the ring between the outer rounded box and
+//                an inner rounded box inset on each side by the matching
+//                stroke width. The inner radius is clamped to >= 0.
+// In both modes a ~1-pixel anti-alias band keeps edges smooth.
 
 struct Globals {
     viewport: vec2<f32>,
@@ -22,6 +26,7 @@ struct VsIn {
     @location(2) size:   vec2<f32>,
     @location(3) color:  vec4<f32>,
     @location(4) radii:  vec4<f32>,  // TL, TR, BR, BL
+    @location(5) stroke: vec4<f32>,  // top, right, bottom, left
 };
 
 struct VsOut {
@@ -31,6 +36,7 @@ struct VsOut {
     @location(1)       local:     vec2<f32>,
     @location(2)       half_size: vec2<f32>,
     @location(3)       radii:     vec4<f32>,
+    @location(4)       stroke:    vec4<f32>,
 };
 
 @vertex
@@ -48,6 +54,7 @@ fn vs_main(in: VsIn) -> VsOut {
     // local = pixel offset from centre. corner=(0,0)→-half, (1,1)→+half.
     out.local     = (in.corner - vec2<f32>(0.5, 0.5)) * in.size;
     out.radii     = in.radii;
+    out.stroke    = in.stroke;
     return out;
 }
 
@@ -73,13 +80,38 @@ fn sd_rounded_box(p: vec2<f32>, half_size: vec2<f32>, r: f32) -> f32 {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let r = pick_radius(in.local, in.radii);
-    let dist = sd_rounded_box(in.local, in.half_size, r);
+    let outer_r = pick_radius(in.local, in.radii);
+    let outer_dist = sd_rounded_box(in.local, in.half_size, outer_r);
 
-    // Anti-alias band: ~1 pixel wide. fwidth would be ideal but is not
-    // available without `derivative_uniformity`; a fixed 0.7 covers the
-    // typical AA region well at integer scales.
     let aa = 0.7;
+    let max_stroke = max(max(in.stroke.x, in.stroke.y), max(in.stroke.z, in.stroke.w));
+
+    var dist: f32;
+    if (max_stroke <= 0.0) {
+        // Filled mode.
+        dist = outer_dist;
+    } else {
+        // Ring mode. Build the inner rounded box: each side is inset by
+        // its stroke thickness, so the inner half-size shrinks by half
+        // the sum of opposite strokes, and the centre shifts when the
+        // strokes are asymmetric.
+        let inner_half = vec2<f32>(
+            in.half_size.x - 0.5 * (in.stroke.y + in.stroke.w),
+            in.half_size.y - 0.5 * (in.stroke.x + in.stroke.z),
+        );
+        let inner_centre = vec2<f32>(
+            0.5 * (in.stroke.w - in.stroke.y),
+            0.5 * (in.stroke.x - in.stroke.z),
+        );
+        // Inner radius = outer minus the larger of the adjacent strokes,
+        // clamped at 0. Using `max_stroke` is the safe conservative
+        // choice when sides differ.
+        let inner_r = max(0.0, outer_r - max_stroke);
+        let inner_dist = sd_rounded_box(in.local - inner_centre, inner_half, inner_r);
+        // Ring distance: outside if not in outer OR if inside inner.
+        dist = max(outer_dist, -inner_dist);
+    }
+
     let alpha = clamp(0.5 - dist / aa, 0.0, 1.0);
     if (alpha <= 0.0) {
         discard;

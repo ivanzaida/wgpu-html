@@ -25,12 +25,14 @@ pub fn paint_layout(root: &LayoutBox, list: &mut DisplayList) {
 }
 
 fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
+    let rect = to_renderer_rect(b.border_rect);
+    let radii = corner_radii(b);
+    let rounded = has_any_radius(&radii);
+
     // Background fills the border-box (default `background-clip: border-box`).
     if let Some(color) = b.background {
         if b.border_rect.w > 0.0 && b.border_rect.h > 0.0 {
-            let rect = to_renderer_rect(b.border_rect);
-            let radii = corner_radii(b);
-            if has_any_radius(&radii) {
+            if rounded {
                 out.push_quad_rounded(rect, color, radii);
             } else {
                 out.push_quad(rect, color);
@@ -38,12 +40,56 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
         }
     }
 
-    // Borders: 4 solid-color edge quads, painted on top of the background.
-    paint_border_edges(b, out);
+    // Borders: when the box has any rounded corner AND a uniform border
+    // colour we can paint the whole stroked ring as a single rounded
+    // quad. Otherwise (sharp corners, or per-side colours) fall back to
+    // emitting up to four sharp edge quads.
+    if rounded {
+        if let Some(color) = uniform_border_color(b) {
+            let stroke = [b.border.top, b.border.right, b.border.bottom, b.border.left];
+            if stroke.iter().any(|s| *s > 0.0) {
+                out.push_quad_stroke(rect, color, radii, stroke);
+            }
+        } else {
+            // Per-side colours with rounded corners are not yet
+            // supported — best we can do for now is paint the 4 edges
+            // sharply on top of the rounded background.
+            paint_border_edges(b, out);
+        }
+    } else {
+        paint_border_edges(b, out);
+    }
 
     for child in &b.children {
         paint_box(child, out);
     }
+}
+
+/// If every set border side shares the same colour (and any unset side
+/// has zero thickness so it contributes nothing), return that colour.
+/// Otherwise return `None`, telling the caller to paint per-side edges.
+fn uniform_border_color(b: &LayoutBox) -> Option<wgpu_html_renderer::Color> {
+    let bd = b.border;
+    let bc = b.border_colors;
+    let mut chosen: Option<wgpu_html_renderer::Color> = None;
+    let pairs = [
+        (bd.top, bc.top),
+        (bd.right, bc.right),
+        (bd.bottom, bc.bottom),
+        (bd.left, bc.left),
+    ];
+    for (w, c) in pairs {
+        if w <= 0.0 {
+            continue;
+        }
+        let c = c?;
+        match chosen {
+            None => chosen = Some(c),
+            Some(existing) if existing == c => {}
+            Some(_) => return None,
+        }
+    }
+    chosen
 }
 
 fn corner_radii(b: &LayoutBox) -> [f32; 4] {
@@ -161,6 +207,68 @@ mod tests {
         let q = list.quads[0];
         // Order: TL, TR, BR, BL.
         assert_eq!(q.radii, [1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn rounded_uniform_border_emits_single_ring_quad() {
+        // border-radius + uniform `border:` → one stroked rounded ring,
+        // not four sharp edge quads.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             border: 1px solid grey;
+                             border-radius: 16px;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 1);
+        let q = list.quads[0];
+        assert_eq!(q.radii, [16.0; 4]);
+        assert_eq!(q.stroke, [1.0, 1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn rounded_with_background_and_border_emits_two_quads() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             background-color: red;
+                             border: 2px solid blue;
+                             border-radius: 8px;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        // 1 rounded background + 1 ring border = 2 quads.
+        assert_eq!(list.quads.len(), 2);
+        // Background is the first push and has no stroke.
+        assert_eq!(list.quads[0].stroke, [0.0; 4]);
+        assert_eq!(list.quads[1].stroke, [2.0, 2.0, 2.0, 2.0]);
+    }
+
+    #[test]
+    fn rounded_with_per_side_colors_falls_back_to_sharp_edges() {
+        // We don't support per-side colours with rounded corners yet,
+        // so the four sharp edge quads are emitted on top of the
+        // rounded background instead of one ring.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             background-color: red;
+                             border-width: 2px;
+                             border-color: red green blue orange;
+                             border-radius: 8px;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        // 1 rounded background + 4 sharp edges
+        assert_eq!(list.quads.len(), 5);
+    }
+
+    #[test]
+    fn sharp_box_border_still_uses_four_edges() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             border: 2px solid red;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 4);
+        for q in &list.quads {
+            assert_eq!(q.stroke, [0.0; 4]);
+        }
     }
 
     #[test]
