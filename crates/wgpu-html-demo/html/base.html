@@ -1,15 +1,45 @@
-<body style="width: 100vw; height: 100vh; background-color: #f2f2f5; padding: 32px;">
-    <div style="height: 64px; background-color: #3366d9; margin-bottom: 16px;"></div>
+<style>
+    body {
+        width: 100%;
+        margin: 0;
+        height: 100vh;
+        background-color: #f2f2f5;
+        padding: 32px;
+    }
 
-    <div style="background-color: #ec5c5c; padding: 12px; margin-bottom: 12px;">
-        <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
+    #header {
+        height: 64px;
+        background-color: #3366d9;
+        margin-bottom: 16px;
+    }
+
+    .card {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .highlight {
+        height: 40px;
+        background-color: rgba(255, 255, 255, 0.35);
+    }
+
+    #card-red    { background-color: #ec5c5c; }
+    #card-green  { background-color: #5cc775; }
+    #card-amber  { background-color: #f7bd4d; margin-bottom: 0; }
+</style>
+
+<body>
+    <div id="header"></div>
+
+    <div id="card-red" class="card">
+        <div class="highlight"></div>
     </div>
 
-    <div style="background-color: #5cc775; padding: 12px; margin-bottom: 12px;">
-        <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
+    <div id="card-green" class="card">
+        <div class="highlight"></div>
     </div>
 
-    <div style="background-color: #f7bd4d; padding: 12px;">
-        <div style="height: 40px; background-color: rgba(255,255,255,0.35);"></div>
+    <div id="card-amber" class="card">
+        <div class="highlight"></div>
     </div>
 </body>
