@@ -78,14 +78,20 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 - Demo paints a header bar + three colored columns with translucent
   highlights from a hand-built display list
 
-### M3 — paint a tree of `<div>` ⏭ next
+### M3 — paint a tree of `<div>` ✅
 
-- Walk a `Tree` and produce a `DisplayList` of solid quads
-- Read `style` attribute → `models::css::Style`
-  (initially: just `width`, `height`, `background-color`, `color`)
-- Stack frames with explicit positions (no real layout yet); think of it
-  as “absolute positioning only”
-- Demo builds the same scene as M2 but as `Body{Div, Div, Div}`
+- `wgpu-html::paint::paint_tree(&Tree, vw, vh) -> DisplayList`
+- Reads each element's inline `style` attribute via
+  `parser::parse_inline_style`, resolves `top`/`left`/`width`/`height`
+  and `background-color`, emits one quad per styled box
+- CSS length resolution: px / % (vs parent) / vw / vh / vmin / vmax /
+  em / rem (16px placeholder) / zero. `auto` and unparsed values fall
+  through to defaults (parent size for w/h, 0 for top/left)
+- CSS color resolution: hex (3/4/6/8 digits), rgb/rgba, hsl/hsla, named
+  (~20 common), transparent. sRGB → linear conversion in software
+- "Layout" is absolute positioning: `top`/`left` interpreted relative
+  to parent. No flow, no inheritance yet
+- Demo parses an HTML string and renders the M2 scene
 
 ### M4 — block layout
 

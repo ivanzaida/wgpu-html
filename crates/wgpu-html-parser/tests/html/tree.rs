@@ -417,6 +417,6 @@ fn inline_style_color_padding() {
 
 #[test]
 fn inline_style_ignores_unknown_props() {
-    // Should not panic, returns an (otherwise default) Style.
+    // Should not panic, returns a (otherwise default) Style.
     let _ = parse_inline_style("nonsense: 123; color: blue;");
 }
