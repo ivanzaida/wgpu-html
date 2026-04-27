@@ -17,9 +17,15 @@
         margin-bottom: 16px;
     }
 
+    #cards {
+        display: flex;
+        gap: 16px;
+    }
+
     .card {
+        width: 320px;
+        height: 200px;
         padding: 12px;
-        margin-bottom: 12px;
     }
 
     .highlight {
@@ -29,21 +35,23 @@
 
     #card-red    { background-color: #ec5c5c; }
     #card-green  { background-color: #5cc775; }
-    #card-amber  { background-color: #f7bd4d; margin-bottom: 0; }
+    #card-amber  { background-color: #f7bd4d; }
 </style>
 
 <body>
     <div id="header"></div>
 
-    <div id="card-red" class="card">
-        <div class="highlight"></div>
-    </div>
+    <div id="cards">
+        <div id="card-red" class="card">
+            <div class="highlight"></div>
+        </div>
 
-    <div id="card-green" class="card">
-        <div class="highlight"></div>
-    </div>
+        <div id="card-green" class="card">
+            <div class="highlight"></div>
+        </div>
 
-    <div id="card-amber" class="card">
-        <div class="highlight"></div>
+        <div id="card-amber" class="card">
+            <div class="highlight"></div>
+        </div>
     </div>
 </body>

@@ -14,7 +14,7 @@ use wgpu_html::renderer::{FrameOutcome, Renderer};
 
 /// Block flow: body fills the viewport, header on top, then three cards
 /// stacking below it. Each card has padding and an inner highlight strip.
-const DOC: &str = include_str!("../html/base.html");
+const DOC: &str = include_str!("../html/flex-test.html");
 #[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,

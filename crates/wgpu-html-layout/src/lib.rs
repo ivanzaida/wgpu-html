@@ -14,11 +14,12 @@
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
 use wgpu_html_models::Style;
-use wgpu_html_models::common::css_enums::{BoxSizing, CssLength};
+use wgpu_html_models::common::css_enums::{BoxSizing, CssLength, Display};
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_tree::Element;
 
 mod color;
+mod flex;
 mod length;
 
 pub use color::{Color, resolve_color};
@@ -80,6 +81,12 @@ pub struct LayoutBox {
     pub content_rect: Rect,
     /// Resolved background color, if any.
     pub background: Option<Color>,
+    /// Per-side border thickness, in physical pixels.
+    pub border: Insets,
+    /// Resolved border color (used for all four sides). `None` falls
+    /// back to the foreground color, which we don't track yet, so paint
+    /// skips the border in that case.
+    pub border_color: Option<Color>,
     pub kind: BoxKind,
     pub children: Vec<LayoutBox>,
 }
@@ -116,6 +123,19 @@ pub(crate) struct Ctx {
 // Block layout
 // ---------------------------------------------------------------------------
 
+/// Re-exposed under a stable name so submodules (like `flex`) can call
+/// the block layout entry point without exposing it to the public API.
+pub(crate) fn layout_block_at(
+    node: &CascadedNode,
+    origin_x: f32,
+    origin_y: f32,
+    container_w: f32,
+    container_h: f32,
+    ctx: &mut Ctx,
+) -> LayoutBox {
+    layout_block(node, origin_x, origin_y, container_w, container_h, ctx)
+}
+
 fn layout_block(
     node: &CascadedNode,
     origin_x: f32,
@@ -131,6 +151,8 @@ fn layout_block(
             border_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
             content_rect: Rect::new(origin_x, origin_y, 0.0, 0.0),
             background: None,
+            border: Insets::zero(),
+            border_color: None,
             kind: BoxKind::Text,
             children: Vec::new(),
         };
@@ -139,7 +161,13 @@ fn layout_block(
     let style = &node.style;
 
     let margin = resolve_insets_margin(style, container_w, ctx);
-    let border = Insets::zero(); // borders deferred (M7)
+    let border_width = length::resolve(style.border_width.as_ref(), container_w, ctx).unwrap_or(0.0);
+    let border = Insets {
+        top: border_width,
+        right: border_width,
+        bottom: border_width,
+        left: border_width,
+    };
     let padding = resolve_insets_padding(style, container_w, ctx);
 
     let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
@@ -159,36 +187,53 @@ fn layout_block(
         None => (container_w - frame_w).max(0.0),
     };
 
-    // Lay out children top-down inside the content box.
+    // Lay out children inside the content box, dispatching on display.
     let content_x = origin_x + margin.left + border.left + padding.left;
     let content_y_top = origin_y + margin.top + border.top + padding.top;
 
-    let mut children = Vec::with_capacity(node.children.len());
-    let mut cursor = 0.0_f32;
-    for child in &node.children {
-        let child_box = layout_block(
-            child,
-            content_x,
-            content_y_top + cursor,
-            inner_width,
-            container_h,
-            ctx,
-        );
-        cursor += child_box.margin_rect.h;
-        children.push(child_box);
-    }
-    let content_h_from_children = cursor;
-
-    // Inner height: explicit `height` or fit content.
-    let inner_height = match length::resolve(style.height.as_ref(), container_h, ctx) {
-        Some(specified) => match box_sizing {
+    // Pre-resolve an explicit height (used for `align-items: stretch`).
+    let inner_height_explicit = length::resolve(style.height.as_ref(), container_h, ctx)
+        .map(|specified| match box_sizing {
             BoxSizing::ContentBox => specified,
             BoxSizing::BorderBox => {
                 (specified - border.vertical() - padding.vertical()).max(0.0)
             }
-        },
-        None => content_h_from_children,
+        });
+
+    let display = style.display.clone().unwrap_or(Display::Block);
+    let (children, content_h_from_children) = match display {
+        Display::Flex | Display::InlineFlex => {
+            let (kids, _content_w_used, content_h_used) = flex::layout_flex_children(
+                node,
+                style,
+                content_x,
+                content_y_top,
+                inner_width,
+                inner_height_explicit,
+                ctx,
+            );
+            (kids, content_h_used)
+        }
+        _ => {
+            let mut children = Vec::with_capacity(node.children.len());
+            let mut cursor = 0.0_f32;
+            for child in &node.children {
+                let child_box = layout_block(
+                    child,
+                    content_x,
+                    content_y_top + cursor,
+                    inner_width,
+                    container_h,
+                    ctx,
+                );
+                cursor += child_box.margin_rect.h;
+                children.push(child_box);
+            }
+            (children, cursor)
+        }
     };
+
+    let inner_height = inner_height_explicit.unwrap_or(content_h_from_children);
 
     // Compose the rects.
     let border_rect = Rect::new(
@@ -206,12 +251,15 @@ fn layout_block(
     );
 
     let background = style.background_color.as_ref().and_then(resolve_color);
+    let border_color = style.border_color.as_ref().and_then(resolve_color);
 
     LayoutBox {
         margin_rect,
         border_rect,
         content_rect,
         background,
+        border,
+        border_color,
         kind: BoxKind::Block,
         children,
     }

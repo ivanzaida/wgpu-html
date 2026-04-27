@@ -67,7 +67,7 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "background-size" => style.background_size = Some(value.to_string()),
         "background-position" => style.background_position = Some(value.to_string()),
         "background-repeat" => style.background_repeat = parse_background_repeat(value),
-        "border" => style.border = Some(value.to_string()),
+        "border" => parse_border_shorthand(value, style),
         "border-width" => style.border_width = parse_css_length(value),
         "border-style" => style.border_style = parse_border_style(value),
         "border-color" => style.border_color = parse_css_color(value),
@@ -140,6 +140,37 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
 // ---------------------------------------------------------------------------
 // CSS value parsers
 // ---------------------------------------------------------------------------
+
+/// Parse the `border` shorthand into width / style / color, in any order.
+/// Each whitespace-separated token is tried first as a length (rejecting
+/// the `Raw` fallback since it would gobble up arbitrary strings), then
+/// as a border-style keyword, and finally as a color.
+pub fn parse_border_shorthand(value: &str, style: &mut Style) {
+    style.border = Some(value.to_string());
+    for token in value.split_whitespace() {
+        if let Some(w) = parse_definite_length(token) {
+            style.border_width = Some(w);
+            continue;
+        }
+        if let Some(s) = parse_border_style(token) {
+            style.border_style = Some(s);
+            continue;
+        }
+        if let Some(c) = parse_css_color(token) {
+            style.border_color = Some(c);
+            continue;
+        }
+    }
+}
+
+/// `parse_css_length` minus its catch-all `Raw` / `Auto` returns — used
+/// when matching one piece of a shorthand against multiple value kinds.
+fn parse_definite_length(token: &str) -> Option<CssLength> {
+    match parse_css_length(token)? {
+        CssLength::Raw(_) | CssLength::Auto => None,
+        other => Some(other),
+    }
+}
 
 /// Parse a CSS length value (e.g. "10px", "50%", "1.5em", "auto").
 /// Parse the CSS box shorthand (`padding` / `margin`) into per-side lengths.

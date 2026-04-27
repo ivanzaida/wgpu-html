@@ -412,12 +412,31 @@ fn border_radius_length() {
 }
 
 #[test]
-fn border_shorthand_stored_as_raw_string() {
-    // Today the parser keeps `border: …` as the raw string in
-    // `style.border` and does not split it into width / style / color.
-    // Per-side / per-property declarations still parse normally.
+fn border_shorthand_splits_into_pieces() {
+    // `border: <width> <style> <color>` is split (in any order) into
+    // border_width / border_style / border_color. The raw string is
+    // also preserved on `style.border` for round-tripping.
     let style = s("border: 2px solid red;");
     assert!(style.border.is_some());
+    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 2.0));
+    assert!(matches!(style.border_style, Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_color, Some(CssColor::Named(ref n)) if n == "red"));
+}
+
+#[test]
+fn border_shorthand_token_order_does_not_matter() {
+    let style = s("border: dashed #00f 4px;");
+    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 4.0));
+    assert!(matches!(style.border_style, Some(BorderStyle::Dashed)));
+    assert!(matches!(style.border_color, Some(CssColor::Hex(ref s)) if s == "#00f"));
+}
+
+#[test]
+fn border_shorthand_partial_only_fills_present_pieces() {
+    let style = s("border: 1px solid;");
+    assert!(matches!(style.border_width, Some(CssLength::Px(v)) if v == 1.0));
+    assert!(matches!(style.border_style, Some(BorderStyle::Solid)));
+    assert!(style.border_color.is_none());
 }
 
 #[test]

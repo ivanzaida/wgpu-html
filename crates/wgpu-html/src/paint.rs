@@ -25,13 +25,53 @@ pub fn paint_layout(root: &LayoutBox, list: &mut DisplayList) {
 }
 
 fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
+    // Background fills the border-box (default `background-clip: border-box`).
     if let Some(color) = b.background {
         if b.border_rect.w > 0.0 && b.border_rect.h > 0.0 {
             out.push_quad(to_renderer_rect(b.border_rect), color);
         }
     }
+
+    // Borders: 4 solid-color edge quads, painted on top of the background.
+    paint_border_edges(b, out);
+
     for child in &b.children {
         paint_box(child, out);
+    }
+}
+
+/// Emit up to four solid edge quads for the box border. Sides with zero
+/// thickness are skipped. If `border_color` is `None`, the whole border
+/// is skipped (we don't track foreground color yet for the spec-default
+/// fallback).
+fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
+    let Some(color) = b.border_color else { return };
+    let r = b.border_rect;
+    let bd = b.border;
+    if r.w <= 0.0 || r.h <= 0.0 {
+        return;
+    }
+
+    // Top edge spans the full width; left/right edges sit between
+    // top and bottom so corners are filled exactly once.
+    if bd.top > 0.0 {
+        out.push_quad(Rect::new(r.x, r.y, r.w, bd.top), color);
+    }
+    if bd.bottom > 0.0 {
+        out.push_quad(
+            Rect::new(r.x, r.y + r.h - bd.bottom, r.w, bd.bottom),
+            color,
+        );
+    }
+    let inner_h = (r.h - bd.top - bd.bottom).max(0.0);
+    if bd.left > 0.0 && inner_h > 0.0 {
+        out.push_quad(Rect::new(r.x, r.y + bd.top, bd.left, inner_h), color);
+    }
+    if bd.right > 0.0 && inner_h > 0.0 {
+        out.push_quad(
+            Rect::new(r.x + r.w - bd.right, r.y + bd.top, bd.right, inner_h),
+            color,
+        );
     }
 }
 
@@ -60,6 +100,41 @@ mod tests {
         let tree = wgpu_html_parser::parse("<div><p>hi</p></div>");
         let list = paint_tree(&tree, 800.0, 600.0);
         assert!(list.quads.is_empty());
+    }
+
+    #[test]
+    fn border_emits_four_edge_quads() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             border: 2px solid red;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        // No background → 4 border edges only.
+        assert_eq!(list.quads.len(), 4);
+    }
+
+    #[test]
+    fn border_with_background_emits_five_quads() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             background-color: blue;
+                             border: 2px solid red;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 5);
+    }
+
+    #[test]
+    fn border_with_no_color_is_skipped() {
+        // border-width set, but no color → we don't paint edges (no
+        // foreground-color fallback yet).
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="width: 100px; height: 50px;
+                             background-color: blue;
+                             border-width: 2px;"></body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 1);
     }
 
     #[test]

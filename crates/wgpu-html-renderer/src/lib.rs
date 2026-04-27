@@ -101,12 +101,7 @@ impl Renderer {
             queue,
             surface,
             surface_config,
-            clear_color: wgpu::Color {
-                r: 0.05,
-                g: 0.06,
-                b: 0.08,
-                a: 1.0,
-            },
+            clear_color: wgpu::Color::WHITE,
             quads,
             pending_capture: None,
         }

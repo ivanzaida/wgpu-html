@@ -221,6 +221,209 @@ fn box_sizing_border_box_subtracts_padding_from_height() {
     assert_eq!(root.content_rect.h, 80.0);
 }
 
+// ---------------------------------------------------------------------------
+// flex layout
+// ---------------------------------------------------------------------------
+
+#[test]
+fn flex_row_default_packs_at_start() {
+    let tree = make(
+        r#"<body style="display: flex; width: 200px; height: 100px;">
+            <div style="width: 30px; height: 30px;"></div>
+            <div style="width: 40px; height: 30px;"></div>
+            <div style="width: 50px; height: 30px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let kids = &body.children;
+    assert_eq!(kids.len(), 3);
+    assert_eq!(kids[0].margin_rect.x, 0.0);
+    assert_eq!(kids[1].margin_rect.x, 30.0);
+    assert_eq!(kids[2].margin_rect.x, 70.0);
+}
+
+#[test]
+fn flex_row_justify_center() {
+    let tree = make(
+        r#"<body style="display: flex; justify-content: center; width: 100px; height: 50px;">
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    // Total used = 40, free = 60, center → start at 30.
+    assert_eq!(body.children[0].margin_rect.x, 30.0);
+    assert_eq!(body.children[1].margin_rect.x, 50.0);
+}
+
+#[test]
+fn flex_row_justify_end() {
+    let tree = make(
+        r#"<body style="display: flex; justify-content: flex-end; width: 100px; height: 50px;">
+            <div style="width: 30px; height: 20px;"></div>
+            <div style="width: 30px; height: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].margin_rect.x, 40.0);
+    assert_eq!(body.children[1].margin_rect.x, 70.0);
+}
+
+#[test]
+fn flex_row_justify_space_between() {
+    let tree = make(
+        r#"<body style="display: flex; justify-content: space-between; width: 120px; height: 50px;">
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let xs: Vec<f32> = body.children.iter().map(|c| c.margin_rect.x).collect();
+    assert_eq!(xs, vec![0.0, 50.0, 100.0]);
+}
+
+#[test]
+fn flex_row_justify_space_evenly() {
+    let tree = make(
+        r#"<body style="display: flex; justify-content: space-evenly; width: 120px; height: 50px;">
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let xs: Vec<f32> = body.children.iter().map(|c| c.margin_rect.x).collect();
+    assert_eq!(xs, vec![15.0, 50.0, 85.0]);
+}
+
+#[test]
+fn flex_row_gap_separates_children() {
+    let tree = make(
+        r#"<body style="display: flex; gap: 8px; width: 200px; height: 50px;">
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let xs: Vec<f32> = body.children.iter().map(|c| c.margin_rect.x).collect();
+    assert_eq!(xs, vec![0.0, 28.0, 56.0]);
+}
+
+#[test]
+fn flex_row_align_items_center() {
+    let tree = make(
+        r#"<body style="display: flex; align-items: center; width: 200px; height: 100px;">
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 60px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].margin_rect.y, 40.0);
+    assert_eq!(body.children[1].margin_rect.y, 20.0);
+}
+
+#[test]
+fn flex_row_align_items_end() {
+    let tree = make(
+        r#"<body style="display: flex; align-items: flex-end; width: 200px; height: 100px;">
+            <div style="width: 20px; height: 20px;"></div>
+            <div style="width: 20px; height: 60px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].margin_rect.y, 80.0);
+    assert_eq!(body.children[1].margin_rect.y, 40.0);
+}
+
+#[test]
+fn flex_row_align_items_stretch_fills_unspecified_height() {
+    let tree = make(
+        r#"<body style="display: flex; align-items: stretch; width: 200px; height: 80px;">
+            <div style="width: 20px;"></div>
+            <div style="width: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].border_rect.h, 80.0);
+    assert_eq!(body.children[1].border_rect.h, 80.0);
+}
+
+#[test]
+fn flex_column_direction_stacks_vertically() {
+    let tree = make(
+        r#"<body style="display: flex; flex-direction: column; width: 100px; height: 200px;">
+            <div style="width: 100%; height: 30px;"></div>
+            <div style="width: 100%; height: 50px;"></div>
+            <div style="width: 100%; height: 70px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let ys: Vec<f32> = body.children.iter().map(|c| c.margin_rect.y).collect();
+    assert_eq!(ys, vec![0.0, 30.0, 80.0]);
+}
+
+#[test]
+fn flex_row_reverse_orders_right_to_left() {
+    let tree = make(
+        r#"<body style="display: flex; flex-direction: row-reverse; width: 200px; height: 50px;">
+            <div style="width: 30px; height: 30px;"></div>
+            <div style="width: 30px; height: 30px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].margin_rect.x, 170.0);
+    assert_eq!(body.children[1].margin_rect.x, 140.0);
+}
+
+#[test]
+fn flex_test_html_layout() {
+    // Direct port of crates/wgpu-html-demo/html/flex-test.html minus the
+    // text content (which we don't render yet).
+    let tree = make(
+        r#"
+        <style>
+            #parent {
+                width: 100px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px;
+            }
+            .child { width: 30px; height: 30px; }
+        </style>
+        <div id="parent">
+            <div class="child"></div>
+            <div class="child"></div>
+            <div class="child"></div>
+        </div>
+        "#,
+    );
+    // The parser wraps <style> + <div id="parent"> in a synthetic <body>;
+    // pull #parent out via its known border-box width.
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let parent = body
+        .children
+        .iter()
+        .find(|c| c.border_rect.w == 120.0)
+        .expect("parent div");
+    // content-box: width=100 → border-box = 100 + 10*2 padding = 120.
+    assert_eq!(parent.border_rect.w, 120.0);
+    // 3 × 30 = 90 main used inside content_w=100, free=10 → space-between
+    // gaps of 5, items at content_x=10, 45, 80.
+    let xs: Vec<f32> = parent
+        .children
+        .iter()
+        .map(|c| c.margin_rect.x)
+        .collect();
+    assert_eq!(xs, vec![10.0, 45.0, 80.0]);
+}
+
+// ---------------------------------------------------------------------------
+// box-sizing border-box overflow regression
+// ---------------------------------------------------------------------------
+
 #[test]
 fn box_sizing_border_box_with_full_width_fits_within_container() {
     // Reproduces the original `width: 100% + padding` overflow bug:
@@ -232,4 +435,53 @@ fn box_sizing_border_box_with_full_width_fits_within_container() {
     assert_eq!(root.border_rect.w, 1024.0);
     assert_eq!(root.content_rect.x, 32.0);
     assert_eq!(root.content_rect.w, 960.0); // 1024 - 32*2
+}
+
+// ---------------------------------------------------------------------------
+// border
+// ---------------------------------------------------------------------------
+
+#[test]
+fn border_width_pushes_content_inward() {
+    // content-box: width=100 + border-width=4 (each side) → border_rect=108.
+    let tree = make(
+        r#"<body style="width: 100px; height: 50px; border-width: 4px;"></body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.border.top, 4.0);
+    assert_eq!(root.border.left, 4.0);
+    assert_eq!(root.border_rect.w, 108.0);
+    assert_eq!(root.border_rect.h, 58.0);
+    assert_eq!(root.content_rect.x, 4.0);
+    assert_eq!(root.content_rect.y, 4.0);
+    assert_eq!(root.content_rect.w, 100.0);
+}
+
+#[test]
+fn border_box_subtracts_border_too() {
+    // box-sizing: border-box → 100px = border + padding + content.
+    let tree = make(
+        r#"<body style="box-sizing: border-box;
+                         width: 100px; height: 100px;
+                         border-width: 4px; padding: 8px;"></body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.border_rect.w, 100.0);
+    // 100 - border*2 (8) - padding*2 (16) = 76
+    assert_eq!(root.content_rect.w, 76.0);
+}
+
+#[test]
+fn border_color_resolves_for_paint() {
+    let tree = make(
+        r#"<body style="width: 50px; height: 50px;
+                         border: 2px solid red;"></body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert!(root.border_color.is_some());
+    let c = root.border_color.unwrap();
+    // sRGB red → linear (1, 0, 0).
+    assert!((c[0] - 1.0).abs() < 1e-6);
+    assert_eq!(c[1], 0.0);
+    assert_eq!(c[2], 0.0);
 }
