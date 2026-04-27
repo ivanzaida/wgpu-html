@@ -111,6 +111,16 @@ fn sd_rounded_box(p: vec2<f32>, half_size: vec2<f32>, r: vec2<f32>) -> f32 {
     return max(q.x - safe_r.x, q.y - safe_r.y);
 }
 
+/// Count how many sides have a positive stroke width.
+fn nonzero_side_count(s: vec4<f32>) -> i32 {
+    var n: i32 = 0;
+    if (s.x > 0.0) { n = n + 1; }
+    if (s.y > 0.0) { n = n + 1; }
+    if (s.z > 0.0) { n = n + 1; }
+    if (s.w > 0.0) { n = n + 1; }
+    return n;
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let outer_r = pick_radius(in.local, in.radii_h, in.radii_v);
@@ -119,24 +129,58 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let aa = 0.7;
     let max_stroke = max(max(in.stroke.x, in.stroke.y), max(in.stroke.z, in.stroke.w));
 
-    var dist: f32;
     if (max_stroke <= 0.0) {
-        dist = outer_dist;
+        // Filled mode.
+        let alpha = clamp(0.5 - outer_dist / aa, 0.0, 1.0);
+        if (alpha <= 0.0) { discard; }
+        return vec4<f32>(in.color.rgb, in.color.a * alpha);
+    }
+
+    let nz = nonzero_side_count(in.stroke);
+    var inner_half: vec2<f32>;
+    var inner_centre: vec2<f32>;
+
+    if (nz == 1) {
+        // One-sided ring: use a uniform inner box (concentric with the
+        // outer one) so the painted stroke width stays constant along
+        // the curve. The visible region is then trimmed below to the
+        // 45° wedge belonging to this side.
+        inner_half   = in.half_size - vec2<f32>(max_stroke, max_stroke);
+        inner_centre = vec2<f32>(0.0, 0.0);
     } else {
-        let inner_half = vec2<f32>(
+        // Multi-side ring (uniform when all four equal; possibly
+        // asymmetric otherwise). Inner box shrinks per-side and shifts
+        // when sides are unequal.
+        inner_half = vec2<f32>(
             in.half_size.x - 0.5 * (in.stroke.y + in.stroke.w),
             in.half_size.y - 0.5 * (in.stroke.x + in.stroke.z),
         );
-        let inner_centre = vec2<f32>(
+        inner_centre = vec2<f32>(
             0.5 * (in.stroke.w - in.stroke.y),
             0.5 * (in.stroke.x - in.stroke.z),
         );
-        let inner_r = vec2<f32>(
-            max(0.0, outer_r.x - max_stroke),
-            max(0.0, outer_r.y - max_stroke),
-        );
-        let inner_dist = sd_rounded_box(in.local - inner_centre, inner_half, inner_r);
-        dist = max(outer_dist, -inner_dist);
+    }
+
+    let inner_r = vec2<f32>(
+        max(0.0, outer_r.x - max_stroke),
+        max(0.0, outer_r.y - max_stroke),
+    );
+    let inner_dist = sd_rounded_box(in.local - inner_centre, inner_half, inner_r);
+    let dist = max(outer_dist, -inner_dist);
+
+    // For a one-sided ring, restrict to the side's 45° wedge so the
+    // adjacent sides don't bleed into this draw call. Wedges are taken
+    // in normalised (-1..1) coords so non-square boxes still split into
+    // four equal triangles, mitering at the box centre.
+    if (nz == 1) {
+        let nx = in.local.x / max(in.half_size.x, 1e-6);
+        let ny = in.local.y / max(in.half_size.y, 1e-6);
+        var inside = false;
+        if (in.stroke.x > 0.0 && ny <= -abs(nx)) { inside = true; } // top
+        if (in.stroke.y > 0.0 && nx >=  abs(ny)) { inside = true; } // right
+        if (in.stroke.z > 0.0 && ny >=  abs(nx)) { inside = true; } // bottom
+        if (in.stroke.w > 0.0 && nx <= -abs(ny)) { inside = true; } // left
+        if (!inside) { discard; }
     }
 
     let alpha = clamp(0.5 - dist / aa, 0.0, 1.0);

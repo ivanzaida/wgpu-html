@@ -666,3 +666,62 @@ fn per_corner_h_v_in_longhand() {
     assert_eq!(r.top_left.h, 30.0);
     assert_eq!(r.top_left.v, 10.0);
 }
+
+// ---------------------------------------------------------------------------
+// Hit testing
+// ---------------------------------------------------------------------------
+
+fn hit_doc() -> LayoutBox {
+    // body 800x600, with two stacked children. Outer is 200x100, inner
+    // is 50x40 inside it (offset by 10,10).
+    let tree = make(
+        r#"<body style="width: 800px; height: 600px;">
+             <div style="width: 200px; height: 100px;">
+               <div style="width: 50px; height: 40px;
+                            margin: 10px 0 0 10px;"></div>
+             </div>
+           </body>"#,
+    );
+    layout(&tree, 800.0, 600.0).unwrap()
+}
+
+#[test]
+fn find_element_outside_returns_none() {
+    let mut root = hit_doc();
+    assert!(root.find_element_from_point((10_000.0, 10_000.0)).is_none());
+}
+
+#[test]
+fn find_element_returns_deepest_hit() {
+    let mut root = hit_doc();
+    // (20, 20) is inside the inner div (which sits at 10,10..60,50).
+    let hit = root.find_element_from_point((20.0, 20.0)).unwrap();
+    assert_eq!(hit.border_rect.w, 50.0);
+    assert_eq!(hit.border_rect.h, 40.0);
+}
+
+#[test]
+fn find_element_falls_back_to_self_when_no_child_hit() {
+    let mut root = hit_doc();
+    // (300, 50) is inside body but past the outer div (only 200 wide).
+    let hit = root.find_element_from_point((300.0, 50.0)).unwrap();
+    assert_eq!(hit.border_rect.w, 800.0);
+    assert_eq!(hit.border_rect.h, 600.0);
+}
+
+#[test]
+fn find_elements_orders_child_to_parent() {
+    let mut root = hit_doc();
+    let chain = root.find_elements_from_point((20.0, 20.0));
+    assert_eq!(chain.len(), 3);
+    // Deepest first: inner (50x40), outer (200x100), body (800x600).
+    assert_eq!(chain[0].border_rect.w, 50.0);
+    assert_eq!(chain[1].border_rect.w, 200.0);
+    assert_eq!(chain[2].border_rect.w, 800.0);
+}
+
+#[test]
+fn find_elements_outside_is_empty() {
+    let mut root = hit_doc();
+    assert!(root.find_elements_from_point((-1.0, -1.0)).is_empty());
+}

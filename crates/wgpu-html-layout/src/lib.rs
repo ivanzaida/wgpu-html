@@ -41,6 +41,12 @@ impl Rect {
     pub const fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
         Self { x, y, w, h }
     }
+
+    /// Half-open hit test: a point on the top/left edge is inside,
+    /// a point on the bottom/right edge is not.
+    pub fn contains(&self, x: f32, y: f32) -> bool {
+        x >= self.x && x < self.x + self.w && y >= self.y && y < self.y + self.h
+    }
 }
 
 /// Per-side insets in physical pixels.
@@ -185,6 +191,75 @@ pub enum BoxKind {
     Block,
     /// A text leaf. Contains no laid-out content yet.
     Text,
+}
+
+impl LayoutBox {
+    /// Return the deepest box whose `border_rect` contains `(x, y)`,
+    /// or `None` if the point falls outside this subtree. Children are
+    /// tested last-to-first so the topmost (last-painted) hit wins on
+    /// overlap.
+    pub fn find_element_from_point(&mut self, point: (f32, f32)) -> Option<&mut LayoutBox> {
+        let (x, y) = point;
+        if !self.border_rect.contains(x, y) {
+            return None;
+        }
+        // Find the topmost (last-painted) child that contains the point,
+        // then recurse into it. We resolve the index immutably first so
+        // the recursive `&mut` borrow doesn't overlap with a fallback
+        // `Some(self)` return — a stable-Rust NLL workaround.
+        for i in (0..self.children.len()).rev() {
+            if self.children[i].border_rect.contains(x, y) {
+                return self.children[i].find_element_from_point(point);
+            }
+        }
+        Some(self)
+    }
+
+    /// Return every box whose `border_rect` contains `(x, y)` along the
+    /// hit path, ordered deepest-child → root. Empty if the point falls
+    /// outside `self`.
+    ///
+    /// Soundness: the returned `&mut` references all alias into the same
+    /// borrowed subtree (each is an ancestor of the next), so two of
+    /// them must never be dereferenced concurrently. The intended usage
+    /// is to walk the slice one step at a time (event bubbling, etc.).
+    pub fn find_elements_from_point(&mut self, point: (f32, f32)) -> Vec<&mut LayoutBox> {
+        let (x, y) = point;
+        if !self.border_rect.contains(x, y) {
+            return Vec::new();
+        }
+        // Discover the child-index path immutably first; this lets us
+        // splice raw pointers without ever borrow-overlapping safe refs.
+        let mut path: Vec<usize> = Vec::new();
+        collect_hit_path(self, x, y, &mut path);
+
+        let mut out: Vec<&mut LayoutBox> = Vec::with_capacity(path.len() + 1);
+        // SAFETY: every pointer is derived from `self`'s exclusive borrow
+        // and points at a strict subtree of the previous one. We rely on
+        // the documented contract that callers do not access two of the
+        // returned references simultaneously.
+        unsafe {
+            let mut cursor: *mut LayoutBox = self as *mut LayoutBox;
+            out.push(&mut *cursor);
+            for &i in &path {
+                let children: *mut Vec<LayoutBox> = &raw mut (*cursor).children;
+                cursor = (*children).as_mut_ptr().add(i);
+                out.push(&mut *cursor);
+            }
+        }
+        out.reverse();
+        out
+    }
+}
+
+fn collect_hit_path(b: &LayoutBox, x: f32, y: f32, path: &mut Vec<usize>) {
+    for (i, child) in b.children.iter().enumerate().rev() {
+        if child.border_rect.contains(x, y) {
+            path.push(i);
+            collect_hit_path(child, x, y, path);
+            return;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
