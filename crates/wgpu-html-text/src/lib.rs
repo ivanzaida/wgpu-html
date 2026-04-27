@@ -20,7 +20,10 @@ mod shape;
 
 pub use atlas::{Atlas, AtlasEntry, AtlasRect};
 pub use font_db::FontDb;
-pub use shape::{PositionedGlyph, ShapedRun, TextContext};
+pub use shape::{
+    LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, PositionedGlyph,
+    ShapedRun, TextContext,
+};
 
 // Re-export the host-facing font types so callers don't need to depend
 // on `wgpu-html-tree` just to talk to the text crate.

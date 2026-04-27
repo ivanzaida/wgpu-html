@@ -3,9 +3,14 @@
 The plan for moving from "text nodes contribute zero height" to a real
 inline formatting context with shaped glyphs on the GPU.
 
-Status as of T3: single-line shaped text rendered end-to-end against a
-host-registered font, with cascade inheritance pulled forward. T4–T7
-still match the original plan.
+Status as of T7 (mostly done): single-line and multi-line shaped
+text rendered end-to-end against host-registered fonts, with
+cascade inheritance, UA defaults (block + inline), CSS-wide
+keywords + `!important`, IFC with rich-text paragraph wrapping
+(word-boundary breaks across `<strong>` / `<em>` / `<a>` / `<mark>`
+boundaries), per-line backgrounds and decorations, gamma-correct
+text rendering. Remaining T7 odds and ends called out at the end
+of §11.
 
 Companion to `roadmap.md` (engine milestones — this fleshes out M5/M6
 and pulls some inheritance work forward) and `status.md` (current
@@ -312,42 +317,87 @@ there's a measurable batching win.
 
 `paint_box` walks `b.text_run.glyphs` and pushes one `GlyphQuad`
 per shaped glyph at `(content_rect.x + glyph.x, content_rect.y +
-glyph.y)` with `b.text_color` (default opaque black).
+glyph.y)` with **per-glyph colour** (`g.color`). The per-glyph field
+exists so a single mixed-attribute paragraph (red `<strong>` next
+to default-coloured text) can paint each glyph in its source span's
+foreground without splitting the run into multiple `BoxKind::Text`
+boxes. The single-leaf path also fills it from `style.color`.
 
-## 8. Inline formatting context (minimal)
+Two-pass rendering (`Renderer::render`):
+- **Pass 1** — quad pipeline through the surface's sRGB view,
+  `LoadOp::Clear`. Backgrounds, borders, fills are stored as
+  sRGB-encoded bytes (the GPU does the linear → sRGB encode on
+  write).
+- **Pass 2** — glyph pipeline through a *non-sRGB* unorm view of
+  the same surface texture, `LoadOp::Load`. The GPU treats the dst
+  bytes as raw, the alpha blend runs in display space, and the
+  shader pre-encodes its own colour to sRGB before output. Net
+  result: gamma-correct text blending without empirical coverage
+  curves.
 
-**Status: not yet implemented (T4).**
+## 8. Inline formatting context
 
-The IFC has to land in the same milestone as text layout — text
-without it is just one-line boxes that no one wants. T3 sidesteps it
-by treating each `Element::Text` as a single-line "block-ish" box
-sized to the run's width × line-height.
+**Status: rich-text paragraph shaping landed (T7 partial).**
 
-Per block-level box that contains inline content (T4 plan):
+A block whose direct children are *all* inline-level routes through
+`layout_inline_paragraph`, which uses cosmic-text's `set_rich_text`
+to shape the entire paragraph as one Buffer. Word-boundary breaks
+land *between* spans without losing per-span attributes, so a
+sentence that crosses a `<strong>` boundary breaks correctly.
 
-1. **Build a flat "inline level box list"** from the children:
-   `Vec<InlineItem>` where each item is either a `TextRun` (one
-   `Element::Text`'s shaped glyphs) or an `InlineNested` (a
-   recursive IFC for a `<span>` and similar).
-2. **Break into lines.** Walk items left-to-right, accumulating
-   width. At each break opportunity (from cosmic-text), check if
-   the running width fits in the container's content width. If
-   not, close the line and start a new one.
-3. **Vertical metrics.** Each line's height is the max of its
-   items' line-heights (CSS line-height applied per inline-level
-   element); baseline is the max ascent.
-4. **Justification (M5: only `text-align: left | right | center`).**
-   `justify` left to a follow-up.
-5. Emit one `LayoutBox::children` entry per line, kind `LineBox`,
-   carrying its glyph runs and per-run cascaded style.
+Pipeline:
 
-`white-space: nowrap | pre | pre-wrap` follow the standard rules
-(for `pre`, no soft breaks; preserve newlines as forced breaks).
+1. **`collect_paragraph_spans(node, plan, ctx)`** walks the inline
+   subtree depth-first. Each `Element::Text` becomes a `SpanData`
+   with cascade-resolved family / weight / style / size /
+   line-height / colour. Each inline-element wrapper that
+   contributed any spans and has a `background-color` or
+   `text-decoration` is recorded as an `InlineBlockSpan` keeping
+   the half-open `[leaf_start, leaf_end)` span-index range and the
+   element's resolved colour.
+2. **`TextContext::shape_paragraph(spans, Some(container_w))`**
+   builds a `Buffer` with `set_size(width, None)`, calls
+   `set_rich_text` with one `Attrs` per span (family / weight /
+   style / metrics / colour / metadata = `leaf_id`), shapes
+   it, then walks every `layout_run` (no longer just `.next()`)
+   and packs each glyph into the atlas.
+3. **`ParagraphLayout`** is the result:
+   - `glyphs: Vec<PositionedGlyph>` — flat, with per-glyph colour
+     (lifted from the source span's `Attrs.color_opt`) and y in
+     paragraph-relative coords (line offsets baked in).
+   - `lines: Vec<ParagraphLine>` — `top / baseline / height /
+     line_width / glyph_range`. The `glyph_range` is the half-open
+     slice into `glyphs` for that line, so the caller can apply a
+     per-line `text-align` dx without re-deriving line membership.
+   - `leaf_segments: HashMap<u32, Vec<LeafSegment>>` — for each
+     `leaf_id`, the contiguous advance ranges that span occupies on
+     each line. A span that wraps yields multiple segments.
+4. **`layout_inline_paragraph` re-expands** the result:
+   - Per-line `text-align` dx via `horizontal_align_offset`.
+   - For each `InlineBlockSpan` with a `background`: one anonymous
+     `BoxKind::Block` per `(line × span)` segment, sized to the
+     segment's x range and the line's full height. `<mark>`'s
+     yellow stretches across every line it touches.
+   - For each `InlineBlockSpan` with `text_decoration`s: per-line
+     decoration quads at `baseline + thickness` (underline),
+     `baseline − 0.30 × ascent` (line-through), or `line.top`
+     (overline) using the inline element's resolved colour. `<a>`'s
+     underline follows the link across line breaks.
+   - One single `BoxKind::Text` containing every glyph, with each
+     line's `text-align` dx baked in and `g.color` already set.
 
-Anonymous block boxes (text adjacent to block siblings) are
-wrapped in synthetic anonymous `<span>`-equivalents inside an
-anonymous block — handled in a small normalisation pass before
-layout, so the IFC builder only sees inline-only parents.
+Single-text-leaf fast path: when the IFC has exactly one child and
+it's an `Element::Text`, layout still goes through `make_text_leaf`
++ `shape_and_pack` with `Some(container_w)` for the wrap budget.
+Same wrapping behaviour, smaller call graph.
+
+Block-flow text leaves (a text node whose parent is laid out by the
+non-IFC vertical stacker — rare in practice) shape with their
+container's content width as the wrap budget too.
+
+Mixed inline + block children fall back to the vertical block-flow
+stacker (no anonymous block boxes around the inline runs yet —
+that's the remaining T7 piece).
 
 ## 9. CSS coverage today (post-T6)
 
@@ -388,22 +438,45 @@ prepended to the user's stylesheet so author rules win on source-
 order ties. Today:
 
 ```
+/* Document machinery — never rendered, no IFC contribution. */
+head, style, script, meta, link, title, noscript,
+template, source, track, base, param, col, colgroup
+                       → display: none
+
+/* Body inset (browsers ship 8px). */
+body                   → margin: 8px
+
+/* Block-level vertical rhythm + indents. */
+p, blockquote, pre, ul, ol, dl, address
+                       → margin: 16px 0
+h1                     → margin: 21px 0; bold; 32px
+h2                     → margin: 20px 0; bold; 24px
+h3                     → margin: 19px 0; bold; 19px
+h4                     → margin: 21px 0; bold
+h5                     → margin: 22px 0; bold; 13px
+h6                     → margin: 26px 0; bold; 11px
+hr                     → margin: 8px 0; border-top: 1px solid gray
+ul, ol                 → padding-left: 40px
+dd                     → margin-left: 40px
+blockquote             → margin: 16px 40px
+
+/* Inline emphasis. */
 b, strong              → font-weight: bold
 i, em                  → font-style: italic
 u, ins                 → text-decoration: underline
 s, del, strike         → text-decoration: line-through
-code, kbd, samp        → font-family: monospace
+code, kbd, samp, pre   → font-family: monospace
 a                      → color: blue + text-decoration: underline
 mark                   → background-color: yellow + color: black
-small / sub / sup      → font-size: 13px
-h1 / h2 / h3 / h4      → bold + 32 / 24 / 19 / (default) px
-h5 / h6                → bold + 13 / 11 px
+small                  → font-size: 13px
+sub, sup               → font-size: 13px + vertical-align: sub|super
 ```
 
-Block-level resets (default margins on `<p>`, `<ul>`, …) are
-deliberately *not* in the UA today — they would change layouts
-that don't expect browser-style spacing. Add when the layout is
-ready.
+`<sub>` / `<sup>`'s `vertical-align` parses but the layout doesn't
+yet apply the baseline shift — only the smaller font-size is
+visible (T7 follow-up). Layout tests inject `body { margin: 0 }`
+via fixture HTML so they keep their original positioning
+expectations alongside the new UA defaults.
 
 **Cascade inheritance.** `wgpu-html-style::cascade` runs a per-node
 `inherit_into(child, parent, keywords)` that fills in unset values
@@ -431,23 +504,38 @@ all inline-level (text or default-inline elements like
 <time> / <small> / <mark> / <br> / <wbr> / <bdi> / <bdo> / <ins> /
 <del> / <label> / <output> / <data> / <ruby> / <rt> / <rp>` —
 or anything with `display: inline / inline-block / inline-flex`)
-runs through `layout_inline_block_children` instead of the block-
-flow vertical stacker. Each inline subtree shapes with its own
-cascaded style; siblings baseline-align (so `<small>` and 16px
-text rest on the same baseline). Mixed inline+block children fall
-back to block flow today; anonymous block boxes are still pending.
+runs through `layout_inline_paragraph`, the rich-text path
+described in §8. Word-boundary breaks happen across span
+boundaries; per-line backgrounds and decorations expand correctly
+across line breaks; per-glyph colour is preserved. The single-leaf
+fast path still uses cosmic-text's wrap on the leaf directly.
+
+**Multi-line.** `shape_paragraph` (rich-text) and `shape_and_pack`
+(single-leaf) both consume cosmic-text's break opportunities. The
+default behaviour is `white-space: normal` — runs of whitespace
+collapse to single spaces (`collapse_whitespace`), the buffer is
+shaped at `set_size(Some(width), None)`, and we iterate every
+`layout_run` rather than `.next()`.
 
 **Still deferred:**
 
-- Multi-line: cosmic-text's break opportunities aren't consulted
-  yet — the inline pass keeps growing one line past the container
-  width if its content overflows.
-- `white-space: nowrap | pre` plumbing past parse.
-- `vertical-align: super / sub`. UA `<sub>/<sup>` only changes
-  size right now; vertical baseline shift is T6.5 / T7 scope.
+- `<br>` forced line break — emit a synthetic newline span at the
+  `<br>` position and re-shape; small change now that the
+  multi-line plumbing exists.
+- `white-space: pre / pre-wrap / pre-line / nowrap` — switches on
+  `collapse_whitespace` (skip for `pre*`) and the
+  `Buffer::set_size(width, _)` argument (`None` for `nowrap`).
+- `vertical-align: super / sub` baseline shift. UA `<sub>/<sup>`
+  parses with the keyword and currently only changes font-size;
+  the baseline raise / lower is the next T7 follow-up.
+- Anonymous block boxes around runs of inline content inside a
+  block whose siblings include block-level boxes (mixed
+  inline + block parents fall back to vertical stacking).
 - `font-stretch`, `font-variant`, `font-feature-settings`.
 - `text-shadow`, gradients, filters.
-- `text-decoration-color / -thickness / -style`.
+- `text-decoration-color / -thickness / -style` — decorations
+  always paint in the inline element's `color`, solid, with
+  thickness scaled to the line ascent.
 - `direction`, bidi.
 
 ## 10. Public API surface
@@ -461,15 +549,28 @@ wgpu-html-text  (new crate)
   + Atlas (CPU shelf packer, dirty rects, upload)                (T2, done)
   + FontDb (cosmic-text bridge over a FontRegistry)              (T2, done)
   + TextContext { font_db, fonts, atlas, swash, glyph_cache }    (T3, done)
-  + TextContext::shape_and_pack(text, font, size, line_h, ls)    (T3+T6, done)
+  + TextContext::shape_and_pack(text, font, size, line_h, ls,
+                                weight, style, max_width, color) (T3+T6+T7, done)
+  + TextContext::shape_paragraph(spans, max_width)               (T7, done)
   + TextContext::pick_font(families, weight, style)              (T5, done)
+  + TextContext::resolve_family(families, weight, style)         (T7, done)
   + TextContext::sync_fonts(&FontRegistry)                       (T3, done)
   + ShapedRun { glyphs, width, height, ascent }                  (T3, done)
-  + PositionedGlyph { x, y, w, h, uv_min, uv_max }               (T3, done)
+  + PositionedGlyph { x, y, w, h, uv_min, uv_max, color }        (T3+T7, done)
+  + ParagraphSpan { text, family, weight, style, size_px,
+                    line_height_px, color, leaf_id }             (T7, done)
+  + ParagraphLayout { glyphs, lines, width, height,
+                      first_line_ascent, leaf_segments }         (T7, done)
+  + ParagraphLine { top, baseline, height, line_width,
+                    glyph_range }                                (T7, done)
+  + LeafSegment { line_index, x_start, x_end }                   (T7, done)
 
 wgpu-html-style
   + cascade inheritance pass for the standard set                (T3, done)
-  + UA stylesheet (b/strong/em/i/u/s/code/a/mark/small/h1-h6)    (T4, done)
+  + UA stylesheet (display:none for machinery, block defaults
+    for body/h1-h6/p/ul/ol/blockquote/pre/hr/dd, inline
+    emphasis for b/strong/em/i/u/s/ins/del/strike/code/kbd/
+    samp/a/mark/small/sub/sup)                                   (T4+T7, done)
 
 wgpu-html-layout
   ! layout_with_text(tree, &mut TextContext, vw, vh, scale)      (T3, done)
@@ -477,8 +578,11 @@ wgpu-html-layout
   + LayoutBox.text_run + text_color                              (T3, done)
   + LayoutBox.text_decorations                                   (T6, done)
   + TextDecorationLine enum                                      (T6, done)
-  + Inline formatting context (single-line, baseline-aligned)    (T5, done)
   + horizontal_align_offset for text-align                       (T5, done)
+  + display:none short-circuit (zero-area `empty_box`)            (T7, done)
+  + collect_paragraph_spans + ParagraphPlan                      (T7, done)
+  + layout_inline_paragraph (rich-text IFC, multi-line, per-line
+    bg / decoration via leaf_segments)                           (T7, done)
 
 wgpu-html-renderer
   + GlyphPipeline (textured)                                     (T3, done)
@@ -491,6 +595,7 @@ wgpu-html-renderer
 wgpu-html
   + paint_tree_with_text(tree, ctx, vw, vh, scale)               (T3, done)
   + paint::paint_box emits glyph quads from text_run             (T3, done)
+  + paint reads g.color per glyph (mixed-attribute paragraphs)   (T7, done)
   + paint emits decoration quads (under/through/over)            (T6, done)
 ```
 
@@ -656,18 +761,79 @@ Deviations from the original T3 plan worth noting:
   now. Bake-in is a tiny follow-up once the inline pass tracks
   per-run y-offsets.
 
-### T7 — Multi-line + DPI + atlas eviction ▶ NEXT
+### T7 — Multi-line + block UA defaults + paragraph wrapping ✅ MOSTLY DONE
 
-- Multi-line breaking via `cosmic-text` break opportunities;
-  `white-space: pre / nowrap` plumbing.
+Done:
+
+- **Multi-line shaping.** `shape_and_pack` and the new
+  `shape_paragraph` both pass a finite width to
+  `Buffer::set_size` and iterate every `layout_run`. Single-leaf
+  paragraphs wrap inside one shaped run; multi-child IFCs go
+  through the rich-text path so word-boundary breaks land
+  *between* spans (a sentence that crosses a `<strong>` boundary
+  breaks correctly).
+- **Rich-text paragraph IFC.** New `ParagraphSpan` /
+  `ParagraphLayout` / `ParagraphLine` / `LeafSegment` types in
+  `wgpu-html-text`; `set_rich_text` with one `Attrs` per span
+  carries family / weight / style / metrics / colour / metadata
+  (`leaf_id`) into the shaper. `PositionedGlyph` gained a
+  `color` field (lifted from `Attrs.color_opt`) so a
+  mixed-attribute paragraph paints per-glyph foregrounds without
+  splitting the run.
+- **Per-line backgrounds + decorations.** `layout_inline_paragraph`
+  walks `plan.inline_blocks` (the inline elements that contributed
+  any spans and have `background-color` or `text-decoration`),
+  looks up each `leaf_id`'s segments via `para.leaf_segments`, and
+  emits one anonymous `BoxKind::Block` per `(line × span)` for the
+  background bar plus one per `(line × decoration)` for the
+  decoration quad. `<mark>`'s yellow stretches across every line it
+  touches; `<a>`'s underline follows the link across breaks.
+- **Whitespace collapsing.** `collapse_whitespace` runs the
+  `white-space: normal` rule (every run of ASCII / Unicode
+  whitespace becomes a single ASCII space) before shaping, so
+  source-code newlines and indentation between inline elements
+  don't appear as zero-width-wedge or vertical character columns.
+- **Block-level UA defaults.** `body { margin: 8px }`,
+  `p / blockquote / pre / ul / ol / dl / address { margin: 16px 0 }`,
+  per-heading margins (21 / 20 / 19 / 21 / 22 / 26 px),
+  `ul, ol { padding-left: 40px }`, `dd { margin-left: 40px }`,
+  `blockquote { margin: 16px 40px }`, `hr { margin: 8px 0;
+  border-top: 1px solid gray }`, `pre { font-family: monospace }`.
+  Plus the existing inline emphasis defaults.
+- **`display: none`** for `<head> / <style> / <script> / <meta> /
+  <link> / <title> / <noscript> / <template> / <source> / <track>
+  / <base> / <param> / <col> / <colgroup>`. Layout short-circuits
+  with a zero-area `empty_box` so the contents of `<style>` no
+  longer flow through the IFC as visible text.
+- **Border shorthand with function values.** `parse_border_pieces`
+  switched from `split_whitespace` to a paren-aware
+  `split_top_level_whitespace`, so `border: 2px solid rgb(212,
+  175, 55)` keeps the `rgb(...)` chunk intact instead of
+  fracturing it across three garbage tokens.
+
+Still pending:
+
+- `<br>` forced line break — emit a synthetic `\n` span at the
+  `<br>` position and re-shape; small change now that the
+  multi-line plumbing exists.
+- `white-space: pre / pre-wrap / pre-line / nowrap` — switch on
+  `collapse_whitespace` (skip for `pre*`) and the
+  `Buffer::set_size(width, _)` argument (`None` for `nowrap`).
+- `vertical-align: super / sub` baseline offsets. UA `<sub>/<sup>`
+  parses with the keyword today; the layout doesn't apply the
+  raise / lower yet.
 - Anonymous block boxes around runs of inline content inside a
-  block whose siblings include block-level boxes.
-- `vertical-align: super / sub` baseline offsets.
+  block whose siblings include block-level boxes (mixed
+  inline + block parents fall back to vertical stacking).
 - Hook `winit::scale_factor_changed` into atlas re-raster
   (`Atlas::clear` already queues the full-atlas dirty rect — the
   missing piece is invalidating `TextContext::glyph_cache`).
 - LRU-style atlas eviction instead of "blow the cache".
 - Atlas grow / double when full.
+- `letter-spacing` in the rich-text path (today only the
+  single-leaf path applies it; cosmic-text 0.12's `Attrs` doesn't
+  expose the field directly so the rich-text path would need a
+  similar post-shape adjustment).
 
 ## 12. Open questions
 
@@ -706,13 +872,25 @@ single registered face, and pulled cascade inheritance forward
 because none of the text-related properties make sense without it.
 T4 added a UA stylesheet for the inline-emphasis defaults and made
 `shape_text_run` read every font knob from the cascaded style.
-T5 turned `<p>Hello <strong>World</strong> <em>!</em></p>` into one
-flowing line by giving blocks-of-inlines a single-line IFC with
-baseline alignment, per-run font matching, and `text-align`. T6
-finished off `text-decoration`, `letter-spacing`, `text-transform`
-and made the renderer text path gamma-correct. T7 next: multi-line
-breaking, anonymous block boxes for mixed content, vertical-align
-baseline shifts, and DPI / atlas eviction.
+T5 turned `<p>Hello <strong>World</strong> <em>!</em></p>` into a
+flowing single-line IFC with baseline alignment, per-run font
+matching, and `text-align`. T6 finished off `text-decoration`,
+`letter-spacing`, `text-transform`, and switched the renderer to a
+two-pass gamma-correct text path. T7 brought real paragraph
+wrapping: cosmic-text's `set_rich_text` shapes the whole inline
+subtree as one Buffer with per-span `Attrs`; word-boundary breaks
+land between spans without losing per-span attributes; `<mark>`
+backgrounds and `<a>` / `<u>` / `<s>` decorations expand into
+per-line bars; per-glyph colour means a mixed-attribute paragraph
+paints correctly; block-level UA defaults bring browser-style
+spacing for headings, paragraphs, lists, blockquote, hr;
+`display: none` removes the contents of `<style>` and friends from
+the rendered output.
+
+What's left after T7: `<br>`, full `white-space` plumbing,
+`vertical-align` baseline shifts, anonymous block boxes for mixed
+inline+block parents, DPI / atlas eviction. All small now that
+the rich-text shape exists.
 
 The whole thing still hangs off the constraint in §3 — fonts
 owned by the `Tree`, no globals, no fetcher, no `@font-face` magic.

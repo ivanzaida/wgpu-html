@@ -122,9 +122,13 @@ fn paint_box(b: &LayoutBox, out: &mut DisplayList) {
         }
 
         for g in &run.glyphs {
+            // Per-glyph color: each glyph carries its source span's
+            // resolved foreground (set at shape time). The per-leaf
+            // `text_color` on the box stays around as a hint for
+            // decorations / fallbacks but glyphs paint at `g.color`.
             out.push_glyph(
                 Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),
-                color,
+                g.color,
                 g.uv_min,
                 g.uv_max,
             );
@@ -723,9 +727,12 @@ mod tests {
 
     #[test]
     fn child_uses_block_flow_position() {
-        // No absolute positioning: header is at (0,0), card stacks below.
+        // No absolute positioning: cards stack vertically. Override
+        // the UA `body { margin: 8px }` so the first child sits at
+        // y=0, then the second stacks immediately under it (no
+        // margin between siblings).
         let tree = wgpu_html_parser::parse(
-            r#"<body>
+            r#"<body style="margin: 0;">
                 <div style="height: 64px; background-color: blue;"></div>
                 <div style="height: 30px; background-color: red;"></div>
             </body>"#,

@@ -17,48 +17,115 @@ use wgpu_html::renderer::{FrameOutcome, Renderer, GLYPH_ATLAS_SIZE};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{FontFace, FontStyleAxis};
 
-const DOC: &str = include_str!("../html/hello-text.html");
+const DOC: &str = include_str!("../html/flex-grow.html");
 
-/// Search a few common system-font locations for a TTF the host can
-/// register. T3 only needs *some* font to demonstrate shaping; the
-/// constraint we care about is that fonts go through the tree, not
-/// where the bytes come from. Hosts that ship their own asset can
-/// replace this with `include_bytes!(...)`.
-fn load_demo_font_bytes() -> Option<Vec<u8>> {
-    let candidates = [
-        // Windows
+/// One font family's worth of system-font paths: regular, bold,
+/// italic, bold-italic. An empty path means "this variant isn't on
+/// disk for this family"; the loader simply skips it. The table is
+/// scanned top-to-bottom — the first row whose `regular` is readable
+/// wins. That row's other variants are loaded if present.
+const FONT_FAMILIES: &[[&str; 4]] = &[
+    // Windows — Segoe UI is the system UI font on modern Windows.
+    [
         "C:\\Windows\\Fonts\\segoeui.ttf",
+        "C:\\Windows\\Fonts\\segoeuib.ttf",
+        "C:\\Windows\\Fonts\\segoeuii.ttf",
+        "C:\\Windows\\Fonts\\segoeuiz.ttf",
+    ],
+    [
         "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\arialbd.ttf",
+        "C:\\Windows\\Fonts\\ariali.ttf",
+        "C:\\Windows\\Fonts\\arialbi.ttf",
+    ],
+    [
         "C:\\Windows\\Fonts\\calibri.ttf",
+        "C:\\Windows\\Fonts\\calibrib.ttf",
+        "C:\\Windows\\Fonts\\calibrii.ttf",
+        "C:\\Windows\\Fonts\\calibriz.ttf",
+    ],
+    [
         "C:\\Windows\\Fonts\\tahoma.ttf",
-        // Linux (covers most distros)
+        "C:\\Windows\\Fonts\\tahomabd.ttf",
+        "",
+        "",
+    ],
+    // Linux: DejaVu lives in a few different paths across distros.
+    [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
+    ],
+    [
         "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Oblique.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-BoldOblique.ttf",
+    ],
+    [
         "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        // macOS
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/Library/Fonts/Arial.ttf",
-    ];
-    for path in candidates {
-        if let Ok(bytes) = std::fs::read(path) {
-            eprintln!("demo: loaded font from {path}");
-            return Some(bytes);
-        }
-    }
-    None
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-BoldOblique.ttf",
+    ],
+    // macOS — `.ttc` collections cover all variants in one file, so
+    // the bold / italic slots are empty (cosmic-text picks within
+    // the collection by `(weight, style)`).
+    ["/System/Library/Fonts/Helvetica.ttc", "", "", ""],
+    ["/Library/Fonts/Arial.ttf", "", "", ""],
+];
+
+/// One demo-font variant the host has loaded.
+#[derive(Clone)]
+struct DemoFont {
+    weight: u16,
+    style: FontStyleAxis,
+    data: Arc<[u8]>,
 }
 
-/// Stable shared `Arc<[u8]>` for the demo font — re-using the same
-/// `Arc` across frames means `TextContext::sync_fonts` recognises the
-/// font as already loaded (`Arc::as_ptr` cache key) and skips
-/// re-ingestion.
-fn demo_font_data() -> Option<Arc<[u8]>> {
-    static DATA: OnceLock<Option<Arc<[u8]>>> = OnceLock::new();
-    DATA.get_or_init(|| {
-        load_demo_font_bytes()
-            .map(|v| Arc::from(v.into_boxed_slice()))
+/// Scan `FONT_FAMILIES` and return every variant found from the
+/// first row whose regular file is readable. Each `Arc<[u8]>` is
+/// stable across frames so `TextContext::sync_fonts` recognises the
+/// faces as already loaded on the second-and-later sync.
+fn demo_fonts() -> &'static [DemoFont] {
+    static FACES: OnceLock<Vec<DemoFont>> = OnceLock::new();
+    FACES.get_or_init(|| {
+        for row in FONT_FAMILIES {
+            let regular_path = row[0];
+            let Ok(reg_bytes) = std::fs::read(regular_path) else {
+                continue;
+            };
+            eprintln!("demo: loaded font family from {regular_path}");
+            let mut out = vec![DemoFont {
+                weight: 400,
+                style: FontStyleAxis::Normal,
+                data: Arc::from(reg_bytes.into_boxed_slice()),
+            }];
+            // (path, weight, style) for the optional 3 variants.
+            let variants: [(&str, u16, FontStyleAxis); 3] = [
+                (row[1], 700, FontStyleAxis::Normal),
+                (row[2], 400, FontStyleAxis::Italic),
+                (row[3], 700, FontStyleAxis::Italic),
+            ];
+            for (path, weight, style) in variants {
+                if path.is_empty() {
+                    continue;
+                }
+                if let Ok(bytes) = std::fs::read(path) {
+                    eprintln!("demo:   + variant {path} @ {weight} {style:?}");
+                    out.push(DemoFont {
+                        weight,
+                        style,
+                        data: Arc::from(bytes.into_boxed_slice()),
+                    });
+                }
+            }
+            return out;
+        }
+        Vec::new()
     })
-    .clone()
+    .as_slice()
 }
 
 struct App {
@@ -139,16 +206,18 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let size = window.inner_size();
 
-                // Parse HTML and register the demo font on the tree.
-                // The shared `Arc` returned by `demo_font_data` keeps
-                // the cosmic-text bridge cache valid across frames.
+                // Parse HTML and register every demo-font variant on
+                // the tree under the same family name. The shared
+                // `Arc<[u8]>`s returned by `demo_fonts` are stable
+                // across frames so the cosmic-text bridge cache stays
+                // valid on subsequent syncs.
                 let mut tree = wgpu_html::parser::parse(DOC);
-                if let Some(data) = demo_font_data() {
+                for face in demo_fonts() {
                     tree.register_font(FontFace {
                         family: "DemoSans".into(),
-                        weight: 400,
-                        style: FontStyleAxis::Normal,
-                        data,
+                        weight: face.weight,
+                        style: face.style,
+                        data: face.data.clone(),
                     });
                 }
 
@@ -196,11 +265,11 @@ fn main() {
     println!("wgpu-html demo:");
     println!("  F12  →  save current frame as screenshot-<unix>.png");
     println!("  Esc  →  quit");
-    if demo_font_data().is_none() {
+    if demo_fonts().is_empty() {
         eprintln!(
             "demo: no system font found at the candidate paths — text \
-             will render as zero-size. Edit `load_demo_font_bytes` in \
-             main.rs to point at a TTF on your machine."
+             will render as zero-size. Edit `FONT_FAMILIES` in main.rs \
+             to point at a TTF on your machine."
         );
     }
 
