@@ -4,9 +4,9 @@
 //! compound selectors joined by the descendant combinator (whitespace).
 //! A compound selector is the same simple-selector mix supported
 //! before: optional tag (or universal `*`), optional id, any number
-//! of classes. Other combinators (`>`, `+`, `~`) and pseudo-classes /
-//! pseudo-elements are not recognized — selectors using them are
-//! dropped during parsing.
+//! of classes, plus an optional set of dynamic pseudo-classes
+//! (`:hover`, `:active`). Other combinators (`>`, `+`, `~`) and
+//! unsupported pseudo-classes / pseudo-elements still drop the rule.
 
 use std::collections::HashMap;
 
@@ -24,6 +24,20 @@ use crate::css_parser::{CssWideKeyword, parse_inline_style_decls};
 /// entries have to be found further up. Each ancestor compound is
 /// itself a `Selector` with `ancestors` empty — the chain is flat by
 /// convention.
+/// Dynamic pseudo-classes that gate a compound selector against the
+/// document's `InteractionState`. Currently only state-driven
+/// pseudo-classes are supported; structural pseudo-classes (`:nth-`,
+/// `:first-child`, …) drop the rule during parsing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PseudoClass {
+    /// `:hover` — matches when this element is on the document's
+    /// hover chain (see `InteractionState::hover_path`).
+    Hover,
+    /// `:active` — matches when this element is on the active
+    /// (currently-pressed) chain.
+    Active,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Selector {
     /// `Some("div")` for `div`, `None` for universal `*` or no tag part.
@@ -38,13 +52,18 @@ pub struct Selector {
     /// for the common simple-selector case. Entries are themselves
     /// `Selector`s but always have `ancestors` empty.
     pub ancestors: Vec<Selector>,
+    /// Pseudo-classes the subject must satisfy. Multiple are AND'd.
+    /// Each adds 1 to the class bucket of `specificity()`, matching
+    /// CSS Selectors-4.
+    pub pseudo_classes: Vec<PseudoClass>,
 }
 
 impl Selector {
     /// Standard CSS specificity packed into a u32:
     /// `(id_count << 16) | (class_count << 8) | tag_count`. For
     /// descendant chains, every compound contributes (so `.a .b`
-    /// has specificity 2-classes, not 1).
+    /// has specificity 2-classes, not 1). Pseudo-classes count as
+    /// classes per CSS Selectors-4.
     pub fn specificity(&self) -> u32 {
         let mut total = self.compound_specificity();
         for a in &self.ancestors {
@@ -57,9 +76,20 @@ impl Selector {
     /// internally and by `specificity()`.
     pub fn compound_specificity(&self) -> u32 {
         let id = if self.id.is_some() { 1 } else { 0 };
-        let cls = self.classes.len() as u32;
+        let cls = (self.classes.len() + self.pseudo_classes.len()) as u32;
         let tag = if self.tag.is_some() { 1 } else { 0 };
         (id << 16) | (cls << 8) | tag
+    }
+
+    /// True iff this compound has at least one tag/id/class/universal
+    /// constraint or pseudo-class. Used to reject empty compounds
+    /// like `""` or stray syntax that parses to nothing.
+    pub fn is_meaningful(&self) -> bool {
+        self.universal
+            || self.tag.is_some()
+            || self.id.is_some()
+            || !self.classes.is_empty()
+            || !self.pseudo_classes.is_empty()
     }
 }
 
@@ -160,7 +190,8 @@ fn parse_selector(s: &str) -> Option<Selector> {
     Some(subject)
 }
 
-/// Parse one whitespace-free compound (tag/id/classes/universal).
+/// Parse one whitespace-free compound
+/// (tag/id/classes/universal/pseudo-classes).
 /// Returns `None` if the compound contains anything we don't handle.
 fn parse_compound(s: &str) -> Option<Selector> {
     if s.is_empty() {
@@ -173,12 +204,13 @@ fn parse_compound(s: &str) -> Option<Selector> {
         Tag,
         Id,
         Class,
+        Pseudo,
     }
     let mut kind = Kind::Tag;
 
-    let commit = |buf: &mut String, kind: Kind, sel: &mut Selector| {
+    fn commit(buf: &mut String, kind: Kind, sel: &mut Selector) -> Option<()> {
         if buf.is_empty() {
-            return;
+            return Some(());
         }
         match kind {
             Kind::Tag => {
@@ -191,33 +223,47 @@ fn parse_compound(s: &str) -> Option<Selector> {
             }
             Kind::Id => sel.id = Some(std::mem::take(buf)),
             Kind::Class => sel.classes.push(std::mem::take(buf)),
+            Kind::Pseudo => match buf.as_str() {
+                "hover" => {
+                    sel.pseudo_classes.push(PseudoClass::Hover);
+                    buf.clear();
+                }
+                "active" => {
+                    sel.pseudo_classes.push(PseudoClass::Active);
+                    buf.clear();
+                }
+                // Anything we don't recognize (`:focus`, `::before`,
+                // `:nth-child`, …) drops the whole rule.
+                _ => return None,
+            },
         }
-    };
+        Some(())
+    }
 
     for ch in s.chars() {
         match ch {
             '#' => {
-                commit(&mut buf, kind, &mut sel);
+                commit(&mut buf, kind, &mut sel)?;
                 kind = Kind::Id;
             }
             '.' => {
-                commit(&mut buf, kind, &mut sel);
+                commit(&mut buf, kind, &mut sel)?;
                 kind = Kind::Class;
             }
+            ':' => {
+                commit(&mut buf, kind, &mut sel)?;
+                kind = Kind::Pseudo;
+            }
             c if c.is_alphanumeric() || c == '-' || c == '_' || c == '*' => buf.push(c),
-            // Unsupported character in a single compound (combinators
-            // were already split off as whitespace; pseudo-classes and
-            // attribute selectors land here): skip the whole rule.
+            // Unsupported character in a single compound (other
+            // combinators were already split off as whitespace;
+            // attribute selectors `[a=b]` land here): drop the rule.
             _ => return None,
         }
     }
-    commit(&mut buf, kind, &mut sel);
+    commit(&mut buf, kind, &mut sel)?;
 
-    if !sel.universal
-        && sel.tag.is_none()
-        && sel.id.is_none()
-        && sel.classes.is_empty()
-    {
+    if !sel.is_meaningful() {
         return None;
     }
     Some(sel)
@@ -319,11 +365,59 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_combinators() {
-        // `>`, `+`, `~` (and pseudo-classes etc.) still drop the rule.
+        // `>`, `+`, `~` still drop the rule.
         assert!(parse_selector("div > p").is_none());
         assert!(parse_selector("div + p").is_none());
         assert!(parse_selector("div ~ p").is_none());
-        assert!(parse_selector("a:hover").is_none());
+    }
+
+    #[test]
+    fn rejects_unknown_pseudo_classes() {
+        // We accept `:hover` / `:active` only; everything else drops.
+        assert!(parse_selector("a:focus").is_none());
+        assert!(parse_selector("p::before").is_none());
+        assert!(parse_selector("li:nth-child").is_none());
+    }
+
+    #[test]
+    fn parses_hover_pseudo_class() {
+        let s = parse_selector("a:hover").unwrap();
+        assert_eq!(s.tag.as_deref(), Some("a"));
+        assert_eq!(s.pseudo_classes, vec![PseudoClass::Hover]);
+    }
+
+    #[test]
+    fn parses_bare_hover_pseudo_class() {
+        // `:hover { ... }` matches every hovered element.
+        let s = parse_selector(":hover").unwrap();
+        assert!(s.tag.is_none());
+        assert!(s.id.is_none());
+        assert_eq!(s.pseudo_classes, vec![PseudoClass::Hover]);
+    }
+
+    #[test]
+    fn parses_pseudo_class_after_id_and_class() {
+        let s = parse_selector("button#go.primary:hover:active").unwrap();
+        assert_eq!(s.tag.as_deref(), Some("button"));
+        assert_eq!(s.id.as_deref(), Some("go"));
+        assert_eq!(s.classes, vec!["primary"]);
+        assert_eq!(
+            s.pseudo_classes,
+            vec![PseudoClass::Hover, PseudoClass::Active]
+        );
+    }
+
+    #[test]
+    fn pseudo_class_adds_class_specificity() {
+        // `a:hover` should beat plain `a` on specificity (1 class +
+        // 1 tag vs 1 tag).
+        let plain = parse_selector("a").unwrap().specificity();
+        let hover = parse_selector("a:hover").unwrap().specificity();
+        assert!(hover > plain);
+        // Two pseudo-classes match a `.x.y` for specificity.
+        let two_pc = parse_selector("a:hover:active").unwrap().specificity();
+        let two_cls = parse_selector("a.x.y").unwrap().specificity();
+        assert_eq!(two_pc, two_cls);
     }
 
     #[test]

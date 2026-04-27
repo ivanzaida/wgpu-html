@@ -17,9 +17,39 @@ use std::collections::HashMap;
 
 use wgpu_html_models::Style;
 use wgpu_html_parser::{
-    CssWideKeyword, Selector, Stylesheet, parse_inline_style_decls, parse_stylesheet,
+    CssWideKeyword, PseudoClass, Selector, Stylesheet, parse_inline_style_decls,
+    parse_stylesheet,
 };
-use wgpu_html_tree::{Element, Node, Tree};
+use wgpu_html_tree::{Element, InteractionState, Node, Tree};
+
+/// Per-element state consulted by the matcher when resolving dynamic
+/// pseudo-classes (`:hover`, `:active`, …). Default is "nothing on";
+/// rules with pseudo-classes never match a default context.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MatchContext {
+    pub is_hover: bool,
+    pub is_active: bool,
+}
+
+impl MatchContext {
+    /// Compute the context for the element at `path` given the
+    /// document's `InteractionState`. An element is "in the hover
+    /// chain" iff its path is a prefix of `state.hover_path` (i.e. it
+    /// is, or is an ancestor of, the deepest hovered element).
+    pub fn for_path(path: &[usize], state: &InteractionState) -> Self {
+        Self {
+            is_hover: path_is_prefix(path, state.hover_path.as_deref()),
+            is_active: path_is_prefix(path, state.active_path.as_deref()),
+        }
+    }
+}
+
+fn path_is_prefix(path: &[usize], target: Option<&[usize]>) -> bool {
+    match target {
+        Some(t) => t.len() >= path.len() && t[..path.len()] == *path,
+        None => false,
+    }
+}
 
 mod element_attrs;
 mod merge;
@@ -51,7 +81,9 @@ pub struct CascadedNode {
 /// Cascade a tree end-to-end:
 ///
 /// 1. collect every `<style>` block's text content into one stylesheet,
-/// 2. for each element compute its style from the matching rules,
+/// 2. for each element compute its style from the matching rules
+///    (consulting `tree.interaction` so dynamic pseudo-classes like
+///    `:hover` / `:active` resolve correctly),
 /// 3. layer the inline `style="…"` attribute on top, and
 /// 4. inherit the standard inheriting properties from the parent's
 ///    resolved style (CSS-Cascade-3 §3.3 — `color`, font-related
@@ -61,11 +93,12 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
     // a specificity tie the author rule wins on source order.
     let mut stylesheet = ua::ua_stylesheet().clone();
     stylesheet.append(collect_stylesheet(tree));
+    let interaction = &tree.interaction;
+    let mut path: Vec<usize> = Vec::new();
     CascadedTree {
-        root: tree
-            .root
-            .as_ref()
-            .map(|n| cascade_node(n, &stylesheet, None, &[])),
+        root: tree.root.as_ref().map(|n| {
+            cascade_node(n, &stylesheet, None, &[], &mut path, interaction)
+        }),
     }
 }
 
@@ -93,16 +126,29 @@ fn gather(node: &Node, out: &mut Stylesheet) {
     }
 }
 
-/// Recursive cascade. `ancestors[0]` is the immediate parent element,
-/// deeper indices going further up — used by the selector matcher so
-/// descendant-combinator rules (`.row .item`) actually fire.
+/// Recursive cascade. `ancestors[0]` is the immediate parent element
+/// (with its `MatchContext`), deeper indices going further up — used
+/// by the selector matcher so descendant-combinator rules
+/// (`.row .item`, `div:hover .child`) fire correctly.
+///
+/// `path` is the current element's child-index path from the root;
+/// it's used to compute the per-element `MatchContext` against the
+/// document's `InteractionState`.
 fn cascade_node(
     node: &Node,
     sheet: &Stylesheet,
     parent_style: Option<&Style>,
-    ancestors: &[&Element],
+    ancestors: &[(&Element, MatchContext)],
+    path: &mut Vec<usize>,
+    interaction: &InteractionState,
 ) -> CascadedNode {
-    let (mut style, keywords) = computed_decls_in_tree(&node.element, sheet, ancestors);
+    let element_ctx = MatchContext::for_path(path, interaction);
+    let (mut style, keywords) = computed_decls_in_tree_with_context(
+        &node.element,
+        &element_ctx,
+        sheet,
+        ancestors,
+    );
 
     // Resolve every CSS-wide keyword override against the parent's
     // already-resolved style. Each entry replaces the matching field
@@ -120,14 +166,28 @@ fn cascade_node(
     }
 
     // Build the child ancestor chain by prepending this element.
-    let mut child_ancestors: Vec<&Element> = Vec::with_capacity(ancestors.len() + 1);
-    child_ancestors.push(&node.element);
+    let mut child_ancestors: Vec<(&Element, MatchContext)> =
+        Vec::with_capacity(ancestors.len() + 1);
+    child_ancestors.push((&node.element, element_ctx));
     child_ancestors.extend_from_slice(ancestors);
 
     let children = node
         .children
         .iter()
-        .map(|c| cascade_node(c, sheet, Some(&style), &child_ancestors))
+        .enumerate()
+        .map(|(i, c)| {
+            path.push(i);
+            let cn = cascade_node(
+                c,
+                sheet,
+                Some(&style),
+                &child_ancestors,
+                path,
+                interaction,
+            );
+            path.pop();
+            cn
+        })
         .collect();
     CascadedNode {
         element: node.element.clone(),
@@ -208,29 +268,57 @@ pub fn computed_decls(
 
 /// Same as [`computed_decls`] but evaluates descendant-combinator
 /// selectors against the supplied ancestor chain (`ancestors[0]` is
-/// the immediate parent, deeper indices going further up).
+/// the immediate parent, deeper indices going further up). Uses a
+/// default `MatchContext` so dynamic pseudo-class rules don't match.
 pub fn computed_decls_in_tree(
     element: &Element,
     sheet: &Stylesheet,
     ancestors: &[&Element],
 ) -> (Style, HashMap<String, CssWideKeyword>) {
+    let with_default: Vec<(&Element, MatchContext)> =
+        ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
+    computed_decls_in_tree_with_context(element, &MatchContext::default(), sheet, &with_default)
+}
+
+/// Stateful variant of [`computed_decls_in_tree`]. Each ancestor is
+/// paired with its own `MatchContext` so pseudo-class compounds on
+/// ancestors (e.g. `div:hover .child`) resolve correctly.
+pub fn computed_decls_in_tree_with_context(
+    element: &Element,
+    element_ctx: &MatchContext,
+    sheet: &Stylesheet,
+    ancestors: &[(&Element, MatchContext)],
+) -> (Style, HashMap<String, CssWideKeyword>) {
     let mut values = Style::default();
     let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
     let inline = element_style_attr(element).map(parse_inline_style_decls);
 
+    let select_layers = |target: fn(&wgpu_html_parser::Rule) -> (&Style, &HashMap<String, CssWideKeyword>)|
+        -> Vec<(u32, &Style, &HashMap<String, CssWideKeyword>)>
+    {
+        sheet
+            .rules
+            .iter()
+            .filter_map(|rule| {
+                rule.selectors
+                    .iter()
+                    .filter(|s| {
+                        matches_selector_in_tree_with_context(
+                            s, element, element_ctx, ancestors,
+                        )
+                    })
+                    .map(|s| s.specificity())
+                    .max()
+                    .map(|spec| {
+                        let (decls, kws) = target(rule);
+                        (spec, decls, kws)
+                    })
+            })
+            .collect()
+    };
+
     // 1. Author normal.
-    let mut author_normal: Vec<(u32, &Style, &HashMap<String, CssWideKeyword>)> = sheet
-        .rules
-        .iter()
-        .filter_map(|rule| {
-            rule.selectors
-                .iter()
-                .filter(|s| matches_selector_in_tree(s, element, ancestors))
-                .map(|s| s.specificity())
-                .max()
-                .map(|spec| (spec, &rule.declarations, &rule.keywords))
-        })
-        .collect();
+    let mut author_normal = select_layers(|r| (&r.declarations, &r.keywords));
     author_normal.sort_by_key(|(spec, _, _)| *spec);
     for (_, v, k) in author_normal {
         apply_layer(&mut values, &mut keywords, v, k);
@@ -247,18 +335,7 @@ pub fn computed_decls_in_tree(
     }
 
     // 3. Author !important.
-    let mut author_important: Vec<(u32, &Style, &HashMap<String, CssWideKeyword>)> = sheet
-        .rules
-        .iter()
-        .filter_map(|rule| {
-            rule.selectors
-                .iter()
-                .filter(|s| matches_selector_in_tree(s, element, ancestors))
-                .map(|s| s.specificity())
-                .max()
-                .map(|spec| (spec, &rule.important, &rule.important_keywords))
-        })
-        .collect();
+    let mut author_important = select_layers(|r| (&r.important, &r.important_keywords));
     author_important.sort_by_key(|(spec, _, _)| *spec);
     for (_, v, k) in author_important {
         apply_layer(&mut values, &mut keywords, v, k);
@@ -303,23 +380,60 @@ fn apply_layer(
 /// that carry ancestor requirements (e.g. parsed from `.row .item`)
 /// always fail this check — they need [`matches_selector_in_tree`]
 /// with an ancestor chain to evaluate the descendant combinator.
+///
+/// Uses a default `MatchContext`, so any selector carrying a dynamic
+/// pseudo-class (`:hover`, `:active`, …) fails. Use
+/// [`matches_selector_with_context`] to check against live state.
 pub fn matches_selector(sel: &Selector, element: &Element) -> bool {
+    matches_selector_with_context(sel, element, &MatchContext::default())
+}
+
+/// Stateful variant of [`matches_selector`] — checks dynamic
+/// pseudo-classes against the supplied `MatchContext`.
+pub fn matches_selector_with_context(
+    sel: &Selector,
+    element: &Element,
+    element_ctx: &MatchContext,
+) -> bool {
     if !sel.ancestors.is_empty() {
         return false;
     }
-    matches_compound(sel, element)
+    matches_compound(sel, element) && pseudo_classes_satisfied(sel, element_ctx)
 }
 
 /// Match `sel` against `element` with the element's ancestor chain
 /// available. `ancestors[0]` must be the immediate parent, deeper
 /// indices going further up to the root. Used by the cascade so
 /// descendant-combinator selectors (`.row .item`) actually fire.
+///
+/// Dynamic pseudo-classes (`:hover`, `:active`) on the subject or
+/// any ancestor compound fail without a `MatchContext`; use
+/// [`matches_selector_in_tree_with_context`] for stateful matching.
 pub fn matches_selector_in_tree(
     sel: &Selector,
     element: &Element,
     ancestors: &[&Element],
 ) -> bool {
-    if !matches_compound(sel, element) {
+    let with_default: Vec<(&Element, MatchContext)> =
+        ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
+    matches_selector_in_tree_with_context(
+        sel,
+        element,
+        &MatchContext::default(),
+        &with_default,
+    )
+}
+
+/// Stateful variant of [`matches_selector_in_tree`]. Each ancestor
+/// carries its own `MatchContext`, so pseudo-class compounds on
+/// ancestor selectors (`div:hover .child`) resolve correctly.
+pub fn matches_selector_in_tree_with_context(
+    sel: &Selector,
+    element: &Element,
+    element_ctx: &MatchContext,
+    ancestors: &[(&Element, MatchContext)],
+) -> bool {
+    if !matches_compound(sel, element) || !pseudo_classes_satisfied(sel, element_ctx) {
         return false;
     }
     if sel.ancestors.is_empty() {
@@ -334,9 +448,11 @@ pub fn matches_selector_in_tree(
     for required in &sel.ancestors {
         let mut matched = false;
         while idx < ancestors.len() {
-            let cand = ancestors[idx];
+            let (cand, cand_ctx) = ancestors[idx];
             idx += 1;
-            if matches_compound(required, cand) {
+            if matches_compound(required, cand)
+                && pseudo_classes_satisfied(required, &cand_ctx)
+            {
                 matched = true;
                 break;
             }
@@ -349,8 +465,8 @@ pub fn matches_selector_in_tree(
 }
 
 /// Pure compound match: tag/id/classes/universal. Ignores the
-/// `ancestors` list; the descendant combinator is handled by
-/// [`matches_selector_in_tree`].
+/// `ancestors` list and any pseudo-classes; pseudo-classes are
+/// gated separately by [`pseudo_classes_satisfied`].
 fn matches_compound(sel: &Selector, element: &Element) -> bool {
     if let Some(tag) = &sel.tag {
         match element_tag(element) {
@@ -370,6 +486,22 @@ fn matches_compound(sel: &Selector, element: &Element) -> bool {
             if !class_attr.split_ascii_whitespace().any(|c| c == needed) {
                 return false;
             }
+        }
+    }
+    true
+}
+
+/// Verify every pseudo-class on `sel` holds in `ctx`. AND-semantics:
+/// `a:hover:active` requires both. Selectors without pseudo-classes
+/// pass trivially.
+fn pseudo_classes_satisfied(sel: &Selector, ctx: &MatchContext) -> bool {
+    for pc in &sel.pseudo_classes {
+        let ok = match pc {
+            PseudoClass::Hover => ctx.is_hover,
+            PseudoClass::Active => ctx.is_active,
+        };
+        if !ok {
+            return false;
         }
     }
     true

@@ -12,12 +12,14 @@ pub use wgpu;
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 
 mod glyph_pipeline;
+mod image_pipeline;
 mod paint;
 mod quad_pipeline;
 mod screenshot;
 
 pub use glyph_pipeline::GlyphPipeline;
-pub use paint::{Color, DisplayList, GlyphQuad, Quad, Rect};
+pub use image_pipeline::ImagePipeline;
+pub use paint::{Color, DisplayList, GlyphQuad, ImageQuad, Quad, Rect};
 pub use quad_pipeline::QuadPipeline;
 pub use screenshot::ScreenshotError;
 
@@ -43,6 +45,7 @@ pub struct Renderer {
     /// the surface picked a non-sRGB format already.
     glyph_view_format: wgpu::TextureFormat,
     quads: QuadPipeline,
+    images: ImagePipeline,
     glyphs: GlyphPipeline,
     pending_capture: Option<PathBuf>,
 }
@@ -121,6 +124,8 @@ impl Renderer {
         quads.upload_static(&queue);
         // Glyph pipeline targets the *non-sRGB* view of the surface,
         // so its blend equation runs on already-encoded byte values.
+        let images = ImagePipeline::new(&device, format);
+        images.upload_static(&queue);
         let glyphs = GlyphPipeline::new(&device, glyph_view_format, GLYPH_ATLAS_SIZE);
         glyphs.upload_static(&queue);
 
@@ -134,6 +139,7 @@ impl Renderer {
             clear_color: wgpu::Color::WHITE,
             glyph_view_format,
             quads,
+            images,
             glyphs,
             pending_capture: None,
         }
@@ -194,6 +200,8 @@ impl Renderer {
         ];
         self.quads
             .prepare(&self.device, &self.queue, viewport, list);
+        self.images
+            .prepare(&self.device, &self.queue, viewport, list);
         self.glyphs
             .prepare(&self.device, &self.queue, viewport, list);
 
@@ -224,6 +232,27 @@ impl Renderer {
                 multiview_mask: None,
             });
             self.quads.record(&mut pass);
+        }
+
+        // Pass 1.5: images, sRGB view, load → store.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("image pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &srgb_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.images.record(&mut pass);
         }
 
         // Pass 2: glyphs, non-sRGB view, load → store. The dst pixels

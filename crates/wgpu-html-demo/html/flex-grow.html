@@ -31,9 +31,14 @@
     .row-clamp .b { flex: 1; }
     .row-clamp .c { flex: 1; min-width: 200px; background-color: #e7e74a; }
 
-    /* wrap + align-content */
+    /* wrap + align-content. The container is intentionally narrow
+       so 6 × 120 px items don't all fit on one line — that's what
+       triggers multi-line behaviour where `align-content` actually
+       has an effect (see CSS-Flex-1 §9.6: align-content is a no-op
+       on single-line containers). */
     .row-wrap {
         flex-wrap: wrap;
+        width: 400px;
         height: 160px;
         align-content: center;
     }

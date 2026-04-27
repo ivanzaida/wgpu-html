@@ -337,6 +337,7 @@ impl QuadPipeline {
                     radii_h: [0.0; 4],
                     radii_v: [0.0; 4],
                     quad_range: (0, 0),
+                    image_range: (0, 0),
                     glyph_range: (0, 0),
                 },
             ));

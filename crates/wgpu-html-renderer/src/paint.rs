@@ -81,6 +81,23 @@ pub struct GlyphQuad {
     pub uv_max: [f32; 2],
 }
 
+/// One image quad. The renderer creates a GPU texture from the
+/// decoded RGBA pixels and samples it across the full `[0,1]²` UV
+/// range. Each unique `image_id` maps to one GPU texture.
+#[derive(Debug, Clone)]
+pub struct ImageQuad {
+    pub rect: Rect,
+    /// Unique identifier for the image data. Images with the same
+    /// `image_id` share a single GPU texture.
+    pub image_id: u64,
+    /// Decoded RGBA8 pixel data (width × height × 4 bytes). Only
+    /// consumed on the first frame an `image_id` appears; subsequent
+    /// frames reuse the cached GPU texture.
+    pub data: std::sync::Arc<Vec<u8>>,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// One scissor-tagged run inside a `DisplayList`. The list's quads
 /// and glyphs are partitioned into a sequence of `ClipRange`s in
 /// render order; each range is recorded as a single `draw_indexed`
@@ -102,6 +119,7 @@ pub struct ClipRange {
     pub radii_h: [f32; 4],
     pub radii_v: [f32; 4],
     pub quad_range: (u32, u32),
+    pub image_range: (u32, u32),
     pub glyph_range: (u32, u32),
 }
 
@@ -111,6 +129,12 @@ impl ClipRange {
     }
     pub fn quad_end(&self) -> u32 {
         self.quad_range.1
+    }
+    pub fn image_start(&self) -> u32 {
+        self.image_range.0
+    }
+    pub fn image_end(&self) -> u32 {
+        self.image_range.1
     }
     pub fn glyph_start(&self) -> u32 {
         self.glyph_range.0
@@ -127,15 +151,17 @@ impl ClipRange {
     }
 }
 
-/// Flat list of paint commands. The renderer draws `quads` first, then
-/// `glyphs` on top, in source order within each list.
+/// Flat list of paint commands. The renderer draws `quads` first,
+/// then `images`, then `glyphs` on top, in source order within each
+/// list.
 ///
-/// `clips` partitions both instance vectors into render-order runs;
+/// `clips` partitions all instance vectors into render-order runs;
 /// for a list with no `overflow: hidden` boxes the partition has a
 /// single entry covering everything.
 #[derive(Debug, Clone)]
 pub struct DisplayList {
     pub quads: Vec<Quad>,
+    pub images: Vec<ImageQuad>,
     pub glyphs: Vec<GlyphQuad>,
     pub clips: Vec<ClipRange>,
 }
@@ -148,12 +174,14 @@ impl Default for DisplayList {
         // grows to cover every instance.
         Self {
             quads: Vec::new(),
+            images: Vec::new(),
             glyphs: Vec::new(),
             clips: vec![ClipRange {
                 rect: None,
                 radii_h: [0.0; 4],
                 radii_v: [0.0; 4],
                 quad_range: (0, 0),
+                image_range: (0, 0),
                 glyph_range: (0, 0),
             }],
         }
@@ -165,13 +193,12 @@ impl DisplayList {
         Self::default()
     }
 
-    /// Update the trailing clip range to cover any quads / glyphs
-    /// pushed since the last range opened. Called automatically by
-    /// the `push_*` helpers below; producers that bypass them must
-    /// call this before `clips` is consumed by the renderer.
+    /// Update the trailing clip range to cover any quads / glyphs / images
+    /// pushed since the last range opened.
     fn extend_open_range(&mut self) {
         if let Some(last) = self.clips.last_mut() {
             last.quad_range.1 = self.quads.len() as u32;
+            last.image_range.1 = self.images.len() as u32;
             last.glyph_range.1 = self.glyphs.len() as u32;
         }
     }
@@ -184,12 +211,14 @@ impl DisplayList {
     pub fn push_clip(&mut self, rect: Option<Rect>, radii_h: [f32; 4], radii_v: [f32; 4]) {
         self.extend_open_range();
         let qs = self.quads.len() as u32;
+        let is = self.images.len() as u32;
         let gs = self.glyphs.len() as u32;
         self.clips.push(ClipRange {
             rect,
             radii_h,
             radii_v,
             quad_range: (qs, qs),
+            image_range: (is, is),
             glyph_range: (gs, gs),
         });
     }
@@ -206,12 +235,14 @@ impl DisplayList {
     ) {
         self.extend_open_range();
         let qs = self.quads.len() as u32;
+        let is = self.images.len() as u32;
         let gs = self.glyphs.len() as u32;
         self.clips.push(ClipRange {
             rect: parent_rect,
             radii_h: parent_radii_h,
             radii_v: parent_radii_v,
             quad_range: (qs, qs),
+            image_range: (is, is),
             glyph_range: (gs, gs),
         });
     }
@@ -224,7 +255,9 @@ impl DisplayList {
         // instances. We keep at least one range so the renderer can
         // always iterate.
         self.clips.retain(|r| {
-            r.quad_range.0 != r.quad_range.1 || r.glyph_range.0 != r.glyph_range.1
+            r.quad_range.0 != r.quad_range.1
+                || r.image_range.0 != r.image_range.1
+                || r.glyph_range.0 != r.glyph_range.1
         });
         if self.clips.is_empty() {
             self.clips.push(ClipRange {
@@ -232,6 +265,7 @@ impl DisplayList {
                 radii_h: [0.0; 4],
                 radii_v: [0.0; 4],
                 quad_range: (0, 0),
+                image_range: (0, 0),
                 glyph_range: (0, 0),
             });
         }
@@ -368,8 +402,29 @@ impl DisplayList {
         self
     }
 
+    /// Push one image quad. The renderer will create a GPU texture
+    /// from `data` on first use and cache it by `image_id`.
+    pub fn push_image(
+        &mut self,
+        rect: Rect,
+        image_id: u64,
+        data: std::sync::Arc<Vec<u8>>,
+        width: u32,
+        height: u32,
+    ) -> &mut Self {
+        self.images.push(ImageQuad {
+            rect,
+            image_id,
+            data,
+            width,
+            height,
+        });
+        self
+    }
+
     pub fn clear(&mut self) {
         self.quads.clear();
+        self.images.clear();
         self.glyphs.clear();
         self.clips.clear();
         self.clips.push(ClipRange {
@@ -377,6 +432,7 @@ impl DisplayList {
             radii_h: [0.0; 4],
             radii_v: [0.0; 4],
             quad_range: (0, 0),
+            image_range: (0, 0),
             glyph_range: (0, 0),
         });
     }

@@ -1349,3 +1349,136 @@ fn grid_justify_content_center_centers_track_block() {
     assert_eq!(body.children[0].margin_rect.x, 120.0);
     assert_eq!(body.children[1].margin_rect.x, 200.0);
 }
+
+// --------------------------------------------------------------------------
+// Cross-axis alignment regressions: a `flex-wrap: wrap` container whose
+// items happen to fit on one line is *single-line* per CSS-Flex-1 §9.4
+// step 15 — `align-content` has no effect there. These tests pin that
+// behaviour so the `flex-grow.html` `.row-wrap` case (6×120 px items
+// in a wide viewport, single line, `align-content: center`) doesn't
+// silently start centering.
+// --------------------------------------------------------------------------
+
+#[test]
+fn flex_wrap_single_line_ignores_align_content_per_spec() {
+    // `flex-wrap: wrap` is set, but the items fit in one line, so the
+    // container is single-line. `align-content: center` must be a
+    // no-op: items stay at the top of the 160px-tall line (default
+    // align-items: stretch + explicit item height ≡ flex-start).
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-wrap: wrap;
+                          align-content: center;
+                          width: 800px; height: 160px;">
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    // All three items fit on one line → align-content is dropped.
+    for c in &body.children {
+        assert_eq!(c.margin_rect.y, 0.0, "single-line items pin to start");
+        assert_eq!(c.margin_rect.h, 40.0, "explicit height is preserved");
+    }
+}
+
+#[test]
+fn flex_wrap_single_line_align_items_center_does_center() {
+    // The fix for the flex-grow demo's 3rd row: pair the wrap
+    // container with `align-items: center` so each item centers
+    // within its (single) line. Same items as above; line cross size
+    // = container height = 160; items 40px tall → centered y = 60.
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-wrap: wrap;
+                          align-items: center;
+                          width: 800px; height: 160px;">
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    for c in &body.children {
+        assert_eq!(
+            c.margin_rect.y, 60.0,
+            "align-items: center centers each item in the single line"
+        );
+    }
+}
+
+#[test]
+fn flex_wrap_actually_wraps_when_container_too_narrow() {
+    // Drop the container width so 6 items of 120px each can't all
+    // fit on one line. Now the container is multi-line and
+    // `align-content: center` distributes free cross space.
+    //
+    // Container 400px wide, 8px gap → 3 items per line
+    // (3*120 + 2*8 = 376 ≤ 400). 6 items → 2 lines.
+    // total_lines_cross = 2 * 40 (line cross) + 1 * 8 (cross-gap) = 88.
+    // Container cross = 200 → free = 112 → center start offset = 56.
+    // Line 1 at y=56, line 2 at y = 56 + 40 + 8 = 104.
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-wrap: wrap;
+                          align-content: center; gap: 8px;
+                          width: 400px; height: 200px;">
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let kids = &body.children;
+    for c in &kids[0..3] {
+        assert_eq!(c.margin_rect.y, 56.0);
+    }
+    for c in &kids[3..6] {
+        assert_eq!(c.margin_rect.y, 104.0);
+    }
+}
+
+#[test]
+fn flex_align_self_center_overrides_default_alignment_on_single_line() {
+    // Even on a single-line container with `align-content: center`
+    // (which is ignored), an item with `align-self: center` still
+    // centers itself per `align-self`. Documents that the per-item
+    // override route works regardless of `align-content`.
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-wrap: wrap;
+                          align-content: center;
+                          width: 800px; height: 160px;">
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;
+                          align-self: center;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let kids = &body.children;
+    assert_eq!(kids[0].margin_rect.y, 0.0, "default keeps top alignment");
+    assert_eq!(kids[1].margin_rect.y, 60.0, "align-self: center wins");
+    assert_eq!(kids[2].margin_rect.y, 0.0, "third stays at top");
+}
+
+#[test]
+fn flex_wrap_no_height_does_not_apply_align_content() {
+    // Multi-line container with *no* explicit cross size: `align-content`
+    // has nothing to distribute. Lines pack to start regardless of
+    // the value, per CSS-Flex-1 §9.6 ("only meaningful with definite
+    // cross size").
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-wrap: wrap;
+                          align-content: center; gap: 0px;
+                          width: 200px;">
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+            <div style="width: 120px; height: 40px; flex-shrink: 0;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    // Two lines (one item each), no extra cross space → both pack
+    // to start: y=0 and y=40.
+    assert_eq!(body.children[0].margin_rect.y, 0.0);
+    assert_eq!(body.children[1].margin_rect.y, 40.0);
+}

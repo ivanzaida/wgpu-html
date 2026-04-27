@@ -169,6 +169,20 @@ fn paint_box_in_clip(
         paint_border_edges(b, out);
     }
 
+    // Image: emit one image quad covering the content rect.
+    if let Some(ref img) = b.image {
+        let cr = b.content_rect;
+        if cr.w > 0.0 && cr.h > 0.0 {
+            out.push_image(
+                Rect::new(cr.x, cr.y, cr.w, cr.h),
+                img.image_id,
+                img.data.clone(),
+                img.width,
+                img.height,
+            );
+        }
+    }
+
     // Text leaves: emit one glyph quad per shaped glyph, positioned
     // relative to the text box's content origin. Glyph UVs were
     // computed at shaping time; the renderer samples its single R8

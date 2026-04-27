@@ -2,11 +2,12 @@
 //! that every author implicitly relies on.
 //!
 //! Scope today: inline emphasis (`<b>`, `<strong>`, `<em>`, `<i>`,
-//! `<u>`, `<s>`, `<code>`, `<a>`, `<mark>`, `<small>`) plus heading
-//! sizes (`h1`–`h6`). Block-level resets (default margins on `<p>`,
-//! `<ul>`, etc.) are deliberately *not* included — they would change
-//! existing layouts that don't expect browser-style spacing. Add
-//! those once block-flow rendering is happy with them.
+//! `<u>`, `<s>`, `<code>`, `<a>`, `<mark>`, `<small>`), heading
+//! sizes (`h1`–`h6`), block-level vertical rhythm, and cursor shapes
+//! for the interactive form elements (`<a>`, `<button>`, `<summary>`,
+//! `<select>`, `<input>`, `<textarea>`, `<label>`). Hover-driven
+//! affordances (`a:hover`, `button:hover`) are also shipped so links
+//! and buttons feel alive without authoring per-page CSS.
 //!
 //! Specificity: every UA rule uses tag selectors only, so they sit at
 //! the bottom of the author-normal cascade band. An author tag rule
@@ -64,6 +65,30 @@ small { font-size: 13px; }
    the dedicated CSS property below once the layout supports it. */
 sub { font-size: 13px; vertical-align: sub; }
 sup { font-size: 13px; vertical-align: super; }
+
+/* Interactive defaults — cursor shape follows the element's
+   natural role. Authors override with their own `cursor` rule. */
+a, button, summary, select { cursor: pointer; }
+input, textarea { cursor: text; }
+label { cursor: default; }
+
+/* <a> already gets the link colour + underline above; on hover
+   browsers don't change either, but the cursor must already be
+   `pointer` (set above). The :hover entry is here so authors can
+   rely on it as an extension point. */
+a:hover { text-decoration: underline; }
+
+/* <button>: minimal shipped look so an unstyled <button> isn't
+   indistinguishable from inline text. Authors that want a flat
+   button override `border` / `background-color` directly. */
+button {
+    padding: 2px 8px;
+    border: 1px solid #767676;
+    background-color: #efefef;
+    color: black;
+}
+button:hover { background-color: #e0e0e0; }
+button:active { background-color: #cfcfcf; }
 ";
 
 /// The lazily-parsed UA stylesheet.

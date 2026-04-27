@@ -544,3 +544,115 @@ fn root_inherit_keyword_resolves_to_initial() {
     };
     assert!(walk(&root));
 }
+
+// --------------------------------------------------------------------------
+// :hover / :active pseudo-classes
+// --------------------------------------------------------------------------
+
+/// Find the first descendant matching `pred` and return its style.
+fn find_style<F: Fn(&Element) -> bool>(node: &CascadedNode, pred: &F) -> Option<Style> {
+    if pred(&node.element) {
+        return Some(node.style.clone());
+    }
+    for c in &node.children {
+        if let Some(s) = find_style(c, pred) {
+            return Some(s);
+        }
+    }
+    None
+}
+
+#[test]
+fn hover_rule_does_not_match_without_state() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            #b { background-color: blue; }
+            #b:hover { background-color: red; }
+        </style>
+        <div id="b"></div>
+        "#,
+    );
+    let cascaded = cascade(&tree);
+    let style = find_style(&cascaded.root.unwrap(), &|el| {
+        element_id(el) == Some("b")
+    })
+    .expect("found");
+    let bg = style.background_color.expect("set");
+    assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
+}
+
+#[test]
+fn hover_rule_applies_when_path_in_hover_chain() {
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            #b { background-color: blue; }
+            #b:hover { background-color: red; }
+        </style>
+        <div id="b"></div>
+        "#,
+    );
+    // The tree builder wraps the children in a synthetic body when
+    // there are multiple top-level nodes (the <style> + the <div>).
+    // Path from root walks past <style> at index 0 to reach the div
+    // at index 1.
+    tree.interaction.hover_path = Some(vec![1]);
+    let cascaded = cascade(&tree);
+    let style = find_style(&cascaded.root.unwrap(), &|el| {
+        element_id(el) == Some("b")
+    })
+    .expect("found");
+    let bg = style.background_color.expect("set");
+    // :hover rule wins now (same specificity as #b alone, source order
+    // says the :hover rule comes second).
+    assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+}
+
+#[test]
+fn ancestor_in_hover_chain_also_hovers() {
+    // Per CSS, hovering a descendant marks every ancestor as :hover.
+    // Setting hover_path to the deeper descendant's path should make
+    // the ancestor's `:hover` rule fire.
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            #outer { background-color: white; }
+            #outer:hover { background-color: yellow; }
+        </style>
+        <div id="outer"><span id="inner">hi</span></div>
+        "#,
+    );
+    // Path: <body> → [0]=<style>, [1]=<div id=outer>, [1, 0]=<span>.
+    tree.interaction.hover_path = Some(vec![1, 0]);
+    let cascaded = cascade(&tree);
+    let outer_style = find_style(&cascaded.root.unwrap(), &|el| {
+        element_id(el) == Some("outer")
+    })
+    .expect("found");
+    let bg = outer_style.background_color.expect("set");
+    assert!(matches!(bg, CssColor::Named(s) if s == "yellow"));
+}
+
+#[test]
+fn hover_specificity_beats_plain_class() {
+    // `.x:hover` (1 class + 1 pseudo = 2 classes) should beat `.x.y`
+    // (2 classes) only on tie-break — same specificity, source order.
+    // Here we test that `:hover` does add specificity vs plain `.x`.
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div:hover { background-color: red; }
+            div { background-color: blue; }
+        </style>
+        <div></div>
+        "#,
+    );
+    tree.interaction.hover_path = Some(vec![1]);
+    let cascaded = cascade(&tree);
+    let style = find_style(&cascaded.root.unwrap(), &|el| matches!(el, Element::Div(_)))
+        .expect("found");
+    let bg = style.background_color.expect("set");
+    // div:hover (tag + pseudo = 1 tag + 1 class) beats plain div (1 tag).
+    assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+}

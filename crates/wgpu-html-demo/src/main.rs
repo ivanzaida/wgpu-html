@@ -3,21 +3,24 @@
 //! through the renderer's textured pipeline.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
 
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::event::{ElementState, KeyEvent, MouseButton as WinitMouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
+use wgpu_html::interactivity;
+use wgpu_html::layout::LayoutBox;
 use wgpu_html::renderer::{FrameOutcome, Renderer, GLYPH_ATLAS_SIZE};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::{FontFace, FontStyleAxis};
+use wgpu_html_tree::{FontFace, FontStyleAxis, Modifiers, MouseButton, Tree};
 
-const DOC: &str = include_str!("../html/overflow.html");
+const DOC: &str = include_str!("../html/img-test.html");
 
 /// One font family's worth of system-font paths: regular, bold,
 /// italic, bold-italic. An empty path means "this variant isn't on
@@ -85,7 +88,7 @@ struct DemoFont {
 }
 
 /// Scan `FONT_FAMILIES` and return every variant found from the
-/// first row whose regular file is readable. Each `Arc<[u8]>` is
+/// first row whose regular 3file is readable. Each `Arc<[u8]>` is
 /// stable across frames so `TextContext::sync_fonts` recognises the
 /// faces as already loaded on the second-and-later sync.
 fn demo_fonts() -> &'static [DemoFont] {
@@ -132,6 +135,20 @@ struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     text_ctx: TextContext,
+    /// Document tree, parsed once on first redraw and reused across
+    /// frames so per-element callbacks survive (re-parsing every
+    /// frame would lose them).
+    tree: Option<Tree>,
+    /// Layout from the previous frame; used to dispatch pointer
+    /// events against the geometry the user is actually looking at.
+    last_layout: Option<LayoutBox>,
+    /// Last cursor position in physical pixels, for translating
+    /// `WindowEvent::MouseInput` to a pointer position (winit reports
+    /// MouseInput without a position).
+    cursor_pos: Option<(f32, f32)>,
+    /// Counter incremented from the click callback. Demonstrates that
+    /// closures capture state correctly.
+    click_count: Arc<AtomicUsize>,
 }
 
 impl Default for App {
@@ -143,7 +160,76 @@ impl Default for App {
             // uploads land 1:1 without scaling. See
             // `wgpu_html_renderer::GLYPH_ATLAS_SIZE`.
             text_ctx: TextContext::new(GLYPH_ATLAS_SIZE),
+            tree: None,
+            last_layout: None,
+            cursor_pos: None,
+            click_count: Arc::new(AtomicUsize::new(0)),
         }
+    }
+}
+
+impl App {
+    /// Build the document tree once on the first frame (or first
+    /// access). Registers any system-resolved fonts found by
+    /// `demo_fonts()` and wires the per-element callbacks.
+    ///
+    /// Takes the tree slot and counter as separate borrows (rather
+    /// than `&mut self`) so it can be called alongside an already-
+    /// active `&mut self.renderer` borrow.
+    fn ensure_tree_built<'a>(
+        tree_slot: &'a mut Option<Tree>,
+        click_count: &Arc<AtomicUsize>,
+    ) -> &'a mut Tree {
+        if tree_slot.is_none() {
+            let mut tree = wgpu_html::parser::parse(DOC);
+            for face in demo_fonts() {
+                tree.register_font(FontFace {
+                    family: "DemoSans".into(),
+                    weight: face.weight,
+                    style: face.style,
+                    data: face.data.clone(),
+                });
+            }
+
+            // Wire callbacks via the friendly `get_element_by_id` API.
+            // The button increments a shared counter; the panel logs
+            // hover transitions and clicks.
+            let counter = click_count.clone();
+            if let Some(btn) = tree.get_element_by_id("btn") {
+                btn.on_click = Some(Arc::new(move |ev| {
+                    let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                    eprintln!("[btn] click #{n} at {:?}", ev.pos);
+                }));
+            } else {
+                eprintln!("demo: no element with id=\"btn\"");
+            }
+
+            if let Some(panel) = tree.get_element_by_id("panel") {
+                panel.on_mouse_enter = Some(Arc::new(|ev| {
+                    eprintln!("[panel] mouse enter at {:?}", ev.pos);
+                }));
+                panel.on_mouse_leave = Some(Arc::new(|ev| {
+                    eprintln!("[panel] mouse leave at {:?}", ev.pos);
+                }));
+                panel.on_click = Some(Arc::new(|ev| {
+                    eprintln!("[panel] click at {:?}", ev.pos);
+                }));
+            }
+
+            *tree_slot = Some(tree);
+        }
+        tree_slot.as_mut().unwrap()
+    }
+}
+
+fn translate_button(b: WinitMouseButton) -> MouseButton {
+    match b {
+        WinitMouseButton::Left => MouseButton::Primary,
+        WinitMouseButton::Right => MouseButton::Secondary,
+        WinitMouseButton::Middle => MouseButton::Middle,
+        WinitMouseButton::Back => MouseButton::Other(3),
+        WinitMouseButton::Forward => MouseButton::Other(4),
+        WinitMouseButton::Other(n) => MouseButton::Other(n.min(255) as u8),
     }
 }
 
@@ -203,31 +289,65 @@ impl ApplicationHandler for App {
                 KeyCode::Escape => event_loop.exit(),
                 _ => {}
             },
+            WindowEvent::CursorMoved { position, .. } => {
+                let pos = physical_to_pos(position);
+                self.cursor_pos = Some(pos);
+                if let (Some(tree), Some(layout)) =
+                    (self.tree.as_mut(), self.last_layout.as_ref())
+                {
+                    interactivity::pointer_move(tree, layout, pos, Modifiers::default());
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.cursor_pos = None;
+                if let Some(tree) = self.tree.as_mut() {
+                    interactivity::pointer_leave(tree, Modifiers::default());
+                }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let Some(pos) = self.cursor_pos else { return };
+                let btn = translate_button(button);
+                if let (Some(tree), Some(layout)) =
+                    (self.tree.as_mut(), self.last_layout.as_ref())
+                {
+                    match state {
+                        ElementState::Pressed => {
+                            interactivity::mouse_down(
+                                tree,
+                                layout,
+                                pos,
+                                btn,
+                                Modifiers::default(),
+                            );
+                        }
+                        ElementState::Released => {
+                            interactivity::mouse_up(
+                                tree,
+                                layout,
+                                pos,
+                                btn,
+                                Modifiers::default(),
+                            );
+                        }
+                    }
+                }
+            }
             WindowEvent::RedrawRequested => {
                 let size = window.inner_size();
 
-                // Parse HTML and register every demo-font variant on
-                // the tree under the same family name. The shared
-                // `Arc<[u8]>`s returned by `demo_fonts` are stable
-                // across frames so the cosmic-text bridge cache stays
-                // valid on subsequent syncs.
-                let mut tree = wgpu_html::parser::parse(DOC);
-                for face in demo_fonts() {
-                    tree.register_font(FontFace {
-                        family: "DemoSans".into(),
-                        weight: face.weight,
-                        style: face.style,
-                        data: face.data.clone(),
-                    });
-                }
-
-                let list = wgpu_html::paint_tree_with_text(
-                    &tree,
+                // Build the tree on first frame; subsequent frames
+                // reuse it so callbacks set in `ensure_tree_built`
+                // persist.
+                let tree_ref =
+                    App::ensure_tree_built(&mut self.tree, &self.click_count);
+                let (list, layout) = wgpu_html::paint_tree_returning_layout(
+                    tree_ref,
                     &mut self.text_ctx,
                     size.width as f32,
                     size.height as f32,
                     1.0, // T3: fixed scale; T7 honours `scale_factor_changed`.
                 );
+                self.last_layout = layout;
 
                 // Push any newly-rasterised glyph rasters into the
                 // renderer's GPU atlas before the draw.
@@ -251,6 +371,12 @@ impl ApplicationHandler for App {
             window.request_redraw();
         }
     }
+}
+
+/// Convert a `PhysicalPosition<f64>` from winit into the engine's
+/// `(f32, f32)` physical-pixel pair.
+fn physical_to_pos(p: PhysicalPosition<f64>) -> (f32, f32) {
+    (p.x as f32, p.y as f32)
 }
 
 /// Seconds since the Unix epoch, used as a unique-ish screenshot filename.

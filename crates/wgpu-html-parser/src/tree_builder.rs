@@ -29,10 +29,7 @@ pub fn build(tokens: Vec<Token>) -> Tree {
     let root = match roots.len() {
         0 => None,
         1 => Some(roots.pop().unwrap()),
-        _ => Some(Node {
-            element: Element::Body(wgpu_html_models::Body::default()),
-            children: roots,
-        }),
+        _ => Some(Node::new(Element::Body(wgpu_html_models::Body::default())).with_children(roots)),
     };
     Tree { root, ..Tree::default() }
 }
@@ -66,10 +63,7 @@ impl TreeBuilder {
                 Token::Doctype(_) | Token::Comment(_) => {}
                 Token::Text(text) => {
                     if !text.trim().is_empty() {
-                        self.push_node(Node {
-                            element: Element::Text(text),
-                            children: Vec::new(),
-                        });
+                        self.push_node(Node::new(Element::Text(text)));
                     }
                 }
                 Token::OpenTag {
@@ -81,10 +75,7 @@ impl TreeBuilder {
 
                     if self_closing || is_void_element(&name) {
                         if let Some(el) = element {
-                            self.push_node(Node {
-                                element: el,
-                                children: Vec::new(),
-                            });
+                            self.push_node(Node::new(el));
                         }
                         // Unknown void → silently dropped.
                     } else {
@@ -119,10 +110,7 @@ impl TreeBuilder {
             return;
         };
         if let Some(el) = element {
-            self.push_node(Node {
-                element: el,
-                children,
-            });
+            self.push_node(Node::new(el).with_children(children));
         }
         // else: drop unknown subtree silently
     }

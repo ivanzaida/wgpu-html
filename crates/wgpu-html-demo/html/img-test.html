@@ -1,0 +1,52 @@
+<style>
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: white;
+    }
+
+    .row {
+        display: flex;
+        gap: 16px;
+        margin: 16px;
+        padding: 16px;
+        border-radius: 8px;
+        background-color: #2a2a2a;
+    }
+
+    .label {
+        margin: 16px 16px 4px 16px;
+        color: #aaa;
+        font-size: 14px;
+    }
+
+    .bordered {
+        border: 4px solid #4a8fe7;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+</style>
+
+<div class="label">Basic &lt;img&gt; — intrinsic 128×128</div>
+<div class="row">
+    <img src="crates/wgpu-html-demo/assets/test.png">
+</div>
+
+<div class="label">HTML width/height attributes — scaled to 64×64</div>
+<div class="row">
+    <img src="crates/wgpu-html-demo/assets/test.png" width="64" height="64">
+</div>
+
+<div class="label">CSS sized — 200×100</div>
+<div class="row">
+    <img src="crates/wgpu-html-demo/assets/test.png" style="width: 200px; height: 100px;">
+</div>
+<img  src="crates/wgpu-html-demo/assets/png-clipart-paper-box-computer-icons-symbol-random-icons-miscellaneous-angle-thumbnail.png">
+
+<div class="label">Inside a bordered rounded container with overflow: hidden</div>
+<div class="row">
+    <div class="bordered" style="width: 100px; height: 100px;">
+        <img  src="crates/wgpu-html-demo/assets/png-clipart-paper-box-computer-icons-symbol-random-icons-miscellaneous-angle-thumbnail.png">
+    </div>
+</div>

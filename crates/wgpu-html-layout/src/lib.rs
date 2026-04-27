@@ -26,6 +26,35 @@ mod length;
 
 pub use color::{Color, resolve_color};
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+/// Load an `<img>` element's `src` file and decode it to RGBA8.
+/// Returns `None` if `src` is unset or the file can't be loaded.
+/// HTML `width`/`height` attributes override the decoded dimensions.
+fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
+    let src = img.src.as_deref()?;
+    let dyn_img = image::open(src).ok()?;
+    let rgba = dyn_img.to_rgba8();
+    let (decoded_w, decoded_h) = (rgba.width(), rgba.height());
+    let w = img.width.unwrap_or(decoded_w);
+    let h = img.height.unwrap_or(decoded_h);
+    // Resize if HTML attrs differ from decoded size.
+    let final_rgba = if w != decoded_w || h != decoded_h {
+        image::imageops::resize(&rgba, w, h, image::imageops::FilterType::Lanczos3)
+    } else {
+        rgba
+    };
+    let mut hasher = DefaultHasher::new();
+    src.hash(&mut hasher);
+    Some(ImageData {
+        image_id: hasher.finish(),
+        data: std::sync::Arc::new(final_rgba.into_raw()),
+        width: w,
+        height: h,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -205,7 +234,21 @@ pub struct LayoutBox {
     /// both axes clip together. Independent per-axis clipping is a
     /// follow-up.
     pub overflow: Overflow,
+    /// Decoded image data for `<img>` elements. `None` for non-image
+    /// boxes. The `Arc` allows cheap cloning through the display list.
+    pub image: Option<ImageData>,
     pub children: Vec<LayoutBox>,
+}
+
+/// Decoded RGBA image ready for GPU upload.
+#[derive(Debug, Clone)]
+pub struct ImageData {
+    /// Unique identifier derived from the image source path (hash).
+    pub image_id: u64,
+    /// RGBA8 pixel data, `width × height × 4` bytes.
+    pub data: std::sync::Arc<Vec<u8>>,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// Single decoration line drawn over / under / through a text run.
@@ -428,6 +471,15 @@ fn layout_block(
         return box_;
     }
 
+    // <img> replaced element: load the image and use its intrinsic
+    // dimensions (or the HTML width/height attributes) as the
+    // content size. CSS width/height override below as usual.
+    let img_data = if let Element::Img(img) = &node.element {
+        load_image(img)
+    } else {
+        None
+    };
+
     let style = &node.style;
 
     let mut margin = resolve_insets_margin(style, container_w, ctx);
@@ -457,7 +509,15 @@ fn layout_block(
                         (specified - border.horizontal() - padding.horizontal()).max(0.0)
                     }
                 },
-                None => (container_w - frame_w).max(0.0),
+                None => {
+                    // Replaced elements (<img>) use intrinsic width
+                    // when no CSS width is specified.
+                    if let Some(ref id) = img_data {
+                        id.width as f32
+                    } else {
+                        (container_w - frame_w).max(0.0)
+                    }
+                }
             };
             clamp_axis(
                 base,
@@ -512,23 +572,29 @@ fn layout_block(
     // (when no explicit height) so it can extend a too-short block.
     let inner_height_explicit = match overrides.height {
         Some(h) => Some(h),
-        None => length::resolve(style.height.as_ref(), container_h, ctx).map(|specified| {
-            let raw = match box_sizing {
-                BoxSizing::ContentBox => specified,
-                BoxSizing::BorderBox => {
-                    (specified - border.vertical() - padding.vertical()).max(0.0)
-                }
-            };
-            clamp_axis(
-                raw,
-                style.min_height.as_ref(),
-                style.max_height.as_ref(),
-                container_h,
-                border.vertical() + padding.vertical(),
-                box_sizing.clone(),
-                ctx,
-            )
-        }),
+        None => {
+            // Replaced elements use intrinsic height when no CSS
+            // height is specified.
+            let css_h = length::resolve(style.height.as_ref(), container_h, ctx);
+            let effective_h = css_h.or_else(|| img_data.as_ref().map(|id| id.height as f32));
+            effective_h.map(|specified| {
+                let raw = match box_sizing {
+                    BoxSizing::ContentBox => specified,
+                    BoxSizing::BorderBox => {
+                        (specified - border.vertical() - padding.vertical()).max(0.0)
+                    }
+                };
+                clamp_axis(
+                    raw,
+                    style.min_height.as_ref(),
+                    style.max_height.as_ref(),
+                    container_h,
+                    border.vertical() + padding.vertical(),
+                    box_sizing.clone(),
+                    ctx,
+                )
+            })
+        }
     };
 
     let display = style.display.clone().unwrap_or(Display::Block);
@@ -697,6 +763,7 @@ fn layout_block(
         text_color: None,
         text_decorations: Vec::new(),
         overflow: effective_overflow(style),
+        image: img_data,
         children,
     }
 }
@@ -893,6 +960,7 @@ fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         text_color: None,
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
+        image: None,
         children: Vec::new(),
     }
 }
@@ -932,6 +1000,7 @@ fn make_text_leaf(
         text_color: Some(text_color),
         text_decorations: decorations,
         overflow: Overflow::Visible,
+        image: None,
         children: Vec::new(),
     };
     (box_, w, h, ascent)
@@ -1158,6 +1227,7 @@ fn layout_inline_subtree(
         // descendant). The inline wrapper itself draws nothing.
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
+        image: None,
         children: final_children,
     };
     InlineLayout {
@@ -1378,6 +1448,7 @@ fn make_anon_bg_box(rect: Rect, color: Color) -> LayoutBox {
         text_color: None,
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
+        image: None,
         children: Vec::new(),
     }
 }
@@ -1546,6 +1617,7 @@ fn layout_inline_paragraph(
         text_color: None,
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
+        image: None,
         children: Vec::new(),
     };
     boxes.push(text_box);

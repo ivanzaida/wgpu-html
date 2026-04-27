@@ -8,8 +8,10 @@
 
 use wgpu_html_models as m;
 
+mod events;
 mod fonts;
 
+pub use events::{InteractionState, Modifiers, MouseButton, MouseCallback, MouseEvent};
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 
 #[derive(Debug, Clone, Default)]
@@ -19,6 +21,10 @@ pub struct Tree {
     /// layout / paint; consulted by the cascade and the text crate.
     /// See `docs/text.md` §3.
     pub fonts: FontRegistry,
+    /// Live interaction state (hover / active / pointer position).
+    /// Mutated by the dispatcher in `wgpu_html::interactivity`; the
+    /// cascade and paint passes read it but never write.
+    pub interaction: InteractionState,
 }
 
 impl Tree {
@@ -26,6 +32,7 @@ impl Tree {
         Self {
             root: Some(root),
             fonts: FontRegistry::new(),
+            interaction: InteractionState::default(),
         }
     }
 
@@ -36,12 +43,56 @@ impl Tree {
     pub fn register_font(&mut self, face: FontFace) -> FontHandle {
         self.fonts.register(face)
     }
+
+    /// Find the first descendant whose `id` attribute equals `id`,
+    /// document-order. Returns `None` if no element matches or the
+    /// tree is empty.
+    ///
+    /// ```ignore
+    /// if let Some(el) = tree.get_element_by_id("submit") {
+    ///     el.on_click = Some(std::sync::Arc::new(|ev| {
+    ///         eprintln!("clicked at {:?}", ev.pos);
+    ///     }));
+    /// }
+    /// ```
+    pub fn get_element_by_id(&mut self, id: &str) -> Option<&mut Node> {
+        self.root.as_mut()?.find_by_id_mut(id)
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Node {
     pub element: Element,
     pub children: Vec<Node>,
+    /// Fires when a primary-button press *and* the matching release
+    /// both land inside this node's subtree. Bubbles target → root.
+    pub on_click: Option<MouseCallback>,
+    /// Fires on every primary-button press, target → root.
+    pub on_mouse_down: Option<MouseCallback>,
+    /// Fires on every primary-button release, target → root.
+    pub on_mouse_up: Option<MouseCallback>,
+    /// Fires when the pointer enters this node's subtree (root-first
+    /// across the entered chain). No bubbling beyond the entered set.
+    pub on_mouse_enter: Option<MouseCallback>,
+    /// Fires when the pointer leaves this node's subtree
+    /// (deepest-first across the left chain).
+    pub on_mouse_leave: Option<MouseCallback>,
+}
+
+impl std::fmt::Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The callback slots can't be Debug-printed; just note whether
+        // each is wired so the tree's structure stays inspectable.
+        f.debug_struct("Node")
+            .field("element", &self.element)
+            .field("children", &self.children)
+            .field("on_click", &self.on_click.as_ref().map(|_| "<fn>"))
+            .field("on_mouse_down", &self.on_mouse_down.as_ref().map(|_| "<fn>"))
+            .field("on_mouse_up", &self.on_mouse_up.as_ref().map(|_| "<fn>"))
+            .field("on_mouse_enter", &self.on_mouse_enter.as_ref().map(|_| "<fn>"))
+            .field("on_mouse_leave", &self.on_mouse_leave.as_ref().map(|_| "<fn>"))
+            .finish()
+    }
 }
 
 impl Node {
@@ -49,6 +100,11 @@ impl Node {
         Self {
             element: element.into(),
             children: Vec::new(),
+            on_click: None,
+            on_mouse_down: None,
+            on_mouse_up: None,
+            on_mouse_enter: None,
+            on_mouse_leave: None,
         }
     }
 
@@ -60,6 +116,20 @@ impl Node {
     pub fn push(&mut self, child: Node) -> &mut Self {
         self.children.push(child);
         self
+    }
+
+    /// Depth-first search for a descendant (or `self`) whose `id`
+    /// attribute equals `id`. Document order; first match wins.
+    pub fn find_by_id_mut(&mut self, id: &str) -> Option<&mut Node> {
+        if self.element.id() == Some(id) {
+            return Some(self);
+        }
+        for child in &mut self.children {
+            if let Some(found) = child.find_by_id_mut(id) {
+                return Some(found);
+            }
+        }
+        None
     }
 
     /// Walk a child-index path from this node to a descendant. An empty
@@ -282,4 +352,122 @@ element_from! {
     Template => m::Template, Slot => m::Slot, Del => m::Del, Ins => m::Ins,
     Bdi => m::Bdi, Bdo => m::Bdo, Wbr => m::Wbr, Data => m::Data,
     Ruby => m::Ruby, Rt => m::Rt, Rp => m::Rp,
+}
+
+/// Same variant list used for any "do this for every element" dispatch.
+/// `Text` is excluded — it has no attributes.
+macro_rules! all_element_variants {
+    ($cb:ident) => {
+        $cb!(
+            Html, Head, Body, Title, Meta, Link, StyleElement, Script, Noscript,
+            H1, H2, H3, H4, H5, H6, P, Br, Hr, Pre, Blockquote, Address,
+            Span, A, Strong, B, Em, I, U, S, Small, Mark, Code, Kbd, Samp, Var,
+            Abbr, Cite, Dfn, Sub, Sup, Time,
+            Ul, Ol, Li, Dl, Dt, Dd,
+            Header, Nav, Main, Section, Article, Aside, Footer, Div,
+            Img, Picture, Source, Video, Audio, Track, Iframe, Canvas, Svg,
+            Table, Caption, Thead, Tbody, Tfoot, Tr, Th, Td, Colgroup, Col,
+            Form, Label, Input, Textarea, Button, Select, OptionElement, Optgroup,
+            Fieldset, Legend, Datalist, Output, Progress, Meter,
+            Details, Summary, Dialog, Template, Slot,
+            Del, Ins, Bdi, Bdo, Wbr, Data, Ruby, Rt, Rp,
+        )
+    };
+}
+
+impl Element {
+    /// `id` HTML attribute on this element, if set. `Text` has no
+    /// attributes and returns `None`.
+    pub fn id(&self) -> Option<&str> {
+        macro_rules! arms {
+            ($($v:ident),* $(,)?) => {
+                match self {
+                    Element::Text(_) => None,
+                    $(Element::$v(e) => e.id.as_deref(),)*
+                }
+            };
+        }
+        all_element_variants!(arms)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn div_with_id(id: &str) -> m::Div {
+        m::Div {
+            id: Some(id.to_string()),
+            ..m::Div::default()
+        }
+    }
+
+    #[test]
+    fn element_id_reads_global_attribute() {
+        let div = Element::Div(div_with_id("hero"));
+        assert_eq!(div.id(), Some("hero"));
+        let txt = Element::Text("hi".into());
+        assert_eq!(txt.id(), None);
+    }
+
+    #[test]
+    fn get_element_by_id_finds_descendant() {
+        let body = Node::new(m::Body::default()).with_children(vec![
+            Node::new(div_with_id("outer")).with_children(vec![Node::new(div_with_id("inner"))]),
+        ]);
+        let mut tree = Tree::new(body);
+        assert!(tree.get_element_by_id("outer").is_some());
+        assert!(tree.get_element_by_id("inner").is_some());
+        assert!(tree.get_element_by_id("missing").is_none());
+    }
+
+    #[test]
+    fn on_click_field_is_assignable_and_invokable() {
+        let mut tree = Tree::new(Node::new(div_with_id("target")));
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c2 = counter.clone();
+
+        // Direct field assignment in the friendly style:
+        // `tree.get_element_by_id(id).on_click = cb`.
+        tree.get_element_by_id("target").unwrap().on_click =
+            Some(Arc::new(move |_ev| {
+                c2.fetch_add(1, Ordering::Relaxed);
+            }));
+
+        // The callback isn't fired by storage alone — invoke it.
+        let cb = tree
+            .get_element_by_id("target")
+            .unwrap()
+            .on_click
+            .clone()
+            .unwrap();
+        let ev = MouseEvent {
+            pos: (0.0, 0.0),
+            button: Some(MouseButton::Primary),
+            modifiers: Modifiers::default(),
+            target_path: vec![],
+            current_path: vec![],
+        };
+        cb(&ev);
+        cb(&ev);
+        assert_eq!(counter.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn first_match_wins_in_document_order() {
+        let body = Node::new(m::Body::default()).with_children(vec![
+            Node::new(div_with_id("dup")),
+            Node::new(div_with_id("dup")),
+        ]);
+        let mut tree = Tree::new(body);
+        let first = tree.get_element_by_id("dup").unwrap();
+        // Mutate so we can identify which one we got back without
+        // depending on pointer identity.
+        first.on_click = Some(Arc::new(|_| {}));
+        let body_node = tree.root.as_ref().unwrap();
+        assert!(body_node.children[0].on_click.is_some());
+        assert!(body_node.children[1].on_click.is_none());
+    }
 }
