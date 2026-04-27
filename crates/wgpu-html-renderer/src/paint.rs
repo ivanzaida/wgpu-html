@@ -19,7 +19,10 @@ impl Rect {
     }
 }
 
-/// Per-corner radii in physical pixels: top-left, top-right, bottom-right, bottom-left.
+/// Per-corner radii (one component per corner) in physical pixels:
+/// top-left, top-right, bottom-right, bottom-left. The renderer keeps
+/// horizontal and vertical radii separately on each `Quad` so corners
+/// can be elliptical.
 pub type CornerRadii = [f32; 4];
 
 /// Per-side stroke widths in physical pixels: top, right, bottom, left.
@@ -28,7 +31,7 @@ pub type StrokeWidths = [f32; 4];
 
 /// One quad. Two modes:
 /// - **Filled**: `stroke == [0; 4]`. The whole box (with rounded corners
-///   from `radii`) is filled with `color`.
+///   from `radii_h` / `radii_v`) is filled with `color`.
 /// - **Stroked ring**: at least one `stroke` component > 0. The shader
 ///   paints only the ring between the outer rounded box and the inner
 ///   one, where the inner one is inset on each side by the matching
@@ -37,8 +40,11 @@ pub type StrokeWidths = [f32; 4];
 pub struct Quad {
     pub rect: Rect,
     pub color: Color,
-    /// `[0; 4]` for a sharp axis-aligned rectangle.
-    pub radii: CornerRadii,
+    /// Horizontal components of the per-corner radii (TL, TR, BR, BL).
+    /// `[0; 4]` → sharp rectangle.
+    pub radii_h: CornerRadii,
+    /// Vertical components of the per-corner radii (TL, TR, BR, BL).
+    pub radii_v: CornerRadii,
     /// Per-side ring thickness. `[0; 4]` → filled mode.
     pub stroke: StrokeWidths,
 }
@@ -59,12 +65,14 @@ impl DisplayList {
         self.quads.push(Quad {
             rect,
             color,
-            radii: [0.0; 4],
+            radii_h: [0.0; 4],
+            radii_v: [0.0; 4],
             stroke: [0.0; 4],
         });
         self
     }
 
+    /// Push a filled box with circular rounded corners (`radii.h == radii.v`).
     pub fn push_quad_rounded(
         &mut self,
         rect: Rect,
@@ -74,15 +82,32 @@ impl DisplayList {
         self.quads.push(Quad {
             rect,
             color,
-            radii,
+            radii_h: radii,
+            radii_v: radii,
             stroke: [0.0; 4],
         });
         self
     }
 
-    /// Push a stroked rounded ring. `stroke` is the per-side ring
-    /// thickness in pixels (top, right, bottom, left). `radii` are the
-    /// outer corner radii.
+    /// Push a filled box with arbitrary elliptical corners.
+    pub fn push_quad_rounded_ellipse(
+        &mut self,
+        rect: Rect,
+        color: Color,
+        radii_h: CornerRadii,
+        radii_v: CornerRadii,
+    ) -> &mut Self {
+        self.quads.push(Quad {
+            rect,
+            color,
+            radii_h,
+            radii_v,
+            stroke: [0.0; 4],
+        });
+        self
+    }
+
+    /// Push a stroked rounded ring with circular corners.
     pub fn push_quad_stroke(
         &mut self,
         rect: Rect,
@@ -93,7 +118,27 @@ impl DisplayList {
         self.quads.push(Quad {
             rect,
             color,
-            radii,
+            radii_h: radii,
+            radii_v: radii,
+            stroke,
+        });
+        self
+    }
+
+    /// Push a stroked rounded ring with arbitrary elliptical corners.
+    pub fn push_quad_stroke_ellipse(
+        &mut self,
+        rect: Rect,
+        color: Color,
+        radii_h: CornerRadii,
+        radii_v: CornerRadii,
+        stroke: StrokeWidths,
+    ) -> &mut Self {
+        self.quads.push(Quad {
+            rect,
+            color,
+            radii_h,
+            radii_v,
             stroke,
         });
         self

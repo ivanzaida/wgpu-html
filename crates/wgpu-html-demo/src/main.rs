@@ -29,7 +29,7 @@ impl ApplicationHandler for App {
 
         let attrs = Window::default_attributes()
             .with_title("wgpu-html — M4: block layout")
-            .with_inner_size(PhysicalSize::new(1024u32, 768u32));
+            .with_inner_size(PhysicalSize::new(1920u32, 1080u32));
         let window = Arc::new(
             event_loop
                 .create_window(attrs)

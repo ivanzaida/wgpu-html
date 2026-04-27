@@ -224,3 +224,10 @@ pub enum BoxSizing {
   ContentBox,
   BorderBox,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackgroundClip {
+  BorderBox,
+  PaddingBox,
+  ContentBox,
+}

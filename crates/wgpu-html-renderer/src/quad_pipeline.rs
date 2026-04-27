@@ -22,10 +22,12 @@ struct QuadInstance {
     pos: [f32; 2],
     size: [f32; 2],
     color: [f32; 4],
-    /// Per-corner radii in pixels: TL, TR, BR, BL. All zero → sharp rect.
-    radii: [f32; 4],
+    /// Horizontal radii per corner (TL, TR, BR, BL).
+    radii_h: [f32; 4],
+    /// Vertical radii per corner (TL, TR, BR, BL).
+    radii_v: [f32; 4],
     /// Per-side ring thickness in pixels: top, right, bottom, left. All
-    /// zero → filled mode (the whole shape is painted).
+    /// zero → filled mode.
     stroke: [f32; 4],
 }
 
@@ -35,7 +37,8 @@ impl From<&Quad> for QuadInstance {
             pos: [q.rect.x, q.rect.y],
             size: [q.rect.w, q.rect.h],
             color: q.color,
-            radii: q.radii,
+            radii_h: q.radii_h,
+            radii_v: q.radii_v,
             stroke: q.stroke,
         }
     }
@@ -99,7 +102,7 @@ impl QuadPipeline {
                             shader_location: 0,
                         }],
                     },
-                    // Per-instance: pos, size, color, corner radii, stroke widths.
+                    // Per-instance: pos, size, color, radii_h, radii_v, stroke widths.
                     wgpu::VertexBufferLayout {
                         array_stride: std::mem::size_of::<QuadInstance>() as u64,
                         step_mode: wgpu::VertexStepMode::Instance,
@@ -128,6 +131,11 @@ impl QuadPipeline {
                                 format: wgpu::VertexFormat::Float32x4,
                                 offset: 48,
                                 shader_location: 5,
+                            },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 64,
+                                shader_location: 6,
                             },
                         ],
                     },

@@ -1,7 +1,7 @@
 use crate::common::css_enums::{
-  AlignContent, AlignItems, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssLength, Cursor,
-  Display, FlexDirection, FlexWrap, FontStyle, FontWeight, JustifyContent, Overflow, PointerEvents,
-  Position, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
+  AlignContent, AlignItems, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor,
+  CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, JustifyContent,
+  Overflow, PointerEvents, Position, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -52,6 +52,8 @@ pub struct Style {
   pub background_position: Option<String>,
   // css property: background-repeat
   pub background_repeat: Option<BackgroundRepeat>,
+  // css property: background-clip
+  pub background_clip: Option<BackgroundClip>,
   /// Raw value of the `border` shorthand. Kept for round-tripping;
   /// layout reads the per-side fields below instead.
   pub border: Option<String>,
@@ -74,11 +76,20 @@ pub struct Style {
   pub border_bottom_color: Option<CssColor>,
   pub border_left_color: Option<CssColor>,
 
-  // css property: border-top-left-radius / -top-right- / -bottom-right- / -bottom-left-
+  // css property: border-<corner>-radius — horizontal component (the
+  // first value in CSS per-corner `<h> <v>` syntax).
   pub border_top_left_radius: Option<CssLength>,
   pub border_top_right_radius: Option<CssLength>,
   pub border_bottom_right_radius: Option<CssLength>,
   pub border_bottom_left_radius: Option<CssLength>,
+
+  // Vertical component for elliptical radii (the second value in
+  // `<h> <v>` syntax, or the post-slash list in `border-radius: ... / ...`).
+  // None means "same as the horizontal component" — CSS default.
+  pub border_top_left_radius_v: Option<CssLength>,
+  pub border_top_right_radius_v: Option<CssLength>,
+  pub border_bottom_right_radius_v: Option<CssLength>,
+  pub border_bottom_left_radius_v: Option<CssLength>,
   // css property: font-family
   pub font_family: Option<String>,
   // css property: font-size

@@ -41,6 +41,7 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
     merge_field!(lhs, rhs, background_size);
     merge_field!(lhs, rhs, background_position);
     merge_field!(lhs, rhs, background_repeat);
+    merge_field!(lhs, rhs, background_clip);
     merge_field!(lhs, rhs, border);
     merge_field!(lhs, rhs, border_top_width);
     merge_field!(lhs, rhs, border_right_width);
@@ -58,6 +59,10 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
     merge_field!(lhs, rhs, border_top_right_radius);
     merge_field!(lhs, rhs, border_bottom_right_radius);
     merge_field!(lhs, rhs, border_bottom_left_radius);
+    merge_field!(lhs, rhs, border_top_left_radius_v);
+    merge_field!(lhs, rhs, border_top_right_radius_v);
+    merge_field!(lhs, rhs, border_bottom_right_radius_v);
+    merge_field!(lhs, rhs, border_bottom_left_radius_v);
     merge_field!(lhs, rhs, font_family);
     merge_field!(lhs, rhs, font_size);
     merge_field!(lhs, rhs, font_weight);

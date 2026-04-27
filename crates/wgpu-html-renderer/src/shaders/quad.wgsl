@@ -1,8 +1,9 @@
-// Rounded-corner quad pipeline.
+// Rounded-corner quad pipeline (elliptical, optional ring).
 //
 // Vertex buffer 0 (per-vertex):  unit quad corner in [0,1]^2.
 // Vertex buffer 1 (per-instance): pos / size in pixels, linear RGBA color,
-//                                 per-corner radii (TL, TR, BR, BL), and
+//                                 horizontal corner radii (TL, TR, BR, BL),
+//                                 vertical corner radii (same order),
 //                                 per-side ring thickness (top, right,
 //                                 bottom, left).
 // Bind group 0 / binding 0: viewport size in pixels.
@@ -11,8 +12,12 @@
 //   - Filled:    paint the entire (rounded) box with `color`.
 //   - Stroked:   paint only the ring between the outer rounded box and
 //                an inner rounded box inset on each side by the matching
-//                stroke width. The inner radius is clamped to >= 0.
+//                stroke width.
 // In both modes a ~1-pixel anti-alias band keeps edges smooth.
+//
+// The corner zone uses a gradient-corrected ellipse SDF so corners can
+// be elliptical (h != v); when h == v it reduces to the usual circular
+// case.
 
 struct Globals {
     viewport: vec2<f32>,
@@ -21,22 +26,24 @@ struct Globals {
 @group(0) @binding(0) var<uniform> globals: Globals;
 
 struct VsIn {
-    @location(0) corner: vec2<f32>,
-    @location(1) pos:    vec2<f32>,
-    @location(2) size:   vec2<f32>,
-    @location(3) color:  vec4<f32>,
-    @location(4) radii:  vec4<f32>,  // TL, TR, BR, BL
-    @location(5) stroke: vec4<f32>,  // top, right, bottom, left
+    @location(0) corner:  vec2<f32>,
+    @location(1) pos:     vec2<f32>,
+    @location(2) size:    vec2<f32>,
+    @location(3) color:   vec4<f32>,
+    @location(4) radii_h: vec4<f32>,  // TL, TR, BR, BL
+    @location(5) radii_v: vec4<f32>,  // TL, TR, BR, BL
+    @location(6) stroke:  vec4<f32>,  // top, right, bottom, left
 };
 
 struct VsOut {
     @builtin(position) clip:      vec4<f32>,
     @location(0)       color:     vec4<f32>,
-    /// Pixel offset from the box's centre (so abs(local) <= half_size).
+    /// Pixel offset from the box's centre.
     @location(1)       local:     vec2<f32>,
     @location(2)       half_size: vec2<f32>,
-    @location(3)       radii:     vec4<f32>,
-    @location(4)       stroke:    vec4<f32>,
+    @location(3)       radii_h:   vec4<f32>,
+    @location(4)       radii_v:   vec4<f32>,
+    @location(5)       stroke:    vec4<f32>,
 };
 
 @vertex
@@ -51,36 +58,62 @@ fn vs_main(in: VsIn) -> VsOut {
     out.clip      = vec4<f32>(ndc, 0.0, 1.0);
     out.color     = in.color;
     out.half_size = in.size * 0.5;
-    // local = pixel offset from centre. corner=(0,0)→-half, (1,1)→+half.
     out.local     = (in.corner - vec2<f32>(0.5, 0.5)) * in.size;
-    out.radii     = in.radii;
+    out.radii_h   = in.radii_h;
+    out.radii_v   = in.radii_v;
     out.stroke    = in.stroke;
     return out;
 }
 
-/// Pick the radius for whichever quadrant `p` lies in.
-/// `radii` order: TL, TR, BR, BL. y < 0 means upper half (top-left coords).
-fn pick_radius(p: vec2<f32>, radii: vec4<f32>) -> f32 {
+/// Pick the (h, v) radius pair for whichever quadrant `p` lies in.
+/// Order: TL, TR, BR, BL (matches CSS `border-radius` longhand order).
+fn pick_radius(p: vec2<f32>, rh: vec4<f32>, rv: vec4<f32>) -> vec2<f32> {
     if (p.y < 0.0) {
-        if (p.x < 0.0) { return radii.x; } // TL
-        else           { return radii.y; } // TR
+        if (p.x < 0.0) { return vec2<f32>(rh.x, rv.x); } // TL
+        else           { return vec2<f32>(rh.y, rv.y); } // TR
     } else {
-        if (p.x < 0.0) { return radii.w; } // BL
-        else           { return radii.z; } // BR
+        if (p.x < 0.0) { return vec2<f32>(rh.w, rv.w); } // BL
+        else           { return vec2<f32>(rh.z, rv.z); } // BR
     }
 }
 
-/// Signed distance from `p` (centre-relative) to a rounded box of
-/// half-extent `half_size` and radius `r` for this quadrant. Negative
-/// inside, zero on the edge, positive outside.
-fn sd_rounded_box(p: vec2<f32>, half_size: vec2<f32>, r: f32) -> f32 {
-    let q = abs(p) - half_size + vec2<f32>(r, r);
-    return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0, 0.0))) - r;
+/// SDF of a box with elliptical corners (radius `r = (rx, ry)` per
+/// quadrant). `p` is centre-relative pixel coords; `half_size` is the
+/// box half-extent.
+///
+/// - Corner zone (both q components > 0) → gradient-corrected ellipse
+///   SDF. Reduces to the exact circular formula `length(q) - r` when
+///   rx == ry; smooth approximation otherwise.
+/// - Edge band / interior → rectangle distance with the corner radii
+///   subtracted on each axis: `max(q.x - rx, q.y - ry)`.
+fn sd_rounded_box(p: vec2<f32>, half_size: vec2<f32>, r: vec2<f32>) -> f32 {
+    let safe_r = max(r, vec2<f32>(0.0, 0.0));
+    let q = abs(p) - half_size + safe_r;
+
+    if (q.x > 0.0 && q.y > 0.0) {
+        // Corner zone.
+        if (safe_r.x <= 0.0 || safe_r.y <= 0.0) {
+            return max(q.x, q.y);
+        }
+        let pn = q / safe_r;
+        let l = length(pn);
+        let g = max(length(pn / safe_r), 1e-6);
+        // Euclidean distance estimate = (length(pn) - 1) / |grad|, where
+        // |grad| = length(pn / r) / length(pn). The factor of `l` in the
+        // numerator below absorbs the `length(pn)` in the denominator
+        // of |grad|. Reduces to `length(q) - r` for circular corners.
+        return (l - 1.0) * l / g;
+    }
+
+    // Edge band or interior. The `- safe_r.{x,y}` subtraction undoes the
+    // `+ safe_r` we added when computing `q`, which keeps the corner
+    // zone consistent with the rounded-box shape.
+    return max(q.x - safe_r.x, q.y - safe_r.y);
 }
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let outer_r = pick_radius(in.local, in.radii);
+    let outer_r = pick_radius(in.local, in.radii_h, in.radii_v);
     let outer_dist = sd_rounded_box(in.local, in.half_size, outer_r);
 
     let aa = 0.7;
@@ -88,13 +121,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     var dist: f32;
     if (max_stroke <= 0.0) {
-        // Filled mode.
         dist = outer_dist;
     } else {
-        // Ring mode. Build the inner rounded box: each side is inset by
-        // its stroke thickness, so the inner half-size shrinks by half
-        // the sum of opposite strokes, and the centre shifts when the
-        // strokes are asymmetric.
         let inner_half = vec2<f32>(
             in.half_size.x - 0.5 * (in.stroke.y + in.stroke.w),
             in.half_size.y - 0.5 * (in.stroke.x + in.stroke.z),
@@ -103,12 +131,11 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             0.5 * (in.stroke.w - in.stroke.y),
             0.5 * (in.stroke.x - in.stroke.z),
         );
-        // Inner radius = outer minus the larger of the adjacent strokes,
-        // clamped at 0. Using `max_stroke` is the safe conservative
-        // choice when sides differ.
-        let inner_r = max(0.0, outer_r - max_stroke);
+        let inner_r = vec2<f32>(
+            max(0.0, outer_r.x - max_stroke),
+            max(0.0, outer_r.y - max_stroke),
+        );
         let inner_dist = sd_rounded_box(in.local - inner_centre, inner_half, inner_r);
-        // Ring distance: outside if not in outer OR if inside inner.
         dist = max(outer_dist, -inner_dist);
     }
 

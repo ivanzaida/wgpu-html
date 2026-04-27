@@ -67,6 +67,7 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "background-size" => style.background_size = Some(value.to_string()),
         "background-position" => style.background_position = Some(value.to_string()),
         "background-repeat" => style.background_repeat = parse_background_repeat(value),
+        "background-clip" => style.background_clip = parse_background_clip(value),
         "border" => parse_border_shorthand(value, style),
         "border-top" => parse_border_side_shorthand(value, style, Side::Top),
         "border-right" => parse_border_side_shorthand(value, style, Side::Right),
@@ -93,10 +94,26 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "border-left-color" => style.border_left_color = parse_css_color(value),
 
         "border-radius" => apply_border_radii(value, style),
-        "border-top-left-radius" => style.border_top_left_radius = parse_css_length(value),
-        "border-top-right-radius" => style.border_top_right_radius = parse_css_length(value),
-        "border-bottom-right-radius" => style.border_bottom_right_radius = parse_css_length(value),
-        "border-bottom-left-radius" => style.border_bottom_left_radius = parse_css_length(value),
+        "border-top-left-radius" => apply_corner_radius(
+            value,
+            &mut style.border_top_left_radius,
+            &mut style.border_top_left_radius_v,
+        ),
+        "border-top-right-radius" => apply_corner_radius(
+            value,
+            &mut style.border_top_right_radius,
+            &mut style.border_top_right_radius_v,
+        ),
+        "border-bottom-right-radius" => apply_corner_radius(
+            value,
+            &mut style.border_bottom_right_radius,
+            &mut style.border_bottom_right_radius_v,
+        ),
+        "border-bottom-left-radius" => apply_corner_radius(
+            value,
+            &mut style.border_bottom_left_radius,
+            &mut style.border_bottom_left_radius_v,
+        ),
         "font-family" => style.font_family = Some(value.to_string()),
         "font-size" => style.font_size = parse_css_length(value),
         "font-weight" => style.font_weight = parse_font_weight(value),
@@ -288,25 +305,56 @@ fn apply_border_colors(value: &str, style: &mut Style) {
     if let Some(l) = l { style.border_left_color = Some(l); }
 }
 
-/// `border-radius: 1 / 2 / 3 / 4 values` → per-corner.
-/// Order is TL, TR, BR, BL (CSS spec).
+/// `border-radius: <h-list> [ / <v-list> ]` — each list 1..4 values in
+/// CSS per-corner order TL, TR, BR, BL. Without the slash both axes
+/// share the same list. Each axis uses the standard 1/2/3/4-value
+/// expansion rules.
 fn apply_border_radii(value: &str, style: &mut Style) {
+    let (h_part, v_part) = match value.split_once('/') {
+        Some((h, v)) => (h.trim(), Some(v.trim())),
+        None => (value.trim(), None),
+    };
+
+    let (h_tl, h_tr, h_br, h_bl) = expand_corner_list(h_part);
+    if let Some(v) = h_tl.clone() { style.border_top_left_radius = Some(v); }
+    if let Some(v) = h_tr.clone() { style.border_top_right_radius = Some(v); }
+    if let Some(v) = h_br.clone() { style.border_bottom_right_radius = Some(v); }
+    if let Some(v) = h_bl.clone() { style.border_bottom_left_radius = Some(v); }
+
+    if let Some(v_str) = v_part {
+        let (v_tl, v_tr, v_br, v_bl) = expand_corner_list(v_str);
+        if let Some(v) = v_tl { style.border_top_left_radius_v = Some(v); }
+        if let Some(v) = v_tr { style.border_top_right_radius_v = Some(v); }
+        if let Some(v) = v_br { style.border_bottom_right_radius_v = Some(v); }
+        if let Some(v) = v_bl { style.border_bottom_left_radius_v = Some(v); }
+    } else {
+        // Without a slash, the vertical axis equals the horizontal one.
+        if let Some(v) = h_tl { style.border_top_left_radius_v = Some(v); }
+        if let Some(v) = h_tr { style.border_top_right_radius_v = Some(v); }
+        if let Some(v) = h_br { style.border_bottom_right_radius_v = Some(v); }
+        if let Some(v) = h_bl { style.border_bottom_left_radius_v = Some(v); }
+    }
+}
+
+/// Expand a 1..4-value space-separated CSS length list to per-corner
+/// `(TL, TR, BR, BL)`.
+fn expand_corner_list(value: &str) -> (Option<CssLength>, Option<CssLength>, Option<CssLength>, Option<CssLength>) {
     let parts: Vec<&str> = value.split_whitespace().collect();
-    let (tl, tr, br, bl) = match parts.len() {
-        0 => return,
+    match parts.len() {
+        0 => (None, None, None, None),
         1 => {
             let v = parse_css_length(parts[0]);
             (v.clone(), v.clone(), v.clone(), v)
         }
         2 => {
-            let a = parse_css_length(parts[0]); // TL & BR
-            let b = parse_css_length(parts[1]); // TR & BL
+            let a = parse_css_length(parts[0]);
+            let b = parse_css_length(parts[1]);
             (a.clone(), b.clone(), a, b)
         }
         3 => {
-            let a = parse_css_length(parts[0]); // TL
-            let b = parse_css_length(parts[1]); // TR & BL
-            let c = parse_css_length(parts[2]); // BR
+            let a = parse_css_length(parts[0]);
+            let b = parse_css_length(parts[1]);
+            let c = parse_css_length(parts[2]);
             (a, b.clone(), c, b)
         }
         _ => (
@@ -315,11 +363,29 @@ fn apply_border_radii(value: &str, style: &mut Style) {
             parse_css_length(parts[2]),
             parse_css_length(parts[3]),
         ),
-    };
-    if let Some(v) = tl { style.border_top_left_radius = Some(v); }
-    if let Some(v) = tr { style.border_top_right_radius = Some(v); }
-    if let Some(v) = br { style.border_bottom_right_radius = Some(v); }
-    if let Some(v) = bl { style.border_bottom_left_radius = Some(v); }
+    }
+}
+
+/// Per-corner longhand: `border-<corner>-radius: <h>` (v defaults to h)
+/// or `border-<corner>-radius: <h> <v>`.
+fn apply_corner_radius(
+    value: &str,
+    h_field: &mut Option<CssLength>,
+    v_field: &mut Option<CssLength>,
+) {
+    let parts: Vec<&str> = value.split_whitespace().collect();
+    match parts.len() {
+        0 => {}
+        1 => {
+            let v = parse_css_length(parts[0]);
+            *h_field = v.clone();
+            *v_field = v;
+        }
+        _ => {
+            *h_field = parse_css_length(parts[0]);
+            *v_field = parse_css_length(parts[1]);
+        }
+    }
 }
 
 /// Generic 1/2/3/4-value box shorthand for properties whose values are
@@ -545,6 +611,15 @@ fn parse_position(value: &str) -> Option<Position> {
         "absolute" => Some(Position::Absolute),
         "fixed" => Some(Position::Fixed),
         "sticky" => Some(Position::Sticky),
+        _ => None,
+    }
+}
+
+fn parse_background_clip(value: &str) -> Option<BackgroundClip> {
+    match value.to_ascii_lowercase().as_str() {
+        "border-box" => Some(BackgroundClip::BorderBox),
+        "padding-box" => Some(BackgroundClip::PaddingBox),
+        "content-box" => Some(BackgroundClip::ContentBox),
         _ => None,
     }
 }
