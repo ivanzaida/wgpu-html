@@ -37,9 +37,12 @@ side. The known gaps are spelled out in §6.
 ## 2. Non-goals (current scope)
 
 - **Scroll bars and scrollable content.** `overflow: scroll` /
-  `auto` look identical to `hidden` because there's no scroll
-  position state. Hooking that up needs the interactivity surface
-  spelled out in `spec/interactivity.md`.
+  `auto` look identical to `hidden` in the clip sense — the scroll
+  offset state lives in `InteractionState::scroll_offsets_y` and
+  is applied by the demo's paint path. Per-element scroll-container
+  scrollbar drag and wheel scroll are partially wired (M-INTER-4);
+  hit-testing inside scroll containers does not yet subtract the
+  offset, so clicks inside a scrolled container may mis-target.
 - **Per-axis hidden / visible mismatch.** `overflow-x: hidden;
   overflow-y: visible;` collapses to "hidden on both axes" rather
   than emitting a 1D clip rect (which wgpu's scissor primitive
@@ -159,11 +162,12 @@ In rough order of usefulness:
    expand the rect to the full viewport on the unclamped axis.
    A small refactor of `effective_overflow` to keep both axes
    plus a per-axis viewport-extent fallback in the renderer.
-2. **Scroll containers.** Position offset on scrollable
-   containers needs a scroll-state map (host-driven, since we
-   have no pointer event loop yet). Once `spec/interactivity.md`
-   lands, this becomes a CSS scroll position lookup at paint
-   time.
+2. **Scroll container hit-test offsets.** `scroll_offsets_y` now
+   exists on `InteractionState` and is read at paint time to
+   translate scroll-container descendants. However hit-testing
+   inside a scroll container does not yet subtract the offset
+   before recursing (M-INTER-4 gap), so clicks misfire on
+   scrolled content.
 3. **Composing nested rounded clips.** Today only the innermost
    rounded clip's radii reach the shader; an outer rounded
    clip wrapping a non-rounded child still clips correctly via

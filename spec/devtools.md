@@ -13,6 +13,13 @@ phases produce **data** and **overlays**, the later phases produce
 Companion to `roadmap.md` (engine milestones) and `status.md`
 (implementation snapshot).
 
+> **Status (2026-04-29):** Not yet built. The `wgpu-html-devtools`
+> crate does not exist. However all the engine surface D1–D4 require
+> is already present: `find_element_from_point`, `LayoutBox` box-model
+> rectangles, `Node::ancestry_at_path_mut`, `cascade` (a
+> `cascade_with_trace` variant still needs to be added), and element
+> mutation via inline-style overrides. D1–D4 are buildable today.
+
 ---
 
 ## 1. Goals

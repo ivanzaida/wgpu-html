@@ -6,7 +6,6 @@ A GPU renderer for **a static tree of HTML elements**, drawn through `wgpu`.
 
 Explicit non-goals:
 
-- Not a browser. No HTML parsing, no CSS parsing, no DOM.
 - **No JavaScript, ever.** Not "deferred", not "later" — out of
   scope for the lifetime of the project. No `<script>` execution,
   no JS engine embed (V8 / SpiderMonkey / QuickJS / …), no
@@ -17,23 +16,26 @@ Explicit non-goals:
   and host-driven element-state mutation (see
   `spec/interactivity.md`). `<script>` content stays parsed-but-
   inert.
-- No networking, no plugins.
-- Interactivity / events / hit-testing — covered by
-  `spec/interactivity.md` as a separate, non-JS surface.
+- No networking beyond image loading, no plugins.
 - No accessibility tree, no print layout, no SVG rendering.
 
-The user constructs a `Tree` programmatically from typed model structs and
-hands it to the renderer.
+The user constructs a `Tree` programmatically from typed model structs or
+by parsing an HTML string with `wgpu_html_parser::parse`, then hands it
+to the renderer.
 
 ## Pipeline
 
 ```
-Tree (typed elements + children)
+HTML/CSS string
    │
-   ▼  resolve styles (inline `style` attrs → computed CSS Style, with inheritance)
-StyledTree
+   ▼  wgpu-html-parser           Tokenizer + tree builder + CSS parser
+Tree<Node<Element>>
    │
-   ▼  layout (block / inline / flex; pure function, no scripting/reflow loop)
+   ▼  resolve styles (inline `style` attrs + <style> blocks + UA defaults,
+      with full cascade, inheritance, and dynamic pseudo-classes)
+CascadedTree
+   │
+   ▼  layout (block / inline / flex / grid; pure function, no scripting/reflow loop)
 LayoutTree
    │
    ▼  paint (display list: quads, glyphs, images, clips, borders)
@@ -51,19 +53,15 @@ stage is independently testable.
 | Crate                | Role                                                                    | Status |
 |----------------------|-------------------------------------------------------------------------|--------|
 | `wgpu-html-models`   | Element structs (`Div`, `P`, `Body`, …), `css::Style`, enums            | done   |
-| `wgpu-html-tree`     | `Tree { root: Option<Node> }`, `Node { element, children }`, `Element`  | done   |
+| `wgpu-html-tree`     | `Tree { root, fonts, interaction }`, `Node`, `Element`, `InteractionState` | done   |
+| `wgpu-html-events`   | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `EventPhase`  | done   |
 | `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser          | done   |
-| `wgpu-html-style`    | Selector matching + cascade: `Tree` → `CascadedTree`                    | M4½    |
-| `wgpu-html-layout`   | Block-flow layout: `CascadedTree` → `LayoutBox`                         | M4     |
-| `wgpu-html-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | M1+M2  |
-| `wgpu-html`          | Facade + `paint::paint_tree` (parse → cascade → layout → paint)         | done   |
-| `wgpu-html-demo`     | winit binary; builds a sample scene and runs the loop                   | M4     |
-
-Future crate (split out only when it grows large enough to justify it):
-
-- `wgpu-html-paint` — produces `DisplayList` from layout, owns the glyph atlas
-
-For now the paint code lives inside the `wgpu-html` facade.
+| `wgpu-html-style`    | Selector matching + cascade + `MatchContext` (`:hover`/`:active`)      | done   |
+| `wgpu-html-text`     | Font database + cosmic-text shaping + glyph atlas                      | done   |
+| `wgpu-html-layout`   | Block/flex/grid layout + IFC + image loading + hit testing              | done   |
+| `wgpu-html-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | done   |
+| `wgpu-html`          | Facade: parse → cascade → layout → paint, interactivity, `PipelineTimings` | done   |
+| `wgpu-html-demo`     | winit binary; font loading, event loop, scroll, `ProfileWindow`        | done   |
 
 ## Milestones
 
@@ -144,33 +142,48 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 - `paint_tree` chains parse → cascade → layout → paint internally
 - 13 cascade unit tests + 9 selector parser tests
 
-### M5 — text rendering
+### M5 — text rendering ✅
 
-- Pick a text stack (`cosmic-text` or `swash` + custom shaper)
-- Glyph atlas (online packing via `etagere` or shelf packer)
-- New textured pipeline (alpha-mask sampling for glyphs)
-- `PaintCmd::Glyph { atlas_uv, screen_rect, color }`
-- Demo: `<h1>` and `<p>` with one font, single-line, then with line wrap
+- `wgpu-html-text` crate: font database, `cosmic-text`-based shaping, glyph atlas (shelf packer + GPU upload)
+- `wgpu-html-renderer`: dedicated glyph pipeline (`glyph.wgsl`), per-glyph instanced quads, alpha-tested coverage
+- `PaintCmd::Glyph` (effectively `DisplayList::glyphs`)
+- `font-family` fallback list, `font-weight`, `font-style: italic`, `letter-spacing`, `text-transform`, `white-space: pre` vs collapse
+- Demo: text rendering with external system font
 
-### M6 — inline layout
+### M6 — inline layout ✅
 
-- Inline formatting context, line boxes, line breaking with
-  `cosmic-text`
+- Inline formatting context (IFC): line boxes, word-wrap, `text-align`
 - Mixed inline runs (`<span>`, `<strong>`, etc.) inheriting style
-- Demo: paragraph with mixed bold / link spans
+- Demo: paragraphs with mixed bold / link spans
 
-### M7 — backgrounds, borders, radii
+### M7 — backgrounds, borders, radii ✅
 
-- Extend `PaintCmd` and the solid pipeline with rounded corners + border
-- SDF-based rounded-rect / border in the fragment shader
+- SDF-based rounded-rect / border in the fragment shader (`quad.wgsl`)
+- Per-side and uniform-corner border rendering; dashed/dotted patterns
+- `background-clip: border-box | padding-box | content-box`
 - Demo: cards with rounded backgrounds and colored borders
 
-### M8 — images
+### M8 — images ✅ (landed)
 
-- `image` crate for decoding
-- Image cache + textured pipeline already exists from M5
-- `<img>` with width / height
-- Demo: a card with an inline image
+Full image support lives in `wgpu-html-layout` and `wgpu-html-renderer`.
+Covered:
+
+- `<img>` with CSS `width` / `height` or HTML attribute sizing
+- `background-image` (URL-backed; function images e.g. `linear-gradient`
+  are still not painted)
+- Schemes: `http(s)://` (ureq + rustls, redirect-following, retry with
+  exponential backoff), `data:` URIs (base64 + percent-encoded), and
+  local filesystem paths
+- Formats: PNG, JPEG, GIF (animated), BMP, WebP (animated)
+- Two-level process-wide cache (`raw_cache` + `sized_cache`) with TTL
+  and byte-budget eviction; non-blocking via a bounded worker-thread pool
+- `Tree::preload_queue` / `preload_image(url)` for startup prefetch
+- `image_load_revision()` change counter for on-demand-redraw hosts
+- Animated GIF/WebP: frame selection via a process-wide clock anchor
+- Per-URL `Cache-Control: max-age` respected over the global TTL
+
+Demo: `crates/wgpu-html-demo/html/img-test.html` and
+`crates/wgpu-html-demo/html/gif.html`.
 
 ### M9 — flexbox ✅ (landed early)
 
@@ -277,7 +290,8 @@ Deferred (see `spec/overflow.md` §5):
 
 - Independent per-axis clipping (`overflow-x: hidden;
   overflow-y: visible;`)
-- Scroll containers / scroll bars / scroll position
+- Scroll containers with hit-test-aware scroll offsets and
+  `Wheel`→`on_event` forwarding (scroll paint + drag is in M12)
 - Composing more than one nested rounded clip
 - `overflow: clip` distinct semantics
 - Stacking-context promotion
@@ -286,12 +300,43 @@ Deferred (see `spec/overflow.md` §5):
 Demo: `crates/wgpu-html-demo/html/overflow.html` — `visible` /
 `hidden` / `hidden + border-radius` side by side.
 
-### M12 — future work
+### M12 — interactivity ⚠️ partial
 
-- Mask-texture / SDF non-rectangular clips (`clip-path`)
-- Pointer interactivity (`spec/interactivity.md`)
-- Scroll containers
-- CSS `transform`
+See `spec/interactivity.md` for the full phase breakdown.
+
+**M-INTER-1 (hover / press / click / focus chain) ✅**
+
+- `InteractionState` on `Tree` (hover path, active path, scroll offsets,
+  text selection, buttons bitmask, time origin)
+- `interactivity::pointer_move`, `mouse_down`, `mouse_up`, `pointer_leave`
+- Synthesised enter / leave (deepest-first leave, root-first enter)
+- Click synthesis via deepest common ancestor; drag-select suppresses click
+- `:hover` / `:active` cascade via `MatchContext::for_path` (focus is
+  always `false` until M-INTER-2)
+- `wgpu-html-events` crate: `HtmlEvent`, `MouseEvent`, `EventPhase`,
+  `HtmlEventType`; both legacy (`on_click` slot) and typed (`on_event`)
+  callbacks wired
+- Demo wires up all mouse + scroll events; scrollbar drag implemented
+
+**M-INTER-3 (text selection + clipboard) ✅ partial**
+
+- `TextCursor` / `TextSelection` on `InteractionState`
+- Drag-to-select; `select_all_text` / `selected_text` in `wgpu-html`
+- `Ctrl+A` + `Ctrl+C` + `arboard` integration in the demo
+- Selection highlight quads painted; caret overlay not yet done
+- Word / line select (double-click / triple-click) not yet done
+
+**M-INTER-4 (scroll) ⚠️ partial**
+
+- `scroll_offsets_y: BTreeMap<Vec<usize>, f32>` on `InteractionState`
+- Viewport scroll position + drag-scrollbar; `MouseWheel` scrolls
+  viewport and detects deepest scrollable element
+- Scrollbar quads painted in `paint.rs`
+- `Wheel` events are not forwarded to element `on_event` callbacks yet
+
+Not yet done: M-INTER-2 (`pointer-events`, `overflow` clip in hit-test,
+double-click), M-INTER-5 (keyboard navigation), M-INTER-6 (re-cascade
+caching).
 
 ## Cross-cutting concerns
 
@@ -309,19 +354,25 @@ Demo: `crates/wgpu-html-demo/html/overflow.html` — `visible` /
 - **Threading:** single-threaded for now. wgpu calls happen on the main
   thread.
 
-## Possible follow-ups (post-M10)
+## Possible follow-ups
 
-- Pointer interactivity (mouse events, hover / focus pseudo-classes,
-  text selection) — see `spec/interactivity.md`. Stays JS-free; the
-  surface is host-driven element-state mutation that re-feeds the
-  cascade.
-- Scroll containers
-- CSS `transform`
-- `@font-face` / multiple fonts
-- Render-loop hooks for animation (engine-side, no JS callback) —
-  *not* `requestAnimationFrame`; that name implies a JS callback
-  contract we will never have.
-- Embedding into `egui` or another host (we already do this elsewhere)
+- `:focus` / `:focus-visible` / `:disabled` / `:checked` pseudo-classes
+  and focus management (Tab navigation, Enter/Space on focused elements)
+- `pointer-events: none` and `overflow`-clip in hit testing (M-INTER-2)
+- Keyboard navigation and caret movement (M-INTER-5)
+- CSS `transform` (layout and hit-test impact)
+- CSS `position: absolute / relative / fixed` with `top/right/bottom/left`
+- `z-index` and stacking contexts
+- `@font-face` / generic font families
+- `calc()` / `min()` / `max()` / `clamp()` in length values
+- `var(--foo)` CSS custom properties
+- `@media` queries (re-cascade on resize)
+- `clip-path` / SDF non-rectangular clips
+- `wgpu-html-profiler` crate with ring-buffer history, GPU timing, and
+  trace export (see `spec/profiler.md`)
+- `wgpu-html-devtools` inspector crate (see `spec/devtools.md`)
+- Render-loop hooks for engine-side animation (no JS; timeline-driven)
+- Embedding into `egui` or another host
 
 ## Versioning
 

@@ -27,7 +27,7 @@
   - `cargo test -p wgpu-html-parser`
   - `cargo test -p wgpu-html`
   - `cargo run -p wgpu-html-demo`
-- The demo page is hard-coded by `const DOC: &str = include_str!("../html/flex-browser-like.html");` in `crates/wgpu-html-demo/src/main.rs`. To exercise another demo, change that include.
+- The demo page is hard-coded by `const DEFAULT_DOC: &str = include_str!("../html/flex-browser-like.html");` in `crates/wgpu-html-demo/src/main.rs`. To exercise another demo, change that include.
 - Demo controls from current code: `F12` saves a PNG screenshot, `Esc` exits, `Ctrl+A` selects all text, `Ctrl+C` copies selection.
 
 ## Project-specific conventions

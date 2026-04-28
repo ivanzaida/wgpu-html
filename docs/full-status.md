@@ -1,6 +1,6 @@
 # wgpu-html — Complete Project Status
 
-> **Date:** 2026-04-27
+> **Date:** 2026-04-29
 > **Scope:** GPU-accelerated HTML/CSS renderer via `wgpu`. **No JavaScript — ever.**
 
 ---
@@ -26,19 +26,20 @@ DisplayList
 Frame on wgpu surface
 ```
 
-### Crate map (9 crates)
+### Crate map (10 crates)
 
 | Crate | Role |
 |---|---|
 | `wgpu-html-parser` | HTML tokenizer, tree builder, CSS declaration parser, stylesheet parser |
 | `wgpu-html-models` | `Style` struct (~80+ fields), CSS enums, ~100 HTML element structs |
-| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, interaction state |
-| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching, field merge, CSS-wide keywords, inheritance |
-| `wgpu-html-text` | Font database, text shaping (rustybuzz), glyph atlas (rasterisation + GPU upload) |
-| `wgpu-html-layout` | Block flow, Flexbox, Grid, inline formatting context, hit testing |
-| `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF shader), glyph pipeline, scissor clipping, screenshot |
-| `wgpu-html` | Façade: `parse → cascade → layout → paint`, interactivity module |
-| `wgpu-html-demo` | winit window, font loading, mouse/keyboard events, continuous redraw loop |
+| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, `InteractionState` (hover/active/selection/scroll offsets) |
+| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching (`MatchContext` for `:hover`/`:active`), field merge, CSS-wide keywords, inheritance |
+| `wgpu-html-text` | Font database, text shaping (cosmic-text), glyph atlas (rasterisation + GPU upload) |
+| `wgpu-html-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `EventPhase`, `HtmlEventType`; bubbling semantics |
+| `wgpu-html-layout` | Block flow, Flexbox, Grid, inline formatting context, hit testing, image loading/cache, scroll geometry |
+| `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF shader), glyph pipeline, image pipeline, scissor clipping, screenshot |
+| `wgpu-html` | Façade: `parse → cascade → layout → paint`, interactivity module, `PipelineTimings`, text selection helpers |
+| `wgpu-html-demo` | winit window, font loading, mouse/keyboard/scroll events, scrollbar drag, `ProfileWindow`, continuous redraw loop |
 
 ---
 
@@ -82,7 +83,7 @@ Frame on wgpu surface
 ### 4. Text Rendering
 - **Font database** (`wgpu-html-text/font_db.rs`): register `.ttf` / `.otf` / `.ttc` font files; family + weight + style matching.
 - **Font registration on Tree** (`wgpu-html-tree/fonts.rs`): `FontFace` struct, `Tree::register_font()`, family/weight/style axis.
-- **Text shaping** (`wgpu-html-text/shape.rs`): `rustybuzz`-based shaping, `font-family` list fallback, `font-weight`, `font-style: italic`, `font-size`, `letter-spacing`, `text-transform` (uppercase / lowercase / capitalize), `white-space: pre` vs collapse.
+- **Text shaping** (`wgpu-html-text/shape.rs`): `cosmic-text`-based shaping, `font-family` list fallback, `font-weight`, `font-style: italic`, `font-size`, `letter-spacing`, `text-transform` (uppercase / lowercase / capitalize), `white-space: pre` vs collapse. Key types: `ShapedRun`, `ShapedLine`, `PositionedGlyph`.
 - **Glyph atlas** (`wgpu-html-text/atlas.rs`): CPU rasterisation → GPU texture upload, shelf-packing allocator.
 - **Glyph pipeline** (`wgpu-html-renderer/glyph_pipeline.rs`): dedicated WGSL shader (`glyph.wgsl`), per-glyph instanced quads, alpha-tested coverage.
 - **Per-glyph text color** — resolved from `color` property, inherited through cascade.
@@ -156,15 +157,24 @@ Frame on wgpu surface
 - F12 screenshot → PNG export.
 
 ### 7. Interactivity & Demo
-- **Mouse input:** `CursorMoved`, `MouseInput` (press/release), `CursorLeft` — all wired.
+- **Mouse input:** `CursorMoved`, `MouseInput` (press/release), `CursorLeft`, `MouseWheel` — all wired.
 - **Event system:** `pointer_move`, `pointer_leave`, `mouse_down`, `mouse_up` with hit-test → event dispatch.
-- **Event bubbling:** events bubble up the ancestor chain.
-- **Hover tracking:** `InteractionState` tracks `hover_path` and `active_path`.
-- **Callback slots on Node:** `on_click`, `on_mouse_down`, `on_mouse_up`, `on_mouse_enter`, `on_mouse_leave` — `Arc<dyn Fn(&MouseEvent)>`.
+- **Event typing:** `wgpu-html-events` crate provides `HtmlEvent`, `MouseEvent`, `EventPhase`, `HtmlEventType`; events carry DOM-compatible `target`, `current_target`, `time_stamp`, `buttons` bitmask.
+- **Event bubbling:** mousedown/mouseup/click bubble target → root; mouseenter/mouseleave do not bubble (DOM semantics).
+- **Hover tracking:** `InteractionState` tracks `hover_path` and `active_path`; `:hover` / `:active` cascade integration via `MatchContext::for_path`.
+- **Callback slots on Node:** `on_click`, `on_mouse_down`, `on_mouse_up`, `on_mouse_enter`, `on_mouse_leave` — `Arc<dyn Fn(&MouseEvent)>`; plus `on_event: Arc<dyn Fn(&HtmlEvent)>` for typed DOM events.
 - **MouseEvent:** carries `pos`, `button`, `modifiers` (shift/ctrl/alt/meta), `target_path`, `current_path`.
-- **Keyboard:** F12 (screenshot), Esc (exit).
+- **Text selection:** `TextCursor` / `TextSelection` on `InteractionState`; drag-to-select wired in `interactivity.rs`; `select_all_text` / `selected_text` in `wgpu-html`; `Ctrl+A` + `Ctrl+C` wired in demo via `arboard`.
+- **Scrollbars & scroll offsets:** `InteractionState::scroll_offsets_y: BTreeMap<Vec<usize>, f32>`; viewport and per-element scrollbar paint (10 px track, drag-to-scroll); `MouseWheel` scrolls viewport and nested scroll containers.
+- **Keyboard:** F12 (screenshot), Esc (exit), Ctrl+A (select all), Ctrl+C (copy selection).
 - **Font loading:** platform-aware font discovery (macOS `.ttc`, Windows/Linux `.ttf`), multiple weights/styles registered.
-- **Continuous redraw loop** via `request_redraw` in `about_to_wait`.
+- **Continuous redraw loop** via `request_redraw` in `about_to_wait`. Hover-path changes trigger a throttled redraw (16 ms budget) rather than unconditional full-speed redraws.
+
+### 8. Profiling (Inline)
+- **`PipelineTimings`** struct in `wgpu-html/src/lib.rs`: `cascade_ms`, `layout_ms`, `paint_ms`, `total_ms()`.
+- **`compute_layout_profiled`** and **`paint_tree_returning_layout_profiled`**: profiled variants of the main API; return `(result, PipelineTimings)`.
+- **`ProfileWindow`** in `wgpu-html-demo/src/main.rs`: rolling per-second stats for every pipeline stage (`tree`, `cascade`, `layout`, `paint`, `postprocess`, `atlas_upload`, `render`) plus dedicated hover-path latency breakdown (avg/max pointer-move time, hover-triggered frame breakdown). Printed to stderr once per second.
+- Note: this is an **inline profiler only**. A full `wgpu-html-profiler` crate with ring-buffer history, GPU timing, trace export, and an embedded UI panel is specified in `spec/profiler.md` but does not yet exist.
 
 ---
 
@@ -181,7 +191,7 @@ Frame on wgpu surface
 - **No at-rules:** `@media, @supports, @import, @keyframes, @font-face, @page` — not handled.
 - **No child/sibling combinators:** `>`, `+`, `~` are not supported (only descendant ` ` works).
 - **No attribute selectors** (`[href]`, `[type=text]`).
-- **No pseudo-classes / pseudo-elements** (`:hover, :focus, :nth-child, ::before, ::after`, …).
+- **No structural / logical pseudo-classes / pseudo-elements** (`:focus`, `:nth-child`, `:not()`, `:is()`, `::before`, `::after`, …). Dynamic `:hover` and `:active` *are* supported.
 - `transform, transition, animation, box-shadow` stored as **raw `Option<String>`** — never structured or applied.
 - No `calc()`, no `var(…)`, no custom properties (`--foo`).
 - No structured types for shadows, gradients, transforms, filters, masks, clip-paths.
@@ -189,7 +199,7 @@ Frame on wgpu surface
 ### Style / Cascade Gaps
 - `<link rel="stylesheet">` not loaded — only inline `<style>` blocks.
 - `currentColor` resolves to `None` (no foreground-color fallback for borders).
-- No pseudo-class state integration (`:hover` / `:focus` / `:active` selectors don't exist).
+- No `:focus` / `:focus-visible` / structural pseudo-class state integration.
 
 ### Layout Gaps
 - **No positioned layout:** `position` and `top/right/bottom/left` parsed but never consumed.
@@ -213,9 +223,10 @@ Frame on wgpu surface
 
 ### Interactivity Gaps
 - **No keyboard input** for text fields — `<input>` and `<textarea>` are inert.
-- **No scrolling** — `overflow: scroll/auto` clips but has no scroll position or scroll bars.
-- **No focus management** / tab navigation.
-- **No cursor styling** (`cursor` property parsed but not applied).
+- **No focus management** / tab navigation / `:focus` state.
+- **No `Wheel` event dispatch to elements** — wheel scrolls the viewport and detects scroll-container scroll, but is not forwarded to element `on_event` callbacks.
+- **No cursor styling** (`cursor` property parsed but not applied to the OS cursor shape).
+- **No `pointer-events: none`** skipping in hit test.
 - No event `preventDefault` / `stopPropagation` semantics.
 - The document is a compile-time constant — no URL loading, no live editing, no hot reload.
 
@@ -235,11 +246,12 @@ Frame on wgpu surface
 | CSS-wide keywords (inherit/initial/unset) | ✅ Done |
 | UA default stylesheet | ✅ Done (headings, body margin, inline emphasis, display:none) |
 | Style inheritance | ✅ Done (color, font-*, text-*, line-height, visibility, etc.) |
+| `:hover` / `:active` cascade integration | ✅ Done (`MatchContext::for_path` in `wgpu-html-style`) |
 | Block flow layout | ✅ Done |
 | Flexbox (Level 1 complete) | ✅ Done |
 | CSS Grid | ✅ Done |
 | Inline formatting context | ✅ Done |
-| Text shaping + rendering | ✅ Done (rustybuzz + glyph atlas + GPU pipeline) |
+| Text shaping + rendering | ✅ Done (cosmic-text + glyph atlas + GPU pipeline) |
 | Text decorations | ✅ Done (underline, line-through, overline) |
 | Text alignment | ✅ Done (left, right, center, justify) |
 | letter-spacing / text-transform | ✅ Done |
@@ -248,23 +260,27 @@ Frame on wgpu surface
 | Overflow clipping (hidden/scroll/auto) | ✅ Done (rectangular + rounded SDF) |
 | Borders (solid, dashed, dotted, rounded) | ✅ Done |
 | background-clip | ✅ Done |
+| Images (`<img>`, `background-image`) | ✅ Done (HTTP(S)/file/data-URI, GIF/WebP animation, two-level cache with TTL + byte-budget eviction) |
 | Hit testing | ✅ Done |
-| Mouse events + bubbling | ✅ Done |
+| Mouse events + bubbling | ✅ Done (typed `HtmlEvent` + legacy `MouseEvent` slots) |
 | Hover / active tracking | ✅ Done |
+| Text selection (drag-select, Ctrl+A, Ctrl+C) | ✅ Done (anchor/focus cursors, `arboard` clipboard) |
+| Viewport scrollbar + scroll position | ✅ Done (paint + drag; wheel scroll) |
+| Per-element scroll containers | ⚠️ Partial (scroll offset + scrollbar paint; no `Wheel`→`on_event` dispatch) |
+| Inline pipeline profiling (`PipelineTimings`) | ⚠️ Partial (CPU stage timing + hover latency; no `wgpu-html-profiler` crate) |
 | Screenshot (F12 → PNG) | ✅ Done |
 | Positioned layout (absolute/relative/fixed) | ❌ Not done |
 | z-index | ❌ Not done |
 | Floats | ❌ Not done |
 | Table layout | ❌ Not done |
-| Images (`<img>`, `background-image`) | ❌ Not done |
 | Gradients | ❌ Not done |
 | box-shadow | ❌ Not done |
 | Transforms / transitions / animations | ❌ Not done |
 | Opacity layers / filters / blend modes | ❌ Not done |
-| Scrolling (scroll position + scroll bars) | ❌ Not done |
 | Keyboard input / text editing | ❌ Not done |
-| Focus management | ❌ Not done |
-| Pseudo-classes / pseudo-elements | ❌ Not done |
+| Focus management (Tab, `:focus`) | ❌ Not done |
+| Pseudo-elements (`::before`, `::after`, …) | ❌ Not done |
+| Structural pseudo-classes (`:nth-child`, `:not()`, …) | ❌ Not done |
 | Child/sibling combinators (`>`, `+`, `~`) | ❌ Not done |
 | Attribute selectors | ❌ Not done |
 | At-rules (@media, @keyframes, @font-face…) | ❌ Not done |

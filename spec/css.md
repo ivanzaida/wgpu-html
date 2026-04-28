@@ -82,7 +82,8 @@ plain integers gives the right ordering.
 **Missing / partial**
 - **Descendant combinator is implemented**. Child `>`, adjacent `+`,
   and general sibling `~` are still rejected and drop the rule.
-- **Dynamic pseudo-classes implemented**: `:hover`, `:active`.
+- **Dynamic pseudo-classes implemented**: `:hover`, `:active` (via
+  `MatchContext::for_path` in `wgpu-html-style`).
 - **No attribute selectors**: `[href]`, `[type="text"]`, etc.
 - Structural / logical pseudo-classes still missing: `:focus`,
   `:nth-child`, `:not()`, `:is()`, `:where()`, `:checked`, etc.
@@ -90,8 +91,10 @@ plain integers gives the right ordering.
   `::placeholder`, etc.
 - **No namespaces** (`@namespace`, `ns|tag`).
 
+
 Selector matching supports tree-aware descendant checks plus a
 stateful `MatchContext` for `:hover` / `:active`.
+See `spec/interactivity.md` §8 for cascade integration details.
 
 ## 5. At-rules
 
@@ -305,10 +308,6 @@ are consulted on both the cascade side (for implicit inheritance)
 and the keyword-resolution side (for `unset`).
 
 **Missing / future**
-- No UA default stylesheet, so `<a>` isn't blue/underlined, `<h1>`
-  has no default size, etc. Hosts must declare baselines in their
-  own stylesheet. Adding a UA default sheet would be a one-shot
-  prepended `Stylesheet` injected at cascade time.
 - `direction` and `text-orientation` aren't modeled at all.
 - `font-size: <percent>` on a child should resolve against the
   parent's *computed* font-size in pixels; today our cascade
@@ -323,14 +322,17 @@ and the keyword-resolution side (for `unset`).
 - `<style>` element bodies anywhere in the document — gathered into a
   single `Stylesheet` at cascade time
   (`wgpu-html-style::collect_stylesheet`).
+- **UA default stylesheet** (`wgpu-html-style/src/ua.rs`) — `display:
+  none` for `<head>/<style>/<script>/…`, `body { margin: 8px }`,
+  heading sizes/weights (`h1`–`h6`), block-level margins, inline
+  emphasis (`b, strong, a, code, …`). Injected as the lowest-priority
+  `Stylesheet` in the cascade.
 
 **Missing**
 - `<link rel="stylesheet">` — the parser captures the `href` but
   nothing fetches.
 - `@import url(...)` — at-rules aren't parsed; would need a host
   resolver.
-- User stylesheets / UA stylesheet (would slot in as additional
-  `Stylesheet` instances merged before author rules).
 
 ## 9. Computed values
 
@@ -434,11 +436,15 @@ Each phase ends in something a host can demo or test against.
 
 ### C5 — Pseudo-classes (state + structural)
 
-- State pseudo-classes (`:hover`, `:focus`, `:active`,
-  `:checked`, `:disabled`) — depends on input handling
-  (`spec/devtools.md` D3+).
+- **State pseudo-classes `:hover` and `:active` — ✅ done.** Parsed
+  in `stylesheet.rs`; matched via `MatchContext { is_hover, is_active }`
+  derived in `wgpu-html-style::cascade` from `InteractionState`. See
+  `spec/interactivity.md` for the interaction-state wiring.
+- **Remaining state pseudo-classes** (`:focus`, `:focus-visible`,
+  `:focus-within`, `:disabled`, `:checked`) — not yet matched; `is_focus`
+  is always `false` in the current `MatchContext`.
 - Structural (`:nth-child(...)`, `:first-child`, `:last-child`,
-  `:only-child`, `:empty`) — purely tree-shape; doable today.
+  `:only-child`, `:empty`) — purely tree-shape; doable independently.
 - Logical (`:not(...)`, `:is(...)`, `:where(...)`).
 - Each adds 0/10/100 to specificity per Selectors-4.
 
@@ -468,15 +474,15 @@ Each phase ends in something a host can demo or test against.
   fetch / read the referenced sheet.
 - Concatenate before the importing stylesheet.
 
-### C9 — UA default stylesheet
+### C9 — UA default stylesheet — ✅ Done
 
-- Pre-canned `Stylesheet` covering the obvious HTML defaults
-  (`body { margin: 8px; }`, `h1 { font-size: 2em; font-weight:
-  bold; }`, `a { color: -webkit-link; text-decoration: underline;
-  }`, etc.).
-- Slots in below author rules in the cascade (lowest origin).
-- Most useful once `@font-face` / generic font families land —
-  before then, hosts must do this themselves.
+The UA stylesheet lives in `wgpu-html-style/src/ua.rs` and is injected
+as the lowest-priority `Stylesheet` in every cascade pass. It covers:
+`display: none` for non-rendered elements (`<head>`, `<style>`,
+`<script>`, …), `body { margin: 8px }`, heading sizes and weights
+(`h1`–`h6`), block-level margins (`p`, `ul`, `ol`, `dl`, …), and
+inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
+`mark`, `small`, `sub`, `sup`). See `spec/text.md` §2 for details.
 
 ### C10 — `@font-face`
 
@@ -518,12 +524,14 @@ Each phase ends in something a host can demo or test against.
   sort + insertion order. The parser walks a string left-to-right
   so ordering is deterministic, but a documented test case would
   help.
-- **Initial values without a UA sheet.** Right now `initial`
-  collapses to `None`, which means inherited-by-the-cascade-pass
-  could re-fill it later if we're not careful. The
+- **Initial values without a UA sheet.** The UA sheet now exists
+  (`wgpu-html-style/src/ua.rs`), so `initial` collapsing to `None`
+  is less dangerous than before. However `initial` still resolves to
+  `None` (not the CSS specified-initial value), which means the
   `keywords.contains_key($name)` guard in `inherit_into` is what
-  keeps that working — any future refactor of the cascade has to
-  keep the keyword map alive long enough for that check.
+  keeps "`initial` blocks inheritance" working — any future refactor
+  of the cascade has to keep the keyword map alive long enough for
+  that check.
 - **Whitespace-only text.** Currently dropped at tree-build
   (`docs/status.md` §1). Once the inline formatting context
   arrives, we'll need to keep at least the runs that sit between
@@ -535,14 +543,16 @@ Each phase ends in something a host can demo or test against.
 
 What works end-to-end today: simple selectors with full
 specificity-ordered + `!important`-aware + CSS-wide-keyword-aware
-cascade, implicit inheritance for the standard inheriting set, and
-a shared property-dispatch table that's the single source of truth
-for the parser ↔ cascade boundary.
+cascade, implicit inheritance for the standard inheriting set, a UA
+default stylesheet, dynamic `:hover` / `:active` pseudo-classes backed
+by `InteractionState`, and a shared property-dispatch table that's the
+single source of truth for the parser ↔ cascade boundary.
 
-What doesn't: combinators, pseudo-anything, attribute selectors,
-all at-rules (`@media` / `@import` / `@font-face` / `@keyframes` /
-…), `calc()` / `var()`, UA defaults, `currentcolor` resolution,
-font-relative length resolution.
+What doesn't: remaining combinators (child/sibling), most pseudo-
+classes (`:focus`, structural, logical), pseudo-elements, attribute
+selectors, all at-rules (`@media` / `@import` / `@font-face` /
+`@keyframes` / …), `calc()` / `var()`, `<link>` stylesheet loading,
+`currentcolor` resolution, font-relative length resolution.
 
 C1–C3 land the cascade machinery and are the foundation for
 everything that follows; C4–C7 unlock realistic stylesheets; C8–C13

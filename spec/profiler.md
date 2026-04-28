@@ -18,6 +18,34 @@ frame go?"_ rather than _"what is this element?"_.
 
 ---
 
+## 0. Current state (2026-04-29)
+
+A lightweight **inline profiler** exists today without a dedicated
+crate. Its pieces:
+
+- **`PipelineTimings`** (`wgpu-html/src/lib.rs`): `{ cascade_ms,
+  layout_ms, paint_ms }` + `total_ms()`. Returned by
+  `compute_layout_profiled` and `paint_tree_returning_layout_profiled`.
+- **`ProfileWindow`** (`wgpu-html-demo/src/main.rs`): rolling per-second
+  accumulators for every pipeline stage (`tree`, `cascade`, `layout`,
+  `paint`, `postprocess`, `atlas_upload`, `render`) plus a dedicated
+  hover-latency breakdown (`hover_pointer_move`, `hover_frame_*` — avg
+  and max per pointer-move event, and per hover-triggered frame). Printed
+  to stderr once per second via `take_line_if_due()`.
+- **Stage coverage**: cascade, layout, and paint timings come from
+  `PipelineTimings`; atlas upload, postprocess, and GPU submit/render
+  are timed separately in the demo's redraw loop.
+
+This covers the core of §4 stage timing. What is **not yet built**:
+the `wgpu-html-profiler` crate, ring-buffer history, GPU timestamp
+queries, `summary_string()` as a library method, trace export to
+Chrome JSON, the overlay HUD, and the self-hosted panel. P1's crate
+infrastructure is the next logical step; it would extract
+`PipelineTimings`/`ProfileWindow` into a proper crate and add
+`scope()` + `counter()`.
+
+---
+
 ## 1. Goals
 
 - **Stage timing**: per frame, how many microseconds did `parse`,
@@ -400,13 +428,18 @@ Each phase ends in something the demo / a test can use.
 
 ### P1 — Skeleton + CPU stage timing
 
+> **Note:** The bare functionality of P1 already exists inline in
+> `wgpu-html/src/lib.rs` (`PipelineTimings`) and
+> `wgpu-html-demo/src/main.rs` (`ProfileWindow`). P1 is about
+> extracting this into a proper library crate so any host can use it.
+
 - New crate `wgpu-html-profiler`. `Profiler::new`, `enable`,
   `frame_begin / frame_end`, `scope`, `last_frame`,
   `summary_string`.
 - Engine crates take `Option<&mut Profiler>` on the entry points
   used by `wgpu-html-demo`: `parse`, `cascade`, `layout`, `paint`.
 - Demo binding: `Ctrl+P` toggles profiling; when on, prints
-  `summary_string()` to stdout once a second.
+  `summary_string()` to stderr once a second (matches current behaviour).
 - No GPU timing, no counters, no panel.
 
 ### P2 — Counters + display-list / node stats
