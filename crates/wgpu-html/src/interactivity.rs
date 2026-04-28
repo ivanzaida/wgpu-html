@@ -620,6 +620,7 @@ mod tests {
             text_color: Some([0.0, 0.0, 0.0, 1.0]),
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
+            opacity: 1.0,
             image: None,
             background_image: None,
             children: Vec::new(),

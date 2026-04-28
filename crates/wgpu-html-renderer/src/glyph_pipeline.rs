@@ -70,6 +70,7 @@ pub struct GlyphPipeline {
     /// clip stack. Kept on the pipeline to avoid threading the
     /// `DisplayList` through the render pass.
     clip_runs: Vec<GlyphClipRun>,
+    clip_slots: Vec<Option<GlyphClipRun>>,
     viewport: [u32; 2],
     /// Layout reused at `prepare` time when the globals buffer
     /// grows and the bind group has to be re-built around it.
@@ -311,6 +312,7 @@ impl GlyphPipeline {
             instance_capacity: initial_instances,
             instance_count: 0,
             clip_runs: Vec::new(),
+            clip_slots: Vec::new(),
             viewport: [0, 0],
             bind_group_layout,
             globals_capacity_slots: 1,
@@ -354,19 +356,23 @@ impl GlyphPipeline {
         // skipped; an all-empty list still gets one default slot so
         // record() can bind something.
         self.clip_runs.clear();
+        self.clip_slots.clear();
+        self.clip_slots.resize(list.clips.len(), None);
         let mut globals_blocks: Vec<Globals> = Vec::new();
-        for clip in &list.clips {
+        for (clip_index, clip) in list.clips.iter().enumerate() {
             if clip.glyph_range.0 == clip.glyph_range.1 {
                 continue;
             }
             let rect = clamp_scissor_rect(clip.rect, self.viewport);
             let slot = globals_blocks.len() as u32;
             globals_blocks.push(globals_for(viewport, clip));
-            self.clip_runs.push(GlyphClipRun {
+            let run = GlyphClipRun {
                 rect,
                 instances: clip.glyph_range,
                 slot,
-            });
+            };
+            self.clip_runs.push(run);
+            self.clip_slots[clip_index] = Some(run);
         }
         if globals_blocks.is_empty() {
             globals_blocks.push(globals_for(
@@ -465,11 +471,39 @@ impl GlyphPipeline {
             return;
         }
         for run in &self.clip_runs {
-            let offset = (run.slot as u32) * (CLIP_SLOT_STRIDE as u32);
-            pass.set_bind_group(0, &self.bind_group, &[offset]);
-            pass.set_scissor_rect(run.rect[0], run.rect[1], run.rect[2], run.rect[3]);
-            pass.draw_indexed(0..6, 0, run.instances.0..run.instances.1);
+            self.record_prepared_range(pass, *run, run.instances.0..run.instances.1);
         }
+    }
+
+    pub fn record_range<'p>(
+        &'p self,
+        pass: &mut wgpu::RenderPass<'p>,
+        clip_index: u32,
+        instances: std::ops::Range<u32>,
+    ) {
+        if self.instance_count == 0 || instances.start >= instances.end {
+            return;
+        }
+        let Some(Some(run)) = self.clip_slots.get(clip_index as usize) else {
+            return;
+        };
+        pass.set_pipeline(&self.pipeline);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        self.record_prepared_range(pass, *run, instances);
+    }
+
+    fn record_prepared_range<'p>(
+        &'p self,
+        pass: &mut wgpu::RenderPass<'p>,
+        run: GlyphClipRun,
+        instances: std::ops::Range<u32>,
+    ) {
+        let offset = (run.slot as u32) * (CLIP_SLOT_STRIDE as u32);
+        pass.set_bind_group(0, &self.bind_group, &[offset]);
+        pass.set_scissor_rect(run.rect[0], run.rect[1], run.rect[2], run.rect[3]);
+        pass.draw_indexed(0..6, 0, instances);
     }
 }
 

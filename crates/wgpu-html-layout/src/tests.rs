@@ -34,6 +34,20 @@ fn explicit_size_used_verbatim() {
 }
 
 #[test]
+fn opacity_is_carried_to_layout_and_clamped() {
+    let tree = make(
+        r#"<body style="margin: 0; opacity: 2;">
+            <div style="opacity: 0.35; width: 10px; height: 10px;"></div>
+            <div style="opacity: -1; width: 10px; height: 10px;"></div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.opacity, 1.0);
+    assert!((root.children[0].opacity - 0.35).abs() < 0.001);
+    assert_eq!(root.children[1].opacity, 0.0);
+}
+
+#[test]
 fn calc_width_resolves_mixed_percent_and_px() {
     let tree = make(
         r#"<body style="margin: 0;">
@@ -135,6 +149,127 @@ fn child_margin_separates_siblings() {
     assert_eq!(kids[0].margin_rect.h, 38.0);
     // Second child sits below the margin box of the first: y = 38
     assert_eq!(kids[1].margin_rect.y, 38.0);
+}
+
+#[test]
+fn absolute_positioned_child_does_not_affect_normal_flow() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div style="position: relative; height: 100px;">
+                <div style="position: absolute; top: 0; left: 0; width: 50px; height: 500px;"></div>
+            </div>
+            <div style="height: 20px;"></div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.children[0].border_rect.h, 100.0);
+    assert_eq!(root.children[0].children[0].border_rect.h, 500.0);
+    assert_eq!(root.children[1].border_rect.y, 100.0);
+}
+
+#[test]
+fn absolute_inset_fills_positioned_parent_padding_box() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div style="position: relative; width: 200px; height: 100px; padding: 10px;">
+                <div style="position: absolute; inset: 0;"></div>
+            </div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let parent = &root.children[0];
+    let overlay = &parent.children[0];
+    assert_eq!(parent.border_rect.w, 220.0);
+    assert_eq!(parent.border_rect.h, 120.0);
+    assert_eq!(overlay.border_rect.x, 0.0);
+    assert_eq!(overlay.border_rect.y, 0.0);
+    assert_eq!(overlay.border_rect.w, 220.0);
+    assert_eq!(overlay.border_rect.h, 120.0);
+}
+
+#[test]
+fn absolute_inset_from_stylesheet_uses_relative_parent() {
+    let tree = make(
+        r#"
+        <style>
+            body { margin: 0; padding: 32px; }
+            .stage { position: relative; width: 620px; height: 320px; padding: 24px; border: 2px solid black; }
+            .card { position: relative; width: 330px; height: 170px; padding: 18px; border: 2px solid blue; }
+            .absolute-fill { position: absolute; inset: 0; border: 3px solid teal; }
+        </style>
+        <div class="stage">
+            <div class="card">
+                <div class="absolute-fill"></div>
+            </div>
+        </div>
+        "#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let stage = &root.children[1];
+    let card = &stage.children[0];
+    let overlay = &card.children[0];
+    assert_eq!(stage.border_rect.x, 32.0);
+    assert_eq!(stage.border_rect.y, 32.0);
+    assert_eq!(card.border_rect.x, 58.0);
+    assert_eq!(card.border_rect.y, 58.0);
+    assert_eq!(card.border_rect.w, 370.0);
+    assert_eq!(card.border_rect.h, 210.0);
+    assert_eq!(overlay.border_rect.x, 60.0);
+    assert_eq!(overlay.border_rect.y, 60.0);
+    assert_eq!(overlay.border_rect.w, 366.0);
+    assert_eq!(overlay.border_rect.h, 206.0);
+}
+
+#[test]
+fn absolute_right_auto_width_shrink_wraps_content() {
+    let tree = make(
+        r#"
+        <style>
+            body { margin: 0; }
+            .card { position: relative; width: 300px; height: 120px; }
+            .badge { position: absolute; top: 10px; right: 12px; padding: 6px 10px; }
+        </style>
+        <div class="card">
+            <div class="badge">absolute</div>
+        </div>
+        "#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let badge = &root.children[1].children[0];
+    assert!(
+        badge.border_rect.w < 300.0,
+        "auto-width absolute box should shrink-wrap, got {}",
+        badge.border_rect.w
+    );
+    assert_eq!(badge.border_rect.x + badge.border_rect.w, 288.0);
+    assert_eq!(badge.border_rect.y, 10.0);
+}
+
+#[test]
+fn fixed_position_uses_viewport_as_containing_block() {
+    let tree = make(
+        r#"<body style="margin: 0; padding: 20px;">
+            <div style="position: fixed; right: 10px; bottom: 15px; width: 50px; height: 25px;"></div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let fixed = &root.children[0];
+    assert_eq!(fixed.border_rect.x, 740.0);
+    assert_eq!(fixed.border_rect.y, 560.0);
+}
+
+#[test]
+fn relative_position_offsets_box_but_preserves_flow_slot() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div style="position: relative; top: 10px; left: 5px; height: 20px;"></div>
+            <div style="height: 20px;"></div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.children[0].border_rect.x, 5.0);
+    assert_eq!(root.children[0].border_rect.y, 10.0);
+    assert_eq!(root.children[1].border_rect.y, 20.0);
 }
 
 #[test]
@@ -1363,6 +1498,7 @@ fn synthetic_text_layout() -> LayoutBox {
         text_color: Some([0.0, 0.0, 0.0, 1.0]),
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
+        opacity: 1.0,
         image: None,
         background_image: None,
         children: Vec::new(),

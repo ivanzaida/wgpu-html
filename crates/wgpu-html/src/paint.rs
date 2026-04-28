@@ -17,6 +17,11 @@ const SCROLLBAR_MIN_THUMB: f32 = 18.0;
 const SCROLLBAR_TRACK: [f32; 4] = [0.15, 0.18, 0.22, 0.45];
 const SCROLLBAR_THUMB: [f32; 4] = [0.55, 0.60, 0.68, 0.85];
 
+fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_html_renderer::Color {
+    color[3] *= opacity.clamp(0.0, 1.0);
+    color
+}
+
 /// Convenience: cascade `tree` against any embedded `<style>` blocks,
 /// lay it out at `(viewport_w × viewport_h)`, and paint the result into
 /// a fresh display list. No text rendering — text leaves contribute
@@ -61,6 +66,7 @@ pub fn paint_tree_with_text(
             tree.interaction.selection_colors,
             &tree.interaction.scroll_offsets_y,
             0.0,
+            1.0,
         );
     }
     list.finalize();
@@ -104,6 +110,7 @@ pub fn paint_layout_with_selection(
         selection_colors,
         &scroll_offsets_y,
         0.0,
+        1.0,
     );
 }
 
@@ -127,6 +134,7 @@ pub fn paint_layout_with_interaction(
         selection_colors,
         scroll_offsets_y,
         0.0,
+        1.0,
     );
 }
 
@@ -198,7 +206,9 @@ fn paint_box_in_clip(
     selection_colors: SelectionColors,
     scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
     paint_offset_y: f32,
+    parent_opacity: f32,
 ) {
+    let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
     let rect = to_renderer_rect_y(b.border_rect, paint_offset_y);
     let (rh, rv) = corner_radii(b);
     let rounded = has_any_radius(&rh) || has_any_radius(&rv);
@@ -206,6 +216,7 @@ fn paint_box_in_clip(
     // Background paints into the rectangle picked by `background-clip`
     // (border-box by default; padding-box / content-box also supported).
     if let Some(color) = b.background {
+        let color = apply_opacity(color, opacity);
         let bg = to_renderer_rect_y(b.background_rect, paint_offset_y);
         if bg.w > 0.0 && bg.h > 0.0 {
             let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
@@ -235,7 +246,14 @@ fn paint_box_in_clip(
             for tile in &bgi.tiles {
                 let r = Rect::new(tile.x, tile.y + paint_offset_y, tile.w, tile.h);
                 if r.w > 0.0 && r.h > 0.0 {
-                    out.push_image(r, bgi.image_id, bgi.data.clone(), bgi.width, bgi.height);
+                    out.push_image_with_opacity(
+                        r,
+                        bgi.image_id,
+                        bgi.data.clone(),
+                        bgi.width,
+                        bgi.height,
+                        opacity,
+                    );
                 }
             }
             if needs_round_clip {
@@ -255,6 +273,7 @@ fn paint_box_in_clip(
     // emitting up to four sharp edge quads.
     if rounded {
         if let Some(color) = uniform_border_color(b) {
+            let color = apply_opacity(color, opacity);
             let stroke = [b.border.top, b.border.right, b.border.bottom, b.border.left];
             if stroke.iter().any(|s| *s > 0.0) {
                 out.push_quad_stroke_ellipse(rect, color, rh, rv, stroke);
@@ -266,22 +285,23 @@ fn paint_box_in_clip(
             // dashed / dotted on rounded boxes are still rendered as
             // sharp segments — they overlap the rounded path slightly
             // at the corners (acknowledged limitation).
-            paint_rounded_per_side_borders(b, rect, rh, rv, out);
+            paint_rounded_per_side_borders(b, rect, rh, rv, opacity, out);
         }
     } else {
-        paint_border_edges(b, out, paint_offset_y);
+        paint_border_edges(b, out, paint_offset_y, opacity);
     }
 
     // Image: emit one image quad covering the content rect.
     if let Some(ref img) = b.image {
         let cr = b.content_rect;
         if cr.w > 0.0 && cr.h > 0.0 {
-            out.push_image(
+            out.push_image_with_opacity(
                 Rect::new(cr.x, cr.y + paint_offset_y, cr.w, cr.h),
                 img.image_id,
                 img.data.clone(),
                 img.width,
                 img.height,
+                opacity,
             );
         }
     }
@@ -291,7 +311,7 @@ fn paint_box_in_clip(
     // computed at shaping time; the renderer samples its single R8
     // atlas with them.
     if let Some(run) = &b.text_run {
-        let color = b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]);
+        let color = apply_opacity(b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]), opacity);
         let mut origin = b.content_rect;
         origin.y += paint_offset_y;
         let selected_range = selection_range_for_path(selection, path, run.glyphs.len());
@@ -316,7 +336,14 @@ fn paint_box_in_clip(
         }
 
         if let Some((start, end)) = selected_range {
-            paint_selection_background(run, origin, start, end, selection_colors.background, out);
+            paint_selection_background(
+                run,
+                origin,
+                start,
+                end,
+                apply_opacity(selection_colors.background, opacity),
+                out,
+            );
         }
 
         for (idx, g) in run.glyphs.iter().enumerate() {
@@ -332,7 +359,7 @@ fn paint_box_in_clip(
                 };
             out.push_glyph(
                 Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),
-                glyph_color,
+                apply_opacity(glyph_color, opacity),
                 g.uv_min,
                 g.uv_max,
             );
@@ -387,6 +414,7 @@ fn paint_box_in_clip(
             selection_colors,
             scroll_offsets_y,
             child_offset_y,
+            opacity,
         );
         path.pop();
     }
@@ -401,7 +429,7 @@ fn paint_box_in_clip(
         );
     }
 
-    paint_scrollbars(b, out, paint_offset_y, scroll_y);
+    paint_scrollbars(b, out, paint_offset_y, scroll_y, opacity);
 }
 
 fn selection_range_for_path(
@@ -533,7 +561,13 @@ fn overflow_clip_rect(b: &LayoutBox, pad: Rect, parent: Option<ClipFrame>) -> Re
     }
 }
 
-fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, scroll_y: f32) {
+fn paint_scrollbars(
+    b: &LayoutBox,
+    out: &mut DisplayList,
+    paint_offset_y: f32,
+    scroll_y: f32,
+    opacity: f32,
+) {
     if !should_paint_vertical_scrollbar(b) {
         return;
     }
@@ -543,7 +577,7 @@ fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, s
     }
     let track_w = SCROLLBAR_THICKNESS.min(pad.w);
     let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
-    out.push_quad(track, SCROLLBAR_TRACK);
+    out.push_quad(track, apply_opacity(SCROLLBAR_TRACK, opacity));
 
     let scroll_h = scrollable_content_height(b).max(pad.h);
     let max_scroll = (scroll_h - pad.h).max(0.0);
@@ -557,7 +591,7 @@ fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, s
         (track.w - 4.0).max(1.0),
         (thumb_h - 4.0).max(1.0),
     );
-    out.push_quad(thumb, SCROLLBAR_THUMB);
+    out.push_quad(thumb, apply_opacity(SCROLLBAR_THUMB, opacity));
 }
 
 fn element_scroll_y(
@@ -656,6 +690,7 @@ fn paint_rounded_per_side_borders(
     rect: Rect,
     rh: [f32; 4],
     rv: [f32; 4],
+    opacity: f32,
     out: &mut DisplayList,
 ) {
     use wgpu_html_models::common::css_enums::BorderStyle;
@@ -682,6 +717,7 @@ fn paint_rounded_per_side_borders(
             continue;
         }
         let Some(color) = color else { continue };
+        let color = apply_opacity(color, opacity);
         let kind = match style {
             None | Some(BorderStyle::Solid) => EdgeKind::Solid,
             Some(BorderStyle::None) | Some(BorderStyle::Hidden) => EdgeKind::Skip,
@@ -855,7 +891,7 @@ fn has_any_radius(r: &[f32; 4]) -> bool {
 /// is independently coloured and styled. `solid` is one full-edge quad;
 /// `dashed` and `dotted` are emitted as a row of short segment quads;
 /// `none` and `hidden` are skipped. Other values render as solid.
-fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32) {
+fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, opacity: f32) {
     use wgpu_html_models::common::css_enums::BorderStyle;
 
     let r = b.border_rect;
@@ -872,6 +908,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32)
     // pixels for left/right edges so corners draw exactly once.
     if bd.top > 0.0 {
         if let Some(c) = bc.top {
+            let c = apply_opacity(c, opacity);
             paint_edge(
                 Rect::new(r.x, r.y + paint_offset_y, r.w, bd.top),
                 Axis::Horizontal,
@@ -885,6 +922,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32)
     // Bottom edge.
     if bd.bottom > 0.0 {
         if let Some(c) = bc.bottom {
+            let c = apply_opacity(c, opacity);
             paint_edge(
                 Rect::new(r.x, r.y + paint_offset_y + r.h - bd.bottom, r.w, bd.bottom),
                 Axis::Horizontal,
@@ -898,6 +936,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32)
     // Left edge — sits between the top and bottom strips.
     if bd.left > 0.0 && inner_h > 0.0 {
         if let Some(c) = bc.left {
+            let c = apply_opacity(c, opacity);
             paint_edge(
                 Rect::new(r.x, r.y + paint_offset_y + bd.top, bd.left, inner_h),
                 Axis::Vertical,
@@ -911,6 +950,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32)
     // Right edge.
     if bd.right > 0.0 && inner_h > 0.0 {
         if let Some(c) = bc.right {
+            let c = apply_opacity(c, opacity);
             paint_edge(
                 Rect::new(
                     r.x + r.w - bd.right,
@@ -1086,6 +1126,7 @@ mod tests {
             text_color: Some([0.0, 0.0, 0.0, 1.0]),
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
+            opacity: 1.0,
             image: None,
             background_image: None,
             children: Vec::new(),
@@ -1102,6 +1143,18 @@ mod tests {
         let q = list.quads[0];
         assert_eq!(q.rect.w, 100.0);
         assert_eq!(q.rect.h, 50.0);
+    }
+
+    #[test]
+    fn opacity_multiplies_background_through_subtree() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0; opacity: 0.5;">
+                <div style="opacity: 0.5; width: 100px; height: 50px; background-color: blue;"></div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert_eq!(list.quads.len(), 1);
+        assert!((list.quads[0].color[3] - 0.25).abs() < 0.001);
     }
 
     #[test]

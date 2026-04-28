@@ -15,7 +15,7 @@
 
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
-    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, WhiteSpace,
+    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, WhiteSpace,
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
@@ -1629,6 +1629,9 @@ pub struct LayoutBox {
     /// is the no-op default; clipping values ask the paint pass and
     /// hit testing to constrain descendants on the matching axis.
     pub overflow: OverflowAxes,
+    /// Computed CSS opacity for this element. Paint multiplies this
+    /// into the inherited opacity for the whole subtree.
+    pub opacity: f32,
     /// Decoded image data for `<img>` elements. `None` for non-image
     /// boxes. The `Arc` allows cheap cloning through the display list.
     pub image: Option<ImageData>,
@@ -1981,6 +1984,7 @@ pub fn layout_with_text(
         0.0,
         viewport_w,
         viewport_h,
+        Rect::new(0.0, 0.0, viewport_w, viewport_h),
         BlockOverrides::default(),
         &mut ctx,
     ))
@@ -2045,6 +2049,7 @@ pub(crate) fn layout_block_at_with(
         origin_y,
         container_w,
         container_h,
+        Rect::new(origin_x, origin_y, container_w, container_h),
         overrides,
         ctx,
     )
@@ -2056,6 +2061,7 @@ fn layout_block(
     origin_y: f32,
     container_w: f32,
     container_h: f32,
+    containing_block: Rect,
     overrides: BlockOverrides,
     ctx: &mut Ctx,
 ) -> LayoutBox {
@@ -2234,6 +2240,16 @@ fn layout_block(
     };
 
     let display = style.display.clone().unwrap_or(Display::Block);
+    let child_containing_block = if establishes_containing_block(style) {
+        Rect::new(
+            origin_x + margin.left + border.left,
+            origin_y + margin.top + border.top,
+            padding.horizontal() + inner_width,
+            padding.vertical() + inner_height_explicit.unwrap_or(container_h),
+        )
+    } else {
+        containing_block
+    };
     let (children, content_h_from_children) = match display {
         Display::Flex | Display::InlineFlex => {
             let (kids, _content_w_used, content_h_used) = flex::layout_flex_children(
@@ -2273,16 +2289,41 @@ fn layout_block(
                 let mut children = Vec::with_capacity(node.children.len());
                 let mut cursor = 0.0_f32;
                 for child in &node.children {
-                    let child_box = layout_block(
-                        child,
-                        content_x,
-                        content_y_top + cursor,
-                        inner_width,
-                        container_h,
-                        BlockOverrides::default(),
-                        ctx,
-                    );
-                    cursor += child_box.margin_rect.h;
+                    let child_position = child.style.position.clone().unwrap_or(Position::Static);
+                    let mut child_box = if is_out_of_flow_position(child_position.clone()) {
+                        layout_out_of_flow_block(
+                            child,
+                            content_x,
+                            content_y_top + cursor,
+                            inner_width,
+                            container_h,
+                            child_containing_block,
+                            ctx,
+                        )
+                    } else {
+                        layout_block(
+                            child,
+                            content_x,
+                            content_y_top + cursor,
+                            inner_width,
+                            container_h,
+                            child_containing_block,
+                            BlockOverrides::default(),
+                            ctx,
+                        )
+                    };
+                    if matches!(child_position, Position::Relative | Position::Sticky) {
+                        apply_relative_position(
+                            &mut child_box,
+                            &child.style,
+                            inner_width,
+                            container_h,
+                            ctx,
+                        );
+                    }
+                    if !is_out_of_flow_position(child_position) {
+                        cursor += child_box.margin_rect.h;
+                    }
                     children.push(child_box);
                 }
                 (children, cursor)
@@ -2396,9 +2437,166 @@ fn layout_block(
         text_color: None,
         text_decorations: Vec::new(),
         overflow: effective_overflow(style),
+        opacity: resolved_opacity(style),
         image: img_data,
         background_image,
         children,
+    }
+}
+
+fn is_out_of_flow_position(position: Position) -> bool {
+    matches!(position, Position::Absolute | Position::Fixed)
+}
+
+fn resolved_opacity(style: &Style) -> f32 {
+    style.opacity.unwrap_or(1.0).clamp(0.0, 1.0)
+}
+
+fn establishes_containing_block(style: &Style) -> bool {
+    !matches!(style.position, None | Some(Position::Static))
+}
+
+fn layout_out_of_flow_block(
+    node: &CascadedNode,
+    static_x: f32,
+    static_y: f32,
+    _container_w: f32,
+    _container_h: f32,
+    containing_block: Rect,
+    ctx: &mut Ctx,
+) -> LayoutBox {
+    let style = &node.style;
+    let cb = if matches!(style.position, Some(Position::Fixed)) {
+        Rect::new(0.0, 0.0, ctx.viewport_w, ctx.viewport_h)
+    } else {
+        containing_block
+    };
+    let left = length::resolve(style.left.as_ref(), cb.w, ctx);
+    let right = length::resolve(style.right.as_ref(), cb.w, ctx);
+    let top = length::resolve(style.top.as_ref(), cb.h, ctx);
+    let bottom = length::resolve(style.bottom.as_ref(), cb.h, ctx);
+    let overrides = positioned_overrides(node, cb.w, cb.h, left, right, top, bottom, ctx);
+
+    let origin_x = left.map(|v| cb.x + v).unwrap_or(static_x);
+    let origin_y = top.map(|v| cb.y + v).unwrap_or(static_y);
+    let mut box_ = layout_block(node, origin_x, origin_y, cb.w, cb.h, cb, overrides, ctx);
+
+    if left.is_none()
+        && let Some(right) = right
+    {
+        let target_x = cb.x + cb.w - right - box_.margin_rect.w;
+        let dx = target_x - box_.margin_rect.x;
+        translate_box_x_in_place(&mut box_, dx);
+    }
+    if top.is_none()
+        && let Some(bottom) = bottom
+    {
+        let target_y = cb.y + cb.h - bottom - box_.margin_rect.h;
+        let dy = target_y - box_.margin_rect.y;
+        translate_box_y_in_place(&mut box_, dy);
+    }
+    box_
+}
+
+fn positioned_overrides(
+    node: &CascadedNode,
+    cb_w: f32,
+    cb_h: f32,
+    left: Option<f32>,
+    right: Option<f32>,
+    top: Option<f32>,
+    bottom: Option<f32>,
+    ctx: &mut Ctx,
+) -> BlockOverrides {
+    let style = &node.style;
+    let margin = resolve_insets_margin(style, cb_w, ctx);
+    let border = Insets {
+        top: length::resolve(style.border_top_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
+        right: length::resolve(style.border_right_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
+        bottom: length::resolve(style.border_bottom_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
+        left: length::resolve(style.border_left_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
+    };
+    let padding = resolve_insets_padding(style, cb_w, ctx);
+    let width = if style.width.is_none() {
+        match left.zip(right) {
+            Some((left, right)) => Some(
+                (cb_w
+                    - left
+                    - right
+                    - margin.horizontal()
+                    - border.horizontal()
+                    - padding.horizontal())
+                .max(0.0),
+            ),
+            None => Some(shrink_to_fit_content_width(node, cb_w, ctx)),
+        }
+    } else {
+        None
+    };
+    let height = if style.height.is_none() {
+        top.zip(bottom).map(|(top, bottom)| {
+            (cb_h - top - bottom - margin.vertical() - border.vertical() - padding.vertical())
+                .max(0.0)
+        })
+    } else {
+        None
+    };
+    BlockOverrides {
+        width,
+        height,
+        ignore_style_width: false,
+        ignore_style_height: false,
+    }
+}
+
+fn shrink_to_fit_content_width(node: &CascadedNode, available_w: f32, ctx: &mut Ctx) -> f32 {
+    if all_children_inline_level(node) {
+        let (_children, width, _height) =
+            layout_inline_block_children(node, 0.0, 0.0, available_w, ctx);
+        return width.min(available_w).max(0.0);
+    }
+
+    node.children
+        .iter()
+        .filter(|child| {
+            !is_out_of_flow_position(child.style.position.clone().unwrap_or(Position::Static))
+        })
+        .map(|child| {
+            let measured = layout_block(
+                child,
+                0.0,
+                0.0,
+                available_w,
+                f32::INFINITY,
+                Rect::new(0.0, 0.0, available_w, f32::INFINITY),
+                BlockOverrides::default(),
+                ctx,
+            );
+            measured.margin_rect.w
+        })
+        .fold(0.0_f32, f32::max)
+        .min(available_w)
+        .max(0.0)
+}
+
+fn apply_relative_position(
+    box_: &mut LayoutBox,
+    style: &Style,
+    container_w: f32,
+    container_h: f32,
+    ctx: &mut Ctx,
+) {
+    let left = length::resolve(style.left.as_ref(), container_w, ctx);
+    let right = length::resolve(style.right.as_ref(), container_w, ctx);
+    let top = length::resolve(style.top.as_ref(), container_h, ctx);
+    let bottom = length::resolve(style.bottom.as_ref(), container_h, ctx);
+    let dx = left.or_else(|| right.map(|v| -v)).unwrap_or(0.0);
+    let dy = top.or_else(|| bottom.map(|v| -v)).unwrap_or(0.0);
+    if dx != 0.0 {
+        translate_box_x_in_place(box_, dx);
+    }
+    if dy != 0.0 {
+        translate_box_y_in_place(box_, dy);
     }
 }
 
@@ -2752,6 +2950,7 @@ fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         text_color: None,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
+        opacity: 1.0,
         image: None,
         background_image: None,
         children: Vec::new(),
@@ -2794,6 +2993,7 @@ fn make_text_leaf(
         text_color: Some(text_color),
         text_decorations: decorations,
         overflow: OverflowAxes::visible(),
+        opacity: resolved_opacity(style),
         image: None,
         background_image: None,
         children: Vec::new(),
@@ -2976,6 +3176,7 @@ fn layout_inline_subtree(
             origin_y,
             container_w,
             f32::INFINITY,
+            Rect::new(origin_x, origin_y, container_w, f32::INFINITY),
             BlockOverrides::default(),
             ctx,
         );
@@ -3046,6 +3247,7 @@ fn layout_inline_subtree(
         // descendant). The inline wrapper itself draws nothing.
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
+        opacity: resolved_opacity(&node.style),
         image: None,
         background_image: None,
         children: final_children,
@@ -3213,6 +3415,7 @@ fn layout_atomic_inline_subtree(
             text_color: None,
             text_decorations: Vec::new(),
             overflow: OverflowAxes::visible(),
+            opacity: resolved_opacity(style),
             image: None,
             background_image: None,
             children,
@@ -3601,6 +3804,7 @@ struct InlineBlockSpan {
     background: Option<Color>,
     decorations: Vec<TextDecorationLine>,
     decoration_color: Color,
+    opacity: f32,
 }
 
 #[derive(Default)]
@@ -3614,7 +3818,18 @@ struct ParagraphCollapseState {
     prev_space: bool,
 }
 
-fn push_paragraph_span(node: &CascadedNode, text: String, plan: &mut ParagraphPlan, ctx: &mut Ctx) {
+fn color_with_opacity(mut color: Color, opacity: f32) -> Color {
+    color[3] *= opacity.clamp(0.0, 1.0);
+    color
+}
+
+fn push_paragraph_span(
+    node: &CascadedNode,
+    text: String,
+    plan: &mut ParagraphPlan,
+    ctx: &mut Ctx,
+    opacity: f32,
+) {
     if text.is_empty() {
         return;
     }
@@ -3644,7 +3859,7 @@ fn push_paragraph_span(node: &CascadedNode, text: String, plan: &mut ParagraphPl
         style_axis: axis,
         size_px: size_css * ctx.scale,
         line_height_px: line_h_css * ctx.scale,
-        color,
+        color: color_with_opacity(color, opacity),
     });
 }
 
@@ -3658,19 +3873,21 @@ fn collect_paragraph_spans(
     plan: &mut ParagraphPlan,
     ctx: &mut Ctx,
     collapse: &mut ParagraphCollapseState,
+    inherited_opacity: f32,
 ) {
     if matches!(node.style.display, Some(Display::None)) {
         return;
     }
+    let opacity = inherited_opacity * resolved_opacity(&node.style);
 
     if matches!(&node.element, Element::Br(_)) {
         collapse.prev_space = false;
-        push_paragraph_span(node, "\n".to_string(), plan, ctx);
+        push_paragraph_span(node, "\n".to_string(), plan, ctx, opacity);
         return;
     }
 
     if matches!(&node.element, Element::Wbr(_)) {
-        push_paragraph_span(node, "\u{200B}".to_string(), plan, ctx);
+        push_paragraph_span(node, "\u{200B}".to_string(), plan, ctx, opacity);
         return;
     }
 
@@ -3683,13 +3900,13 @@ fn collect_paragraph_spans(
             Some(t) => t,
             None => normalized,
         };
-        push_paragraph_span(node, display, plan, ctx);
+        push_paragraph_span(node, display, plan, ctx, opacity);
         return;
     }
 
     let leaf_start = plan.spans.len() as u32;
     for child in &node.children {
-        collect_paragraph_spans(child, plan, ctx, collapse);
+        collect_paragraph_spans(child, plan, ctx, collapse, opacity);
     }
     let leaf_end = plan.spans.len() as u32;
     if leaf_end > leaf_start {
@@ -3707,6 +3924,7 @@ fn collect_paragraph_spans(
                 background: bg,
                 decorations: decos,
                 decoration_color,
+                opacity,
             });
         }
     }
@@ -3715,7 +3933,7 @@ fn collect_paragraph_spans(
 /// Build a `LayoutBox` whose only purpose is to paint a solid
 /// background fill — used for inline-element backgrounds (`<mark>`)
 /// and decoration bars (underline / line-through / overline).
-fn make_anon_bg_box(rect: Rect, color: Color) -> LayoutBox {
+fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     LayoutBox {
         margin_rect: rect,
         border_rect: rect,
@@ -3732,6 +3950,7 @@ fn make_anon_bg_box(rect: Rect, color: Color) -> LayoutBox {
         text_color: None,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
+        opacity: opacity.clamp(0.0, 1.0),
         image: None,
         background_image: None,
         children: Vec::new(),
@@ -3752,7 +3971,7 @@ fn layout_inline_paragraph(
     let mut plan = ParagraphPlan::default();
     let mut collapse = ParagraphCollapseState::default();
     for child in &node.children {
-        collect_paragraph_spans(child, &mut plan, ctx, &mut collapse);
+        collect_paragraph_spans(child, &mut plan, ctx, &mut collapse, 1.0);
     }
     if plan.spans.is_empty() {
         return (Vec::new(), 0.0, 0.0);
@@ -3836,7 +4055,7 @@ fn layout_inline_paragraph(
                     line.height,
                 );
                 if r.w > 0.0 && r.h > 0.0 {
-                    boxes.push(make_anon_bg_box(r, bg));
+                    boxes.push(make_anon_bg_box(r, bg, inline.opacity));
                 }
             }
         }
@@ -3871,7 +4090,7 @@ fn layout_inline_paragraph(
                         thickness,
                     );
                     if r.w > 0.0 && r.h > 0.0 {
-                        boxes.push(make_anon_bg_box(r, inline.decoration_color));
+                        boxes.push(make_anon_bg_box(r, inline.decoration_color, inline.opacity));
                     }
                 }
             }
@@ -3943,6 +4162,7 @@ fn layout_inline_paragraph(
         text_color: None,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
+        opacity: resolved_opacity(&node.style),
         image: None,
         background_image: None,
         children: Vec::new(),

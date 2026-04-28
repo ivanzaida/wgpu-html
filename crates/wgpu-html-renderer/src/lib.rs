@@ -19,7 +19,9 @@ mod screenshot;
 
 pub use glyph_pipeline::GlyphPipeline;
 pub use image_pipeline::ImagePipeline;
-pub use paint::{Color, DisplayList, GlyphQuad, ImageQuad, Quad, Rect};
+pub use paint::{
+    Color, DisplayCommand, DisplayCommandKind, DisplayList, GlyphQuad, ImageQuad, Quad, Rect,
+};
 pub use quad_pipeline::QuadPipeline;
 pub use screenshot::ScreenshotError;
 
@@ -211,12 +213,12 @@ impl Renderer {
                 label: Some("wgpu-html frame encoder"),
             });
 
-        // Pass 1: quads, sRGB view, clear → store. Pixel values land
-        // in the surface as sRGB-encoded bytes (the GPU does the
-        // linear→sRGB encode on write).
+        // Initial clear. Actual drawing below follows DisplayList
+        // command order, switching render passes only when the command
+        // type needs a different pipeline/view.
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("quad pass"),
+                label: Some("clear pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &srgb_view,
                     resolve_target: None,
@@ -231,54 +233,10 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            self.quads.record(&mut pass);
+            let _ = &mut pass;
         }
 
-        // Pass 1.5: images, sRGB view, load → store.
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("image pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &srgb_view,
-                    resolve_target: None,
-                    depth_slice: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            self.images.record(&mut pass);
-        }
-
-        // Pass 2: glyphs, non-sRGB view, load → store. The dst pixels
-        // are read as raw (already-sRGB-encoded) bytes; the shader
-        // outputs a likewise-sRGB-encoded foreground; the GPU's
-        // standard linear-space alpha blend therefore composites in
-        // display space, which is what the eye expects from text.
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("glyph pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &glyph_view,
-                    resolve_target: None,
-                    depth_slice: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            self.glyphs.record(&mut pass);
-        }
+        self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
 
         // If a capture was requested, append a texture-to-buffer copy to
         // the same encoder so it sees the just-rendered surface texture.
@@ -312,6 +270,170 @@ impl Renderer {
 
         frame.present();
         FrameOutcome::Presented
+    }
+
+    fn record_ordered_commands(
+        &self,
+        list: &DisplayList,
+        encoder: &mut wgpu::CommandEncoder,
+        srgb_view: &wgpu::TextureView,
+        glyph_view: &wgpu::TextureView,
+    ) {
+        if list.commands.is_empty() {
+            self.record_legacy_batches(encoder, srgb_view, glyph_view);
+            return;
+        }
+
+        let mut cursor = 0usize;
+        while cursor < list.commands.len() {
+            let first = list.commands[cursor];
+            let mut end = cursor + 1;
+            while end < list.commands.len() {
+                let prev = list.commands[end - 1];
+                let next = list.commands[end];
+                if next.kind != first.kind
+                    || next.clip_index != first.clip_index
+                    || next.index != prev.index + 1
+                {
+                    break;
+                }
+                end += 1;
+            }
+
+            let instances = first.index..list.commands[end - 1].index + 1;
+            match first.kind {
+                DisplayCommandKind::Quad => {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("ordered quad pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: srgb_view,
+                            resolve_target: None,
+                            depth_slice: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    self.quads
+                        .record_range(&mut pass, first.clip_index, instances);
+                }
+                DisplayCommandKind::Image => {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("ordered image pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: srgb_view,
+                            resolve_target: None,
+                            depth_slice: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    self.images
+                        .record_range(&mut pass, first.clip_index, instances);
+                }
+                DisplayCommandKind::Glyph => {
+                    // Glyphs use the non-sRGB view so alpha blending
+                    // happens in display space, matching the previous
+                    // dedicated glyph pass.
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("ordered glyph pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: glyph_view,
+                            resolve_target: None,
+                            depth_slice: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    self.glyphs
+                        .record_range(&mut pass, first.clip_index, instances);
+                }
+            }
+
+            cursor = end;
+        }
+    }
+
+    fn record_legacy_batches(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        srgb_view: &wgpu::TextureView,
+        glyph_view: &wgpu::TextureView,
+    ) {
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("legacy quad pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: srgb_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.quads.record(&mut pass);
+        }
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("legacy image pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: srgb_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.images.record(&mut pass);
+        }
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("legacy glyph pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: glyph_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.glyphs.record(&mut pass);
+        }
     }
 }
 

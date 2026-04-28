@@ -84,6 +84,7 @@ pub struct QuadPipeline {
     /// at `prepare` time and walked in `record` to issue one
     /// `set_scissor_rect` + `draw_indexed` per entry.
     clip_runs: Vec<ClipRun>,
+    clip_slots: Vec<Option<ClipRun>>,
     /// Cached viewport extents so `record` can clamp out-of-bounds
     /// scissor rects (wgpu panics on out-of-bounds values) and emit
     /// a full-viewport scissor for `rect == None`.
@@ -277,6 +278,7 @@ impl QuadPipeline {
             instance_capacity: initial_instances,
             instance_count: 0,
             clip_runs: Vec::new(),
+            clip_slots: Vec::new(),
             viewport: [0, 0],
         }
     }
@@ -311,19 +313,23 @@ impl QuadPipeline {
         // one slot per *non-empty* clip range; a list with no clipping
         // emits a single slot covering everything.
         self.clip_runs.clear();
+        self.clip_slots.clear();
+        self.clip_slots.resize(list.clips.len(), None);
         let mut globals_blocks: Vec<Globals> = Vec::new();
-        for clip in &list.clips {
+        for (clip_index, clip) in list.clips.iter().enumerate() {
             if clip.quad_range.0 == clip.quad_range.1 {
                 continue;
             }
             let rect = clamp_scissor_rect(clip.rect, self.viewport);
             let slot = globals_blocks.len() as u32;
             globals_blocks.push(globals_for(viewport, clip));
-            self.clip_runs.push(ClipRun {
+            let run = ClipRun {
                 rect,
                 instances: clip.quad_range,
                 slot,
-            });
+            };
+            self.clip_runs.push(run);
+            self.clip_slots[clip_index] = Some(run);
         }
         if globals_blocks.is_empty() {
             // No quads at all → still need one slot for any future
@@ -414,11 +420,39 @@ impl QuadPipeline {
         }
 
         for run in &self.clip_runs {
-            let offset = (run.slot as u32) * (CLIP_SLOT_STRIDE as u32);
-            pass.set_bind_group(0, &self.bind_group, &[offset]);
-            pass.set_scissor_rect(run.rect[0], run.rect[1], run.rect[2], run.rect[3]);
-            pass.draw_indexed(0..6, 0, run.instances.0..run.instances.1);
+            self.record_prepared_range(pass, *run, run.instances.0..run.instances.1);
         }
+    }
+
+    pub fn record_range<'p>(
+        &'p self,
+        pass: &mut wgpu::RenderPass<'p>,
+        clip_index: u32,
+        instances: std::ops::Range<u32>,
+    ) {
+        if self.instance_count == 0 || instances.start >= instances.end {
+            return;
+        }
+        let Some(Some(run)) = self.clip_slots.get(clip_index as usize) else {
+            return;
+        };
+        pass.set_pipeline(&self.pipeline);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        self.record_prepared_range(pass, *run, instances);
+    }
+
+    fn record_prepared_range<'p>(
+        &'p self,
+        pass: &mut wgpu::RenderPass<'p>,
+        run: ClipRun,
+        instances: std::ops::Range<u32>,
+    ) {
+        let offset = (run.slot as u32) * (CLIP_SLOT_STRIDE as u32);
+        pass.set_bind_group(0, &self.bind_group, &[offset]);
+        pass.set_scissor_rect(run.rect[0], run.rect[1], run.rect[2], run.rect[3]);
+        pass.draw_indexed(0..6, 0, instances);
     }
 }
 

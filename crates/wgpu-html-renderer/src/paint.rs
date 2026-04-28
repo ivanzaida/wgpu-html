@@ -87,6 +87,7 @@ pub struct GlyphQuad {
 #[derive(Debug, Clone)]
 pub struct ImageQuad {
     pub rect: Rect,
+    pub opacity: f32,
     /// Unique identifier for the image data. Images with the same
     /// `image_id` share a single GPU texture.
     pub image_id: u64,
@@ -151,9 +152,23 @@ impl ClipRange {
     }
 }
 
-/// Flat list of paint commands. The renderer draws `quads` first,
-/// then `images`, then `glyphs` on top, in source order within each
-/// list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisplayCommandKind {
+    Quad,
+    Image,
+    Glyph,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DisplayCommand {
+    pub kind: DisplayCommandKind,
+    pub index: u32,
+    pub clip_index: u32,
+}
+
+/// Flat list of paint commands. Typed instance vectors are kept for GPU
+/// upload efficiency; `commands` preserves cross-type paint order so a
+/// later background can correctly cover earlier text.
 ///
 /// `clips` partitions all instance vectors into render-order runs;
 /// for a list with no `overflow: hidden` boxes the partition has a
@@ -164,6 +179,7 @@ pub struct DisplayList {
     pub images: Vec<ImageQuad>,
     pub glyphs: Vec<GlyphQuad>,
     pub clips: Vec<ClipRange>,
+    pub commands: Vec<DisplayCommand>,
 }
 
 impl Default for DisplayList {
@@ -184,6 +200,7 @@ impl Default for DisplayList {
                 image_range: (0, 0),
                 glyph_range: (0, 0),
             }],
+            commands: Vec::new(),
         }
     }
 }
@@ -201,6 +218,10 @@ impl DisplayList {
             last.image_range.1 = self.images.len() as u32;
             last.glyph_range.1 = self.glyphs.len() as u32;
         }
+    }
+
+    fn current_clip_index(&self) -> u32 {
+        self.clips.len().saturating_sub(1) as u32
     }
 
     /// Open a new clip range with the given scissor rect and rounded
@@ -272,6 +293,7 @@ impl DisplayList {
     }
 
     pub fn push_quad(&mut self, rect: Rect, color: Color) -> &mut Self {
+        let index = self.quads.len() as u32;
         self.quads.push(Quad {
             rect,
             color,
@@ -280,11 +302,17 @@ impl DisplayList {
             stroke: [0.0; 4],
             pattern: [0.0; 4],
         });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Quad,
+            index,
+            clip_index: self.current_clip_index(),
+        });
         self
     }
 
     /// Push a filled box with circular rounded corners (`radii.h == radii.v`).
     pub fn push_quad_rounded(&mut self, rect: Rect, color: Color, radii: CornerRadii) -> &mut Self {
+        let index = self.quads.len() as u32;
         self.quads.push(Quad {
             rect,
             color,
@@ -292,6 +320,11 @@ impl DisplayList {
             radii_v: radii,
             stroke: [0.0; 4],
             pattern: [0.0; 4],
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Quad,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -304,6 +337,7 @@ impl DisplayList {
         radii_h: CornerRadii,
         radii_v: CornerRadii,
     ) -> &mut Self {
+        let index = self.quads.len() as u32;
         self.quads.push(Quad {
             rect,
             color,
@@ -311,6 +345,11 @@ impl DisplayList {
             radii_v,
             stroke: [0.0; 4],
             pattern: [0.0; 4],
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Quad,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -323,6 +362,7 @@ impl DisplayList {
         radii: CornerRadii,
         stroke: StrokeWidths,
     ) -> &mut Self {
+        let index = self.quads.len() as u32;
         self.quads.push(Quad {
             rect,
             color,
@@ -330,6 +370,11 @@ impl DisplayList {
             radii_v: radii,
             stroke,
             pattern: [0.0; 4],
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Quad,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -343,6 +388,7 @@ impl DisplayList {
         radii_v: CornerRadii,
         stroke: StrokeWidths,
     ) -> &mut Self {
+        let index = self.quads.len() as u32;
         self.quads.push(Quad {
             rect,
             color,
@@ -350,6 +396,11 @@ impl DisplayList {
             radii_v,
             stroke,
             pattern: [0.0; 4],
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Quad,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -367,6 +418,7 @@ impl DisplayList {
         stroke: StrokeWidths,
         pattern: Pattern,
     ) -> &mut Self {
+        let index = self.quads.len() as u32;
         self.quads.push(Quad {
             rect,
             color,
@@ -374,6 +426,11 @@ impl DisplayList {
             radii_v,
             stroke,
             pattern,
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Quad,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -388,11 +445,17 @@ impl DisplayList {
         uv_min: [f32; 2],
         uv_max: [f32; 2],
     ) -> &mut Self {
+        let index = self.glyphs.len() as u32;
         self.glyphs.push(GlyphQuad {
             rect,
             color,
             uv_min,
             uv_max,
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Glyph,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -407,12 +470,32 @@ impl DisplayList {
         width: u32,
         height: u32,
     ) -> &mut Self {
+        self.push_image_with_opacity(rect, image_id, data, width, height, 1.0)
+    }
+
+    /// Push one image quad with a subtree opacity multiplier.
+    pub fn push_image_with_opacity(
+        &mut self,
+        rect: Rect,
+        image_id: u64,
+        data: std::sync::Arc<Vec<u8>>,
+        width: u32,
+        height: u32,
+        opacity: f32,
+    ) -> &mut Self {
+        let index = self.images.len() as u32;
         self.images.push(ImageQuad {
             rect,
+            opacity: opacity.clamp(0.0, 1.0),
             image_id,
             data,
             width,
             height,
+        });
+        self.commands.push(DisplayCommand {
+            kind: DisplayCommandKind::Image,
+            index,
+            clip_index: self.current_clip_index(),
         });
         self
     }
@@ -422,6 +505,7 @@ impl DisplayList {
         self.images.clear();
         self.glyphs.clear();
         self.clips.clear();
+        self.commands.clear();
         self.clips.push(ClipRange {
             rect: None,
             radii_h: [0.0; 4],
@@ -430,5 +514,49 @@ impl DisplayList {
             image_range: (0, 0),
             glyph_range: (0, 0),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_commands_preserve_cross_type_push_order() {
+        let mut list = DisplayList::new();
+        list.push_glyph(
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            [0.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 1.0],
+        );
+        list.push_quad(Rect::new(0.0, 0.0, 20.0, 20.0), [1.0, 0.0, 0.0, 1.0]);
+        list.push_glyph(
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            [1.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 1.0],
+        );
+
+        assert_eq!(
+            list.commands,
+            vec![
+                DisplayCommand {
+                    kind: DisplayCommandKind::Glyph,
+                    index: 0,
+                    clip_index: 0,
+                },
+                DisplayCommand {
+                    kind: DisplayCommandKind::Quad,
+                    index: 0,
+                    clip_index: 0,
+                },
+                DisplayCommand {
+                    kind: DisplayCommandKind::Glyph,
+                    index: 1,
+                    clip_index: 0,
+                },
+            ]
+        );
     }
 }

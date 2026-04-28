@@ -29,6 +29,7 @@ const CLIP_SLOT_STRIDE: u64 = 256;
 struct ImageInstance {
     pos: [f32; 2],
     size: [f32; 2],
+    opacity: [f32; 4],
 }
 
 impl From<&ImageQuad> for ImageInstance {
@@ -36,6 +37,7 @@ impl From<&ImageQuad> for ImageInstance {
         Self {
             pos: [q.rect.x, q.rect.y],
             size: [q.rect.w, q.rect.h],
+            opacity: [q.opacity, 0.0, 0.0, 0.0],
         }
     }
 }
@@ -61,6 +63,7 @@ pub struct ImagePipeline {
     cache: HashMap<u64, CachedImage>,
     /// Draw commands built during `prepare`.
     draws: Vec<ImageDraw>,
+    draws_by_instance: Vec<Option<ImageDraw>>,
     viewport: [u32; 2],
 }
 
@@ -161,6 +164,11 @@ impl ImagePipeline {
                                 offset: 8,
                                 shader_location: 2,
                             },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 16,
+                                shader_location: 3,
+                            },
                         ],
                     },
                 ],
@@ -231,6 +239,7 @@ impl ImagePipeline {
             globals_capacity_slots: init_slots,
             cache: HashMap::new(),
             draws: Vec::new(),
+            draws_by_instance: Vec::new(),
             viewport: [1, 1],
         }
     }
@@ -252,6 +261,7 @@ impl ImagePipeline {
         list: &DisplayList,
     ) {
         self.draws.clear();
+        self.draws_by_instance.clear();
         self.viewport = [viewport[0] as u32, viewport[1] as u32];
 
         if list.images.is_empty() {
@@ -332,6 +342,7 @@ impl ImagePipeline {
         for img in &list.images {
             instances.push(ImageInstance::from(img));
         }
+        self.draws_by_instance.resize(list.images.len(), None);
 
         // Grow instance buffer if needed.
         let needed = instances.len() as u64;
@@ -383,12 +394,14 @@ impl ImagePipeline {
             );
             let scissor = clamp_scissor_rect(clip.rect, self.viewport);
             for i in start..end {
-                self.draws.push(ImageDraw {
+                let draw = ImageDraw {
                     image_id: list.images[i as usize].image_id,
                     instance_index: i,
                     scissor,
                     slot: slot_idx,
-                });
+                };
+                self.draws.push(draw);
+                self.draws_by_instance[i as usize] = Some(draw);
             }
             slot_idx += 1;
         }
@@ -434,22 +447,47 @@ impl ImagePipeline {
         pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
         for draw in &self.draws {
-            let Some(cached) = self.cache.get(&draw.image_id) else {
+            self.record_prepared_draw(pass, *draw);
+        }
+    }
+
+    pub fn record_range<'p>(
+        &'p self,
+        pass: &mut wgpu::RenderPass<'p>,
+        _clip_index: u32,
+        instances: std::ops::Range<u32>,
+    ) {
+        if self.draws_by_instance.is_empty() || instances.start >= instances.end {
+            return;
+        }
+        pass.set_pipeline(&self.pipeline);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        for i in instances {
+            let Some(Some(draw)) = self.draws_by_instance.get(i as usize) else {
                 continue;
             };
-            let offset = draw.slot as u64 * CLIP_SLOT_STRIDE;
-            pass.set_bind_group(0, Some(&cached.bind_group), &[offset as u32]);
-            let [x, y, w, h] = draw.scissor;
-            if w == 0 || h == 0 {
-                continue;
-            }
-            pass.set_scissor_rect(x, y, w, h);
-            pass.draw_indexed(
-                0..UNIT_QUAD_INDICES.len() as u32,
-                0,
-                draw.instance_index..draw.instance_index + 1,
-            );
+            self.record_prepared_draw(pass, *draw);
         }
+    }
+
+    fn record_prepared_draw<'p>(&'p self, pass: &mut wgpu::RenderPass<'p>, draw: ImageDraw) {
+        let Some(cached) = self.cache.get(&draw.image_id) else {
+            return;
+        };
+        let offset = draw.slot as u64 * CLIP_SLOT_STRIDE;
+        pass.set_bind_group(0, Some(&cached.bind_group), &[offset as u32]);
+        let [x, y, w, h] = draw.scissor;
+        if w == 0 || h == 0 {
+            return;
+        }
+        pass.set_scissor_rect(x, y, w, h);
+        pass.draw_indexed(
+            0..UNIT_QUAD_INDICES.len() as u32,
+            0,
+            draw.instance_index..draw.instance_index + 1,
+        );
     }
 }
 
