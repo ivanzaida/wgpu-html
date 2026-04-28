@@ -6,6 +6,7 @@
 //!
 //! Models stay pure data. Composition lives here.
 
+use std::time::Duration;
 use wgpu_html_models as m;
 
 mod events;
@@ -25,6 +26,14 @@ pub struct Tree {
     /// Mutated by the dispatcher in `wgpu_html::interactivity`; the
     /// cascade and paint passes read it but never write.
     pub interaction: InteractionState,
+    /// How long to keep decoded images in memory after their last use
+    /// before reclaiming. `None` leaves the engine default in place
+    /// (5 minutes); `Some(d)` overrides it on the next layout pass.
+    /// The setting is applied process-wide — successive trees with
+    /// different values "win" in last-applied order. Set to a small
+    /// value to aggressively free memory on memory-constrained hosts;
+    /// raise it to keep images warm across navigations.
+    pub asset_cache_ttl: Option<Duration>,
 }
 
 impl Tree {
@@ -33,6 +42,7 @@ impl Tree {
             root: Some(root),
             fonts: FontRegistry::new(),
             interaction: InteractionState::default(),
+            asset_cache_ttl: None,
         }
     }
 

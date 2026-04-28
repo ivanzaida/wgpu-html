@@ -30,6 +30,9 @@ pub fn paint_tree_with_text(
     scale: f32,
 ) -> DisplayList {
     text_ctx.sync_fonts(&tree.fonts);
+    if let Some(ttl) = tree.asset_cache_ttl {
+        wgpu_html_layout::set_image_cache_ttl(ttl);
+    }
     let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
     if let Some(root) = wgpu_html_layout::layout_with_text(

@@ -449,6 +449,9 @@ impl ImagePipeline {
             let offset = draw.slot as u64 * CLIP_SLOT_STRIDE;
             pass.set_bind_group(0, Some(&cached.bind_group), &[offset as u32]);
             let [x, y, w, h] = draw.scissor;
+            if w == 0 || h == 0 {
+                continue;
+            }
             pass.set_scissor_rect(x, y, w, h);
             pass.draw_indexed(
                 0..UNIT_QUAD_INDICES.len() as u32,
@@ -483,14 +486,14 @@ fn globals_for(viewport: [f32; 2], clip: &crate::paint::ClipRange) -> Globals {
 }
 
 fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2]) -> [u32; 4] {
-    match rect {
-        Some(r) => {
-            let x = (r.x as u32).min(viewport[0]);
-            let y = (r.y as u32).min(viewport[1]);
-            let w = (r.w as u32).min(viewport[0].saturating_sub(x));
-            let h = (r.h as u32).min(viewport[1].saturating_sub(y));
-            [x, y, w.max(1), h.max(1)]
-        }
-        None => [0, 0, viewport[0].max(1), viewport[1].max(1)],
-    }
+    let vw = viewport[0];
+    let vh = viewport[1];
+    let Some(r) = rect else {
+        return [0, 0, vw, vh];
+    };
+    let x0 = r.x.max(0.0).round().min(vw as f32) as u32;
+    let y0 = r.y.max(0.0).round().min(vh as f32) as u32;
+    let x1 = (r.x + r.w).max(0.0).round().min(vw as f32) as u32;
+    let y1 = (r.y + r.h).max(0.0).round().min(vh as f32) as u32;
+    [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
 }

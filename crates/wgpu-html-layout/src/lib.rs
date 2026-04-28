@@ -26,33 +26,318 @@ mod length;
 
 pub use color::{Color, resolve_color};
 
+use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::io::Read;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
-/// Load an `<img>` element's `src` file and decode it to RGBA8.
-/// Returns `None` if `src` is unset or the file can't be loaded.
-/// HTML `width`/`height` attributes override the decoded dimensions.
-fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
-    let src = img.src.as_deref()?;
-    let dyn_img = image::open(src).ok()?;
-    let rgba = dyn_img.to_rgba8();
-    let (decoded_w, decoded_h) = (rgba.width(), rgba.height());
-    let w = img.width.unwrap_or(decoded_w);
-    let h = img.height.unwrap_or(decoded_h);
-    // Resize if HTML attrs differ from decoded size.
-    let final_rgba = if w != decoded_w || h != decoded_h {
-        image::imageops::resize(&rgba, w, h, image::imageops::FilterType::Lanczos3)
+/// State of a unique `src` in the raw (pre-resize) decode cache.
+#[derive(Clone)]
+enum RawState {
+    /// A background thread is currently fetching/decoding this URL.
+    /// Subsequent `load_image` calls return `None` (placeholder) until
+    /// it transitions to `Ready` or `Failed`.
+    Pending,
+    /// Decoded RGBA8 bytes plus intrinsic dimensions. The `Arc` lets
+    /// every sized variant share the same underlying buffer when no
+    /// resize is needed.
+    Ready { rgba: Arc<Vec<u8>>, w: u32, h: u32 },
+    /// A previous fetch/decode attempt failed; memoized so we don't
+    /// retry forever.
+    Failed,
+}
+
+/// Cache entry wrapping a value with its last-access timestamp. Used
+/// for both the raw-by-URL and the sized-by-(URL,w,h) caches so that
+/// stale entries (not touched by any `load_image` call within the
+/// configured TTL) can be reclaimed by [`sweep_image_cache`].
+struct CacheEntry<V> {
+    value: V,
+    last_access: Instant,
+}
+
+impl<V> CacheEntry<V> {
+    fn new(value: V) -> Self {
+        Self { value, last_access: Instant::now() }
+    }
+    fn touch(&mut self) {
+        self.last_access = Instant::now();
+    }
+}
+
+/// Per-URL raw decode cache. Keyed by `src` only — independent of the
+/// `<img>` element's declared width/height — so the same URL rendered
+/// at multiple sizes is fetched and decoded exactly once.
+fn raw_cache() -> &'static Mutex<HashMap<String, CacheEntry<RawState>>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, CacheEntry<RawState>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Sized cache: keyed by `(src, declared_w, declared_h)`. Holds the
+/// final, possibly-resized `ImageData` ready for the renderer. `None`
+/// here means "src failed to load"; that propagates up so the layout
+/// pass treats it as a missing image.
+type SizedKey = (String, Option<u32>, Option<u32>);
+fn sized_cache() -> &'static Mutex<HashMap<SizedKey, CacheEntry<Option<ImageData>>>> {
+    static CACHE: OnceLock<Mutex<HashMap<SizedKey, CacheEntry<Option<ImageData>>>>> =
+        OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Cache TTL in seconds. Entries (in either cache) whose `last_access`
+/// is older than this are dropped on the next sweep. Default: 5 min.
+/// Configurable via [`set_image_cache_ttl`].
+static CACHE_TTL_SECS: AtomicU64 = AtomicU64::new(300);
+
+/// How often the opportunistic sweep is allowed to run, regardless of
+/// how many `load_image` calls happen in between. Avoids walking the
+/// maps on every layout frame.
+const SWEEP_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Timestamp of the most recent sweep. Lazily initialised on first
+/// access. Holds a `Mutex<Instant>` rather than an atomic because
+/// `Instant` isn't `AtomicU64`-compatible portably.
+fn last_sweep() -> &'static Mutex<Instant> {
+    static LAST: OnceLock<Mutex<Instant>> = OnceLock::new();
+    LAST.get_or_init(|| Mutex::new(Instant::now()))
+}
+
+/// Returns the current cache TTL.
+pub fn image_cache_ttl() -> Duration {
+    Duration::from_secs(CACHE_TTL_SECS.load(Ordering::Acquire))
+}
+
+/// Override the cache TTL. Entries last accessed more than this long
+/// ago are dropped on the next sweep. A TTL of zero seconds disables
+/// caching effectively (every sweep clears the maps), so prefer values
+/// of at least a few seconds.
+pub fn set_image_cache_ttl(ttl: Duration) {
+    CACHE_TTL_SECS.store(ttl.as_secs(), Ordering::Release);
+}
+
+/// Drop every cached image regardless of age. Pending fetches are
+/// preserved (the in-flight worker still has a reference to the URL
+/// and will try to insert its result on completion).
+pub fn purge_image_cache() {
+    if let Ok(mut cache) = sized_cache().lock() {
+        cache.clear();
+    }
+    if let Ok(mut cache) = raw_cache().lock() {
+        cache.retain(|_, entry| matches!(entry.value, RawState::Pending));
+    }
+}
+
+/// Walk both caches and drop any entry whose `last_access` is older
+/// than the configured TTL. Skips `RawState::Pending` so an in-flight
+/// fetch isn't lost. Safe to call from any thread; called
+/// opportunistically at the top of `load_image`, so manual invocation
+/// is rarely needed.
+pub fn sweep_image_cache() {
+    let ttl = image_cache_ttl();
+    let now = Instant::now();
+    if let Ok(mut cache) = sized_cache().lock() {
+        cache.retain(|_, entry| now.duration_since(entry.last_access) < ttl);
+    }
+    if let Ok(mut cache) = raw_cache().lock() {
+        cache.retain(|_, entry| {
+            // Never evict an in-flight fetch (we'd lose the result).
+            matches!(entry.value, RawState::Pending)
+                || now.duration_since(entry.last_access) < ttl
+        });
+    }
+}
+
+/// Run [`sweep_image_cache`] if `SWEEP_INTERVAL` has elapsed since the
+/// last sweep. Cheap to call from hot paths.
+fn maybe_sweep() {
+    let now = Instant::now();
+    let due = match last_sweep().lock() {
+        Ok(mut last) => {
+            if now.duration_since(*last) >= SWEEP_INTERVAL {
+                *last = now;
+                true
+            } else {
+                false
+            }
+        }
+        Err(_) => false,
+    };
+    if due {
+        sweep_image_cache();
+    }
+}
+
+/// Monotonic counter bumped every time a background fetch completes
+/// (success *or* failure). Hosts that don't already redraw every frame
+/// can poll [`image_load_revision`] and trigger a relayout when it
+/// changes — e.g. in winit's `about_to_wait`.
+fn revision() -> &'static AtomicU64 {
+    static REV: AtomicU64 = AtomicU64::new(0);
+    &REV
+}
+
+/// Returns a counter that increments each time a remote image finishes
+/// loading. Compare against the previously observed value to decide
+/// whether a relayout/redraw is warranted.
+pub fn image_load_revision() -> u64 {
+    revision().load(Ordering::Acquire)
+}
+
+/// Fetch the raw bytes for an `<img>` `src`. Supports `http://` and
+/// `https://` URLs (blocking via `ureq`, intended to run on a worker
+/// thread); anything else is treated as a local filesystem path.
+fn fetch_image_bytes(src: &str) -> Option<Vec<u8>> {
+    if src.starts_with("http://") || src.starts_with("https://") {
+        let resp = ureq::get(src).call().ok()?;
+        // Cap at a sane upper bound (32 MiB) to avoid unbounded reads.
+        let mut buf = Vec::new();
+        resp.into_reader()
+            .take(32 * 1024 * 1024)
+            .read_to_end(&mut buf)
+            .ok()?;
+        Some(buf)
     } else {
+        std::fs::read(src).ok()
+    }
+}
+
+/// Decode arbitrary image bytes to RGBA8 + intrinsic dimensions.
+fn decode_rgba(bytes: &[u8]) -> Option<(Arc<Vec<u8>>, u32, u32)> {
+    let dyn_img = image::load_from_memory(bytes).ok()?;
+    let rgba = dyn_img.to_rgba8();
+    let (w, h) = (rgba.width(), rgba.height());
+    Some((Arc::new(rgba.into_raw()), w, h))
+}
+
+/// Build a sized `ImageData` from a raw cache entry. Resizes (Lanczos3)
+/// when the element's declared `width`/`height` differ from the
+/// intrinsic ones; otherwise the underlying RGBA `Arc` is shared.
+fn build_sized(
+    src: &str,
+    rgba: Arc<Vec<u8>>,
+    decoded_w: u32,
+    decoded_h: u32,
+    declared_w: Option<u32>,
+    declared_h: Option<u32>,
+) -> Option<ImageData> {
+    let w = declared_w.unwrap_or(decoded_w);
+    let h = declared_h.unwrap_or(decoded_h);
+    let data = if w == decoded_w && h == decoded_h {
         rgba
+    } else {
+        let buf = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(
+            decoded_w,
+            decoded_h,
+            (*rgba).clone(),
+        )?;
+        let resized = image::imageops::resize(&buf, w, h, image::imageops::FilterType::Lanczos3);
+        Arc::new(resized.into_raw())
     };
     let mut hasher = DefaultHasher::new();
     src.hash(&mut hasher);
+    declared_w.hash(&mut hasher);
+    declared_h.hash(&mut hasher);
     Some(ImageData {
         image_id: hasher.finish(),
-        data: std::sync::Arc::new(final_rgba.into_raw()),
+        data,
         width: w,
         height: h,
     })
+}
+
+/// Spawn a background worker that fetches+decodes `src` and stores the
+/// result in `raw_cache`. The caller must have already inserted a
+/// `Pending` entry so duplicate spawns can't happen for the same URL.
+fn spawn_remote_fetch(src: String) {
+    std::thread::spawn(move || {
+        let outcome = match fetch_image_bytes(&src).as_deref().and_then(decode_rgba) {
+            Some((rgba, w, h)) => RawState::Ready { rgba, w, h },
+            None => RawState::Failed,
+        };
+        if let Ok(mut cache) = raw_cache().lock() {
+            cache.insert(src, CacheEntry::new(outcome));
+        }
+        revision().fetch_add(1, Ordering::AcqRel);
+    });
+}
+
+/// Load an `<img>` element's `src` and produce decoded RGBA8 ready for
+/// the GPU. Returns `None` if `src` is unset, or if the image isn't
+/// available *yet* — see scheme-specific behaviour below.
+///
+/// - `http://` / `https://` URLs are fetched on a background thread.
+///   The first call kicks off the fetch and returns `None`
+///   (placeholder — the layout treats the `<img>` as having no
+///   intrinsic size for that pass). Subsequent calls return `Some(..)`
+///   once the worker has stored the decoded bytes; in between the
+///   entry is `Pending` and no duplicate fetch is started.
+/// - Anything else is treated as a local filesystem path and loaded
+///   synchronously (file I/O is fast and predictable).
+///
+/// Both raw decoded bytes and per-size resize results are cached
+/// process-wide. The same URL rendered at multiple declared
+/// `width`/`height`s reuses the single decoded buffer.
+fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
+    let src = img.src.as_deref()?;
+    let sized_key: SizedKey = (src.to_owned(), img.width, img.height);
+
+    // Opportunistically reclaim memory from idle entries.
+    maybe_sweep();
+
+    // Fast path: we already produced the sized result for this URL+size.
+    // Touch its `last_access` so it stays warm.
+    if let Ok(mut cache) = sized_cache().lock() {
+        if let Some(entry) = cache.get_mut(&sized_key) {
+            entry.touch();
+            return entry.value.clone();
+        }
+    }
+
+    // Look up (or initialise) the per-URL raw entry. Touch on hit.
+    let raw = {
+        let mut cache = raw_cache().lock().ok()?;
+        match cache.get_mut(src) {
+            Some(entry) => {
+                entry.touch();
+                entry.value.clone()
+            }
+            None => {
+                if src.starts_with("http://") || src.starts_with("https://") {
+                    // First sighting of a remote URL: kick off async fetch.
+                    cache.insert(src.to_owned(), CacheEntry::new(RawState::Pending));
+                    drop(cache);
+                    spawn_remote_fetch(src.to_owned());
+                    return None;
+                }
+                // Local file: load+decode synchronously and cache.
+                drop(cache);
+                let state = match fetch_image_bytes(src).as_deref().and_then(decode_rgba) {
+                    Some((rgba, w, h)) => RawState::Ready { rgba, w, h },
+                    None => RawState::Failed,
+                };
+                if let Ok(mut cache) = raw_cache().lock() {
+                    cache.insert(src.to_owned(), CacheEntry::new(state.clone()));
+                }
+                state
+            }
+        }
+    };
+
+    let result = match raw {
+        RawState::Pending => return None,
+        RawState::Failed => None,
+        RawState::Ready { rgba, w, h } => build_sized(src, rgba, w, h, img.width, img.height),
+    };
+
+    // Cache the sized variant (including failures, so repeated misses
+    // are O(1) hashmap lookups rather than re-failing every pass).
+    if let Ok(mut cache) = sized_cache().lock() {
+        cache.insert(sized_key, CacheEntry::new(result.clone()));
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------

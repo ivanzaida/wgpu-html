@@ -33,6 +33,9 @@ pub fn compute_layout(
     scale: f32,
 ) -> Option<LayoutBox> {
     text_ctx.sync_fonts(&tree.fonts);
+    if let Some(ttl) = tree.asset_cache_ttl {
+        wgpu_html_layout::set_image_cache_ttl(ttl);
+    }
     let cascaded = wgpu_html_style::cascade(tree);
     wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale)
 }
