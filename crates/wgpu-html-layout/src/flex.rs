@@ -36,7 +36,7 @@ use wgpu_html_tree::Element;
 
 use crate::{
     BlockOverrides, Ctx, LayoutBox, is_auto_margin, layout_block_at_with, length,
-    translate_box_x_in_place, translate_box_y_in_place,
+    measure_text_leaf, translate_box_x_in_place, translate_box_y_in_place,
 };
 
 // ---------------------------------------------------------------------------
@@ -677,7 +677,8 @@ fn build_item<'a>(
     } else {
         style.height.as_ref()
     };
-    let intrinsic_main = replaced_intrinsic_main(node, is_row);
+    let intrinsic_main =
+        replaced_intrinsic_main(node, is_row).or_else(|| text_intrinsic_main(node, is_row, ctx));
     let basis_specified = match style.flex_basis.as_ref() {
         Some(CssLength::Auto) | None => {
             resolve_axis_length(main_size_prop, parent_inner_main, ctx).or(intrinsic_main)
@@ -768,6 +769,14 @@ fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool) -> Option<f32> {
         }
         _ => None,
     }
+}
+
+fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Option<f32> {
+    let Element::Text(text) = &node.element else {
+        return None;
+    };
+    let (w, h) = measure_text_leaf(text, &node.style, ctx);
+    Some(if is_row { w } else { h })
 }
 
 // ---------------------------------------------------------------------------

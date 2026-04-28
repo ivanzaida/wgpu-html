@@ -2637,6 +2637,11 @@ fn make_text_leaf(
     (box_, w, h, ascent)
 }
 
+pub(crate) fn measure_text_leaf(text: &str, style: &Style, ctx: &mut Ctx) -> (f32, f32) {
+    let (_run, w, h, _ascent) = shape_text_run(text, style, None, ctx);
+    (w, h)
+}
+
 /// Parse the raw `text-decoration` shorthand string into the set of
 /// active decoration lines. Whitespace-separated tokens; `none`
 /// resets any previously-collected lines.
