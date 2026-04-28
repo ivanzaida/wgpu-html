@@ -280,7 +280,7 @@ fn spawn_remote_fetch(src: String) {
 /// Both raw decoded bytes and per-size resize results are cached
 /// process-wide. The same URL rendered at multiple declared
 /// `width`/`height`s reuses the single decoded buffer.
-fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
+pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
     let src = img.src.as_deref()?;
     let sized_key: SizedKey = (src.to_owned(), img.width, img.height);
 

@@ -32,6 +32,7 @@ use wgpu_html_models::common::css_enums::{
     JustifyContent,
 };
 use wgpu_html_style::CascadedNode;
+use wgpu_html_tree::Element;
 
 use crate::{
     BlockOverrides, Ctx, LayoutBox, is_auto_margin, layout_block_at_with, length,
@@ -687,17 +688,20 @@ fn build_item<'a>(
     // - `flex-basis: <length>` → use it.
     // - `flex-basis: auto` (default) → fall back to the main-axis
     //   size property (`width` for row, `height` for column).
-    // - Neither set → the item's intrinsic content size, approximated
-    //   here as 0 (good enough for `flex: 1 1 0` style code, the most
-    //   common pattern; intrinsic measurement could be added later
-    //   without changing the surrounding algorithm).
+    // - Neither set → the item's intrinsic content size. For replaced
+    //   elements (`<img>`) we use the image's HTML width/height
+    //   attributes, falling back to its decoded dimensions; for
+    //   non-replaced items the approximation is still 0.
     let main_size_prop = if is_row {
         style.width.as_ref()
     } else {
         style.height.as_ref()
     };
+    let intrinsic_main = replaced_intrinsic_main(node, is_row);
     let basis_specified = match style.flex_basis.as_ref() {
-        Some(CssLength::Auto) | None => length::resolve(main_size_prop, parent_inner_main, ctx),
+        Some(CssLength::Auto) | None => {
+            length::resolve(main_size_prop, parent_inner_main, ctx).or(intrinsic_main)
+        }
         other => length::resolve(other, parent_inner_main, ctx),
     };
     // Convert from border-box → content-box if needed.
@@ -774,6 +778,25 @@ fn build_item<'a>(
         has_explicit_cross_size,
         measured_cross_inner: 0.0,
         box_: None,
+    }
+}
+
+/// Intrinsic main-axis size (in physical pixels) for replaced flex
+/// items. Currently covers `<img>` only — HTML `width`/`height`
+/// attributes are preferred over decoded dimensions, mirroring
+/// [`crate::load_image`]. Returns `None` for non-replaced elements
+/// and for images whose fetch hasn't completed yet, in which case the
+/// flex algorithm falls back to its previous "0 base size" behaviour.
+fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool) -> Option<f32> {
+    match &node.element {
+        Element::Img(img) => {
+            let loaded = crate::load_image(img);
+            let w = img.width.or_else(|| loaded.as_ref().map(|d| d.width));
+            let h = img.height.or_else(|| loaded.as_ref().map(|d| d.height));
+            let main = if is_row { w } else { h };
+            main.map(|v| v as f32)
+        }
+        _ => None,
     }
 }
 
