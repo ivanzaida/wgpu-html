@@ -34,6 +34,14 @@ pub struct Tree {
     /// value to aggressively free memory on memory-constrained hosts;
     /// raise it to keep images warm across navigations.
     pub asset_cache_ttl: Option<Duration>,
+    /// URLs (or local file paths) the host wants pre-fetched into the
+    /// image cache before they're referenced from the DOM. The layout
+    /// pass walks this list once per pass and dispatches any
+    /// not-yet-known URL to the worker pool. Calls are idempotent —
+    /// already-cached URLs are skipped — so it's safe to populate
+    /// once at startup via [`Tree::preload_asset`] and forget about
+    /// it.
+    pub preload_queue: Vec<String>,
 }
 
 impl Tree {
@@ -43,6 +51,7 @@ impl Tree {
             fonts: FontRegistry::new(),
             interaction: InteractionState::default(),
             asset_cache_ttl: None,
+            preload_queue: Vec::new(),
         }
     }
 
@@ -52,6 +61,26 @@ impl Tree {
     /// during matching).
     pub fn register_font(&mut self, face: FontFace) -> FontHandle {
         self.fonts.register(face)
+    }
+
+    /// Queue an image URL (or local filesystem path) for pre-loading.
+    /// The next call to `paint_tree*` / `compute_layout` will dispatch
+    /// the URL to the image-fetch worker pool if it's not already in
+    /// the cache, so the first frame that actually needs the image
+    /// doesn't wait. Duplicates are de-duped — calling this with the
+    /// same URL twice is a no-op the second time.
+    ///
+    /// Typical usage at startup:
+    /// ```ignore
+    /// tree.preload_asset("https://example.com/hero.png");
+    /// tree.preload_asset("assets/icons/menu.png");
+    /// ```
+    pub fn preload_asset(&mut self, src: impl Into<String>) {
+        let s = src.into();
+        if s.is_empty() || self.preload_queue.iter().any(|u| u == &s) {
+            return;
+        }
+        self.preload_queue.push(s);
     }
 
     /// Find the first descendant whose `id` attribute equals `id`,

@@ -31,6 +31,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -248,41 +249,122 @@ fn build_sized(
     })
 }
 
-/// Spawn a background worker that fetches+decodes `src` and stores the
-/// result in `raw_cache`. The caller must have already inserted a
-/// `Pending` entry so duplicate spawns can't happen for the same URL.
-fn spawn_remote_fetch(src: String) {
-    std::thread::spawn(move || {
-        let outcome = match fetch_image_bytes(&src).as_deref().and_then(decode_rgba) {
-            Some((rgba, w, h)) => RawState::Ready { rgba, w, h },
-            None => RawState::Failed,
-        };
-        if let Ok(mut cache) = raw_cache().lock() {
-            cache.insert(src, CacheEntry::new(outcome));
+// ---------------------------------------------------------------------------
+// Image fetch worker pool
+// ---------------------------------------------------------------------------
+
+/// How many concurrent fetch+decode workers run. Conservative default:
+/// most pages have only a handful of images and decoding a megapixel
+/// PNG is fast, so a small pool keeps thread count bounded without
+/// becoming a bottleneck. Tunable later if needed.
+const FETCH_POOL_WORKERS: usize = 4;
+
+/// Sender side of the bounded work queue feeding the fetch+decode
+/// worker pool. Lazily initialised on first job submission; once
+/// initialised the pool runs for the life of the process.
+fn pool_sender() -> &'static Mutex<Sender<String>> {
+    static SENDER: OnceLock<Mutex<Sender<String>>> = OnceLock::new();
+    SENDER.get_or_init(|| {
+        let (tx, rx) = channel::<String>();
+        let rx = Arc::new(Mutex::new(rx));
+        for _ in 0..FETCH_POOL_WORKERS {
+            spawn_fetch_worker(Arc::clone(&rx));
         }
-        revision().fetch_add(1, Ordering::AcqRel);
+        Mutex::new(tx)
+    })
+}
+
+/// Spawn one persistent worker thread. The worker takes the next URL
+/// off the shared `Receiver`, fetches+decodes it, and writes the
+/// outcome (`Ready` or `Failed`) into `raw_cache`. Termination
+/// happens implicitly when the `Sender` is dropped (i.e. on process
+/// exit) — `recv` returns `Err` and the worker exits.
+fn spawn_fetch_worker(rx: Arc<Mutex<Receiver<String>>>) {
+    std::thread::spawn(move || {
+        loop {
+            let url = match rx.lock() {
+                Ok(guard) => match guard.recv() {
+                    Ok(u) => u,
+                    Err(_) => break,
+                },
+                Err(_) => break,
+            };
+            let outcome = match fetch_image_bytes(&url).as_deref().and_then(decode_rgba) {
+                Some((rgba, w, h)) => RawState::Ready { rgba, w, h },
+                None => RawState::Failed,
+            };
+            if let Ok(mut cache) = raw_cache().lock() {
+                cache.insert(url, CacheEntry::new(outcome));
+            }
+            revision().fetch_add(1, Ordering::AcqRel);
+        }
     });
+}
+
+/// Submit `url` to the worker pool. Caller must have already inserted
+/// a `RawState::Pending` entry into `raw_cache` so concurrent calls
+/// for the same URL coalesce on the cache rather than enqueuing
+/// duplicate jobs.
+fn submit_fetch_job(url: String) {
+    if let Ok(tx) = pool_sender().lock() {
+        let _ = tx.send(url);
+    }
+}
+
+/// Pre-warm the cache for `src` without actually returning the
+/// `ImageData`. If the URL is already known (whether `Pending`,
+/// `Ready`, or `Failed`) this is a no-op — making it safe to call on
+/// every layout pass for a static preload list. Otherwise the URL is
+/// inserted as `Pending` and a fetch+decode job is queued on the
+/// pool.
+///
+/// Use this to start downloading important above-the-fold assets at
+/// startup so the first layout doesn't paint empty placeholders.
+pub fn preload_image(src: &str) {
+    if src.is_empty() {
+        return;
+    }
+    if let Ok(mut cache) = raw_cache().lock() {
+        if cache.contains_key(src) {
+            return;
+        }
+        cache.insert(src.to_owned(), CacheEntry::new(RawState::Pending));
+    } else {
+        return;
+    }
+    submit_fetch_job(src.to_owned());
 }
 
 /// Load an `<img>` element's `src` and produce decoded RGBA8 ready for
 /// the GPU. Returns `None` if `src` is unset, or if the image isn't
-/// available *yet* — see scheme-specific behaviour below.
+/// available *yet*.
 ///
-/// - `http://` / `https://` URLs are fetched on a background thread.
-///   The first call kicks off the fetch and returns `None`
-///   (placeholder — the layout treats the `<img>` as having no
-///   intrinsic size for that pass). Subsequent calls return `Some(..)`
-///   once the worker has stored the decoded bytes; in between the
-///   entry is `Pending` and no duplicate fetch is started.
-/// - Anything else is treated as a local filesystem path and loaded
-///   synchronously (file I/O is fast and predictable).
+/// All loads (`http://`, `https://`, local filesystem paths) are
+/// dispatched to a small bounded worker pool. The first call kicks
+/// off the fetch and returns `None`; subsequent calls return
+/// `Some(..)` once a worker has decoded and cached the bytes. While
+/// the entry is `Pending` no duplicate jobs are enqueued.
 ///
 /// Both raw decoded bytes and per-size resize results are cached
 /// process-wide. The same URL rendered at multiple declared
 /// `width`/`height`s reuses the single decoded buffer.
 pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
     let src = img.src.as_deref()?;
-    let sized_key: SizedKey = (src.to_owned(), img.width, img.height);
+    load_image_url(src, img.width, img.height)
+}
+
+/// Lower-level entry point: load a decoded `ImageData` for a given URL
+/// and optional declared (post-resize) dimensions. CSS
+/// `background-image: url(...)` calls this directly with no declared
+/// size hints; `<img>` goes through [`load_image`] which pulls them
+/// off the element. All caching, async fetch, and TTL behaviour is
+/// shared between the two entry points.
+pub(crate) fn load_image_url(
+    src: &str,
+    declared_w: Option<u32>,
+    declared_h: Option<u32>,
+) -> Option<ImageData> {
+    let sized_key: SizedKey = (src.to_owned(), declared_w, declared_h);
 
     // Opportunistically reclaim memory from idle entries.
     maybe_sweep();
@@ -297,6 +379,10 @@ pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
     }
 
     // Look up (or initialise) the per-URL raw entry. Touch on hit.
+    // Both remote (http/https) and local filesystem paths are
+    // dispatched to the bounded worker pool; the first sighting of a
+    // URL inserts a `Pending` entry so concurrent layout passes don't
+    // enqueue duplicate jobs.
     let raw = {
         let mut cache = raw_cache().lock().ok()?;
         match cache.get_mut(src) {
@@ -305,23 +391,10 @@ pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
                 entry.value.clone()
             }
             None => {
-                if src.starts_with("http://") || src.starts_with("https://") {
-                    // First sighting of a remote URL: kick off async fetch.
-                    cache.insert(src.to_owned(), CacheEntry::new(RawState::Pending));
-                    drop(cache);
-                    spawn_remote_fetch(src.to_owned());
-                    return None;
-                }
-                // Local file: load+decode synchronously and cache.
+                cache.insert(src.to_owned(), CacheEntry::new(RawState::Pending));
                 drop(cache);
-                let state = match fetch_image_bytes(src).as_deref().and_then(decode_rgba) {
-                    Some((rgba, w, h)) => RawState::Ready { rgba, w, h },
-                    None => RawState::Failed,
-                };
-                if let Ok(mut cache) = raw_cache().lock() {
-                    cache.insert(src.to_owned(), CacheEntry::new(state.clone()));
-                }
-                state
+                submit_fetch_job(src.to_owned());
+                return None;
             }
         }
     };
@@ -329,7 +402,7 @@ pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
     let result = match raw {
         RawState::Pending => return None,
         RawState::Failed => None,
-        RawState::Ready { rgba, w, h } => build_sized(src, rgba, w, h, img.width, img.height),
+        RawState::Ready { rgba, w, h } => build_sized(src, rgba, w, h, declared_w, declared_h),
     };
 
     // Cache the sized variant (including failures, so repeated misses
@@ -338,6 +411,283 @@ pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
         cache.insert(sized_key, CacheEntry::new(result.clone()));
     }
     result
+}
+
+// ---------------------------------------------------------------------------
+// CSS background-image resolution
+// ---------------------------------------------------------------------------
+
+/// Extract the URL from a CSS `url(...)` token. Accepts unquoted,
+/// `"…"`-quoted, and `'…'`-quoted forms; returns `None` for any
+/// other syntax (including gradient functions, `none`, etc.).
+fn extract_url(value: &str) -> Option<String> {
+    let v = value.trim();
+    let inner = v.strip_prefix("url(")?.strip_suffix(')')?.trim();
+    let unquoted = if (inner.starts_with('"') && inner.ends_with('"'))
+        || (inner.starts_with('\'') && inner.ends_with('\''))
+    {
+        if inner.len() < 2 {
+            return None;
+        }
+        &inner[1..inner.len() - 1]
+    } else {
+        inner
+    };
+    let trimmed = unquoted.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Parse a single token from `background-size` / `background-position`
+/// into a length in physical pixels. Supports `<n>px`, bare `<n>`
+/// (interpreted as pixels), `<n>%` (resolved against `container`), and
+/// the keyword `auto` (returned as `None`). Returns `None` for any
+/// unrecognised input — callers fall back to a sensible default.
+fn parse_bg_axis(token: &str, container: f32) -> Option<f32> {
+    let t = token.trim().to_ascii_lowercase();
+    if t == "auto" || t.is_empty() {
+        return None;
+    }
+    if let Some(stripped) = t.strip_suffix('%') {
+        return stripped.trim().parse::<f32>().ok().map(|p| container * p / 100.0);
+    }
+    let numeric = t.strip_suffix("px").unwrap_or(&t);
+    numeric.trim().parse::<f32>().ok()
+}
+
+/// Resolve `background-size` to a per-tile (width, height) pair in
+/// physical pixels. Supports `auto`, `cover`, `contain`, single
+/// `<length-percentage>` (applied to width, height auto), and a
+/// `<lp> <lp>` pair. Aspect ratio is preserved when one axis is
+/// `auto` (the standard CSS behaviour).
+fn resolve_bg_size(value: Option<&str>, img_w: u32, img_h: u32, bg_w: f32, bg_h: f32) -> (f32, f32) {
+    let intrinsic_w = img_w as f32;
+    let intrinsic_h = img_h as f32;
+    if intrinsic_w <= 0.0 || intrinsic_h <= 0.0 || bg_w <= 0.0 || bg_h <= 0.0 {
+        return (intrinsic_w.max(0.0), intrinsic_h.max(0.0));
+    }
+    let raw = value.map(str::trim).unwrap_or("auto");
+    let lower = raw.to_ascii_lowercase();
+    if lower == "auto" || lower.is_empty() {
+        return (intrinsic_w, intrinsic_h);
+    }
+    if lower == "cover" {
+        let scale = (bg_w / intrinsic_w).max(bg_h / intrinsic_h);
+        return (intrinsic_w * scale, intrinsic_h * scale);
+    }
+    if lower == "contain" {
+        let scale = (bg_w / intrinsic_w).min(bg_h / intrinsic_h);
+        return (intrinsic_w * scale, intrinsic_h * scale);
+    }
+    let parts: Vec<&str> = raw.split_whitespace().collect();
+    let aspect = intrinsic_h / intrinsic_w;
+    match parts.as_slice() {
+        [w_s] => {
+            let w = parse_bg_axis(w_s, bg_w).unwrap_or(intrinsic_w);
+            (w, w * aspect)
+        }
+        [w_s, h_s] => {
+            let w_opt = parse_bg_axis(w_s, bg_w);
+            let h_opt = parse_bg_axis(h_s, bg_h);
+            match (w_opt, h_opt) {
+                (Some(w), Some(h)) => (w, h),
+                (Some(w), None) => (w, w * aspect),
+                (None, Some(h)) => (h / aspect, h),
+                (None, None) => (intrinsic_w, intrinsic_h),
+            }
+        }
+        _ => (intrinsic_w, intrinsic_h),
+    }
+}
+
+/// Resolve a single token of `background-position` for one axis to a
+/// pixel offset within the background area. Accepts the per-axis
+/// keywords (`left`/`right` map to 0% / 100% on the x axis,
+/// `top`/`bottom` to 0% / 100% on the y axis, `center` to 50%) as
+/// well as `<length>` and `<percentage>`. The CSS rule is "anchor
+/// point of the image equals anchor point of the box" expressed as
+/// `(box - tile) * percent + length_offset`.
+fn resolve_bg_position_axis(token: &str, box_size: f32, tile_size: f32, is_x: bool) -> f32 {
+    let t = token.trim().to_ascii_lowercase();
+    let percent: Option<f32> = match t.as_str() {
+        "left" if is_x => Some(0.0),
+        "right" if is_x => Some(100.0),
+        "top" if !is_x => Some(0.0),
+        "bottom" if !is_x => Some(100.0),
+        "center" => Some(50.0),
+        _ => None,
+    };
+    if let Some(p) = percent {
+        return (box_size - tile_size) * p / 100.0;
+    }
+    if let Some(stripped) = t.strip_suffix('%') {
+        if let Ok(p) = stripped.trim().parse::<f32>() {
+            return (box_size - tile_size) * p / 100.0;
+        }
+    }
+    let numeric = t.strip_suffix("px").unwrap_or(&t);
+    numeric.trim().parse::<f32>().unwrap_or(0.0)
+}
+
+/// Resolve `background-position` to `(off_x, off_y)` in physical
+/// pixels relative to the background area's top-left corner. Default
+/// is `0% 0%` (top-left).
+fn resolve_bg_position(
+    value: Option<&str>,
+    bg_w: f32,
+    bg_h: f32,
+    tile_w: f32,
+    tile_h: f32,
+) -> (f32, f32) {
+    let raw = value.map(str::trim).unwrap_or("");
+    if raw.is_empty() {
+        return (0.0, 0.0);
+    }
+    let parts: Vec<&str> = raw.split_whitespace().collect();
+    match parts.as_slice() {
+        [single] => {
+            // CSS: a single value is the x coordinate; y is `center`.
+            let x = resolve_bg_position_axis(single, bg_w, tile_w, true);
+            let y = resolve_bg_position_axis("center", bg_h, tile_h, false);
+            (x, y)
+        }
+        [a, b] => {
+            // Disambiguate axis-only keywords: if either token is a
+            // y-axis-only keyword (top/bottom) it must be the y value
+            // even when listed first. CSS lets you write
+            // `top right` and `right top` interchangeably for the
+            // two-keyword form.
+            let is_y = |t: &str| matches!(t, "top" | "bottom");
+            let is_x = |t: &str| matches!(t, "left" | "right");
+            if is_y(&a.to_ascii_lowercase()) || is_x(&b.to_ascii_lowercase()) {
+                let y = resolve_bg_position_axis(a, bg_h, tile_h, false);
+                let x = resolve_bg_position_axis(b, bg_w, tile_w, true);
+                (x, y)
+            } else {
+                let x = resolve_bg_position_axis(a, bg_w, tile_w, true);
+                let y = resolve_bg_position_axis(b, bg_h, tile_h, false);
+                (x, y)
+            }
+        }
+        _ => (0.0, 0.0),
+    }
+}
+
+/// Tile a single image across (a portion of) `bg` according to the
+/// repeat mode, given the per-tile size and the initial tile offset
+/// (relative to `bg`'s top-left). Returns the absolute on-screen
+/// rectangle for every tile that intersects `bg`. For axes that don't
+/// repeat, only the seed tile is emitted; for `repeat` / `repeat-x` /
+/// `repeat-y` we walk both directions from the seed by `tile_w`/
+/// `tile_h` until we leave `bg`.
+fn compute_bg_tiles(
+    bg: Rect,
+    tile_w: f32,
+    tile_h: f32,
+    off_x: f32,
+    off_y: f32,
+    repeat: wgpu_html_models::common::css_enums::BackgroundRepeat,
+) -> Vec<Rect> {
+    use wgpu_html_models::common::css_enums::BackgroundRepeat as BR;
+    let mut tiles = Vec::new();
+    if tile_w <= 0.0 || tile_h <= 0.0 || bg.w <= 0.0 || bg.h <= 0.0 {
+        return tiles;
+    }
+    let seed_x = bg.x + off_x;
+    let seed_y = bg.y + off_y;
+    let repeat_x = matches!(repeat, BR::Repeat | BR::RepeatX);
+    let repeat_y = matches!(repeat, BR::Repeat | BR::RepeatY);
+
+    let xs: Vec<f32> = if repeat_x {
+        let mut start = seed_x;
+        while start > bg.x {
+            start -= tile_w;
+        }
+        let mut xs = Vec::new();
+        let mut x = start;
+        while x < bg.x + bg.w {
+            xs.push(x);
+            x += tile_w;
+        }
+        xs
+    } else {
+        // Skip the single tile entirely if it's outside the bg area.
+        if seed_x + tile_w <= bg.x || seed_x >= bg.x + bg.w {
+            Vec::new()
+        } else {
+            vec![seed_x]
+        }
+    };
+    let ys: Vec<f32> = if repeat_y {
+        let mut start = seed_y;
+        while start > bg.y {
+            start -= tile_h;
+        }
+        let mut ys = Vec::new();
+        let mut y = start;
+        while y < bg.y + bg.h {
+            ys.push(y);
+            y += tile_h;
+        }
+        ys
+    } else {
+        if seed_y + tile_h <= bg.y || seed_y >= bg.y + bg.h {
+            Vec::new()
+        } else {
+            vec![seed_y]
+        }
+    };
+
+    for &y in &ys {
+        for &x in &xs {
+            tiles.push(Rect::new(x, y, tile_w, tile_h));
+        }
+    }
+    tiles
+}
+
+/// Top-level: turn `style.background_image` (+ associated longhands)
+/// into a [`BackgroundImagePaint`] positioned within `bg`. Returns
+/// `None` when there's no `url(...)` reference, the image hasn't
+/// finished loading yet, or the resolved tile size collapses to zero.
+fn resolve_background_image(style: &Style, bg: Rect) -> Option<BackgroundImagePaint> {
+    use wgpu_html_models::common::css_enums::BackgroundRepeat as BR;
+    let raw = style.background_image.as_deref()?;
+    let url = extract_url(raw)?;
+    let img = load_image_url(&url, None, None)?;
+
+    let (tile_w, tile_h) = resolve_bg_size(
+        style.background_size.as_deref(),
+        img.width,
+        img.height,
+        bg.w,
+        bg.h,
+    );
+    if tile_w <= 0.0 || tile_h <= 0.0 {
+        return None;
+    }
+    let (off_x, off_y) = resolve_bg_position(
+        style.background_position.as_deref(),
+        bg.w,
+        bg.h,
+        tile_w,
+        tile_h,
+    );
+    let repeat = style.background_repeat.clone().unwrap_or(BR::Repeat);
+    let tiles = compute_bg_tiles(bg, tile_w, tile_h, off_x, off_y, repeat);
+    if tiles.is_empty() {
+        return None;
+    }
+    Some(BackgroundImagePaint {
+        image_id: img.image_id,
+        data: img.data,
+        width: img.width,
+        height: img.height,
+        tiles,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +872,11 @@ pub struct LayoutBox {
     /// Decoded image data for `<img>` elements. `None` for non-image
     /// boxes. The `Arc` allows cheap cloning through the display list.
     pub image: Option<ImageData>,
+    /// Pre-computed CSS `background-image` paint info, if the element
+    /// has one. Carries the decoded RGBA texture data plus a list of
+    /// already-positioned tile rectangles (one for `no-repeat`, many
+    /// for `repeat` modes). The painter just iterates the tiles.
+    pub background_image: Option<BackgroundImagePaint>,
     pub children: Vec<LayoutBox>,
 }
 
@@ -534,6 +889,28 @@ pub struct ImageData {
     pub data: std::sync::Arc<Vec<u8>>,
     pub width: u32,
     pub height: u32,
+}
+
+/// Pre-computed CSS `background-image` paint metadata. The texture
+/// is uploaded once per `image_id`; the painter emits one image quad
+/// per entry in `tiles`.
+#[derive(Debug, Clone)]
+pub struct BackgroundImagePaint {
+    /// Same `image_id` scheme as [`ImageData`] — keys the renderer's
+    /// GPU texture cache.
+    pub image_id: u64,
+    /// Decoded RGBA8 bytes for the source image (intrinsic size).
+    pub data: std::sync::Arc<Vec<u8>>,
+    /// Texture upload size (intrinsic dimensions of the decoded
+    /// image). Each tile rect is drawn at its own size; UVs map the
+    /// full `[0,1]²` to the rect, so the renderer stretches as
+    /// needed for `cover` / `contain` / explicit lengths.
+    pub width: u32,
+    pub height: u32,
+    /// On-screen rectangles to paint into. Already positioned in
+    /// absolute physical pixels and filtered to those that overlap
+    /// the box's `background_rect`.
+    pub tiles: Vec<Rect>,
 }
 
 /// Single decoration line drawn over / under / through a text run.
@@ -1032,6 +1409,8 @@ fn layout_block(
         &border_radius,
     );
 
+    let background_image = resolve_background_image(style, background_rect);
+
     LayoutBox {
         margin_rect,
         border_rect,
@@ -1049,6 +1428,7 @@ fn layout_block(
         text_decorations: Vec::new(),
         overflow: effective_overflow(style),
         image: img_data,
+        background_image,
         children,
     }
 }
@@ -1246,6 +1626,7 @@ fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
         image: None,
+        background_image: None,
         children: Vec::new(),
     }
 }
@@ -1286,6 +1667,7 @@ fn make_text_leaf(
         text_decorations: decorations,
         overflow: Overflow::Visible,
         image: None,
+        background_image: None,
         children: Vec::new(),
     };
     (box_, w, h, ascent)
@@ -1513,6 +1895,7 @@ fn layout_inline_subtree(
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
         image: None,
+        background_image: None,
         children: final_children,
     };
     InlineLayout {
@@ -1734,6 +2117,7 @@ fn make_anon_bg_box(rect: Rect, color: Color) -> LayoutBox {
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
         image: None,
+        background_image: None,
         children: Vec::new(),
     }
 }
@@ -1903,6 +2287,7 @@ fn layout_inline_paragraph(
         text_decorations: Vec::new(),
         overflow: Overflow::Visible,
         image: None,
+        background_image: None,
         children: Vec::new(),
     };
     boxes.push(text_box);
@@ -1936,6 +2321,11 @@ pub(crate) fn translate_box_x_in_place(b: &mut LayoutBox, dx: f32) {
     b.border_rect.x += dx;
     b.content_rect.x += dx;
     b.background_rect.x += dx;
+    if let Some(bgi) = b.background_image.as_mut() {
+        for tile in &mut bgi.tiles {
+            tile.x += dx;
+        }
+    }
     for child in &mut b.children {
         translate_box_x_in_place(child, dx);
     }
@@ -1949,6 +2339,11 @@ pub(crate) fn translate_box_y_in_place(b: &mut LayoutBox, dy: f32) {
     b.border_rect.y += dy;
     b.content_rect.y += dy;
     b.background_rect.y += dy;
+    if let Some(bgi) = b.background_image.as_mut() {
+        for tile in &mut bgi.tiles {
+            tile.y += dy;
+        }
+    }
     for child in &mut b.children {
         translate_box_y_in_place(child, dy);
     }

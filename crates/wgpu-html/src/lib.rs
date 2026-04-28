@@ -36,6 +36,9 @@ pub fn compute_layout(
     if let Some(ttl) = tree.asset_cache_ttl {
         wgpu_html_layout::set_image_cache_ttl(ttl);
     }
+    for url in &tree.preload_queue {
+        wgpu_html_layout::preload_image(url);
+    }
     let cascaded = wgpu_html_style::cascade(tree);
     wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale)
 }

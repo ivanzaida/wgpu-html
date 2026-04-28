@@ -33,6 +33,9 @@ pub fn paint_tree_with_text(
     if let Some(ttl) = tree.asset_cache_ttl {
         wgpu_html_layout::set_image_cache_ttl(ttl);
     }
+    for url in &tree.preload_queue {
+        wgpu_html_layout::preload_image(url);
+    }
     let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
     if let Some(root) = wgpu_html_layout::layout_with_text(
@@ -145,6 +148,38 @@ fn paint_box_in_clip(
                 out.push_quad_rounded_ellipse(bg, color, bg_h, bg_v);
             } else {
                 out.push_quad(bg, color);
+            }
+        }
+    }
+
+    // CSS `background-image`. Layout pre-computed every tile rect and
+    // already filtered to those overlapping `background_rect`; we just
+    // dispatch them to the renderer. When the background area has
+    // rounded corners, push a temporary rounded clip range so the
+    // image fragment shader's SDF discard cuts the tiles to the
+    // rounded shape — otherwise the rectangular tiles would paint
+    // outside the rounded background.
+    if let Some(ref bgi) = b.background_image {
+        let bg = to_renderer_rect(b.background_rect);
+        if bg.w > 0.0 && bg.h > 0.0 && !bgi.tiles.is_empty() {
+            let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
+            let needs_round_clip = has_any_radius(&bg_h) || has_any_radius(&bg_v);
+            if needs_round_clip {
+                out.push_clip(Some(bg), bg_h, bg_v);
+            }
+            for tile in &bgi.tiles {
+                let r = Rect::new(tile.x, tile.y, tile.w, tile.h);
+                if r.w > 0.0 && r.h > 0.0 {
+                    out.push_image(r, bgi.image_id, bgi.data.clone(), bgi.width, bgi.height);
+                }
+            }
+            if needs_round_clip {
+                let parent = clip_stack.last().copied();
+                out.pop_clip(
+                    parent.map(|f| f.rect),
+                    parent.map(|f| f.radii_h).unwrap_or([0.0; 4]),
+                    parent.map(|f| f.radii_v).unwrap_or([0.0; 4]),
+                );
             }
         }
     }

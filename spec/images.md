@@ -47,19 +47,20 @@ matching `image` crate feature to enable more.
 
 ## 3. Schemes
 
-`load_image` (in `crates/wgpu-html-layout/src/lib.rs`) dispatches
+`load_image_url` (in `crates/wgpu-html-layout/src/lib.rs`) dispatches
 on the `src` prefix:
 
-- **`http://` / `https://`** — fetched with `ureq` (rustls TLS)
-  on a background thread spawned by `spawn_remote_fetch`. The
-  first call inserts a `Pending` entry, returns `None`, and
-  spawns the worker. Subsequent calls return `None` while
-  `Pending` and the cached result once `Ready`. Failures are
-  cached as `Failed` for the TTL window before being retried.
+- **`http://` / `https://`** — fetched with `ureq` (rustls TLS).
   Response bodies are capped at 32 MiB to bound memory.
-- **Anything else** — treated as a local filesystem path and
-  loaded with `std::fs::read` synchronously. File I/O is
-  predictable enough that a worker thread isn't worth it.
+- **Anything else** — treated as a local filesystem path and read
+  with `std::fs::read`.
+
+In both cases the actual fetch+decode runs on a small bounded
+worker pool — never on the layout thread. The first call for a URL
+inserts a `Pending` entry and submits a job to the pool; subsequent
+calls return `None` while `Pending` and the cached result once
+`Ready`. Failures are cached as `Failed` for the TTL window before
+being retried.
 
 `data:` URIs, `file://` URLs, redirects across schemes, and HTTP
 caching headers (ETag / Cache-Control) are not yet supported.
@@ -109,35 +110,54 @@ sized_cache: HashMap<SizedKey, CacheEntry<Option<ImageData>>>
 Each `CacheEntry<V>` carries a `last_access: Instant` that is
 refreshed on every cache hit (`entry.touch()`).
 
-## 6. Non-blocking remote loads
+## 6. Non-blocking loads via the worker pool
 
 ```
 load_image
     │
     ├─ fast path: sized_cache hit → touch + return
     │
-    ├─ raw_cache hit (Pending)    → return None
-    │                  (Ready)    → resize → cache → return
-    │                  (Failed)   → cache None → return None
+    ├─ raw_cache hit (Pending)  → return None
+    │                  (Ready)  → resize → cache → return
+    │                  (Failed) → cache None → return None
     │
     └─ raw_cache miss
          │
-         ├─ http(s)  → insert Pending,
-         │            spawn worker thread,
-         │            return None (placeholder)
-         │
-         └─ local    → fetch + decode synchronously,
-                       insert Ready/Failed,
-                       fall through to resize path
+         └─ insert Pending,
+            submit fetch+decode job to pool,
+            return None (placeholder)
 ```
 
-The worker thread (`spawn_remote_fetch`) calls
-`fetch_image_bytes` + `decode_rgba`, writes the result to
-`raw_cache`, and bumps an `AtomicU64` exposed as
-`image_load_revision()`. Hosts that don't already redraw every
-frame can poll the revision in their event loop and request a
+A small bounded pool of `FETCH_POOL_WORKERS` (currently `4`)
+persistent worker threads is initialised lazily on first job
+submission. The `pool_sender()` is a single `Sender<String>`; each
+worker shares a single `Arc<Mutex<Receiver<String>>>` and pulls
+URLs off it in a loop. For each URL the worker calls
+`fetch_image_bytes` + `decode_rgba`, writes the outcome
+(`Ready` / `Failed`) into `raw_cache`, and bumps an `AtomicU64`
+exposed as `image_load_revision()`.
+
+Both http(s) URLs and local filesystem paths flow through the same
+pool — the dispatch on scheme happens inside `fetch_image_bytes` on
+the worker side, so the layout thread itself never blocks on
+network *or* disk I/O.
+
+Hosts that don't already redraw every frame can poll
+`image_load_revision()` in their event loop and request a
 relayout when it changes; the demo doesn't need it because
 winit's `ControlFlow::Poll` already redraws continuously.
+
+### Preloading
+
+To start downloading important assets at startup so the first
+frame doesn't paint placeholders, push them into
+`Tree::preload_queue` via `Tree::preload_asset(src)` once at
+construction. Every layout pass walks the queue and calls
+`wgpu_html_layout::preload_image(url)` on each entry; that
+function is idempotent — already-known URLs are a hashmap-lookup
+no-op — so it's cheap to leave in place. `preload_image` is also
+exposed as a public free function for ad-hoc calls outside a
+`Tree` context.
 
 ## 7. TTL eviction
 
@@ -169,12 +189,15 @@ pub fn set_image_cache_ttl(ttl: Duration);
 pub fn image_load_revision()          -> u64;
 pub fn sweep_image_cache();
 pub fn purge_image_cache();
+pub fn preload_image(src: &str);
 ```
 
 On `wgpu_html::tree::Tree`:
 
 ```rust
 pub asset_cache_ttl: Option<Duration>,  // None → keep current default
+pub preload_queue:   Vec<String>,       // walked every layout pass
+pub fn preload_asset(&mut self, src: impl Into<String>);
 ```
 
 Setting the field is the recommended path: it travels with the
@@ -182,14 +205,10 @@ document and survives across renderer instances.
 
 ## 9. Caveats and known gaps
 
-- **Synchronous local-file load.** Reading a multi-megabyte image
-  off a slow disk still blocks the layout thread. If this becomes
-  a problem, the same `Pending`/`Ready`/`Failed` machinery used
-  by the remote path can be reused for files trivially.
-- **No backpressure on remote loads.** Each unique URL spawns its
-  own thread; a document with hundreds of distinct remote
-  `<img>`s spawns hundreds of threads at once. A small bounded
-  thread pool would fix this.
+- **Pool size is fixed at 4.** `FETCH_POOL_WORKERS` is a `const`
+  for now; tuning will need a setter (and a way to grow the pool
+  beyond what was lazily initialised). 4 is enough for typical
+  pages without saturating the network on residential links.
 - **No HTTP cache semantics.** ETags, `Cache-Control`,
   `If-Modified-Since`, and similar are ignored. The TTL is the
   only freshness control.

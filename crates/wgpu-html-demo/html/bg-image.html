@@ -1,0 +1,78 @@
+<style>
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: white;
+        overflow-y: scroll;
+    }
+
+    .label {
+        margin: 16px 16px 4px 16px;
+        color: #aaa;
+        font-size: 14px;
+    }
+
+    .row {
+        display: flex;
+        gap: 16px;
+        margin: 0 16px 16px 16px;
+    }
+
+    .tile {
+        width: 240px;
+        height: 140px;
+        border-radius: 8px;
+    }
+
+    .rounded-big {
+        width: 360px;
+        height: 200px;
+        border-radius: 24px;
+    }
+</style>
+
+<div class="label">Default — `background-image: url(...)` repeats by default (CSS default repeat)</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png');"></div>
+</div>
+
+<div class="label">background-repeat: no-repeat</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: no-repeat;"></div>
+</div>
+
+<div class="label">background-repeat: repeat-x</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: repeat-x;"></div>
+</div>
+
+<div class="label">background-repeat: repeat-y</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: repeat-y;"></div>
+</div>
+
+<div class="label">background-size: cover, no-repeat, centered</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: no-repeat; background-size: cover; background-position: center;"></div>
+</div>
+
+<div class="label">background-size: contain, no-repeat, top-right</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: no-repeat; background-size: contain; background-position: top right;"></div>
+</div>
+
+<div class="label">Explicit pixel size + offset position: 96px 96px @ 16px 16px</div>
+<div class="row">
+    <div class="tile" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: no-repeat; background-size: 96px 96px; background-position: 16px 16px;"></div>
+</div>
+
+<div class="label">Rounded corners — image is SDF-clipped to the rounded background shape</div>
+<div class="row">
+    <div class="rounded-big" style="background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: no-repeat; background-size: cover; background-position: center;"></div>
+</div>
+
+<div class="label">background-color + background-image stack (color paints behind)</div>
+<div class="row">
+    <div class="tile" style="background-color: #2a4a8a; background-image: url('https://www.kindpng.com/picc/m/49-499621_128x128-png-pictures-transparent-png.png'); background-repeat: no-repeat; background-position: center;"></div>
+</div>
