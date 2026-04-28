@@ -190,6 +190,38 @@ fn text_nodes_are_zero_size_placeholders() {
 }
 
 #[test]
+fn img_is_inline_level_inside_text_flow() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div>Animated GIF — `<img>` intrinsic size</div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let label = &root.children[0];
+    assert_eq!(label.children.len(), 3);
+    assert_eq!(label.children[1].kind, BoxKind::Block);
+    assert_eq!(label.children[1].margin_rect.w, 0.0);
+    assert_eq!(label.children[1].margin_rect.h, 0.0);
+    assert_eq!(label.children[2].margin_rect.y, label.children[0].margin_rect.y);
+}
+
+#[test]
+fn sized_img_occupies_inline_replaced_space() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div>before <img style="width: 10px; height: 8px;"> after</div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let label = &root.children[0];
+    let img = &label.children[1];
+    assert_eq!(img.border_rect.w, 10.0);
+    assert_eq!(img.border_rect.h, 8.0);
+    assert_eq!(label.content_rect.h, 8.0);
+    assert_eq!(label.children[2].margin_rect.y, label.children[0].margin_rect.y);
+}
+
+#[test]
 fn nested_body_div_div_stacks_correctly() {
     let tree = make(
         r#"<body style="margin: 0;">

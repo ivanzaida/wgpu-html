@@ -2618,6 +2618,7 @@ fn is_inline_level(node: &CascadedNode) -> bool {
             | Element::Ruby(_)
             | Element::Rt(_)
             | Element::Rp(_)
+            | Element::Img(_)
     )
 }
 
@@ -2698,6 +2699,34 @@ fn layout_inline_subtree(
             width: w,
             ascent,
             descent,
+        };
+    }
+
+    if matches!(&node.element, Element::Img(_)) {
+        if is_empty_inline_img(node) {
+            return InlineLayout {
+                box_: empty_box(origin_x, origin_y),
+                width: 0.0,
+                ascent: 0.0,
+                descent: 0.0,
+            };
+        }
+        let box_ = layout_block(
+            node,
+            origin_x,
+            origin_y,
+            container_w,
+            f32::INFINITY,
+            BlockOverrides::default(),
+            ctx,
+        );
+        let width = box_.margin_rect.w;
+        let height = box_.margin_rect.h;
+        return InlineLayout {
+            box_,
+            width,
+            ascent: height,
+            descent: 0.0,
         };
     }
 
@@ -2820,6 +2849,10 @@ fn layout_inline_block_children(
         }
     }
 
+    if contains_inline_replaced(node) {
+        return layout_inline_mixed_children(node, origin_x, origin_y, container_w, ctx);
+    }
+
     // Multi-child IFC: rich-text paragraph shape. We flatten the
     // inline subtree into a list of `(text, attrs)` spans (one per
     // source text leaf), feed cosmic-text via `set_rich_text` so its
@@ -2830,6 +2863,72 @@ fn layout_inline_block_children(
     // every glyph (with each glyph's source colour baked in by
     // `shape_paragraph`).
     layout_inline_paragraph(node, origin_x, origin_y, container_w, text_align, ctx)
+}
+
+fn layout_inline_mixed_children(
+    node: &CascadedNode,
+    origin_x: f32,
+    origin_y: f32,
+    container_w: f32,
+    ctx: &mut Ctx,
+) -> (Vec<LayoutBox>, f32, f32) {
+    let mut cursor_x = 0.0_f32;
+    let mut max_ascent = 0.0_f32;
+    let mut max_descent = 0.0_f32;
+    let mut child_layouts: Vec<InlineLayout> = Vec::new();
+
+    for child in &node.children {
+        let cl = layout_inline_subtree(
+            child,
+            origin_x + cursor_x,
+            origin_y,
+            (container_w - cursor_x).max(0.0),
+            ctx,
+        );
+        max_ascent = max_ascent.max(cl.ascent);
+        max_descent = max_descent.max(cl.descent);
+        cursor_x += cl.width;
+        child_layouts.push(cl);
+    }
+
+    let line_h = max_ascent + max_descent;
+    let baseline_y = origin_y + max_ascent;
+    let align_dx = horizontal_align_offset(node.style.text_align.as_ref(), container_w, cursor_x);
+    let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
+    for cl in child_layouts {
+        let target_top = baseline_y - cl.ascent;
+        let dy = target_top - cl.box_.margin_rect.y;
+        let mut b = cl.box_;
+        if dy != 0.0 {
+            translate_box_y_in_place(&mut b, dy);
+        }
+        if align_dx != 0.0 {
+            translate_box_x_in_place(&mut b, align_dx);
+        }
+        final_children.push(b);
+    }
+
+    (final_children, cursor_x, line_h)
+}
+
+fn contains_inline_replaced(node: &CascadedNode) -> bool {
+    node.children.iter().any(|child| {
+        matches!(&child.element, Element::Img(_))
+            || (!child.children.is_empty() && contains_inline_replaced(child))
+    })
+}
+
+fn is_empty_inline_img(node: &CascadedNode) -> bool {
+    match &node.element {
+        Element::Img(img) => {
+            img.src.is_none()
+                && img.width.is_none()
+                && img.height.is_none()
+                && node.style.width.is_none()
+                && node.style.height.is_none()
+        }
+        _ => false,
+    }
 }
 
 // ---------------------------------------------------------------------------

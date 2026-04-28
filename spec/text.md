@@ -461,3 +461,89 @@ pub fn paint_tree_returning_layout(tree, &mut TextContext, vw, vh, scale)
   test: `hello-text.html`, `flex-grow.html`, `overflow.html`,
   `gif.html`, etc., rebuilt every frame against a candidate-paths
   table of system fonts.
+
+## 11. Coverage Checklist (All Cases)
+
+This section is the "done means done" matrix for text. Every item is
+either already covered by tests, or explicitly marked as a gap.
+
+### 11.1 Parsing + Cascade
+
+- `font-family`: comma-separated list, quoted family names, whitespace
+  trimming, unknown family fallback to next candidate.
+- `font-size`: `px / em / rem / % / vw / vh / vmin / vmax`, plus
+  `calc()` and nested `min()/max()/clamp()`.
+- `font-weight`: keyword + numeric forms, including out-of-family
+  fallback to closest registered weight.
+- `font-style`: `normal / italic / oblique`, with italic↔oblique
+  interchange.
+- `line-height`: lengths; default `1.25 × font-size` when unset.
+- `letter-spacing`: zero, positive, negative lengths.
+- `text-transform`: `none / uppercase / lowercase / capitalize`.
+- `text-decoration`: token list combinations and `none` reset.
+- CSS-wide keywords on inherited text props: `inherit`, `initial`,
+  `unset`.
+
+### 11.2 Font Registry + Selection
+
+- Empty registry: text leaves produce zero-sized runs without panics.
+- Single family with multiple faces: weight/style scoring stability.
+- Multi-family fallback: first available match in declaration order.
+- Tie-break behavior: later registration wins on equal score.
+- Registry resync behavior:
+  - unchanged `Arc<[u8]>` => no-op
+  - replaced `Arc<[u8]>` => reload
+  - removed face => purge from bridge db
+
+### 11.3 Shaping + Wrapping
+
+- Single-leaf shaping with finite width wraps to multiple lines.
+- Rich-text paragraph shaping wraps across inline-element boundaries.
+- Glyph ordering and line metrics:
+  - `ParagraphLine.glyph_range` must index contiguous glyph slices
+  - line top/baseline/height must be monotonic and non-negative.
+- Whitespace collapse for `white-space: normal`.
+- Long-word behavior when no legal break point exists.
+
+### 11.4 Inline Layout + Paint Expansion
+
+- Per-line `text-align` offsets for `left/right/center/start/end`.
+- Inline wrapper backgrounds (`<mark>`) expand across each wrapped
+  line segment they touch.
+- Decorations (`underline/line-through/overline`) emit per-line bars
+  with expected y-position and thickness.
+- Mixed-style runs preserve per-glyph foreground color.
+- Clip interactions:
+  - text respects ancestor clip ranges
+  - rounded clips apply on overflow-hidden containers.
+
+### 11.5 Renderer + Atlas
+
+- Glyph atlas upload path updates only dirty rects.
+- Atlas overflow behavior is deterministic (`insert => None`).
+- Gamma-correct composition invariant:
+  - quads render first on sRGB view
+  - glyphs/images render with load on non-sRGB view.
+- Clip-range/scissor partitioning:
+  - each clip range maps to correct glyph/image/quad instance ranges
+  - empty ranges are dropped by `DisplayList::finalize()`.
+
+### 11.6 Regression Fixtures To Keep
+
+- Mixed-emphasis sentence with wraps across `<strong>/<em>/<a>/<mark>`.
+- Dense punctuation and multiple spaces/newlines (whitespace collapse).
+- Extreme letter spacing (large positive + negative).
+- Long CJK-like token / no-space Latin token.
+- Nested overflow clipping around text.
+- Font fallback chain where first family is missing.
+
+### 11.7 Known Uncovered (Must Stay Explicit)
+
+The following remain intentionally uncovered until implemented:
+
+- `<br>` forced line break in rich-text paragraph path.
+- `white-space: pre / pre-wrap / pre-line / nowrap`.
+- `vertical-align: sub/super` baseline shifts.
+- `letter-spacing` in rich-text shaping path.
+- Bidi + RTL text shaping/layout.
+- Number-only `line-height` (unitless).
