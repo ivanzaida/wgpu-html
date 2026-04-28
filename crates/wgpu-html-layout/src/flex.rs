@@ -202,11 +202,15 @@ pub(crate) fn layout_flex_children(
             BlockOverrides {
                 width: Some(item.resolved_main),
                 height: None,
+                ignore_style_width: false,
+                ignore_style_height: item.ignore_unresolved_percent_cross_size,
             }
         } else {
             BlockOverrides {
                 width: None,
                 height: Some(item.resolved_main),
+                ignore_style_width: item.ignore_unresolved_percent_cross_size,
+                ignore_style_height: false,
             }
         };
         let laid = layout_block_at_with(
@@ -401,11 +405,15 @@ pub(crate) fn layout_flex_children(
                     BlockOverrides {
                         width: Some(item.resolved_main),
                         height: Some(stretch_target),
+                        ignore_style_width: false,
+                        ignore_style_height: false,
                     }
                 } else {
                     BlockOverrides {
                         width: Some(stretch_target),
                         height: Some(item.resolved_main),
+                        ignore_style_width: false,
+                        ignore_style_height: false,
                     }
                 };
                 layout_block_at_with(
@@ -548,6 +556,11 @@ struct FlexItem<'a> {
     /// (`width` for column, `height` for row), disabling the
     /// `align-self: stretch` re-layout.
     has_explicit_cross_size: bool,
+    /// A percentage cross size with an indefinite flex-container
+    /// cross size disables stretch, but it cannot resolve for the
+    /// item's own layout. Treat that style size as auto for the
+    /// recursive block layout.
+    ignore_unresolved_percent_cross_size: bool,
 
     /// Set after phase 4: the cross-axis content-box size emerged
     /// from laying the item out at its resolved main size.
@@ -721,8 +734,10 @@ fn build_item<'a>(
     } else {
         style.width.as_ref()
     };
+    let ignore_unresolved_percent_cross_size =
+        parent_inner_cross.is_none() && matches!(cross_size_prop, Some(CssLength::Percent(_)));
     let has_explicit_cross_size =
-        resolve_axis_length(cross_size_prop, parent_inner_cross, ctx).is_some();
+        matches!(cross_size_prop, Some(v) if !matches!(v, CssLength::Auto));
 
     FlexItem {
         node,
@@ -747,6 +762,7 @@ fn build_item<'a>(
         auto_cross_start,
         auto_cross_end,
         has_explicit_cross_size,
+        ignore_unresolved_percent_cross_size,
         measured_cross_inner: 0.0,
         box_: None,
     }

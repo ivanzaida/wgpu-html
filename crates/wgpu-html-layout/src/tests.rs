@@ -716,15 +716,15 @@ fn flex_column_wrap_with_indefinite_height_stays_single_line() {
 }
 
 #[test]
-fn flex_percent_cross_size_with_indefinite_cross_does_not_disable_stretch() {
+fn flex_percent_cross_size_with_indefinite_cross_disables_stretch_but_lays_out_as_auto() {
     let tree = make(
         r#"<body style="margin: 0; display: flex; align-items: stretch; width: 200px;">
-            <div style="width: 20px; height: 50%;"></div>
+            <div style="width: 20px; height: 50%; padding: 5px;"></div>
             <div style="width: 20px; height: 40px;"></div>
         </body>"#,
     );
     let body = layout(&tree, 800.0, 600.0).unwrap();
-    assert_eq!(body.children[0].border_rect.h, 40.0);
+    assert_eq!(body.children[0].border_rect.h, 10.0);
     assert_eq!(body.children[1].border_rect.h, 40.0);
 }
 

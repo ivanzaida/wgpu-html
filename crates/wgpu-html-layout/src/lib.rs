@@ -2023,6 +2023,8 @@ pub(crate) struct TextCtx<'a> {
 pub(crate) struct BlockOverrides {
     pub width: Option<f32>,
     pub height: Option<f32>,
+    pub ignore_style_width: bool,
+    pub ignore_style_height: bool,
 }
 
 /// Lay out one node as a block at `(origin_x, origin_y)` inside the
@@ -2114,7 +2116,12 @@ fn layout_block(
     let inner_width = match overrides.width {
         Some(w) => w,
         None => {
-            let base = match length::resolve(style.width.as_ref(), container_w, ctx) {
+            let style_width = if overrides.ignore_style_width {
+                None
+            } else {
+                style.width.as_ref()
+            };
+            let base = match length::resolve(style_width, container_w, ctx) {
                 Some(specified) => match box_sizing {
                     BoxSizing::ContentBox => specified,
                     BoxSizing::BorderBox => {
@@ -2187,10 +2194,15 @@ fn layout_block(
     let inner_height_explicit = match overrides.height {
         Some(h) => Some(h),
         None => {
+            let style_height = if overrides.ignore_style_height {
+                None
+            } else {
+                style.height.as_ref()
+            };
             // Replaced elements use intrinsic height when no CSS
             // height is specified. HTML height wins over the decoded
             // intrinsic height, but does not force a CPU resize.
-            let css_h = length::resolve(style.height.as_ref(), container_h, ctx);
+            let css_h = length::resolve(style_height, container_h, ctx);
             let effective_h = css_h
                 .or(html_img_height)
                 .or_else(|| img_data.as_ref().map(|id| id.height as f32));

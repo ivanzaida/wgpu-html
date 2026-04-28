@@ -191,6 +191,7 @@ pub(crate) fn layout_grid_children(
             BlockOverrides {
                 width: Some(span_w),
                 height: None,
+                ..Default::default()
             }
         } else {
             BlockOverrides::default()
@@ -282,6 +283,7 @@ pub(crate) fn layout_grid_children(
                 BlockOverrides {
                     width: target_w,
                     height: target_h,
+                    ..Default::default()
                 },
                 ctx,
             )
