@@ -22,6 +22,125 @@ use std::collections::HashMap;
 use wgpu_html_models::Style;
 
 use crate::css_parser::CssWideKeyword;
+use crate::shorthands::{
+    all_deferred_longhands, all_shorthands, is_deferred_longhand, is_inherited_deferred_longhand,
+    shorthand_contains_member, shorthand_members,
+};
+
+fn clear_background_values(values: &mut Style) {
+    values.background = None;
+    values.background_color = None;
+    values.background_image = None;
+    values.background_size = None;
+    values.background_position = None;
+    values.background_repeat = None;
+    values.background_clip = None;
+}
+
+fn clear_background_keywords(keywords: &mut HashMap<String, CssWideKeyword>) {
+    keywords.remove("background");
+    keywords.remove("background-color");
+    keywords.remove("background-image");
+    keywords.remove("background-size");
+    keywords.remove("background-position");
+    keywords.remove("background-repeat");
+    keywords.remove("background-clip");
+}
+
+fn clear_all_values(values: &mut Style) {
+    *values = Style::default();
+}
+
+fn clear_dynamic_value_for(prop: &str, values: &mut Style) {
+    if prop == "all" {
+        clear_all_values(values);
+        return;
+    }
+    if let Some(members) = shorthand_members(prop) {
+        for member in members {
+            if *member == prop {
+                continue;
+            }
+            clear_value_for(member, values);
+        }
+        return;
+    }
+    if is_deferred_longhand(prop) {
+        values.deferred_longhands.remove(prop);
+        values.reset_properties.remove(prop);
+    }
+}
+
+fn apply_deferred_keyword(
+    values: &mut Style,
+    parent: Option<&Style>,
+    prop: &str,
+    kw: CssWideKeyword,
+) {
+    match kw {
+        CssWideKeyword::Inherit => {
+            if let Some(value) = parent.and_then(|p| p.deferred_longhands.get(prop)) {
+                values
+                    .deferred_longhands
+                    .insert(prop.to_string(), value.clone());
+            } else {
+                values.deferred_longhands.remove(prop);
+            }
+        }
+        CssWideKeyword::Initial => {
+            values.deferred_longhands.remove(prop);
+        }
+        CssWideKeyword::Unset => {
+            if is_inherited_deferred_longhand(prop) {
+                if let Some(value) = parent.and_then(|p| p.deferred_longhands.get(prop)) {
+                    values
+                        .deferred_longhands
+                        .insert(prop.to_string(), value.clone());
+                } else {
+                    values.deferred_longhands.remove(prop);
+                }
+            } else {
+                values.deferred_longhands.remove(prop);
+            }
+        }
+    }
+}
+
+fn apply_all_keyword(values: &mut Style, parent: Option<&Style>, kw: CssWideKeyword) {
+    let mut next = Style::default();
+    match kw {
+        CssWideKeyword::Inherit => {
+            if let Some(parent) = parent {
+                next = parent.clone();
+            }
+        }
+        CssWideKeyword::Initial => {}
+        CssWideKeyword::Unset => {
+            if let Some(parent) = parent {
+                for prop in all_deferred_longhands() {
+                    if is_inherited_deferred_longhand(prop) {
+                        if let Some(value) = parent.deferred_longhands.get(*prop) {
+                            next.deferred_longhands
+                                .insert((*prop).to_string(), value.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    next.reset_properties.clear();
+    next.keyword_reset_properties.clear();
+    *values = next;
+}
+
+fn clear_keywords_covered_by_value(prop: &str, keywords: &mut HashMap<String, CssWideKeyword>) {
+    keywords.remove(prop);
+    for shorthand in all_shorthands() {
+        if shorthand_contains_member(shorthand, prop) {
+            keywords.remove(*shorthand);
+        }
+    }
+}
 
 macro_rules! style_props {
     (
@@ -31,11 +150,27 @@ macro_rules! style_props {
     ) => {
         /// Wipe the field for one named property.
         pub fn clear_value_for(prop: &str, values: &mut Style) {
+            if prop == "all" {
+                clear_all_values(values);
+                return;
+            }
+            if let Some(members) = shorthand_members(prop) {
+                for member in members {
+                    if *member != prop {
+                        clear_value_for(member, values);
+                    }
+                }
+            }
+            clear_direct_value_for(prop, values);
+        }
+
+        fn clear_direct_value_for(prop: &str, values: &mut Style) {
             match prop {
+                "background" => clear_background_values(values),
                 $(
                     $name => values.$field = None,
                 )*
-                _ => {}
+                _ => clear_dynamic_value_for(prop, values),
             }
         }
 
@@ -49,12 +184,26 @@ macro_rules! style_props {
             keywords: &mut HashMap<String, CssWideKeyword>,
             src: &Style,
         ) {
+            for prop in &src.reset_properties {
+                clear_value_for(prop, dst);
+                clear_keywords_covered_by_value(prop, keywords);
+            }
+            if src.background.is_some() {
+                clear_background_values(dst);
+                clear_background_keywords(keywords);
+                dst.background = src.background.clone();
+                keywords.remove("background");
+            }
             $(
                 if src.$field.is_some() {
                     dst.$field = src.$field.clone();
-                    keywords.remove($name);
+                    clear_keywords_covered_by_value($name, keywords);
                 }
             )*
+            for (prop, value) in &src.deferred_longhands {
+                dst.deferred_longhands.insert(prop.clone(), value.clone());
+                clear_keywords_covered_by_value(prop, keywords);
+            }
         }
 
         /// Resolve one CSS-wide keyword against the parent's resolved
@@ -67,7 +216,37 @@ macro_rules! style_props {
             prop: &str,
             kw: CssWideKeyword,
         ) {
+            if prop == "all" {
+                apply_all_keyword(values, parent, kw);
+                return;
+            }
+            if let Some(members) = shorthand_members(prop) {
+                for member in members {
+                    if *member != prop {
+                        apply_keyword(values, parent, member, kw);
+                    }
+                }
+            }
+            apply_direct_keyword(values, parent, prop, kw);
+        }
+
+        fn apply_direct_keyword(
+            values: &mut Style,
+            parent: Option<&Style>,
+            prop: &str,
+            kw: CssWideKeyword,
+        ) {
             match prop {
+                "background" => {
+                    match kw {
+                        CssWideKeyword::Inherit => {
+                            values.background = parent.and_then(|p| p.background.clone());
+                        }
+                        CssWideKeyword::Initial | CssWideKeyword::Unset => {
+                            values.background = None;
+                        }
+                    }
+                }
                 $(
                     $name => {
                         match kw {
@@ -87,7 +266,11 @@ macro_rules! style_props {
                         }
                     }
                 )*
-                _ => {}
+                _ => {
+                    if is_deferred_longhand(prop) {
+                        apply_deferred_keyword(values, parent, prop, kw);
+                    }
+                }
             }
         }
 
@@ -97,7 +280,7 @@ macro_rules! style_props {
                 $(
                     $name => style_props!(@is_inh $($is_inh)?),
                 )*
-                _ => false,
+                _ => is_inherited_deferred_longhand(prop),
             }
         }
     };
@@ -136,7 +319,6 @@ style_props! {
     box_sizing => "box-sizing";
 
     // Background / borders -------------------------------------------
-    background => "background";
     background_color => "background-color";
     background_image => "background-image";
     background_size => "background-size";
@@ -258,6 +440,18 @@ mod tests {
     }
 
     #[test]
+    fn clear_value_for_background_clears_supported_longhands() {
+        let mut s = Style::default();
+        s.background = Some("#123456".into());
+        s.background_color = Some(CssColor::Hex("#123456".into()));
+        s.background_position = Some("center".into());
+        clear_value_for("background", &mut s);
+        assert!(s.background.is_none());
+        assert!(s.background_color.is_none());
+        assert!(s.background_position.is_none());
+    }
+
+    #[test]
     fn apply_inherit_uses_parent_value() {
         let mut child = Style::default();
         let mut parent = Style::default();
@@ -307,6 +501,25 @@ mod tests {
     }
 
     #[test]
+    fn apply_background_inherit_copies_supported_longhands() {
+        let mut child = Style::default();
+        child.background_color = Some(CssColor::Named("red".into()));
+        let mut parent = Style::default();
+        parent.background = Some("#1b1d22".into());
+        parent.background_color = Some(CssColor::Hex("#1b1d22".into()));
+        parent.background_position = Some("center".into());
+        apply_keyword(
+            &mut child,
+            Some(&parent),
+            "background",
+            CssWideKeyword::Inherit,
+        );
+        assert!(matches!(child.background_color, Some(CssColor::Hex(ref s)) if s == "#1b1d22"));
+        assert_eq!(child.background.as_deref(), Some("#1b1d22"));
+        assert_eq!(child.background_position.as_deref(), Some("center"));
+    }
+
+    #[test]
     fn merge_values_clears_keywords_for_touched_fields() {
         let mut dst = Style::default();
         let mut kw: HashMap<String, CssWideKeyword> = HashMap::new();
@@ -318,6 +531,27 @@ mod tests {
         assert!(dst.color.is_some());
         assert!(!kw.contains_key("color"));
         assert!(kw.contains_key("width"));
+    }
+
+    #[test]
+    fn background_shorthand_merge_clears_related_keywords_and_values() {
+        let mut dst = Style::default();
+        dst.background_image = Some(wgpu_html_models::common::css_enums::CssImage::Url(
+            "a.png".into(),
+        ));
+        let mut kw: HashMap<String, CssWideKeyword> = HashMap::new();
+        kw.insert("background-color".into(), CssWideKeyword::Inherit);
+        kw.insert("background-repeat".into(), CssWideKeyword::Initial);
+
+        let mut src = Style::default();
+        src.background = Some("#1b1d22".into());
+        src.background_color = Some(CssColor::Hex("#1b1d22".into()));
+
+        merge_values_clearing_keywords(&mut dst, &mut kw, &src);
+        assert!(matches!(dst.background_color, Some(CssColor::Hex(ref s)) if s == "#1b1d22"));
+        assert!(dst.background_image.is_none());
+        assert!(!kw.contains_key("background-color"));
+        assert!(!kw.contains_key("background-repeat"));
     }
 
     #[test]

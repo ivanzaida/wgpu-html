@@ -180,6 +180,17 @@ fn background_color_resolves() {
 }
 
 #[test]
+fn background_shorthand_color_resolves() {
+    let tree =
+        make(r#"<body style="margin: 0; background: #1b1d22; width: 10px; height: 10px;"></body>"#);
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let bg = root.background.expect("background should be set");
+    assert!((bg[0] - 0.010960094).abs() < 1e-6);
+    assert!((bg[1] - 0.012286488).abs() < 1e-6);
+    assert!((bg[2] - 0.015996294).abs() < 1e-6);
+}
+
+#[test]
 fn text_nodes_are_zero_size_placeholders() {
     let tree = make("<p>hi</p>");
     let root = layout(&tree, 800.0, 600.0).unwrap();
@@ -202,7 +213,10 @@ fn img_is_inline_level_inside_text_flow() {
     assert_eq!(label.children[1].kind, BoxKind::Block);
     assert_eq!(label.children[1].margin_rect.w, 0.0);
     assert_eq!(label.children[1].margin_rect.h, 0.0);
-    assert_eq!(label.children[2].margin_rect.y, label.children[0].margin_rect.y);
+    assert_eq!(
+        label.children[2].margin_rect.y,
+        label.children[0].margin_rect.y
+    );
 }
 
 #[test]
@@ -218,7 +232,10 @@ fn sized_img_occupies_inline_replaced_space() {
     assert_eq!(img.border_rect.w, 10.0);
     assert_eq!(img.border_rect.h, 8.0);
     assert_eq!(label.content_rect.h, 8.0);
-    assert_eq!(label.children[2].margin_rect.y, label.children[0].margin_rect.y);
+    assert_eq!(
+        label.children[2].margin_rect.y,
+        label.children[0].margin_rect.y
+    );
 }
 
 #[test]
@@ -264,7 +281,10 @@ fn inline_block_children_wrap_between_atomic_boxes() {
     let root = layout(&tree, 170.0, 200.0).unwrap();
     let line = &root.children[0];
     assert_eq!(line.children.len(), 3);
-    assert_eq!(line.children[0].margin_rect.y, line.children[1].margin_rect.y);
+    assert_eq!(
+        line.children[0].margin_rect.y,
+        line.children[1].margin_rect.y
+    );
     assert!(line.children[2].margin_rect.y > line.children[0].margin_rect.y);
 }
 

@@ -322,7 +322,9 @@ pub(crate) fn layout_flex_children(
         // Items' total outer main + gaps used on this line.
         let total_main: f32 = line.iter().map(|&i| items[i].outer_main()).sum::<f32>()
             + gap_main * (line.len() as f32 - 1.0).max(0.0);
-        let mut free_main = main_axis_size.map(|m| (m - total_main).max(0.0)).unwrap_or(0.0);
+        let mut free_main = main_axis_size
+            .map(|m| (m - total_main).max(0.0))
+            .unwrap_or(0.0);
 
         // Auto main-axis margins absorb free space first; whatever
         // is left flows into `justify-content`.
@@ -624,11 +626,13 @@ fn build_item<'a>(
     let border_top =
         resolve_axis_length(style.border_top_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
     let border_right =
-        resolve_axis_length(style.border_right_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+        resolve_axis_length(style.border_right_width.as_ref(), parent_inner_main, ctx)
+            .unwrap_or(0.0);
     let border_bottom =
-        resolve_axis_length(style.border_bottom_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
-    let border_left =
-        resolve_axis_length(style.border_left_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+        resolve_axis_length(style.border_bottom_width.as_ref(), parent_inner_main, ctx)
+            .unwrap_or(0.0);
+    let border_left = resolve_axis_length(style.border_left_width.as_ref(), parent_inner_main, ctx)
+        .unwrap_or(0.0);
 
     let pad_top = side_pad(&style.padding_top, &style.padding, parent_inner_main, ctx);
     let pad_right = side_pad(&style.padding_right, &style.padding, parent_inner_main, ctx);
@@ -792,7 +796,11 @@ fn side_pad(
         .unwrap_or(0.0)
 }
 
-fn resolve_axis_length(len: Option<&CssLength>, container: Option<f32>, ctx: &mut Ctx) -> Option<f32> {
+fn resolve_axis_length(
+    len: Option<&CssLength>,
+    container: Option<f32>,
+    ctx: &mut Ctx,
+) -> Option<f32> {
     let len = len?;
     match len {
         CssLength::Percent(_) if container.is_none() => None,

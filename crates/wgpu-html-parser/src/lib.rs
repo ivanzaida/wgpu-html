@@ -9,6 +9,7 @@
 
 pub mod attr_parser;
 pub mod css_parser;
+pub mod shorthands;
 pub mod style_props;
 pub mod stylesheet;
 pub mod tokenizer;

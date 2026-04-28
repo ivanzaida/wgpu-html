@@ -12,6 +12,10 @@ macro_rules! merge_field {
 }
 
 pub fn merge(lhs: &mut Style, rhs: &Style) {
+    lhs.reset_properties
+        .extend(rhs.reset_properties.iter().cloned());
+    lhs.keyword_reset_properties
+        .extend(rhs.keyword_reset_properties.iter().cloned());
     merge_field!(lhs, rhs, display);
     merge_field!(lhs, rhs, position);
     merge_field!(lhs, rhs, top);
@@ -84,6 +88,8 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
     merge_field!(lhs, rhs, justify_content);
     merge_field!(lhs, rhs, align_items);
     merge_field!(lhs, rhs, align_content);
+    merge_field!(lhs, rhs, align_self);
+    merge_field!(lhs, rhs, order);
     merge_field!(lhs, rhs, gap);
     merge_field!(lhs, rhs, row_gap);
     merge_field!(lhs, rhs, column_gap);
@@ -93,8 +99,17 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
     merge_field!(lhs, rhs, flex_basis);
     merge_field!(lhs, rhs, grid_template_columns);
     merge_field!(lhs, rhs, grid_template_rows);
+    merge_field!(lhs, rhs, grid_auto_columns);
+    merge_field!(lhs, rhs, grid_auto_rows);
+    merge_field!(lhs, rhs, grid_auto_flow);
     merge_field!(lhs, rhs, grid_column);
+    merge_field!(lhs, rhs, grid_column_start);
+    merge_field!(lhs, rhs, grid_column_end);
     merge_field!(lhs, rhs, grid_row);
+    merge_field!(lhs, rhs, grid_row_start);
+    merge_field!(lhs, rhs, grid_row_end);
+    merge_field!(lhs, rhs, justify_items);
+    merge_field!(lhs, rhs, justify_self);
     merge_field!(lhs, rhs, transform);
     merge_field!(lhs, rhs, transform_origin);
     merge_field!(lhs, rhs, transition);
@@ -104,4 +119,7 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
     merge_field!(lhs, rhs, user_select);
     merge_field!(lhs, rhs, box_shadow);
     merge_field!(lhs, rhs, box_sizing);
+    for (prop, value) in &rhs.deferred_longhands {
+        lhs.deferred_longhands.insert(prop.clone(), value.clone());
+    }
 }

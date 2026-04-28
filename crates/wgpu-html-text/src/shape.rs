@@ -317,20 +317,21 @@ impl TextContext {
         // glyph loop below can borrow `&mut self.font_db` /
         // `&mut self.swash` without colliding with the `Buffer`'s
         // outstanding `&mut FontSystem`.
-        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32)>, f32, f32, f32)> = buffer
-            .layout_runs()
-            .map(|run| {
-                let line_top = run.line_top;
-                let line_y = run.line_y;
-                let line_h = run.line_height;
-                let glyphs: Vec<_> = run
-                    .glyphs
-                    .iter()
-                    .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w))
-                    .collect();
-                (glyphs, line_top, line_y, line_h)
-            })
-            .collect();
+        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32)>, f32, f32, f32)> =
+            buffer
+                .layout_runs()
+                .map(|run| {
+                    let line_top = run.line_top;
+                    let line_y = run.line_y;
+                    let line_h = run.line_height;
+                    let glyphs: Vec<_> = run
+                        .glyphs
+                        .iter()
+                        .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w))
+                        .collect();
+                    (glyphs, line_top, line_y, line_h)
+                })
+                .collect();
 
         let first_line = layout_lines.first()?;
         let ascent_px = first_line.2;

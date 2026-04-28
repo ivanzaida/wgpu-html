@@ -343,6 +343,9 @@ mod tests {
             },
         });
 
-        assert_eq!(selected_text(&tree, &root).as_deref(), Some("Hello world\nSecond"));
+        assert_eq!(
+            selected_text(&tree, &root).as_deref(),
+            Some("Hello world\nSecond")
+        );
     }
 }

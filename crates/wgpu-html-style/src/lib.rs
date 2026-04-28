@@ -28,6 +28,7 @@ use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 pub struct MatchContext {
     pub is_hover: bool,
     pub is_active: bool,
+    pub is_focus: bool,
 }
 
 impl MatchContext {
@@ -39,6 +40,7 @@ impl MatchContext {
         Self {
             is_hover: path_is_prefix(path, state.hover_path.as_deref()),
             is_active: path_is_prefix(path, state.active_path.as_deref()),
+            is_focus: false,
         }
     }
 }
@@ -54,7 +56,7 @@ mod element_attrs;
 mod merge;
 mod ua;
 
-pub use element_attrs::{element_class, element_id, element_style_attr, element_tag};
+pub use element_attrs::{element_attr, element_class, element_id, element_style_attr, element_tag};
 pub use merge::merge;
 
 // ---------------------------------------------------------------------------
@@ -193,7 +195,11 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, Cs
     macro_rules! inherit {
         ($(($field:ident, $name:literal)),* $(,)?) => {
             $(
-                if child.$field.is_none() && !keywords.contains_key($name) {
+                if child.$field.is_none()
+                    && !keywords.contains_key($name)
+                    && !child.reset_properties.contains($name)
+                    && !child.keyword_reset_properties.contains($name)
+                {
                     child.$field = parent.$field.clone();
                 }
             )*
@@ -214,6 +220,20 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, Cs
         (visibility, "visibility"),
         (cursor, "cursor"),
     );
+    for (prop, value) in &parent.deferred_longhands {
+        if child.deferred_longhands.contains_key(prop) || keywords.contains_key(prop) {
+            continue;
+        }
+        if child.reset_properties.contains(prop) {
+            continue;
+        }
+        if child.keyword_reset_properties.contains(prop) {
+            continue;
+        }
+        if wgpu_html_parser::is_inherited(prop) {
+            child.deferred_longhands.insert(prop.clone(), value.clone());
+        }
+    }
 }
 
 /// Compute the cascaded style for one element against a stylesheet,
@@ -351,6 +371,10 @@ fn apply_layer(
     layer_values: &Style,
     layer_keywords: &HashMap<String, CssWideKeyword>,
 ) {
+    for prop in &layer_values.keyword_reset_properties {
+        wgpu_html_parser::clear_value_for(prop, values);
+        values.keyword_reset_properties.insert(prop.clone());
+    }
     for (prop, kw) in layer_keywords {
         wgpu_html_parser::clear_value_for(prop, values);
         keywords.insert(prop.clone(), *kw);
@@ -465,6 +489,16 @@ fn matches_compound(sel: &Selector, element: &Element) -> bool {
             }
         }
     }
+    for attr in &sel.attributes {
+        let Some(actual) = element_attr(element, &attr.name) else {
+            return false;
+        };
+        if let Some(expected) = &attr.value
+            && !actual.eq_ignore_ascii_case(expected)
+        {
+            return false;
+        }
+    }
     true
 }
 
@@ -476,6 +510,8 @@ fn pseudo_classes_satisfied(sel: &Selector, ctx: &MatchContext) -> bool {
         let ok = match pc {
             PseudoClass::Hover => ctx.is_hover,
             PseudoClass::Active => ctx.is_active,
+            PseudoClass::Focus => ctx.is_focus,
+            PseudoClass::Visited => false,
         };
         if !ok {
             return false;

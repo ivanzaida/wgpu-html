@@ -85,7 +85,14 @@ pub fn paint_layout_with_selection(
 ) {
     let mut clip_stack: Vec<ClipFrame> = Vec::new();
     let mut path = Vec::new();
-    paint_box_in_clip(root, list, &mut clip_stack, &mut path, selection, selection_colors);
+    paint_box_in_clip(
+        root,
+        list,
+        &mut clip_stack,
+        &mut path,
+        selection,
+        selection_colors,
+    );
 }
 
 /// Compute the padding-box rect of a layout box. CSS-2.2 §11.1.1
@@ -279,13 +286,12 @@ fn paint_box_in_clip(
             // resolved foreground (set at shape time). The per-leaf
             // `text_color` on the box stays around as a hint for
             // decorations / fallbacks but glyphs paint at `g.color`.
-            let glyph_color = if selected_range
-                .is_some_and(|(start, end)| idx >= start && idx < end)
-            {
-                selection_colors.foreground
-            } else {
-                g.color
-            };
+            let glyph_color =
+                if selected_range.is_some_and(|(start, end)| idx >= start && idx < end) {
+                    selection_colors.foreground
+                } else {
+                    g.color
+                };
             out.push_glyph(
                 Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),
                 glyph_color,
@@ -399,7 +405,10 @@ fn paint_selection_background(
             x1 = x1.max(g.x + g.w);
         }
         if x1 > x0 {
-            out.push_quad(Rect::new(origin.x + x0, origin.y, x1 - x0, run.height.max(1.0)), color);
+            out.push_quad(
+                Rect::new(origin.x + x0, origin.y, x1 - x0, run.height.max(1.0)),
+                color,
+            );
         }
         return;
     }
@@ -1452,10 +1461,17 @@ mod tests {
         paint_layout_with_selection(&root, &mut list, Some(&selection), colors);
         list.finalize();
 
-        assert_eq!(list.quads.len(), 1, "single line emits one merged highlight span");
+        assert_eq!(
+            list.quads.len(),
+            1,
+            "single line emits one merged highlight span"
+        );
         assert_eq!(list.quads[0].color, colors.background);
         assert_eq!(list.quads[0].rect.y, 20.0, "selection starts at line top");
-        assert_eq!(list.quads[0].rect.h, 22.0, "selection uses line height, not glyph height");
+        assert_eq!(
+            list.quads[0].rect.h, 22.0,
+            "selection uses line height, not glyph height"
+        );
         assert_eq!(list.glyphs.len(), 3);
         assert_eq!(list.glyphs[0].color, [0.1, 0.2, 0.3, 1.0]);
         assert_eq!(list.glyphs[1].color, colors.foreground);

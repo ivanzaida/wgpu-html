@@ -2,10 +2,10 @@
 //!
 //! Scope: comma-separated selector lists, each entry being a chain of
 //! compound selectors joined by the descendant combinator (whitespace).
-//! A compound selector is the same simple-selector mix supported
-//! before: optional tag (or universal `*`), optional id, any number
-//! of classes, plus an optional set of dynamic pseudo-classes
-//! (`:hover`, `:active`). Other combinators (`>`, `+`, `~`) and
+//! A compound selector supports an optional tag (or universal `*`),
+//! optional id, any number of classes, simple attribute selectors, plus
+//! an optional set of dynamic pseudo-classes (`:hover`, `:active`,
+//! `:focus`). Other combinators (`>`, `+`, `~`) and
 //! unsupported pseudo-classes / pseudo-elements still drop the rule.
 
 use std::collections::HashMap;
@@ -36,6 +36,20 @@ pub enum PseudoClass {
     /// `:active` — matches when this element is on the active
     /// (currently-pressed) chain.
     Active,
+    /// `:focus` — accepted for UA/author styles. The runtime does
+    /// not track keyboard focus yet, so it only matches if a caller
+    /// explicitly supplies a focused match context.
+    Focus,
+    /// `:visited` — accepted so browser UA link defaults parse.
+    /// The engine has no navigation history, so it only matches if
+    /// style matching grows visited-link state later.
+    Visited,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttributeSelector {
+    pub name: String,
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -44,6 +58,10 @@ pub struct Selector {
     pub tag: Option<String>,
     pub id: Option<String>,
     pub classes: Vec<String>,
+    /// Simple attribute selectors: `[hidden]`, `[dir="rtl"]`,
+    /// `input[type=submit]`. Operators other than exact equality are
+    /// intentionally unsupported for now.
+    pub attributes: Vec<AttributeSelector>,
     /// True for selectors written as `*` (or `*.foo`, etc.). With this set
     /// the selector still matches even if no tag/id/class constraints
     /// remain after the universal.
@@ -76,7 +94,7 @@ impl Selector {
     /// internally and by `specificity()`.
     pub fn compound_specificity(&self) -> u32 {
         let id = if self.id.is_some() { 1 } else { 0 };
-        let cls = (self.classes.len() + self.pseudo_classes.len()) as u32;
+        let cls = (self.classes.len() + self.attributes.len() + self.pseudo_classes.len()) as u32;
         let tag = if self.tag.is_some() { 1 } else { 0 };
         (id << 16) | (cls << 8) | tag
     }
@@ -89,6 +107,7 @@ impl Selector {
             || self.tag.is_some()
             || self.id.is_some()
             || !self.classes.is_empty()
+            || !self.attributes.is_empty()
             || !self.pseudo_classes.is_empty()
     }
 }
@@ -193,13 +212,14 @@ fn parse_selector(s: &str) -> Option<Selector> {
 }
 
 /// Parse one whitespace-free compound
-/// (tag/id/classes/universal/pseudo-classes).
+/// (tag/id/classes/attrs/universal/pseudo-classes).
 /// Returns `None` if the compound contains anything we don't handle.
 fn parse_compound(s: &str) -> Option<Selector> {
     if s.is_empty() {
         return None;
     }
     let mut sel = Selector::default();
+    let s = extract_attribute_selectors(s, &mut sel)?;
     let mut buf = String::new();
     #[derive(Copy, Clone)]
     enum Kind {
@@ -234,7 +254,15 @@ fn parse_compound(s: &str) -> Option<Selector> {
                     sel.pseudo_classes.push(PseudoClass::Active);
                     buf.clear();
                 }
-                // Anything we don't recognize (`:focus`, `::before`,
+                "focus" => {
+                    sel.pseudo_classes.push(PseudoClass::Focus);
+                    buf.clear();
+                }
+                "visited" => {
+                    sel.pseudo_classes.push(PseudoClass::Visited);
+                    buf.clear();
+                }
+                // Anything we don't recognize (`::before`,
                 // `:nth-child`, …) drops the whole rule.
                 _ => return None,
             },
@@ -258,8 +286,8 @@ fn parse_compound(s: &str) -> Option<Selector> {
             }
             c if c.is_alphanumeric() || c == '-' || c == '_' || c == '*' => buf.push(c),
             // Unsupported character in a single compound (other
-            // combinators were already split off as whitespace;
-            // attribute selectors `[a=b]` land here): drop the rule.
+            // combinators were already split off as whitespace):
+            // drop the rule.
             _ => return None,
         }
     }
@@ -269,6 +297,72 @@ fn parse_compound(s: &str) -> Option<Selector> {
         return None;
     }
     Some(sel)
+}
+
+fn extract_attribute_selectors(s: &str, sel: &mut Selector) -> Option<String> {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    loop {
+        let Some(open) = rest.find('[') else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(&rest[..open]);
+        let after_open = &rest[open + 1..];
+        let close = after_open.find(']')?;
+        parse_attribute_selector(&after_open[..close], sel)?;
+        rest = &after_open[close + 1..];
+    }
+    Some(out)
+}
+
+fn parse_attribute_selector(raw: &str, sel: &mut Selector) -> Option<()> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let (name, value) = if let Some((name, value)) = raw.split_once('=') {
+        let name = normalize_attr_name(name)?;
+        let value = strip_attr_quotes(value.trim())?;
+        (name, Some(value.to_ascii_lowercase()))
+    } else {
+        (normalize_attr_name(raw)?, None)
+    };
+    sel.attributes.push(AttributeSelector { name, value });
+    Some(())
+}
+
+fn normalize_attr_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':')
+    {
+        return None;
+    }
+    Some(name.to_ascii_lowercase())
+}
+
+fn strip_attr_quotes(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let bytes = trimmed.as_bytes();
+    if bytes.len() >= 2
+        && ((bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"')
+            || (bytes[0] == b'\'' && bytes[bytes.len() - 1] == b'\''))
+    {
+        Some(trimmed[1..trimmed.len() - 1].to_string())
+    } else if bytes
+        .iter()
+        .all(|b| b.is_ascii_alphanumeric() || matches!(*b, b'-' | b'_' | b':' | b'.'))
+    {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -375,8 +469,8 @@ mod tests {
 
     #[test]
     fn rejects_unknown_pseudo_classes() {
-        // We accept `:hover` / `:active` only; everything else drops.
-        assert!(parse_selector("a:focus").is_none());
+        // We accept dynamic state pseudo-classes only; structural
+        // pseudo-classes and pseudo-elements still drop.
         assert!(parse_selector("p::before").is_none());
         assert!(parse_selector("li:nth-child").is_none());
     }
@@ -395,6 +489,40 @@ mod tests {
         assert!(s.tag.is_none());
         assert!(s.id.is_none());
         assert_eq!(s.pseudo_classes, vec![PseudoClass::Hover]);
+    }
+
+    #[test]
+    fn parses_focus_and_visited_pseudo_classes() {
+        let focus = parse_selector(":focus").unwrap();
+        assert_eq!(focus.pseudo_classes, vec![PseudoClass::Focus]);
+        let visited = parse_selector("a:visited").unwrap();
+        assert_eq!(visited.tag.as_deref(), Some("a"));
+        assert_eq!(visited.pseudo_classes, vec![PseudoClass::Visited]);
+    }
+
+    #[test]
+    fn parses_attribute_presence_selector() {
+        let s = parse_selector("abbr[title]").unwrap();
+        assert_eq!(s.tag.as_deref(), Some("abbr"));
+        assert_eq!(s.attributes.len(), 1);
+        assert_eq!(s.attributes[0].name, "title");
+        assert_eq!(s.attributes[0].value, None);
+    }
+
+    #[test]
+    fn parses_attribute_equality_selector() {
+        let s = parse_selector(r#"input[type="submit"]"#).unwrap();
+        assert_eq!(s.tag.as_deref(), Some("input"));
+        assert_eq!(s.attributes.len(), 1);
+        assert_eq!(s.attributes[0].name, "type");
+        assert_eq!(s.attributes[0].value.as_deref(), Some("submit"));
+    }
+
+    #[test]
+    fn attribute_selector_adds_class_specificity() {
+        let plain = parse_selector("input").unwrap().specificity();
+        let attr = parse_selector("input[type=submit]").unwrap().specificity();
+        assert!(attr > plain);
     }
 
     #[test]

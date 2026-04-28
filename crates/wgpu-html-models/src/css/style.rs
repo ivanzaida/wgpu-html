@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::common::css_enums::{
     AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing,
     CssColor, CssImage, CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight,
@@ -186,4 +188,18 @@ pub struct Style {
     pub box_shadow: Option<String>,
     // css property: box-sizing
     pub box_sizing: Option<BoxSizing>,
+    /// Longhands that the engine recognizes and preserves for future
+    /// implementation, but doesn't model as dedicated typed fields yet.
+    /// Keys are CSS kebab-case property names.
+    pub deferred_longhands: HashMap<String, String>,
+    /// Longhands that a parsed shorthand declaration must reset before
+    /// applying its explicit member values. This lets shorthands clear
+    /// previously-set longhands even when the shorthand's initial value
+    /// for that member is represented as `None` in the typed model.
+    pub reset_properties: HashSet<String>,
+    /// Longhands reset by a CSS-wide keyword on a shorthand. These do
+    /// not represent a value declaration themselves; cascade uses them
+    /// to block later implicit inheritance for the omitted members when
+    /// a following longhand value clears the covering shorthand keyword.
+    pub keyword_reset_properties: HashSet<String>,
 }

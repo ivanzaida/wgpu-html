@@ -55,7 +55,7 @@ Frame on wgpu surface
 ### 2. CSS Parsing
 - **Box model:** `display, position, top/right/bottom/left, width, height, min-/max-width/height, box-sizing`.
 - **Spacing:** `margin`, `padding` — 1/2/3/4-value shorthand + per-side longhands.
-- **Backgrounds:** `background-color, background-clip, background-repeat`; `background-image / -size / -position` stored as raw strings.
+- **Backgrounds:** `background-color, background-clip, background-repeat`; partial `background` shorthand (color / image / repeat / clip); `background-image` typed as URL/function, `background-size / -position` parsed and consumed from raw strings.
 - **Borders:** `border` shorthand; per-side shorthand + `-width / -style / -color` longhands; `border-radius` with `/`-separated elliptical syntax, 1–4-corner expansion, per-corner `<h> <v>` longhands.
 - **Typography:** `color, font-family, font-size, font-weight, font-style, line-height, letter-spacing, text-align, text-transform, white-space, text-decoration, vertical-align`.
 - **Overflow:** `overflow, overflow-x, overflow-y`.
@@ -182,7 +182,7 @@ Frame on wgpu surface
 - **No child/sibling combinators:** `>`, `+`, `~` are not supported (only descendant ` ` works).
 - **No attribute selectors** (`[href]`, `[type=text]`).
 - **No pseudo-classes / pseudo-elements** (`:hover, :focus, :nth-child, ::before, ::after`, …).
-- `transform, transition, animation, box-shadow, background-image, background-size, background-position` stored as **raw `Option<String>`** — never structured or applied.
+- `transform, transition, animation, box-shadow` stored as **raw `Option<String>`** — never structured or applied.
 - No `calc()`, no `var(…)`, no custom properties (`--foo`).
 - No structured types for shadows, gradients, transforms, filters, masks, clip-paths.
 
@@ -202,7 +202,7 @@ Frame on wgpu surface
 - Transforms not applied to layout.
 
 ### Rendering Gaps
-- **No images:** `<img src>` parsed but never fetched or drawn. No `background-image`.
+- No `background-origin`, `background-attachment`, or multi-layer background rendering.
 - **No gradients:** `linear-gradient(…)` stays a raw string.
 - **No box-shadow.**
 - **No transforms / opacity layers / filters / blend modes** (per-quad alpha only).

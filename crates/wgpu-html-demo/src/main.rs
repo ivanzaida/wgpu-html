@@ -2,7 +2,9 @@
 //! shape text via cosmic-text, render the resulting glyph quads
 //! through the renderer's textured pipeline.
 
+use std::env;
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
@@ -23,7 +25,8 @@ use wgpu_html::renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Ren
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{FontFace, FontStyleAxis, Modifiers, MouseButton, Tree};
 
-const DOC: &str = include_str!("../html/text-selection.html");
+const DEFAULT_DOC: &str = include_str!("../html/flex-browser-like.html");
+const DEFAULT_DOC_PATH: &str = "crates/wgpu-html-demo/html/flex-browser-like.html";
 
 /// One font family's worth of system-font paths: regular, bold,
 /// italic, bold-italic. An empty path means "this variant isn't on
@@ -139,6 +142,7 @@ struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     text_ctx: TextContext,
+    doc_html: String,
     /// Document tree, parsed once on first redraw and reused across
     /// frames so per-element callbacks survive (re-parsing every
     /// frame would lose them).
@@ -164,8 +168,8 @@ struct App {
     modifiers: Modifiers,
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl App {
+    fn new(doc_html: String) -> Self {
         Self {
             window: None,
             renderer: None,
@@ -173,6 +177,7 @@ impl Default for App {
             // uploads land 1:1 without scaling. See
             // `wgpu_html_renderer::GLYPH_ATLAS_SIZE`.
             text_ctx: TextContext::new(GLYPH_ATLAS_SIZE),
+            doc_html,
             tree: None,
             last_layout: None,
             cursor_pos: None,
@@ -194,10 +199,11 @@ impl App {
     /// active `&mut self.renderer` borrow.
     fn ensure_tree_built<'a>(
         tree_slot: &'a mut Option<Tree>,
+        doc_html: &str,
         click_count: &Arc<AtomicUsize>,
     ) -> &'a mut Tree {
         if tree_slot.is_none() {
-            let mut tree = wgpu_html::parser::parse(DOC);
+            let mut tree = wgpu_html::parser::parse(doc_html);
             for face in demo_fonts() {
                 tree.register_font(FontFace {
                     family: "DemoSans".into(),
@@ -366,7 +372,8 @@ impl ApplicationHandler for App {
                                 let Some(renderer) = self.renderer.as_mut() else {
                                     return;
                                 };
-                                let path: PathBuf = format!("screenshot-{}.png", timestamp()).into();
+                                let path: PathBuf =
+                                    format!("screenshot-{}.png", timestamp()).into();
                                 renderer.capture_next_frame_to(path);
                                 window.request_redraw();
                             }
@@ -379,8 +386,7 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
                 self.cursor_pos = Some(pos);
-                if let (Some(drag), Some(layout)) =
-                    (self.scrollbar_drag, self.last_layout.as_ref())
+                if let (Some(drag), Some(layout)) = (self.scrollbar_drag, self.last_layout.as_ref())
                 {
                     let size = window.inner_size();
                     self.scroll_y = scroll_y_from_thumb_top(
@@ -427,22 +433,10 @@ impl ApplicationHandler for App {
                 {
                     match state {
                         ElementState::Pressed => {
-                            interactivity::mouse_down(
-                                tree,
-                                layout,
-                                doc_pos,
-                                btn,
-                                self.modifiers,
-                            );
+                            interactivity::mouse_down(tree, layout, doc_pos, btn, self.modifiers);
                         }
                         ElementState::Released => {
-                            interactivity::mouse_up(
-                                tree,
-                                layout,
-                                doc_pos,
-                                btn,
-                                self.modifiers,
-                            );
+                            interactivity::mouse_up(tree, layout, doc_pos, btn, self.modifiers);
                         }
                     }
                 }
@@ -450,11 +444,16 @@ impl ApplicationHandler for App {
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.last_layout.as_ref() {
                     let dy = scroll_delta_to_pixels(delta);
-                    self.scroll_y =
-                        clamp_scroll_y(self.scroll_y + dy, layout, window.inner_size().height as f32);
-                    if let (Some(tree), Some(pos), Some(layout)) =
-                        (self.tree.as_mut(), self.cursor_pos, self.last_layout.as_ref())
-                    {
+                    self.scroll_y = clamp_scroll_y(
+                        self.scroll_y + dy,
+                        layout,
+                        window.inner_size().height as f32,
+                    );
+                    if let (Some(tree), Some(pos), Some(layout)) = (
+                        self.tree.as_mut(),
+                        self.cursor_pos,
+                        self.last_layout.as_ref(),
+                    ) {
                         let doc_pos = viewport_to_document(pos, self.scroll_y);
                         interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
                     }
@@ -470,7 +469,8 @@ impl ApplicationHandler for App {
                 // Build the tree on first frame; subsequent frames
                 // reuse it so callbacks set in `ensure_tree_built`
                 // persist.
-                let tree_ref = App::ensure_tree_built(&mut self.tree, &self.click_count);
+                let tree_ref =
+                    App::ensure_tree_built(&mut self.tree, &self.doc_html, &self.click_count);
                 let (mut list, layout) = wgpu_html::paint_tree_returning_layout(
                     tree_ref,
                     &mut self.text_ctx,
@@ -548,12 +548,8 @@ impl App {
         }
         if rect_contains(geom.track, pos) {
             let thumb_top = pos.1 - geom.thumb.h * 0.5;
-            self.scroll_y = scroll_y_from_thumb_top(
-                thumb_top,
-                layout,
-                size.width as f32,
-                size.height as f32,
-            );
+            self.scroll_y =
+                scroll_y_from_thumb_top(thumb_top, layout, size.width as f32, size.height as f32);
             if let Some(updated) =
                 scrollbar_geometry(layout, size.width as f32, size.height as f32, self.scroll_y)
             {
@@ -694,10 +690,70 @@ fn timestamp() -> u64 {
         .unwrap_or(0)
 }
 
-fn main() {
+fn print_usage(program: &str) {
+    println!("Usage: {program} [HTML_FILE]");
+    println!();
+    println!("If HTML_FILE is omitted, the built-in demo document is used:");
+    println!("  {DEFAULT_DOC_PATH}");
+    println!();
+    println!("Examples:");
+    println!("  {program}");
+    println!("  {program} crates/wgpu-html-demo/html/flex-browser-like.html");
+}
+
+fn resolve_doc_from_args() -> Result<(String, String), ExitCode> {
+    let mut args = env::args_os();
+    let program = args
+        .next()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "wgpu-html-demo".to_owned());
+
+    let Some(doc_arg) = args.next() else {
+        return Ok((
+            DEFAULT_DOC.to_owned(),
+            format!("embedded default ({DEFAULT_DOC_PATH})"),
+        ));
+    };
+
+    let arg = doc_arg.to_string_lossy();
+    if arg == "-h" || arg == "--help" {
+        print_usage(&program);
+        return Err(ExitCode::SUCCESS);
+    }
+
+    if let Some(extra) = args.next() {
+        eprintln!(
+            "demo: unexpected extra argument: {}\n",
+            extra.to_string_lossy()
+        );
+        print_usage(&program);
+        return Err(ExitCode::FAILURE);
+    }
+
+    let path = PathBuf::from(doc_arg);
+    let html = match std::fs::read_to_string(&path) {
+        Ok(html) => html,
+        Err(err) => {
+            eprintln!(
+                "demo: failed to read HTML document '{}': {err}",
+                path.display()
+            );
+            return Err(ExitCode::FAILURE);
+        }
+    };
+
+    Ok((html, path.display().to_string()))
+}
+
+fn main() -> ExitCode {
     println!("wgpu-html demo:");
     println!("  F12  →  save current frame as screenshot-<unix>.png");
     println!("  Esc  →  quit");
+    let (doc_html, doc_source) = match resolve_doc_from_args() {
+        Ok(doc) => doc,
+        Err(code) => return code,
+    };
+    println!("  doc  →  {doc_source}");
     if demo_fonts().is_empty() {
         eprintln!(
             "demo: no system font found at the candidate paths — text \
@@ -708,6 +764,7 @@ fn main() {
 
     let event_loop = EventLoop::new().expect("event loop");
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-    let mut app = App::default();
+    let mut app = App::new(doc_html);
     event_loop.run_app(&mut app).expect("event loop run");
+    ExitCode::SUCCESS
 }

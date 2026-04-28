@@ -1,5 +1,7 @@
 use super::*;
-use wgpu_html_models::common::css_enums::{CssColor, CssLength};
+use wgpu_html_models::common::css_enums::{
+    BoxSizing, CssColor, CssLength, Cursor, Display, TextAlign,
+};
 use wgpu_html_parser::{Selector, parse_stylesheet};
 
 fn elem_div() -> Element {
@@ -170,6 +172,63 @@ fn inline_beats_id() {
 }
 
 #[test]
+fn background_shorthand_higher_priority_clears_lower_priority_image() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { background-image: url('assets/bg.png'); }
+            #x  { background: #1b1d22; }
+        </style>
+        <div id="x"></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(matches!(
+        div.style.background_color,
+        Some(CssColor::Hex(ref s)) if s == "#1b1d22"
+    ));
+    assert!(div.style.background_image.is_none());
+}
+
+#[test]
+fn font_shorthand_and_longhand_obey_source_order_in_one_rule() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { font: 15px Arial, sans-serif; font-size: 16px; }
+        </style>
+        <div></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(matches!(div.style.font_size, Some(CssLength::Px(v)) if v == 16.0));
+    assert_eq!(div.style.font_family.as_deref(), Some("Arial, sans-serif"));
+    assert!(matches!(
+        div.style.font_style,
+        Some(wgpu_html_models::common::css_enums::FontStyle::Normal)
+    ));
+    assert!(matches!(
+        div.style.font_weight,
+        Some(wgpu_html_models::common::css_enums::FontWeight::Normal)
+    ));
+    assert!(matches!(div.style.line_height, Some(CssLength::Raw(ref v)) if v == "normal"));
+    assert_eq!(
+        div.style
+            .deferred_longhands
+            .get("font-variant")
+            .map(String::as_str),
+        Some("normal")
+    );
+    assert_eq!(
+        div.style
+            .deferred_longhands
+            .get("font-stretch")
+            .map(String::as_str),
+        Some("normal")
+    );
+}
+
+#[test]
 fn rules_at_same_specificity_apply_in_source_order() {
     let sheet = parse_stylesheet(
         "
@@ -250,6 +309,173 @@ fn cascade_inline_style_takes_precedence_over_block() {
         .unwrap();
     let bg = div.style.background_color.as_ref().unwrap();
     assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+}
+
+#[test]
+fn ua_stylesheet_applies_browser_display_defaults() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <section></section>
+        <ul><li></li></ul>
+        <table><tr><td></td><th></th></tr></table>
+        <ruby><rt></rt><rp></rp></ruby>
+        "#,
+    );
+    let cascaded = cascade(&tree);
+    let root = cascaded.root.as_ref().unwrap();
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Section(_)))
+            .unwrap()
+            .display,
+        Some(Display::Block)
+    ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Li(_)))
+            .unwrap()
+            .display,
+        Some(Display::ListItem)
+    ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Table(_)))
+            .unwrap()
+            .display,
+        Some(Display::Table)
+    ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Tr(_)))
+            .unwrap()
+            .display,
+        Some(Display::TableRow)
+    ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Td(_)))
+            .unwrap()
+            .display,
+        Some(Display::TableCell)
+    ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Rt(_)))
+            .unwrap()
+            .display,
+        Some(Display::RubyText)
+    ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Rp(_)))
+            .unwrap()
+            .display,
+        Some(Display::None)
+    ));
+}
+
+#[test]
+fn ua_attribute_selectors_apply() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <div hidden></div>
+        <dialog></dialog>
+        <dialog open></dialog>
+        <input type="hidden">
+        <input type="submit">
+        <abbr title="expanded"></abbr>
+        <div dir="rtl"></div>
+        "#,
+    );
+    let cascaded = cascade(&tree);
+    let root = cascaded.root.as_ref().unwrap();
+
+    let hidden_div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.hidden == Some(true)),
+    )
+    .unwrap();
+    assert!(matches!(hidden_div.display, Some(Display::None)));
+
+    let closed_dialog = find_style(
+        root,
+        &|el| matches!(el, Element::Dialog(d) if d.open != Some(true)),
+    )
+    .unwrap();
+    assert!(matches!(closed_dialog.display, Some(Display::None)));
+
+    let open_dialog = find_style(
+        root,
+        &|el| matches!(el, Element::Dialog(d) if d.open == Some(true)),
+    )
+    .unwrap();
+    assert!(matches!(open_dialog.display, Some(Display::Block)));
+
+    let hidden_input = find_style(root, &|el| {
+        matches!(
+            el,
+            Element::Input(i)
+                if matches!(
+                    i.r#type,
+                    Some(wgpu_html_models::common::html_enums::InputType::Hidden)
+                )
+        )
+    })
+    .unwrap();
+    assert!(matches!(hidden_input.display, Some(Display::None)));
+
+    let submit_input = find_style(root, &|el| {
+        matches!(
+            el,
+            Element::Input(i)
+                if matches!(
+                    i.r#type,
+                    Some(wgpu_html_models::common::html_enums::InputType::Submit)
+                )
+        )
+    })
+    .unwrap();
+    assert!(matches!(submit_input.display, Some(Display::InlineBlock)));
+    assert!(matches!(submit_input.cursor, Some(Cursor::Default)));
+    assert!(matches!(
+        submit_input.box_sizing,
+        Some(BoxSizing::BorderBox)
+    ));
+
+    let abbr = find_style(root, &|el| matches!(el, Element::Abbr(_))).unwrap();
+    assert_eq!(abbr.text_decoration.as_deref(), Some("underline dotted"));
+
+    let rtl = find_style(root, &|el| matches!(el, Element::Div(d) if d.dir.is_some())).unwrap();
+    assert_eq!(
+        rtl.deferred_longhands.get("direction").map(String::as_str),
+        Some("rtl")
+    );
+}
+
+#[test]
+fn ua_form_font_initial_resets_inherited_text_styles() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            body {
+                font-size: 20px;
+                font-weight: bold;
+                font-style: italic;
+                color: red;
+                letter-spacing: 2px;
+            }
+        </style>
+        <input>
+        "#,
+    );
+    let cascaded = cascade(&tree);
+    let input = find_style(cascaded.root.as_ref().unwrap(), &|el| {
+        matches!(el, Element::Input(_))
+    })
+    .unwrap();
+    assert!(input.font_size.is_none());
+    assert!(matches!(input.color, Some(CssColor::Named(ref v)) if v == "fieldtext"));
+    assert!(input.font_weight.is_none());
+    assert!(input.font_style.is_none());
+    assert!(matches!(input.line_height, Some(CssLength::Raw(ref v)) if v == "normal"));
+    assert!(matches!(
+        input.letter_spacing,
+        Some(CssLength::Raw(ref v)) if v == "normal"
+    ));
+    assert!(matches!(input.text_align, Some(TextAlign::Start)));
 }
 
 // --------------------------------------------------------------------------
@@ -449,6 +675,166 @@ fn unset_acts_as_initial_for_non_inherited_property() {
     let div = first_div(&tree);
     // `background-color` isn't inherited → `unset` === `initial` → None.
     assert!(div.style.background_color.is_none());
+}
+
+#[test]
+fn background_keyword_initial_clears_prior_longhands() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { background-color: red; background-image: url('assets/bg.png'); }
+            #x  { background: initial; }
+        </style>
+        <div id="x"></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(div.style.background.is_none());
+    assert!(div.style.background_color.is_none());
+    assert!(div.style.background_image.is_none());
+}
+
+#[test]
+fn generic_shorthand_initial_clears_typed_member_longhands() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { margin-top: 12px; margin-right: 13px; padding-left: 9px; }
+            #x  { margin: initial; padding: initial; }
+        </style>
+        <div id="x"></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(div.style.margin_top.is_none());
+    assert!(div.style.margin_right.is_none());
+    assert!(div.style.margin_bottom.is_none());
+    assert!(div.style.margin_left.is_none());
+    assert!(div.style.padding_left.is_none());
+}
+
+#[test]
+fn generic_shorthand_initial_clears_deferred_member_longhands() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { transition-property: opacity; transition-duration: 200ms; }
+            #x  { transition: initial; }
+        </style>
+        <div id="x"></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(
+        !div.style
+            .deferred_longhands
+            .contains_key("transition-property")
+    );
+    assert!(
+        !div.style
+            .deferred_longhands
+            .contains_key("transition-duration")
+    );
+}
+
+#[test]
+fn shorthand_keyword_after_member_keyword_clears_member_keyword() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            body { margin-top: 20px; }
+            div  { margin-top: inherit; margin: initial; }
+        </style>
+        <div></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(div.style.margin_top.is_none());
+}
+
+#[test]
+fn longhand_value_after_shorthand_keyword_clears_covering_keyword() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { margin: initial; margin-top: 12px; }
+        </style>
+        <div></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(matches!(div.style.margin_top, Some(CssLength::Px(v)) if v == 12.0));
+    assert!(div.style.margin_right.is_none());
+}
+
+#[test]
+fn deferred_longhand_value_after_shorthand_keyword_clears_covering_keyword() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { transition: initial; transition-duration: 200ms; }
+        </style>
+        <div></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert_eq!(
+        div.style
+            .deferred_longhands
+            .get("transition-duration")
+            .map(String::as_str),
+        Some("200ms")
+    );
+    assert!(
+        !div.style
+            .deferred_longhands
+            .contains_key("transition-property")
+    );
+}
+
+#[test]
+fn all_initial_clears_typed_and_deferred_properties() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            div { color: red; animation: fade 1s linear; }
+            #x  { all: initial; }
+        </style>
+        <div id="x"></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert!(div.style.color.is_none());
+    assert!(div.style.animation.is_none());
+    assert!(!div.style.deferred_longhands.contains_key("animation-name"));
+}
+
+#[test]
+fn deferred_inherited_longhand_flows_through_cascade() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            body { white-space: pre-wrap; }
+            div  { }
+        </style>
+        <div></div>
+        "#,
+    );
+    let div = first_div(&tree);
+    assert_eq!(
+        div.style
+            .deferred_longhands
+            .get("white-space-collapse")
+            .map(String::as_str),
+        Some("preserve")
+    );
+    assert_eq!(
+        div.style
+            .deferred_longhands
+            .get("text-wrap-mode")
+            .map(String::as_str),
+        Some("wrap")
+    );
 }
 
 #[test]

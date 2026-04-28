@@ -1,0 +1,146 @@
+<style>
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: DemoSans, Arial, sans-serif;
+    background: #1b1d22;
+    color: #eef2ff;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+  }
+
+  .intro {
+    margin: 0 0 18px;
+    color: #cbd5e1;
+    max-width: 980px;
+    line-height: 1.45;
+  }
+
+  .case {
+    margin: 0 0 18px;
+    padding: 14px;
+    border-radius: 10px;
+    background: #262a33;
+    border: 1px solid #3d4350;
+  }
+
+  .case h2 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    color: #f8fafc;
+  }
+
+  .case p {
+    margin: 0 0 12px;
+    color: #cbd5e1;
+    line-height: 1.4;
+  }
+
+  .demo {
+    padding: 10px;
+    border-radius: 8px;
+    background: #111827;
+    border: 1px solid #374151;
+  }
+
+  .item {
+    box-sizing: border-box;
+    border-radius: 6px;
+    color: #0f172a;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .a { background: #60a5fa; }
+  .b { background: #f472b6; }
+  .c { background: #4ade80; }
+
+  .col-wrap-auto {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    width: 160px;
+    gap: 8px;
+  }
+
+  .col-wrap-auto .item {
+    width: 48px;
+    height: 54px;
+    flex-shrink: 0;
+  }
+
+  .row-stretch-percent {
+    display: flex;
+    align-items: stretch;
+    width: 360px;
+    gap: 8px;
+  }
+
+  .row-stretch-percent .item {
+    width: 100px;
+  }
+
+  .row-stretch-percent .percent {
+    height: 50%;
+  }
+
+  .row-stretch-percent .fixed {
+    height: 72px;
+  }
+
+  .row-stretch-percent .plain {
+    min-height: 24px;
+  }
+
+  .label {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+</style>
+
+<h1>Flex browser-parity follow-up</h1>
+<p class="intro">
+  This page isolates the two flex behaviors improved in the previous pass:
+  column-direction wrapping with an indefinite main size, and cross-axis percentage sizes
+  that should stay unresolved when the container cross size is indefinite.
+</p>
+
+<div class="case">
+  <h2>1. Column wrap + no explicit height</h2>
+  <p>
+    Browser behavior keeps this as a single column because the main axis height is indefinite.
+    The renderer should <strong>not</strong> wrap these boxes into extra columns just because
+    <code>flex-wrap: wrap</code> is set.
+  </p>
+  <div class="demo col-wrap-auto">
+    <div class="item a">A</div>
+    <div class="item b">B</div>
+    <div class="item c">C</div>
+  </div>
+  <div class="label">
+    Expected: A, B, C stack vertically in one column.
+  </div>
+</div>
+
+<div class="case">
+  <h2>2. Percent cross-size vs stretch with indefinite cross size</h2>
+  <p>
+    In browsers, <code>height: 50%</code> on a flex item does not resolve against an indefinite
+    container height. That means it should behave like auto here, allowing
+    <code>align-items: stretch</code> to stretch all items to the line height.
+  </p>
+  <div class="demo row-stretch-percent">
+    <div class="item a percent">50%</div>
+    <div class="item b fixed">72px</div>
+    <div class="item c plain">auto</div>
+  </div>
+  <div class="label">
+    Expected: all three items end up the same height as the tallest item.
+  </div>
+</div>

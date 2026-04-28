@@ -80,18 +80,18 @@ Specificity (CSS-Selectors-3) packed into `u32`:
 plain integers gives the right ordering.
 
 **Missing / partial**
-- **No combinators**: descendant ` `, child `>`, adjacent `+`,
-  general sibling `~` are explicitly rejected; the rule is dropped.
+- **Descendant combinator is implemented**. Child `>`, adjacent `+`,
+  and general sibling `~` are still rejected and drop the rule.
+- **Dynamic pseudo-classes implemented**: `:hover`, `:active`.
 - **No attribute selectors**: `[href]`, `[type="text"]`, etc.
-- **No pseudo-classes**: `:hover`, `:focus`, `:nth-child`, `:not()`,
-  `:is()`, `:where()`, `:checked`, etc.
+- Structural / logical pseudo-classes still missing: `:focus`,
+  `:nth-child`, `:not()`, `:is()`, `:where()`, `:checked`, etc.
 - **No pseudo-elements**: `::before`, `::after`, `::first-line`,
   `::placeholder`, etc.
 - **No namespaces** (`@namespace`, `ns|tag`).
 
-Selector matching today takes only an `Element` — adding
-pseudo-classes will require threading element state (hover, focus)
-through to the matcher.
+Selector matching supports tree-aware descendant checks plus a
+stateful `MatchContext` for `:hover` / `:active`.
 
 ## 5. At-rules
 
@@ -114,8 +114,11 @@ plus its per-property value parsers.
 `vmin`, `vmax`, `auto`, bare `0`. Unknown shapes drop into a `Raw`
 fallback that layout treats as zero.
 
+Also supported:
+- `calc(...)`, `min(...)`, `max(...)`, `clamp(...)` — parsed into a
+  typed math tree and resolved later by layout.
+
 Not yet supported:
-- `calc(...)`, `min(...)`, `max(...)`, `clamp(...)`.
 - `var(--foo)` / custom properties.
 - `ch`, `ex`, `lh`, container-query units (`cqw`/`cqh`/…).
 
@@ -128,43 +131,59 @@ Not yet supported:
 - `hsl(h, s, l)`, `hsla(h, s, l, a)`.
 - `transparent`, `currentcolor`.
 
-Not yet:
-- `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`, `color()`.
+Also accepted and preserved as function values:
+- `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`, `color()`,
+  `color-mix()`, `light-dark()`.
+
+Not yet fully resolved:
 - Color-mix / color-contrast functions.
 - Wide-gamut color spaces.
 - `currentcolor` resolution (parsed into `CssColor::CurrentColor` but
   layout currently returns `None` for it).
 
-### 6.3 Properties — structured vs raw vs ignored
+### 6.3 Properties — typed vs deferred vs ignored
 
-**Structured** (parsed into typed `Option<Enum>` / `Option<CssLength>`
-/ `Option<CssColor>` / numeric):
+**Typed `Style` fields** (parsed into `Option<Enum>` /
+`Option<CssLength>` / `Option<CssColor>` / numeric / typed vectors):
 
 `display, position, top/right/bottom/left, width, height,
 min-/max-width, min-/max-height, margin (+ per-side), padding (+ per-
-side), color, background-color, background-repeat, background-clip,
-border (shorthand), border-{top,right,bottom,left} (shorthand),
+side), color, background, background-color, background-image,
+background-repeat, background-clip, background-size,
+background-position, border (shorthand),
+border-{top,right,bottom,left} (shorthand),
 border-width, border-style, border-color, per-side border longhands,
 border-radius (1–4 corner expansion + `/` elliptical syntax) and
 per-corner radius longhands with optional `<h> <v>`, font-size,
 font-weight (named + numeric), font-style, line-height,
 letter-spacing, text-align, text-transform, white-space, overflow
 (+ per-axis), opacity, visibility, z-index, flex-direction,
-flex-wrap, justify-content, align-items, align-content, gap,
-row-gap, column-gap, flex (extracts `flex-grow` from shorthand),
-flex-grow, flex-shrink, flex-basis, cursor, pointer-events,
-user-select, box-sizing.`
+flex-wrap, justify-content, align-items, align-content, align-self,
+order, gap, row-gap, column-gap, flex, flex-grow, flex-shrink,
+flex-basis, font-family, text-decoration, cursor, pointer-events,
+user-select, box-sizing, grid-template-columns, grid-template-rows,
+grid-auto-columns, grid-auto-rows, grid-auto-flow, grid-column,
+grid-column-start/end, grid-row, grid-row-start/end,
+justify-items, justify-self, transform, transform-origin,
+transition, animation, box-shadow.`
 
-**Raw `Option<String>`** (parsed enough to capture, not enough to
-consume):
+**Deferred longhands** (recognized, stored by kebab-case in
+`Style.deferred_longhands`, and carried through cascade for future
+implementation): members produced by modern or partially-implemented
+shorthands such as `animation-*`, `transition-*`, logical
+`margin/padding/inset/border-*`, `background-origin`,
+`background-attachment`, `background-position-x/y`, `font-variant-*`,
+`font-stretch`, `list-style-*`, `outline-*`, `overscroll-*`,
+`scroll-margin-*`, `scroll-padding-*`, `text-decoration-*`,
+`text-emphasis-*`, `scroll-timeline-*`, `view-timeline-*`, and other
+future-facing longhands listed in `wgpu-html-parser/src/shorthands.rs`.
 
-`background, background-image, background-size,
-background-position, font-family, text-decoration, transform,
-transform-origin, transition, animation, box-shadow,
-grid-template-columns, grid-template-rows, grid-column, grid-row.`
+For `animation` and `transition`, the parser now performs per-layer
+member extraction with defaults (`0s`, `ease`, `running`, etc.) rather
+than only storing the raw shorthand string.
 
-These survive cascade and inheritance but no layout/paint code
-reads them yet.
+Shorthands reset their member longhands via `Style.reset_properties`
+even when some members do not yet have typed storage.
 
 **Recognised but ignored downstream** — see §10 below.
 
@@ -239,17 +258,19 @@ happens at the end of cascade against the parent's resolved style:
 
 Root element (no parent): `inherit` and `unset` collapse to `None`.
 
-The dispatch macro in `style_props.rs` is the single source of truth
-for which properties are inherited (the `,inherited` token marker
-on a row). It's used by:
+The dispatch macro in `style_props.rs` plus shorthand metadata in
+`shorthands.rs` are the source of truth for inherited properties,
+keyword fan-out, and shorthand reset behaviour. They are used by:
 
 - `is_inherited(prop)` — drives the `unset` branch.
 - `apply_keyword(values, parent, prop, kw)` — per-property
   resolution against the parent.
-- `clear_value_for(prop, &mut Style)` — wipe a field when a later
-  layer or the same block declares a keyword for that property.
+- `clear_value_for(prop, &mut Style)` — wipe a field, shorthand, or
+  deferred longhand when a later layer or the same block declares a
+  keyword for that property.
 - `merge_values_clearing_keywords(values, keywords, src)` — value
-  merge that drops the matching keyword.
+  merge that drops the matching keyword and honours
+  `Style.reset_properties` for shorthand member resets.
 
 **Tests** — `wgpu-html-style::tests`:
 - `inherit` on `background-color` (non-inherited) takes the parent.
@@ -266,9 +287,11 @@ on a row). It's used by:
 
 **File**: `wgpu-html-style::cascade::inherit_into`.
 
-After the keyword-resolution pass, any property still `None` AND not
-listed in the keyword map gets the parent's value if the property is
-inheritable. The inheritable set:
+After the keyword-resolution pass, any typed property still `None` AND
+not listed in the keyword map gets the parent's value if the property
+is inheritable. Deferred inherited longhands are copied by the same
+rule using `wgpu_html_parser::is_inherited(prop)`. The typed
+inheritable set is:
 
 ```
 color, font-family, font-size, font-weight, font-style,
@@ -333,7 +356,9 @@ What survives the cascade and actually changes pixels on the screen.
 
 ### Honoured by layout (`wgpu-html-layout`)
 
-- `display` (block, flex, inline-flex variants — see `flex.rs`).
+- `display` (block, flex, grid, and atomic inline variants such as
+  `inline-block` / `inline-flex` where the current layout path
+  supports them).
 - `position` ignored — `top/right/bottom/left` parsed but unused.
 - `width, height, min/max-{width,height}` — honoured for explicit
   values; `auto` and percentages computed against parent content
@@ -341,16 +366,18 @@ What survives the cascade and actually changes pixels on the screen.
 - `margin`, `padding` (per-side or shorthand fallback).
 - `box-sizing` (`content-box` / `border-box`).
 - `border` width/style/color per side, plus radius (incl. elliptical).
-- `background-color`, `background-clip` (border-box / padding-box /
-  content-box).
-- `flex-direction`, `flex-wrap` (single-line only),
-  `justify-content`, `align-items`, `align-content`, `gap`,
-  `row-gap`, `column-gap`. `flex-grow / -shrink / -basis` parsed
-  but **not yet honoured** by the flex algorithm.
+- `background-color`, `background-clip`, `background-image`,
+  `background-position`, `background-size`, `background-repeat`
+  (URL-backed images only; function images are parsed but not painted).
+- `flex-direction`, `flex-wrap`, `justify-content`, `align-items`,
+  `align-content`, `align-self`, `order`, `gap`, `row-gap`,
+  `column-gap`, `flex-grow`, `flex-shrink`, `flex-basis`.
+- Grid track sizing and placement from the typed `grid-*` longhands.
 - `color`, `font-size`, `font-weight`, `font-style`,
   `line-height`, `font-family` — feed into text shaping (`spec/text.md`),
   with the inheritance pass making them flow through the document.
-- `letter-spacing` — accepted by the shaper.
+- `letter-spacing`, `text-align`, `text-decoration`,
+  `text-transform`, `white-space`.
 
 ### Honoured by paint (`wgpu-html`)
 
@@ -362,21 +389,12 @@ What survives the cascade and actually changes pixels on the screen.
 
 ### Recognised but ignored everywhere
 
-`top, right, bottom, left, min-width, min-height, max-width,
-max-height` (parsed, no enforcement), `overflow`, `overflow-x`,
-`overflow-y`, `opacity`, `visibility` (parsed, not yet pruning
-paint), `z-index`, `transform`, `transform-origin`, `transition`,
-`animation`, `box-shadow`, `cursor`, `pointer-events`,
-`user-select`, all `grid-*` properties, `background-image`,
-`background-size`, `background-position`, `text-decoration`,
-`text-transform`, `text-align`, `white-space`, `flex-grow / -shrink
-/ -basis`.
-
-A few of these are downstream-blocked: `text-align`,
-`text-decoration`, `text-transform`, `white-space`,
-`letter-spacing` proper (the post-shape advance fixup) all need the
-inline formatting context that's still in progress (`spec/text.md`
-phase T4+).
+`z-index`, `transform`, `transform-origin`, `transition`,
+`animation`, `box-shadow`, logical `margin/padding/inset/border-*`
+longhands, `background-origin`, `background-attachment`,
+multi-layer background members, `outline-*`, `overscroll-*`,
+`scroll-margin-*`, `scroll-padding-*`, `text-emphasis-*`,
+timeline-related properties, and most other deferred longhands.
 
 ## 11. Phases
 

@@ -1872,7 +1872,6 @@ fn hit_glyph_boundary(b: &LayoutBox, run: &ShapedRun, point: (f32, f32)) -> usiz
     (max_idx + 1).min(run.glyphs.len())
 }
 
-
 fn nearest_line(local_y: f32, lines: &[ShapedLine]) -> ShapedLine {
     let mut best = lines[0];
     let mut best_d = distance_to_line(local_y, best.top, best.height);
@@ -2675,7 +2674,7 @@ fn resolve_text_decorations(style: &Style) -> Vec<TextDecorationLine> {
 fn is_inline_level(node: &CascadedNode) -> bool {
     if let Some(d) = node.style.display.as_ref() {
         use wgpu_html_models::common::css_enums::Display::*;
-        return matches!(d, Inline | InlineBlock | InlineFlex);
+        return matches!(d, Inline | InlineBlock | InlineFlex | Ruby | RubyText);
     }
     matches!(
         &node.element,
@@ -2909,20 +2908,20 @@ fn layout_atomic_inline_subtree(
     let border = Insets {
         top: length::resolve(style.border_top_width.as_ref(), container_w, ctx).unwrap_or(0.0),
         right: length::resolve(style.border_right_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-        bottom: length::resolve(style.border_bottom_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+        bottom: length::resolve(style.border_bottom_width.as_ref(), container_w, ctx)
+            .unwrap_or(0.0),
         left: length::resolve(style.border_left_width.as_ref(), container_w, ctx).unwrap_or(0.0),
     };
     let padding = resolve_insets_padding(style, container_w, ctx);
     let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
 
-    let specified_w = length::resolve(style.width.as_ref(), container_w, ctx).map(|specified| {
-        match box_sizing {
+    let specified_w =
+        length::resolve(style.width.as_ref(), container_w, ctx).map(|specified| match box_sizing {
             BoxSizing::ContentBox => specified,
             BoxSizing::BorderBox => {
                 (specified - border.horizontal() - padding.horizontal()).max(0.0)
             }
-        }
-    });
+        });
     let content_x = origin_x + margin.left + border.left + padding.left;
     let content_y = origin_y + margin.top + border.top + padding.top;
 
@@ -2936,10 +2935,11 @@ fn layout_atomic_inline_subtree(
         );
 
     let inner_width = specified_w.unwrap_or(measured_w);
-    let specified_h = length::resolve(style.height.as_ref(), 0.0, ctx).map(|specified| match box_sizing {
-        BoxSizing::ContentBox => specified,
-        BoxSizing::BorderBox => (specified - border.vertical() - padding.vertical()).max(0.0),
-    });
+    let specified_h =
+        length::resolve(style.height.as_ref(), 0.0, ctx).map(|specified| match box_sizing {
+            BoxSizing::ContentBox => specified,
+            BoxSizing::BorderBox => (specified - border.vertical() - padding.vertical()).max(0.0),
+        });
     let inner_height = specified_h.unwrap_or(measured_h);
 
     if inner_height > measured_h && max_ascent > 0.0 {
@@ -2988,7 +2988,9 @@ fn layout_atomic_inline_subtree(
     let resolve_corner = |h: Option<&CssLength>, v: Option<&CssLength>, ctx: &mut Ctx| -> Radius {
         let h_px = length::resolve(h, container_w, ctx).unwrap_or(0.0).max(0.0);
         let v_px = match v {
-            Some(_) => length::resolve(v, inner_height.max(1.0), ctx).unwrap_or(0.0).max(0.0),
+            Some(_) => length::resolve(v, inner_height.max(1.0), ctx)
+                .unwrap_or(0.0)
+                .max(0.0),
             None => h_px,
         };
         Radius { h: h_px, v: v_px }
@@ -3200,10 +3202,7 @@ fn layout_inline_mixed_children(
             (container_w - current.width).max(0.0),
             ctx,
         );
-        if wrap
-            && !current.items.is_empty()
-            && current.width + cl.width > container_w
-        {
+        if wrap && !current.items.is_empty() && current.width + cl.width > container_w {
             let line_h = current.ascent + current.descent;
             cursor_y += line_h;
             lines.push(current);
@@ -3231,7 +3230,8 @@ fn layout_inline_mixed_children(
         let line_h = line.ascent + line.descent;
         total_h = (line.y - origin_y) + line_h;
         let baseline_y = line.y + line.ascent;
-        let align_dx = horizontal_align_offset(node.style.text_align.as_ref(), container_w, line.width);
+        let align_dx =
+            horizontal_align_offset(node.style.text_align.as_ref(), container_w, line.width);
         for cl in line.items {
             let target_top = baseline_y - cl.ascent;
             let dy = target_top - cl.box_.margin_rect.y;
