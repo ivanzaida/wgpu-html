@@ -9,14 +9,16 @@ use std::time::SystemTime;
 
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::event::{ElementState, KeyEvent, MouseButton as WinitMouseButton, WindowEvent};
+use winit::event::{
+    ElementState, KeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 use wgpu_html::interactivity;
 use wgpu_html::layout::LayoutBox;
-use wgpu_html::renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
+use wgpu_html::renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{FontFace, FontStyleAxis, Modifiers, MouseButton, Tree};
 
@@ -147,6 +149,10 @@ struct App {
     /// `WindowEvent::MouseInput` to a pointer position (winit reports
     /// MouseInput without a position).
     cursor_pos: Option<(f32, f32)>,
+    /// Current document viewport scroll in physical pixels. The
+    /// layout tree stays in document coordinates; paint translates
+    /// display items up by this offset and hit testing adds it back.
+    scroll_y: f32,
     /// Counter incremented from the click callback. Demonstrates that
     /// closures capture state correctly.
     click_count: Arc<AtomicUsize>,
@@ -164,6 +170,7 @@ impl Default for App {
             tree: None,
             last_layout: None,
             cursor_pos: None,
+            scroll_y: 0.0,
             click_count: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -265,6 +272,9 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 renderer.resize(size.width, size.height);
+                if let Some(layout) = self.last_layout.as_ref() {
+                    self.scroll_y = clamp_scroll_y(self.scroll_y, layout, size.height as f32);
+                }
                 window.request_redraw();
             }
             WindowEvent::KeyboardInput {
@@ -288,9 +298,10 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
                 self.cursor_pos = Some(pos);
+                let doc_pos = viewport_to_document(pos, self.scroll_y);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
-                    interactivity::pointer_move(tree, layout, pos, Modifiers::default());
+                    interactivity::pointer_move(tree, layout, doc_pos, Modifiers::default());
                 }
             }
             WindowEvent::CursorLeft { .. } => {
@@ -301,17 +312,44 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let Some(pos) = self.cursor_pos else { return };
+                let doc_pos = viewport_to_document(pos, self.scroll_y);
                 let btn = translate_button(button);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
                     match state {
                         ElementState::Pressed => {
-                            interactivity::mouse_down(tree, layout, pos, btn, Modifiers::default());
+                            interactivity::mouse_down(
+                                tree,
+                                layout,
+                                doc_pos,
+                                btn,
+                                Modifiers::default(),
+                            );
                         }
                         ElementState::Released => {
-                            interactivity::mouse_up(tree, layout, pos, btn, Modifiers::default());
+                            interactivity::mouse_up(
+                                tree,
+                                layout,
+                                doc_pos,
+                                btn,
+                                Modifiers::default(),
+                            );
                         }
                     }
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                if let Some(layout) = self.last_layout.as_ref() {
+                    let dy = scroll_delta_to_pixels(delta);
+                    self.scroll_y =
+                        clamp_scroll_y(self.scroll_y + dy, layout, window.inner_size().height as f32);
+                    if let (Some(tree), Some(pos), Some(layout)) =
+                        (self.tree.as_mut(), self.cursor_pos, self.last_layout.as_ref())
+                    {
+                        let doc_pos = viewport_to_document(pos, self.scroll_y);
+                        interactivity::pointer_move(tree, layout, doc_pos, Modifiers::default());
+                    }
+                    window.request_redraw();
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -321,13 +359,26 @@ impl ApplicationHandler for App {
                 // reuse it so callbacks set in `ensure_tree_built`
                 // persist.
                 let tree_ref = App::ensure_tree_built(&mut self.tree, &self.click_count);
-                let (list, layout) = wgpu_html::paint_tree_returning_layout(
+                let (mut list, layout) = wgpu_html::paint_tree_returning_layout(
                     tree_ref,
                     &mut self.text_ctx,
                     size.width as f32,
                     size.height as f32,
                     1.0, // T3: fixed scale; T7 honours `scale_factor_changed`.
                 );
+                if let Some(layout) = layout.as_ref() {
+                    self.scroll_y = clamp_scroll_y(self.scroll_y, layout, size.height as f32);
+                    translate_display_list_y(&mut list, -self.scroll_y);
+                    paint_viewport_scrollbar(
+                        &mut list,
+                        layout,
+                        size.width as f32,
+                        size.height as f32,
+                        self.scroll_y,
+                    );
+                } else {
+                    self.scroll_y = 0.0;
+                }
                 self.last_layout = layout;
 
                 // Push any newly-rasterised glyph rasters into the
@@ -358,6 +409,77 @@ impl ApplicationHandler for App {
 /// `(f32, f32)` physical-pixel pair.
 fn physical_to_pos(p: PhysicalPosition<f64>) -> (f32, f32) {
     (p.x as f32, p.y as f32)
+}
+
+fn viewport_to_document(pos: (f32, f32), scroll_y: f32) -> (f32, f32) {
+    (pos.0, pos.1 + scroll_y)
+}
+
+fn scroll_delta_to_pixels(delta: MouseScrollDelta) -> f32 {
+    match delta {
+        MouseScrollDelta::LineDelta(_, y) => -y * 48.0,
+        MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
+    }
+}
+
+fn clamp_scroll_y(scroll_y: f32, layout: &LayoutBox, viewport_h: f32) -> f32 {
+    scroll_y.clamp(0.0, max_scroll_y(layout, viewport_h))
+}
+
+fn max_scroll_y(layout: &LayoutBox, viewport_h: f32) -> f32 {
+    (document_bottom(layout) - viewport_h).max(0.0)
+}
+
+fn document_bottom(b: &LayoutBox) -> f32 {
+    b.children
+        .iter()
+        .map(document_bottom)
+        .fold(b.margin_rect.y + b.margin_rect.h, f32::max)
+}
+
+fn translate_display_list_y(list: &mut DisplayList, dy: f32) {
+    for quad in &mut list.quads {
+        quad.rect.y += dy;
+    }
+    for image in &mut list.images {
+        image.rect.y += dy;
+    }
+    for glyph in &mut list.glyphs {
+        glyph.rect.y += dy;
+    }
+    for clip in &mut list.clips {
+        if let Some(rect) = clip.rect.as_mut() {
+            rect.y += dy;
+        }
+    }
+}
+
+fn paint_viewport_scrollbar(
+    list: &mut DisplayList,
+    layout: &LayoutBox,
+    viewport_w: f32,
+    viewport_h: f32,
+    scroll_y: f32,
+) {
+    let doc_h = document_bottom(layout).max(viewport_h);
+    if doc_h <= viewport_h + 0.5 || viewport_w < 12.0 || viewport_h <= 0.0 {
+        return;
+    }
+
+    list.push_clip(None, [0.0; 4], [0.0; 4]);
+    let track_w = 10.0;
+    let margin = 2.0;
+    let track = Rect::new(viewport_w - track_w - margin, margin, track_w, viewport_h - margin * 2.0);
+    let thumb_h = (track.h * viewport_h / doc_h).clamp(24.0, track.h);
+    let travel = (track.h - thumb_h).max(0.0);
+    let thumb_y = track.y + travel * (scroll_y / max_scroll_y(layout, viewport_h).max(1.0));
+
+    list.push_quad(track, [0.0, 0.0, 0.0, 0.18]);
+    list.push_quad(
+        Rect::new(track.x + 1.0, thumb_y, track.w - 2.0, thumb_h),
+        [0.0, 0.0, 0.0, 0.55],
+    );
+    list.finalize();
 }
 
 /// Seconds since the Unix epoch, used as a unique-ish screenshot filename.
