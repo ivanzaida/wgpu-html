@@ -201,6 +201,90 @@ fn text_nodes_are_zero_size_placeholders() {
 }
 
 #[test]
+fn collapsed_block_text_trims_source_indentation_at_edges() {
+    let collapsed = collapse_whitespace("\n  Drag with the left mouse button over text.\n");
+    let visible = trim_collapsed_whitespace_edges(&collapsed, true, true);
+    assert_eq!(visible, "Drag with the left mouse button over text.");
+}
+
+#[test]
+fn paragraph_edge_trimming_keeps_internal_inline_spaces() {
+    let first = collapse_whitespace("\n  Drag ");
+    let middle = collapse_whitespace("with ");
+    let last = collapse_whitespace("the mouse button.\n  ");
+
+    assert_eq!(
+        trim_collapsed_whitespace_edges(&first, true, false),
+        "Drag "
+    );
+    assert_eq!(
+        trim_collapsed_whitespace_edges(&middle, false, false),
+        "with "
+    );
+    assert_eq!(
+        trim_collapsed_whitespace_edges(&last, false, true),
+        "the mouse button."
+    );
+}
+
+#[test]
+fn whitespace_collapse_carries_across_text_boundaries() {
+    let mut style = Style::default();
+    style.white_space = Some(WhiteSpace::Normal);
+    let mut prev_space = false;
+    let first = normalize_text_for_style("Drag ", &style, Some(&mut prev_space));
+    let second = normalize_text_for_style(" with", &style, Some(&mut prev_space));
+    assert_eq!(format!("{first}{second}"), "Drag with");
+}
+
+#[test]
+fn pre_line_preserves_newlines_but_collapses_inline_spaces() {
+    let mut style = Style::default();
+    style.white_space = Some(WhiteSpace::PreLine);
+    let mut prev_space = false;
+    let out = normalize_text_for_style("a   b\n  c\t\t d", &style, Some(&mut prev_space));
+    assert_eq!(out, "a b\n c d");
+}
+
+#[test]
+fn wrap_policy_respects_white_space_and_text_wrap_mode() {
+    let mut style = Style::default();
+    style.white_space = Some(WhiteSpace::Nowrap);
+    assert!(!style_wraps_text(&style));
+
+    style.white_space = Some(WhiteSpace::PreWrap);
+    assert!(style_wraps_text(&style));
+
+    style
+        .deferred_longhands
+        .insert("text-wrap-mode".to_string(), "nowrap".to_string());
+    assert!(!style_wraps_text(&style));
+
+    style
+        .deferred_longhands
+        .insert("text-wrap-mode".to_string(), "wrap".to_string());
+    assert!(style_wraps_text(&style));
+}
+
+#[test]
+fn collapsed_first_word_split_keeps_head_and_tail() {
+    let mut style = Style::default();
+    style.white_space = Some(WhiteSpace::Normal);
+    let (head, tail) =
+        split_collapsed_first_word_prefix_and_tail("   continues after chips", &style)
+            .expect("expected split");
+    assert_eq!(head, " continues");
+    assert_eq!(tail, " after chips");
+}
+
+#[test]
+fn collapsed_first_word_split_returns_none_without_tail() {
+    let mut style = Style::default();
+    style.white_space = Some(WhiteSpace::Normal);
+    assert!(split_collapsed_first_word_prefix_and_tail("continues", &style).is_none());
+}
+
+#[test]
 fn img_is_inline_level_inside_text_flow() {
     let tree = make(
         r#"<body style="margin: 0;">

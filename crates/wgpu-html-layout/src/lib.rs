@@ -15,7 +15,7 @@
 
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
-    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow,
+    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, WhiteSpace,
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
@@ -2077,7 +2077,7 @@ fn layout_block(
         // children of a block (rare, but legal) wrap rather than
         // overflow.
         let (box_, _w, _h, _ascent) =
-            make_text_leaf(s, &node.style, origin_x, origin_y, Some(container_w), ctx);
+            make_text_leaf(s, &node.style, origin_x, origin_y, Some(container_w), true, ctx);
         return box_;
     }
 
@@ -2436,6 +2436,7 @@ fn shape_text_run(
     text: &str,
     style: &Style,
     max_width_px: Option<f32>,
+    trim_edges: bool,
     ctx: &mut Ctx,
 ) -> (Option<ShapedRun>, f32, f32, f32) {
     if text.is_empty() {
@@ -2449,18 +2450,24 @@ fn shape_text_run(
     // (we only consume `layout_runs().next()` until line breaking
     // lands in T7). Without this, a text leaf like "\n    Plain, "
     // shapes to width 0 and paints nothing.
-    let collapsed = collapse_whitespace(text);
-    if collapsed.is_empty() {
+    let mut prev_collapsed_space = false;
+    let normalized = normalize_text_for_style(text, style, Some(&mut prev_collapsed_space));
+    let normalized = if trim_edges && style_collapses_whitespace(style) {
+        trim_collapsed_whitespace_edges(&normalized, true, true).to_string()
+    } else {
+        normalized
+    };
+    if normalized.is_empty() {
         return (None, 0.0, 0.0, 0.0);
     }
 
     // `text-transform` re-cases the *visible* text before shaping. Do
     // it once here so `font-feature` style ligatures still apply to
     // the transformed forms.
-    let transformed = apply_text_transform(&collapsed, style.text_transform.as_ref());
+    let transformed = apply_text_transform(&normalized, style.text_transform.as_ref());
     let display_text: &str = match transformed.as_ref() {
         Some(s) => s.as_str(),
-        None => collapsed.as_str(),
+        None => &normalized,
     };
 
     // Family / weight / style come from the cascaded style. The text
@@ -2486,6 +2493,7 @@ fn shape_text_run(
         .as_ref()
         .and_then(resolve_color)
         .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+    let wrap_enabled = style_wraps_text(style);
     match ctx.text.ctx.shape_and_pack(
         display_text,
         handle,
@@ -2494,7 +2502,11 @@ fn shape_text_run(
         letter_spacing,
         weight,
         axis,
-        max_width_px.map(|w| w * ctx.scale),
+        if wrap_enabled {
+            max_width_px.map(|w| w * ctx.scale)
+        } else {
+            None
+        },
         color,
     ) {
         Some(run) => {
@@ -2538,10 +2550,10 @@ fn apply_text_transform(
 
 /// CSS `white-space: normal` whitespace collapsing: every run of
 /// ASCII / Unicode whitespace (including `\n`, `\t`, `\r`) becomes a
-/// single ASCII space. Leading and trailing whitespace are preserved
-/// (as a single space) — line-boundary trimming is part of the
-/// inline pass, not the shaper. Returns an owned `String` because
-/// the typical input differs from the output.
+/// single ASCII space. Callers decide whether block / paragraph edges
+/// should then trim those collapsed spaces away. Returns an owned
+/// `String` because the typical input differs from the output.
+#[cfg(test)]
 fn collapse_whitespace(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut prev_space = false;
@@ -2557,6 +2569,132 @@ fn collapse_whitespace(text: &str) -> String {
         }
     }
     out
+}
+
+fn collapse_whitespace_with_state(text: &str, prev_space: &mut bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            if !*prev_space {
+                out.push(' ');
+                *prev_space = true;
+            }
+        } else {
+            out.push(ch);
+            *prev_space = false;
+        }
+    }
+    out
+}
+
+fn collapse_preserving_newlines_with_state(text: &str, prev_space: &mut bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\n' => {
+                if out.ends_with(' ') {
+                    out.pop();
+                }
+                out.push('\n');
+                *prev_space = false;
+            }
+            ' ' | '\t' | '\r' | '\u{000C}' => {
+                if !*prev_space {
+                    out.push(' ');
+                    *prev_space = true;
+                }
+            }
+            _ => {
+                out.push(ch);
+                *prev_space = false;
+            }
+        }
+    }
+    out
+}
+
+fn style_white_space(style: &Style) -> WhiteSpace {
+    style.white_space.clone().unwrap_or(WhiteSpace::Normal)
+}
+
+fn style_collapses_whitespace(style: &Style) -> bool {
+    matches!(
+        style_white_space(style),
+        WhiteSpace::Normal | WhiteSpace::Nowrap | WhiteSpace::PreLine
+    )
+}
+
+fn style_wraps_text(style: &Style) -> bool {
+    if let Some(mode) = style.deferred_longhands.get("text-wrap-mode") {
+        match mode.trim().to_ascii_lowercase().as_str() {
+            "nowrap" => return false,
+            "wrap" => return true,
+            _ => {}
+        }
+    }
+    !matches!(style_white_space(style), WhiteSpace::Nowrap | WhiteSpace::Pre)
+}
+
+fn normalize_text_for_style(text: &str, style: &Style, prev_space: Option<&mut bool>) -> String {
+    match style_white_space(style) {
+        WhiteSpace::Normal | WhiteSpace::Nowrap => {
+            let mut local_prev = false;
+            let state = match prev_space {
+                Some(state) => state,
+                None => &mut local_prev,
+            };
+            collapse_whitespace_with_state(text, state)
+        }
+        WhiteSpace::PreLine => {
+            let mut local_prev = false;
+            let state = match prev_space {
+                Some(state) => state,
+                None => &mut local_prev,
+            };
+            collapse_preserving_newlines_with_state(text, state)
+        }
+        WhiteSpace::Pre | WhiteSpace::PreWrap | WhiteSpace::BreakSpaces => {
+            if let Some(state) = prev_space {
+                *state = false;
+            }
+            text.to_string()
+        }
+    }
+}
+
+fn split_collapsed_first_word_prefix_and_tail(text: &str, style: &Style) -> Option<(String, String)> {
+    if !style_collapses_whitespace(style) {
+        return None;
+    }
+    let mut prev_space = false;
+    let normalized = normalize_text_for_style(text, style, Some(&mut prev_space));
+    let trimmed = normalized.trim_start_matches(' ');
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lead = normalized.len().saturating_sub(trimmed.len());
+    let word_end_rel = trimmed.find(' ').unwrap_or(trimmed.len());
+    let split_at = lead + word_end_rel;
+    if split_at == 0 || split_at >= normalized.len() {
+        return None;
+    }
+    Some((
+        normalized[..split_at].to_string(),
+        normalized[split_at..].to_string(),
+    ))
+}
+
+fn trim_collapsed_whitespace_edges(text: &str, trim_start: bool, trim_end: bool) -> &str {
+    let text = if trim_start {
+        text.trim_start_matches(' ')
+    } else {
+        text
+    };
+    if trim_end {
+        text.trim_end_matches(' ')
+    } else {
+        text
+    }
 }
 
 /// `text-transform: capitalize` — uppercase the first letter of each
@@ -2616,9 +2754,10 @@ fn make_text_leaf(
     origin_x: f32,
     origin_y: f32,
     max_width_px: Option<f32>,
+    trim_edges: bool,
     ctx: &mut Ctx,
 ) -> (LayoutBox, f32, f32, f32) {
-    let (run, w, h, ascent) = shape_text_run(text, style, max_width_px, ctx);
+    let (run, w, h, ascent) = shape_text_run(text, style, max_width_px, trim_edges, ctx);
     let text_color = style
         .color
         .as_ref()
@@ -2650,7 +2789,7 @@ fn make_text_leaf(
 }
 
 pub(crate) fn measure_text_leaf(text: &str, style: &Style, ctx: &mut Ctx) -> (f32, f32) {
-    let (_run, w, h, _ascent) = shape_text_run(text, style, None, ctx);
+    let (_run, w, h, _ascent) = shape_text_run(text, style, None, true, ctx);
     (w, h)
 }
 
@@ -2788,21 +2927,14 @@ fn layout_inline_subtree(
     }
 
     if let Element::Text(s) = &node.element {
-        // IFC text leaf: shape on a single line. Wrapping per-leaf
-        // against the *remaining* container width turns short late
-        // leaves (text after a `<mark>` etc.) into vertical columns
-        // of single characters when the cursor's already near the
-        // right edge — each glyph is wider than the leftover width
-        // so cosmic-text breaks at every character. Real cross-leaf
-        // paragraph wrapping — where the IFC itself stacks lines and
-        // the next leaf moves onto a fresh line — is the proper fix
-        // and is tracked as a T7 follow-up. The trade-off today: a
-        // very long single-leaf paragraph will overflow to the right
-        // instead of breaking. Block-flow text leaves (rare;
-        // direct text under a block) still get container-width wrap
-        // via `layout_block`'s text path.
-        let (box_, w, h, ascent) = make_text_leaf(s, &node.style, origin_x, origin_y, None, ctx);
-        let _ = container_w; // eliminated — IFC doesn't wrap leaves itself
+        let max_width = if style_wraps_text(&node.style) && container_w.is_finite() && container_w > 0.0
+        {
+            Some(container_w)
+        } else {
+            None
+        };
+        let (box_, w, h, ascent) =
+            make_text_leaf(s, &node.style, origin_x, origin_y, max_width, false, ctx);
         let descent = (h - ascent).max(0.0);
         return InlineLayout {
             box_,
@@ -3044,6 +3176,13 @@ fn layout_atomic_inline_subtree(
         &border_radius,
     );
 
+    // Approximate inline-block baseline by the baseline of its last text
+    // line, without adding padding-top directly into ascent; this keeps
+    // neighboring inline text on the same baseline while the full box
+    // height still contributes via descent.
+    let inline_ascent = margin.top + border.top + max_ascent.max(0.0);
+    let inline_descent = (margin_rect.h - inline_ascent).max(0.0);
+
     InlineLayout {
         box_: LayoutBox {
             margin_rect,
@@ -3066,8 +3205,8 @@ fn layout_atomic_inline_subtree(
             children,
         },
         width: margin_rect.w,
-        ascent: margin_rect.h,
-        descent: 0.0,
+        ascent: inline_ascent,
+        descent: inline_descent,
     }
 }
 
@@ -3075,7 +3214,7 @@ fn layout_inline_children_no_wrap(
     node: &CascadedNode,
     origin_x: f32,
     origin_y: f32,
-    container_w: f32,
+    _container_w: f32,
     ctx: &mut Ctx,
 ) -> (Vec<LayoutBox>, f32, f32, f32, f32) {
     let mut cursor_x = 0.0_f32;
@@ -3087,7 +3226,7 @@ fn layout_inline_children_no_wrap(
             child,
             origin_x + cursor_x,
             origin_y,
-            (container_w - cursor_x).max(0.0),
+            f32::INFINITY,
             ctx,
         );
         max_ascent = max_ascent.max(cl.ascent);
@@ -3155,7 +3294,7 @@ fn layout_inline_block_children(
         if let Element::Text(s) = &node.children[0].element {
             let child_style = &node.children[0].style;
             let (box_, w, h, _ascent) =
-                make_text_leaf(s, child_style, origin_x, origin_y, Some(container_w), ctx);
+                make_text_leaf(s, child_style, origin_x, origin_y, Some(container_w), true, ctx);
             // Heuristic text-align: the wrapped run's `width` is the
             // *widest* line, so right / center align by shifting the
             // whole box. Multi-line per-line align (the proper
@@ -3192,6 +3331,39 @@ fn layout_inline_mixed_children(
     container_w: f32,
     ctx: &mut Ctx,
 ) -> (Vec<LayoutBox>, f32, f32) {
+    fn first_line_width(cl: &InlineLayout) -> f32 {
+        let Some(run) = cl.box_.text_run.as_ref() else {
+            return cl.width;
+        };
+        let Some(first) = run.lines.first() else {
+            return cl.width;
+        };
+        let mut max_right = 0.0_f32;
+        for g in &run.glyphs[first.glyph_range.0..first.glyph_range.1] {
+            max_right = max_right.max(g.x + g.w);
+        }
+        if max_right > 0.0 { max_right } else { cl.width }
+    }
+
+    fn text_inline_layout(
+        text: &str,
+        style: &Style,
+        origin_x: f32,
+        origin_y: f32,
+        max_width_px: Option<f32>,
+        ctx: &mut Ctx,
+    ) -> InlineLayout {
+        let (box_, w, h, ascent) =
+            make_text_leaf(text, style, origin_x, origin_y, max_width_px, false, ctx);
+        let descent = (h - ascent).max(0.0);
+        InlineLayout {
+            box_,
+            width: w,
+            ascent,
+            descent,
+        }
+    }
+
     struct Line {
         items: Vec<InlineLayout>,
         width: f32,
@@ -3200,7 +3372,9 @@ fn layout_inline_mixed_children(
         y: f32,
     }
 
-    let wrap = container_w.is_finite() && container_w > 0.0;
+    let wrap = container_w.is_finite() && container_w > 0.0 && style_wraps_text(&node.style);
+    let font_px = font_size_px(&node.style).unwrap_or(16.0);
+    let hard_break_height = line_height_px(&node.style, font_px) * ctx.scale;
     let mut lines: Vec<Line> = Vec::new();
     let mut current = Line {
         items: Vec::new(),
@@ -3212,6 +3386,35 @@ fn layout_inline_mixed_children(
     let mut cursor_y = origin_y;
 
     for child in &node.children {
+        if matches!(&child.element, Element::Br(_)) {
+            let line_h = (current.ascent + current.descent).max(hard_break_height);
+            cursor_y += line_h;
+            lines.push(current);
+            current = Line {
+                items: Vec::new(),
+                width: 0.0,
+                ascent: 0.0,
+                descent: 0.0,
+                y: cursor_y,
+            };
+            continue;
+        }
+        if wrap && !current.items.is_empty() && matches!(&child.element, Element::Text(_)) {
+            let remaining = (container_w - current.width).max(0.0);
+            let min_inline_room = font_size_px(&child.style).unwrap_or(font_px);
+            if remaining < min_inline_room {
+                let line_h = (current.ascent + current.descent).max(hard_break_height);
+                cursor_y += line_h;
+                lines.push(current);
+                current = Line {
+                    items: Vec::new(),
+                    width: 0.0,
+                    ascent: 0.0,
+                    descent: 0.0,
+                    y: cursor_y,
+                };
+            }
+        }
         let mut cl = layout_inline_subtree(
             child,
             origin_x + current.width,
@@ -3219,7 +3422,77 @@ fn layout_inline_mixed_children(
             (container_w - current.width).max(0.0),
             ctx,
         );
-        if wrap && !current.items.is_empty() && current.width + cl.width > container_w {
+        let wrapped_under_remainder = wrap
+            && !current.items.is_empty()
+            && matches!(&child.element, Element::Text(_))
+            && cl
+                .box_
+                .text_run
+                .as_ref()
+                .map(|run| run.lines.len() > 1)
+                .unwrap_or(false);
+        if wrapped_under_remainder {
+            let mut kept_head_on_line = false;
+            if let Element::Text(raw) = &child.element {
+                let remaining = (container_w - current.width).max(0.0);
+                if let Some((head, tail)) =
+                    split_collapsed_first_word_prefix_and_tail(raw, &child.style)
+                {
+                    let head_cl = text_inline_layout(
+                        &head,
+                        &child.style,
+                        origin_x + current.width,
+                        cursor_y,
+                        None,
+                        ctx,
+                    );
+                    if head_cl.width > 0.0 && head_cl.width <= remaining {
+                        current.width += head_cl.width;
+                        current.ascent = current.ascent.max(head_cl.ascent);
+                        current.descent = current.descent.max(head_cl.descent);
+                        current.items.push(head_cl);
+                        kept_head_on_line = true;
+                        if !tail.trim().is_empty() {
+                            let line_h = (current.ascent + current.descent).max(hard_break_height);
+                            cursor_y += line_h;
+                            lines.push(current);
+                            current = Line {
+                                items: Vec::new(),
+                                width: 0.0,
+                                ascent: 0.0,
+                                descent: 0.0,
+                                y: cursor_y,
+                            };
+                            cl = text_inline_layout(
+                                &tail,
+                                &child.style,
+                                origin_x,
+                                cursor_y,
+                                Some(container_w),
+                                ctx,
+                            );
+                        } else {
+                            continue;
+                        }
+                    }
+                }
+            }
+            if !kept_head_on_line {
+            let line_h = (current.ascent + current.descent).max(hard_break_height);
+            cursor_y += line_h;
+            lines.push(current);
+            current = Line {
+                items: Vec::new(),
+                width: 0.0,
+                ascent: 0.0,
+                descent: 0.0,
+                y: cursor_y,
+            };
+            cl = layout_inline_subtree(child, origin_x, cursor_y, container_w, ctx);
+            }
+        }
+        let fit_width = first_line_width(&cl);
+        if wrap && !current.items.is_empty() && current.width + fit_width > container_w {
             let line_h = current.ascent + current.descent;
             cursor_y += line_h;
             lines.push(current);
@@ -3322,60 +3595,87 @@ struct ParagraphPlan {
     inline_blocks: Vec<InlineBlockSpan>,
 }
 
+#[derive(Default)]
+struct ParagraphCollapseState {
+    prev_space: bool,
+}
+
+fn push_paragraph_span(node: &CascadedNode, text: String, plan: &mut ParagraphPlan, ctx: &mut Ctx) {
+    if text.is_empty() {
+        return;
+    }
+    let families = parse_family_list(node.style.font_family.as_deref());
+    let family_refs: Vec<&str> = families.iter().map(String::as_str).collect();
+    let weight = font_weight_value(node.style.font_weight.as_ref());
+    let axis = font_style_axis(node.style.font_style.as_ref());
+    let family = ctx
+        .text
+        .ctx
+        .resolve_family(&family_refs, weight, axis)
+        .unwrap_or_default();
+
+    let size_css = font_size_px(&node.style).unwrap_or(16.0);
+    let line_h_css = line_height_px(&node.style, size_css);
+    let color = node
+        .style
+        .color
+        .as_ref()
+        .and_then(resolve_color)
+        .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+
+    plan.spans.push(SpanData {
+        text,
+        family,
+        weight,
+        style_axis: axis,
+        size_px: size_css * ctx.scale,
+        line_height_px: line_h_css * ctx.scale,
+        color,
+    });
+}
+
 /// Walk one inline-level subtree depth-first, appending to `plan`.
 /// `Element::Text` becomes a span; an inline element wrapping
 /// children that contributed any spans is recorded as an
 /// `InlineBlockSpan` if it has a background or decoration, so its
 /// per-line bounds can be reconstructed after shaping.
-fn collect_paragraph_spans(node: &CascadedNode, plan: &mut ParagraphPlan, ctx: &mut Ctx) {
+fn collect_paragraph_spans(
+    node: &CascadedNode,
+    plan: &mut ParagraphPlan,
+    ctx: &mut Ctx,
+    collapse: &mut ParagraphCollapseState,
+) {
     if matches!(node.style.display, Some(Display::None)) {
         return;
     }
 
+    if matches!(&node.element, Element::Br(_)) {
+        collapse.prev_space = false;
+        push_paragraph_span(node, "\n".to_string(), plan, ctx);
+        return;
+    }
+
+    if matches!(&node.element, Element::Wbr(_)) {
+        push_paragraph_span(node, "\u{200B}".to_string(), plan, ctx);
+        return;
+    }
+
     if let Element::Text(s) = &node.element {
-        let collapsed = collapse_whitespace(s);
-        if collapsed.is_empty() {
+        let normalized = normalize_text_for_style(s, &node.style, Some(&mut collapse.prev_space));
+        if normalized.is_empty() {
             return;
         }
-        let display = match apply_text_transform(&collapsed, node.style.text_transform.as_ref()) {
+        let display = match apply_text_transform(&normalized, node.style.text_transform.as_ref()) {
             Some(t) => t,
-            None => collapsed,
+            None => normalized,
         };
-
-        let families = parse_family_list(node.style.font_family.as_deref());
-        let family_refs: Vec<&str> = families.iter().map(String::as_str).collect();
-        let weight = font_weight_value(node.style.font_weight.as_ref());
-        let axis = font_style_axis(node.style.font_style.as_ref());
-        let family = ctx
-            .text
-            .ctx
-            .resolve_family(&family_refs, weight, axis)
-            .unwrap_or_default();
-
-        let size_css = font_size_px(&node.style).unwrap_or(16.0);
-        let line_h_css = line_height_px(&node.style, size_css);
-        let color = node
-            .style
-            .color
-            .as_ref()
-            .and_then(resolve_color)
-            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
-
-        plan.spans.push(SpanData {
-            text: display,
-            family,
-            weight,
-            style_axis: axis,
-            size_px: size_css * ctx.scale,
-            line_height_px: line_h_css * ctx.scale,
-            color,
-        });
+        push_paragraph_span(node, display, plan, ctx);
         return;
     }
 
     let leaf_start = plan.spans.len() as u32;
     for child in &node.children {
-        collect_paragraph_spans(child, plan, ctx);
+        collect_paragraph_spans(child, plan, ctx, collapse);
     }
     let leaf_end = plan.spans.len() as u32;
     if leaf_end > leaf_start {
@@ -3436,8 +3736,9 @@ fn layout_inline_paragraph(
     //    blocks (the elements with bg / decoration whose per-line
     //    bounds we'll need after shaping).
     let mut plan = ParagraphPlan::default();
+    let mut collapse = ParagraphCollapseState::default();
     for child in &node.children {
-        collect_paragraph_spans(child, &mut plan, ctx);
+        collect_paragraph_spans(child, &mut plan, ctx, &mut collapse);
     }
     if plan.spans.is_empty() {
         return (Vec::new(), 0.0, 0.0);
@@ -3446,12 +3747,29 @@ fn layout_inline_paragraph(
     // 2. Hand the paragraph to cosmic-text. Each span's `leaf_id`
     //    matches its index in `plan.spans`, which is what
     //    `inline_blocks.leaf_range` indexes into.
-    let paragraph_spans: Vec<ParagraphSpan<'_>> = plan
+    let trim_edges = style_collapses_whitespace(&node.style);
+    let paragraph_texts: Vec<&str> = plan
         .spans
         .iter()
         .enumerate()
-        .map(|(i, sd)| ParagraphSpan {
-            text: &sd.text,
+        .map(|(i, sd)| {
+            trim_collapsed_whitespace_edges(
+                &sd.text,
+                trim_edges && i == 0,
+                trim_edges && i + 1 == plan.spans.len(),
+            )
+        })
+        .collect();
+    if paragraph_texts.iter().all(|text| text.is_empty()) {
+        return (Vec::new(), 0.0, 0.0);
+    }
+    let paragraph_spans: Vec<ParagraphSpan<'_>> = plan
+        .spans
+        .iter()
+        .zip(paragraph_texts.iter())
+        .enumerate()
+        .map(|(i, (sd, text))| ParagraphSpan {
+            text,
             family: &sd.family,
             weight: sd.weight,
             style: sd.style_axis,
@@ -3464,7 +3782,14 @@ fn layout_inline_paragraph(
     let para = match ctx
         .text
         .ctx
-        .shape_paragraph(&paragraph_spans, Some(container_w))
+        .shape_paragraph(
+            &paragraph_spans,
+            if style_wraps_text(&node.style) {
+                Some(container_w)
+            } else {
+                None
+            },
+        )
     {
         Some(p) => p,
         None => return (Vec::new(), 0.0, 0.0),
@@ -3562,7 +3887,7 @@ fn layout_inline_paragraph(
             });
         }
     }
-    let visible_text: String = paragraph_spans.iter().map(|span| span.text).collect();
+    let visible_text: String = paragraph_texts.iter().copied().collect();
     let mut line_ranges: Vec<(usize, usize)> = Vec::with_capacity(para.lines.len());
     let mut cursor = 0usize;
     for line in &para.lines {

@@ -2858,6 +2858,7 @@ dependencies = [
 name = "wgpu-html"
 version = "0.1.0"
 dependencies = [
+ "wgpu-html-events",
  "wgpu-html-layout",
  "wgpu-html-models",
  "wgpu-html-parser",
@@ -2878,6 +2879,10 @@ dependencies = [
  "wgpu-html-tree",
  "winit",
 ]
+
+[[package]]
+name = "wgpu-html-events"
+version = "0.1.0"
 
 [[package]]
 name = "wgpu-html-layout"
@@ -2937,6 +2942,7 @@ dependencies = [
 name = "wgpu-html-tree"
 version = "0.1.0"
 dependencies = [
+ "wgpu-html-events",
  "wgpu-html-models",
 ]
 

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 use arboard::Clipboard;
 use winit::application::ApplicationHandler;
@@ -15,7 +15,7 @@ use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{
     ElementState, KeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
 };
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
@@ -138,6 +138,230 @@ fn demo_fonts() -> &'static [DemoFont] {
         .as_slice()
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct StageStats {
+    sum_ms: f64,
+    max_ms: f64,
+}
+
+impl StageStats {
+    fn add_sample(&mut self, ms: f64) {
+        self.sum_ms += ms;
+        self.max_ms = self.max_ms.max(ms);
+    }
+
+    fn avg_ms(&self, frames: u64) -> f64 {
+        if frames == 0 {
+            0.0
+        } else {
+            self.sum_ms / frames as f64
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ProfileWindow {
+    started_at: Instant,
+    frames: u64,
+    total: StageStats,
+    tree: StageStats,
+    cascade: StageStats,
+    layout: StageStats,
+    paint: StageStats,
+    layout_paint: StageStats,
+    postprocess: StageStats,
+    atlas_upload: StageStats,
+    render: StageStats,
+    quads_sum: u64,
+    glyphs_sum: u64,
+    images_sum: u64,
+    clips_sum: u64,
+    hover_moves: u64,
+    hover_changed: u64,
+    hover_redraw_requests: u64,
+    hover_redraw_deferred: u64,
+    hover_pointer_move: StageStats,
+    hover_frames: u64,
+    hover_frame_total: StageStats,
+    hover_frame_cascade: StageStats,
+    hover_frame_layout: StageStats,
+    hover_frame_paint: StageStats,
+    hover_frame_layout_paint: StageStats,
+    hover_frame_render: StageStats,
+}
+
+impl ProfileWindow {
+    fn new() -> Self {
+        Self {
+            started_at: Instant::now(),
+            frames: 0,
+            total: StageStats::default(),
+            tree: StageStats::default(),
+            cascade: StageStats::default(),
+            layout: StageStats::default(),
+            paint: StageStats::default(),
+            layout_paint: StageStats::default(),
+            postprocess: StageStats::default(),
+            atlas_upload: StageStats::default(),
+            render: StageStats::default(),
+            quads_sum: 0,
+            glyphs_sum: 0,
+            images_sum: 0,
+            clips_sum: 0,
+            hover_moves: 0,
+            hover_changed: 0,
+            hover_redraw_requests: 0,
+            hover_redraw_deferred: 0,
+            hover_pointer_move: StageStats::default(),
+            hover_frames: 0,
+            hover_frame_total: StageStats::default(),
+            hover_frame_cascade: StageStats::default(),
+            hover_frame_layout: StageStats::default(),
+            hover_frame_paint: StageStats::default(),
+            hover_frame_layout_paint: StageStats::default(),
+            hover_frame_render: StageStats::default(),
+        }
+    }
+
+    fn reset(&mut self) {
+        *self = Self::new();
+    }
+
+    fn next_deadline(&self) -> Instant {
+        self.started_at + Duration::from_secs(1)
+    }
+
+    fn is_due(&self) -> bool {
+        Instant::now() >= self.next_deadline()
+    }
+
+    fn take_line_if_due(&mut self) -> Option<String> {
+        if !self.is_due() {
+            return None;
+        }
+
+        let secs = self.started_at.elapsed().as_secs_f64().max(f64::EPSILON);
+        let frames = self.frames;
+        let fps = frames as f64 / secs;
+        let line = format!(
+            "profile: {:.2}s frames={} fps={:.1} total(avg/max)={:.2}/{:.2}ms tree={:.2}/{:.2} cascade={:.2}/{:.2} layout={:.2}/{:.2} paint={:.2}/{:.2} layout+paint={:.2}/{:.2} post={:.2}/{:.2} atlas={:.2}/{:.2} render={:.2}/{:.2} avg_quads={} avg_glyphs={} avg_images={} avg_clips={} hover[moves={} changed={} ptr(avg/max)={:.3}/{:.3}ms redraws={} deferred={} frames={} total(avg/max)={:.2}/{:.2}ms c={:.2}/{:.2} l={:.2}/{:.2} p={:.2}/{:.2} lp={:.2}/{:.2} render={:.2}/{:.2}ms]",
+            secs,
+            frames,
+            fps,
+            self.total.avg_ms(frames),
+            self.total.max_ms,
+            self.tree.avg_ms(frames),
+            self.tree.max_ms,
+            self.cascade.avg_ms(frames),
+            self.cascade.max_ms,
+            self.layout.avg_ms(frames),
+            self.layout.max_ms,
+            self.paint.avg_ms(frames),
+            self.paint.max_ms,
+            self.layout_paint.avg_ms(frames),
+            self.layout_paint.max_ms,
+            self.postprocess.avg_ms(frames),
+            self.postprocess.max_ms,
+            self.atlas_upload.avg_ms(frames),
+            self.atlas_upload.max_ms,
+            self.render.avg_ms(frames),
+            self.render.max_ms,
+            if frames == 0 { 0 } else { self.quads_sum / frames },
+            if frames == 0 { 0 } else { self.glyphs_sum / frames },
+            if frames == 0 { 0 } else { self.images_sum / frames },
+            if frames == 0 { 0 } else { self.clips_sum / frames },
+            self.hover_moves,
+            self.hover_changed,
+            self.hover_pointer_move.avg_ms(self.hover_moves),
+            self.hover_pointer_move.max_ms,
+            self.hover_redraw_requests,
+            self.hover_redraw_deferred,
+            self.hover_frames,
+            self.hover_frame_total.avg_ms(self.hover_frames),
+            self.hover_frame_total.max_ms,
+            self.hover_frame_cascade.avg_ms(self.hover_frames),
+            self.hover_frame_cascade.max_ms,
+            self.hover_frame_layout.avg_ms(self.hover_frames),
+            self.hover_frame_layout.max_ms,
+            self.hover_frame_paint.avg_ms(self.hover_frames),
+            self.hover_frame_paint.max_ms,
+            self.hover_frame_layout_paint.avg_ms(self.hover_frames),
+            self.hover_frame_layout_paint.max_ms,
+            self.hover_frame_render.avg_ms(self.hover_frames),
+            self.hover_frame_render.max_ms,
+        );
+        self.reset();
+        Some(line)
+    }
+
+    fn add_hover_move(&mut self, pointer_move_ms: f64, changed: bool) {
+        self.hover_moves += 1;
+        self.hover_pointer_move.add_sample(pointer_move_ms);
+        if changed {
+            self.hover_changed += 1;
+        }
+    }
+
+    fn mark_hover_redraw_requested(&mut self) {
+        self.hover_redraw_requests += 1;
+    }
+
+    fn mark_hover_redraw_deferred(&mut self) {
+        self.hover_redraw_deferred += 1;
+    }
+
+    fn add_hover_frame_detailed(
+        &mut self,
+        total_ms: f64,
+        cascade_ms: f64,
+        layout_ms: f64,
+        paint_ms: f64,
+        layout_paint_ms: f64,
+        render_ms: f64,
+    ) {
+        self.hover_frames += 1;
+        self.hover_frame_total.add_sample(total_ms);
+        self.hover_frame_cascade.add_sample(cascade_ms);
+        self.hover_frame_layout.add_sample(layout_ms);
+        self.hover_frame_paint.add_sample(paint_ms);
+        self.hover_frame_layout_paint.add_sample(layout_paint_ms);
+        self.hover_frame_render.add_sample(render_ms);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn add_frame(
+        &mut self,
+        total_ms: f64,
+        tree_ms: f64,
+        cascade_ms: f64,
+        layout_ms: f64,
+        paint_ms: f64,
+        layout_paint_ms: f64,
+        postprocess_ms: f64,
+        atlas_upload_ms: f64,
+        render_ms: f64,
+        quads: usize,
+        glyphs: usize,
+        images: usize,
+        clips: usize,
+    ) {
+        self.frames += 1;
+        self.total.add_sample(total_ms);
+        self.tree.add_sample(tree_ms);
+        self.cascade.add_sample(cascade_ms);
+        self.layout.add_sample(layout_ms);
+        self.paint.add_sample(paint_ms);
+        self.layout_paint.add_sample(layout_paint_ms);
+        self.postprocess.add_sample(postprocess_ms);
+        self.atlas_upload.add_sample(atlas_upload_ms);
+        self.render.add_sample(render_ms);
+        self.quads_sum += quads as u64;
+        self.glyphs_sum += glyphs as u64;
+        self.images_sum += images as u64;
+        self.clips_sum += clips as u64;
+    }
+}
+
 struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
@@ -166,10 +390,22 @@ struct App {
     click_count: Arc<AtomicUsize>,
     /// Live keyboard modifier state used for shortcut dispatch.
     modifiers: Modifiers,
+    /// Whether a hover-state change arrived that hasn't been rendered yet.
+    hover_pending: bool,
+    /// Timestamp of the last hover-driven `RedrawRequested` delivery.
+    /// Used to cap hover redraws to ~60 fps so that a 1000 Hz mouse does
+    /// not queue hundreds of full layout+render passes per second.
+    last_hover_redraw: Instant,
+    /// Emit per-frame timing logs for expensive demo stages.
+    profiling_enabled: bool,
+    /// Aggregated profiling samples, emitted about once per second.
+    profile_window: ProfileWindow,
+    /// Whether the next redraw should be attributed to hover-driven work.
+    hover_redraw_pending: bool,
 }
 
 impl App {
-    fn new(doc_html: String) -> Self {
+    fn new(doc_html: String, profiling_enabled: bool) -> Self {
         Self {
             window: None,
             renderer: None,
@@ -185,6 +421,12 @@ impl App {
             scrollbar_drag: None,
             click_count: Arc::new(AtomicUsize::new(0)),
             modifiers: Modifiers::default(),
+            hover_pending: false,
+            // Initialise to "long ago" so the very first hover fires immediately.
+            last_hover_redraw: Instant::now() - Duration::from_secs(1),
+            profiling_enabled,
+            profile_window: ProfileWindow::new(),
+            hover_redraw_pending: false,
         }
     }
 }
@@ -238,6 +480,65 @@ impl App {
                 }));
             }
 
+            // ── events-test.html: wire on_event for every live zone ──────
+            // Each callback prints a one-liner to stderr with all the key
+            // fields from the HtmlEvent so the user can verify the full
+            // event hierarchy is populated correctly.
+            let live_zone_ids: &[&str] = &[
+                "zone-click",
+                "zone-mousedown",
+                "zone-mouseup",
+                "zone-enterleave",
+                "zone-buttons",
+            ];
+            for zone_id in live_zone_ids {
+                if let Some(el) = tree.get_element_by_id(zone_id) {
+                    let id = zone_id.to_string();
+                    el.on_event = Some(Arc::new(move |ev| {
+                        use wgpu_html_tree::HtmlEvent;
+                        let base = ev.base();
+                        let (cx, cy, btn, btns, phase) = match ev {
+                            HtmlEvent::Mouse(m) => (
+                                m.client_x,
+                                m.client_y,
+                                m.button,
+                                m.buttons,
+                                format!("{:?}", base.event_phase),
+                            ),
+                            _ => (0.0, 0.0, -1, 0, format!("{:?}", base.event_phase)),
+                        };
+                        let mods = format!(
+                            "{}{}{}{}",
+                            if base.is_trusted { "" } else { "!" },
+                            // modifier keys: read from the Mouse variant
+                            match ev {
+                                HtmlEvent::Mouse(m) => {
+                                    let mut s = String::new();
+                                    if m.ctrl_key  { s.push_str("C"); }
+                                    if m.shift_key { s.push_str("S"); }
+                                    if m.alt_key   { s.push_str("A"); }
+                                    if m.meta_key  { s.push_str("M"); }
+                                    if s.is_empty() { s.push('-'); }
+                                    s
+                                }
+                                _ => "-".into(),
+                            },
+                            "",
+                            "",
+                        );
+                        eprintln!(
+                            "[{id}] {type_}  client=({cx:.0},{cy:.0})  \
+                             button={btn}  buttons=0b{btns:05b}  \
+                             mods={mods}  phase={phase}  \
+                             ts={ts:.2}ms  bubbles={bub}",
+                            type_ = ev.event_type(),
+                            ts    = base.time_stamp,
+                            bub   = base.bubbles,
+                        );
+                    }));
+                }
+            }
+
             *tree_slot = Some(tree);
         }
         tree_slot.as_mut().unwrap()
@@ -275,7 +576,18 @@ impl App {
             Err(err) => eprintln!("demo: clipboard unavailable: {err}"),
         }
     }
+
+    fn toggle_profiling(&mut self) {
+        self.profiling_enabled = !self.profiling_enabled;
+        self.profile_window.reset();
+        self.hover_redraw_pending = false;
+        eprintln!(
+            "demo: profiling {} (use --profile to enable on startup)",
+            if self.profiling_enabled { "enabled" } else { "disabled" }
+        );
+    }
 }
+
 
 fn translate_button(b: WinitMouseButton) -> MouseButton {
     match b {
@@ -308,6 +620,9 @@ impl ApplicationHandler for App {
 
         self.window = Some(window);
         self.renderer = Some(renderer);
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -340,6 +655,10 @@ impl ApplicationHandler for App {
             } => {
                 self.update_modifier_key(key, state);
                 if state == ElementState::Pressed && !repeat {
+                    if key == KeyCode::F9 {
+                        self.toggle_profiling();
+                        return;
+                    }
                     if self.modifiers.ctrl {
                         match key {
                             KeyCode::KeyA => {
@@ -386,27 +705,74 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
                 self.cursor_pos = Some(pos);
-                if let (Some(drag), Some(layout)) = (self.scrollbar_drag, self.last_layout.as_ref())
+                if let (Some(drag), Some(layout)) =
+                    (self.scrollbar_drag.clone(), self.last_layout.as_ref())
                 {
                     let size = window.inner_size();
-                    self.scroll_y = scroll_y_from_thumb_top(
-                        pos.1 - drag.grab_offset_y,
-                        layout,
-                        size.width as f32,
-                        size.height as f32,
-                    );
+                    match drag.target {
+                        ScrollTarget::Viewport => {
+                            self.scroll_y = scroll_y_from_thumb_top(
+                                pos.1 - drag.grab_offset_y,
+                                layout,
+                                size.width as f32,
+                                size.height as f32,
+                            );
+                        }
+                        ScrollTarget::Element(path) => {
+                            if let Some(tree) = self.tree.as_mut() {
+                                let doc_pos = viewport_to_document(pos, self.scroll_y);
+                                scroll_element_thumb_to(
+                                    tree,
+                                    layout,
+                                    path,
+                                    doc_pos.1 - drag.grab_offset_y,
+                                );
+                            }
+                        }
+                    }
                     window.request_redraw();
                 }
                 let doc_pos = viewport_to_document(pos, self.scroll_y);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
-                    interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                    let hover_t0 = self.profiling_enabled.then(Instant::now);
+                    let changed = interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                    if let Some(t0) = hover_t0 {
+                        self.profile_window
+                            .add_hover_move(t0.elapsed().as_secs_f64() * 1000.0, changed);
+                    }
+                    // Cap hover-driven redraws to ~60 fps.  A 1000 Hz mouse fires
+                    // CursorMoved far faster than a full cascade+layout+render can
+                    // complete, so without throttling every element boundary crossing
+                    // queues a redundant pass.
+                    if changed || tree.interaction.selecting_text {
+                        const HOVER_FRAME_MS: u64 = 16;
+                        if self.last_hover_redraw.elapsed()
+                            >= Duration::from_millis(HOVER_FRAME_MS)
+                        {
+                            if self.profiling_enabled {
+                                self.profile_window.mark_hover_redraw_requested();
+                            }
+                            self.hover_redraw_pending = true;
+                            window.request_redraw();
+                            self.hover_pending = false;
+                        } else {
+                            // Defer: about_to_wait will fire one redraw after the
+                            // remaining budget expires.
+                            if self.profiling_enabled {
+                                self.profile_window.mark_hover_redraw_deferred();
+                            }
+                            self.hover_redraw_pending = true;
+                            self.hover_pending = true;
+                        }
+                    }
                 }
             }
             WindowEvent::CursorLeft { .. } => {
                 self.cursor_pos = None;
                 if let Some(tree) = self.tree.as_mut() {
                     interactivity::pointer_leave(tree, self.modifiers);
+                    window.request_redraw();
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -434,9 +800,11 @@ impl ApplicationHandler for App {
                     match state {
                         ElementState::Pressed => {
                             interactivity::mouse_down(tree, layout, doc_pos, btn, self.modifiers);
+                            window.request_redraw();
                         }
                         ElementState::Released => {
                             interactivity::mouse_up(tree, layout, doc_pos, btn, self.modifiers);
+                            window.request_redraw();
                         }
                     }
                 }
@@ -444,6 +812,14 @@ impl ApplicationHandler for App {
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.last_layout.as_ref() {
                     let dy = scroll_delta_to_pixels(delta);
+                    if let (Some(tree), Some(pos)) = (self.tree.as_mut(), self.cursor_pos) {
+                        let doc_pos = viewport_to_document(pos, self.scroll_y);
+                        if scroll_element_at(tree, layout, doc_pos, dy) {
+                            interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                            window.request_redraw();
+                            return;
+                        }
+                    }
                     self.scroll_y = clamp_scroll_y(
                         self.scroll_y + dy,
                         layout,
@@ -466,18 +842,51 @@ impl ApplicationHandler for App {
                 };
                 let size = window.inner_size();
 
+                let profiling = self.profiling_enabled;
+                let total_t0 = profiling.then(Instant::now);
+                let mut tree_build_ms = 0.0_f64;
+                let mut cascade_ms = 0.0_f64;
+                let mut layout_ms = 0.0_f64;
+                let mut paint_ms = 0.0_f64;
+                let mut layout_paint_ms = 0.0_f64;
+                let mut postprocess_ms = 0.0_f64;
+                let mut atlas_upload_ms = 0.0_f64;
+                let mut render_ms = 0.0_f64;
+
                 // Build the tree on first frame; subsequent frames
                 // reuse it so callbacks set in `ensure_tree_built`
                 // persist.
+                let tree_t0 = profiling.then(Instant::now);
                 let tree_ref =
                     App::ensure_tree_built(&mut self.tree, &self.doc_html, &self.click_count);
-                let (mut list, layout) = wgpu_html::paint_tree_returning_layout(
-                    tree_ref,
-                    &mut self.text_ctx,
-                    size.width as f32,
-                    size.height as f32,
-                    1.0, // T3: fixed scale; T7 honours `scale_factor_changed`.
-                );
+                if let Some(t0) = tree_t0 {
+                    tree_build_ms = t0.elapsed().as_secs_f64() * 1000.0;
+                }
+
+                let (mut list, layout) = if profiling {
+                    let (list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
+                        tree_ref,
+                        &mut self.text_ctx,
+                        size.width as f32,
+                        size.height as f32,
+                        1.0, // T3: fixed scale; T7 honours `scale_factor_changed`.
+                    );
+                    cascade_ms = timings.cascade_ms;
+                    layout_ms = timings.layout_ms;
+                    paint_ms = timings.paint_ms;
+                    layout_paint_ms = layout_ms + paint_ms;
+                    (list, layout)
+                } else {
+                    wgpu_html::paint_tree_returning_layout(
+                        tree_ref,
+                        &mut self.text_ctx,
+                        size.width as f32,
+                        size.height as f32,
+                        1.0, // T3: fixed scale; T7 honours `scale_factor_changed`.
+                    )
+                };
+
+                let postprocess_t0 = profiling.then(Instant::now);
                 if let Some(layout) = layout.as_ref() {
                     self.scroll_y = clamp_scroll_y(self.scroll_y, layout, size.height as f32);
                     translate_display_list_y(&mut list, -self.scroll_y);
@@ -492,34 +901,120 @@ impl ApplicationHandler for App {
                     self.scroll_y = 0.0;
                 }
                 self.last_layout = layout;
+                if let Some(t0) = postprocess_t0 {
+                    postprocess_ms = t0.elapsed().as_secs_f64() * 1000.0;
+                }
 
                 // Push any newly-rasterised glyph rasters into the
                 // renderer's GPU atlas before the draw.
+                let atlas_upload_t0 = profiling.then(Instant::now);
                 self.text_ctx
                     .atlas
                     .upload(&renderer.queue, renderer.glyph_atlas_texture());
+                if let Some(t0) = atlas_upload_t0 {
+                    atlas_upload_ms = t0.elapsed().as_secs_f64() * 1000.0;
+                }
 
+                let render_t0 = profiling.then(Instant::now);
                 match renderer.render(&list) {
                     FrameOutcome::Presented | FrameOutcome::Skipped => {}
                     FrameOutcome::Reconfigure => {
                         renderer.resize(size.width, size.height);
                     }
                 }
+                if let Some(t0) = render_t0 {
+                    render_ms = t0.elapsed().as_secs_f64() * 1000.0;
+                }
+
+                if let Some(t0) = total_t0 {
+                    let total_ms = t0.elapsed().as_secs_f64() * 1000.0;
+                    self.profile_window.add_frame(
+                        total_ms,
+                        tree_build_ms,
+                        cascade_ms,
+                        layout_ms,
+                        paint_ms,
+                        layout_paint_ms,
+                        postprocess_ms,
+                        atlas_upload_ms,
+                        render_ms,
+                        list.quads.len(),
+                        list.glyphs.len(),
+                        list.images.len(),
+                        list.clips.len(),
+                    );
+                    if self.hover_redraw_pending {
+                        self.profile_window.add_hover_frame_detailed(
+                            total_ms,
+                            cascade_ms,
+                            layout_ms,
+                            paint_ms,
+                            layout_paint_ms,
+                            render_ms,
+                        );
+                    }
+                }
+                self.hover_redraw_pending = false;
+
+                // Record when this frame finished so the hover throttle knows
+                // how much of the 16 ms budget remains.
+                self.last_hover_redraw = Instant::now();
             }
             _ => {}
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(window) = self.window.as_ref() {
-            window.request_redraw();
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.profiling_enabled {
+            if let Some(line) = self.profile_window.take_line_if_due() {
+                eprintln!("{line}");
+            }
+        }
+
+        let mut next_deadline: Option<Instant> = if self.profiling_enabled {
+            Some(self.profile_window.next_deadline())
+        } else {
+            None
+        };
+
+        if self.hover_pending {
+            let elapsed = self.last_hover_redraw.elapsed();
+            let budget = Duration::from_millis(16);
+            if elapsed >= budget {
+                // Frame budget exhausted — fire the deferred hover redraw now.
+                self.hover_pending = false;
+                if let Some(window) = self.window.as_ref() {
+                    if self.profiling_enabled {
+                        self.profile_window.mark_hover_redraw_requested();
+                    }
+                    self.hover_redraw_pending = true;
+                    window.request_redraw();
+                }
+            } else {
+                let hover_deadline = Instant::now() + (budget - elapsed);
+                next_deadline = Some(match next_deadline {
+                    Some(existing) => existing.min(hover_deadline),
+                    None => hover_deadline,
+                });
+            }
+        }
+
+        if let Some(deadline) = next_deadline {
+            event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ScrollbarDrag {
+    target: ScrollTarget,
     grab_offset_y: f32,
+}
+
+#[derive(Debug, Clone)]
+enum ScrollTarget {
+    Viewport,
+    Element(Vec<usize>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -535,6 +1030,42 @@ impl App {
         let Some(layout) = self.last_layout.as_ref() else {
             return false;
         };
+        if let Some(tree) = self.tree.as_mut() {
+            let doc_pos = viewport_to_document(pos, self.scroll_y);
+            if let Some((path, geom)) = deepest_element_scrollbar_at(
+                layout,
+                doc_pos,
+                &tree.interaction.scroll_offsets_y,
+                &mut Vec::new(),
+            ) {
+                if rect_contains(geom.thumb, doc_pos) {
+                    self.scrollbar_drag = Some(ScrollbarDrag {
+                        target: ScrollTarget::Element(path),
+                        grab_offset_y: doc_pos.1 - geom.thumb.y,
+                    });
+                    return true;
+                }
+                if rect_contains(geom.track, doc_pos) {
+                    let thumb_top = doc_pos.1 - geom.thumb.h * 0.5;
+                    scroll_element_thumb_to(tree, layout, path.clone(), thumb_top);
+                    if let Some(box_) = layout.box_at_path(&path) {
+                        let new_scroll = tree
+                            .interaction
+                            .scroll_offsets_y
+                            .get(&path)
+                            .copied()
+                            .unwrap_or(0.0);
+                        if let Some(updated) = element_scrollbar_geometry(box_, new_scroll) {
+                            self.scrollbar_drag = Some(ScrollbarDrag {
+                                target: ScrollTarget::Element(path),
+                                grab_offset_y: doc_pos.1 - updated.thumb.y,
+                            });
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
         let Some(geom) =
             scrollbar_geometry(layout, size.width as f32, size.height as f32, self.scroll_y)
         else {
@@ -542,6 +1073,7 @@ impl App {
         };
         if rect_contains(geom.thumb, pos) {
             self.scrollbar_drag = Some(ScrollbarDrag {
+                target: ScrollTarget::Viewport,
                 grab_offset_y: pos.1 - geom.thumb.y,
             });
             return true;
@@ -554,6 +1086,7 @@ impl App {
                 scrollbar_geometry(layout, size.width as f32, size.height as f32, self.scroll_y)
             {
                 self.scrollbar_drag = Some(ScrollbarDrag {
+                    target: ScrollTarget::Viewport,
                     grab_offset_y: pos.1 - updated.thumb.y,
                 });
             }
@@ -641,6 +1174,198 @@ fn rect_contains(rect: Rect, pos: (f32, f32)) -> bool {
     pos.0 >= rect.x && pos.0 < rect.x + rect.w && pos.1 >= rect.y && pos.1 < rect.y + rect.h
 }
 
+fn scroll_element_at(
+    tree: &mut Tree,
+    layout: &LayoutBox,
+    doc_pos: (f32, f32),
+    delta_y: f32,
+) -> bool {
+    let Some(path) = deepest_scrollable_path_at(
+        layout,
+        doc_pos,
+        &tree.interaction.scroll_offsets_y,
+        &mut Vec::new(),
+    ) else {
+        return false;
+    };
+    let Some(box_) = layout.box_at_path(&path) else {
+        return false;
+    };
+    let max_scroll = max_element_scroll_y(box_);
+    if max_scroll <= 0.0 {
+        return false;
+    }
+
+    let old = tree
+        .interaction
+        .scroll_offsets_y
+        .get(&path)
+        .copied()
+        .unwrap_or(0.0)
+        .clamp(0.0, max_scroll);
+    let new = (old + delta_y).clamp(0.0, max_scroll);
+    if (new - old).abs() <= 0.5 {
+        return false;
+    }
+
+    if new <= 0.0 {
+        tree.interaction.scroll_offsets_y.remove(&path);
+    } else {
+        tree.interaction.scroll_offsets_y.insert(path, new);
+    }
+    true
+}
+
+fn scroll_element_thumb_to(tree: &mut Tree, layout: &LayoutBox, path: Vec<usize>, thumb_top: f32) {
+    let Some(box_) = layout.box_at_path(&path) else {
+        return;
+    };
+    let Some(geom) = element_scrollbar_geometry(box_, 0.0) else {
+        return;
+    };
+    if geom.travel <= 0.0 {
+        return;
+    }
+    let t = ((thumb_top - geom.track.y) / geom.travel).clamp(0.0, 1.0);
+    let scroll_y = t * geom.max_scroll;
+    if scroll_y <= 0.0 {
+        tree.interaction.scroll_offsets_y.remove(&path);
+    } else {
+        tree.interaction.scroll_offsets_y.insert(path, scroll_y);
+    }
+}
+
+fn deepest_element_scrollbar_at(
+    b: &LayoutBox,
+    pos: (f32, f32),
+    offsets: &std::collections::BTreeMap<Vec<usize>, f32>,
+    path: &mut Vec<usize>,
+) -> Option<(Vec<usize>, ScrollbarGeometry)> {
+    let own_scroll = offsets
+        .get(path)
+        .copied()
+        .unwrap_or(0.0)
+        .clamp(0.0, max_element_scroll_y(b));
+    let child_pos = (pos.0, pos.1 + own_scroll);
+    for (i, child) in b.children.iter().enumerate().rev() {
+        if !child.border_rect.contains(child_pos.0, child_pos.1) {
+            continue;
+        }
+        path.push(i);
+        if let Some(found) = deepest_element_scrollbar_at(child, child_pos, offsets, path) {
+            path.pop();
+            return Some(found);
+        }
+        path.pop();
+    }
+
+    let geom = element_scrollbar_geometry(b, own_scroll)?;
+    (rect_contains(geom.track, pos) || rect_contains(geom.thumb, pos)).then(|| (path.clone(), geom))
+}
+
+fn deepest_scrollable_path_at(
+    b: &LayoutBox,
+    pos: (f32, f32),
+    offsets: &std::collections::BTreeMap<Vec<usize>, f32>,
+    path: &mut Vec<usize>,
+) -> Option<Vec<usize>> {
+    let own_scroll = offsets
+        .get(path)
+        .copied()
+        .unwrap_or(0.0)
+        .clamp(0.0, max_element_scroll_y(b));
+    let child_pos = (pos.0, pos.1 + own_scroll);
+    for (i, child) in b.children.iter().enumerate().rev() {
+        if !child.border_rect.contains(child_pos.0, child_pos.1) {
+            continue;
+        }
+        path.push(i);
+        if let Some(found) = deepest_scrollable_path_at(child, child_pos, offsets, path) {
+            path.pop();
+            return Some(found);
+        }
+        path.pop();
+    }
+
+    let pad = element_padding_box(b);
+    if matches!(
+        b.overflow.y,
+        wgpu_html::models::common::css_enums::Overflow::Scroll
+            | wgpu_html::models::common::css_enums::Overflow::Auto
+    ) && max_element_scroll_y(b) > 0.0
+        && rect_contains(pad, pos)
+    {
+        return Some(path.clone());
+    }
+    None
+}
+
+fn element_scrollbar_geometry(b: &LayoutBox, scroll_y: f32) -> Option<ScrollbarGeometry> {
+    if !matches!(
+        b.overflow.y,
+        wgpu_html::models::common::css_enums::Overflow::Scroll
+            | wgpu_html::models::common::css_enums::Overflow::Auto
+    ) {
+        return None;
+    }
+    let pad = element_padding_box(b);
+    if pad.w <= 0.0 || pad.h <= 0.0 {
+        return None;
+    }
+    let scroll_h = scrollable_content_height(b).max(pad.h);
+    let max_scroll = (scroll_h - pad.h).max(0.0);
+    if max_scroll <= 0.0 {
+        return None;
+    }
+    let track_w = 10.0_f32.min(pad.w);
+    let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
+    let thumb_h = (pad.h * pad.h / scroll_h).clamp(18.0_f32.min(pad.h), pad.h);
+    let travel = (pad.h - thumb_h).max(0.0);
+    let thumb_y = track.y + travel * (scroll_y.clamp(0.0, max_scroll) / max_scroll.max(1.0));
+    let thumb = Rect::new(
+        track.x + 2.0,
+        thumb_y + 2.0,
+        (track.w - 4.0).max(1.0),
+        (thumb_h - 4.0).max(1.0),
+    );
+    Some(ScrollbarGeometry {
+        track,
+        thumb,
+        max_scroll,
+        travel,
+    })
+}
+
+fn max_element_scroll_y(b: &LayoutBox) -> f32 {
+    (scrollable_content_height(b) - element_padding_box(b).h).max(0.0)
+}
+
+fn element_padding_box(b: &LayoutBox) -> Rect {
+    Rect::new(
+        b.border_rect.x + b.border.left,
+        b.border_rect.y + b.border.top,
+        (b.border_rect.w - b.border.horizontal()).max(0.0),
+        (b.border_rect.h - b.border.vertical()).max(0.0),
+    )
+}
+
+fn scrollable_content_height(b: &LayoutBox) -> f32 {
+    let pad = element_padding_box(b);
+    let mut bottom = pad.y + pad.h;
+    for child in &b.children {
+        bottom = bottom.max(element_subtree_bottom(child));
+    }
+    (bottom - pad.y).max(0.0)
+}
+
+fn element_subtree_bottom(b: &LayoutBox) -> f32 {
+    let mut bottom = b.margin_rect.y + b.margin_rect.h;
+    for child in &b.children {
+        bottom = bottom.max(element_subtree_bottom(child));
+    }
+    bottom
+}
+
 fn document_bottom(b: &LayoutBox) -> f32 {
     b.children
         .iter()
@@ -691,44 +1416,64 @@ fn timestamp() -> u64 {
 }
 
 fn print_usage(program: &str) {
-    println!("Usage: {program} [HTML_FILE]");
+    println!("Usage: {program} [--profile] [HTML_FILE]");
     println!();
     println!("If HTML_FILE is omitted, the built-in demo document is used:");
     println!("  {DEFAULT_DOC_PATH}");
     println!();
+    println!("Options:");
+    println!("  --profile   enable per-frame profiling logs at startup");
+    println!();
     println!("Examples:");
     println!("  {program}");
+    println!("  {program} --profile");
     println!("  {program} crates/wgpu-html-demo/html/flex-browser-like.html");
+    println!("  {program} --profile crates/wgpu-html-demo/html/events-test.html");
 }
 
-fn resolve_doc_from_args() -> Result<(String, String), ExitCode> {
+fn resolve_doc_from_args() -> Result<(String, String, bool), ExitCode> {
     let mut args = env::args_os();
     let program = args
         .next()
         .map(|arg| arg.to_string_lossy().into_owned())
         .unwrap_or_else(|| "wgpu-html-demo".to_owned());
 
-    let Some(doc_arg) = args.next() else {
+    let mut profiling_enabled = false;
+    let mut doc_arg: Option<std::ffi::OsString> = None;
+
+    for arg in args {
+        let text = arg.to_string_lossy();
+        match text.as_ref() {
+            "-h" | "--help" => {
+                print_usage(&program);
+                return Err(ExitCode::SUCCESS);
+            }
+            "--profile" => profiling_enabled = true,
+            _ if text.starts_with('-') => {
+                eprintln!("demo: unknown flag: {text}\n");
+                print_usage(&program);
+                return Err(ExitCode::FAILURE);
+            }
+            _ => {
+                if let Some(extra) = doc_arg.replace(arg) {
+                    eprintln!(
+                        "demo: unexpected extra argument: {}\n",
+                        extra.to_string_lossy()
+                    );
+                    print_usage(&program);
+                    return Err(ExitCode::FAILURE);
+                }
+            }
+        }
+    }
+
+    let Some(doc_arg) = doc_arg else {
         return Ok((
             DEFAULT_DOC.to_owned(),
             format!("embedded default ({DEFAULT_DOC_PATH})"),
+            profiling_enabled,
         ));
     };
-
-    let arg = doc_arg.to_string_lossy();
-    if arg == "-h" || arg == "--help" {
-        print_usage(&program);
-        return Err(ExitCode::SUCCESS);
-    }
-
-    if let Some(extra) = args.next() {
-        eprintln!(
-            "demo: unexpected extra argument: {}\n",
-            extra.to_string_lossy()
-        );
-        print_usage(&program);
-        return Err(ExitCode::FAILURE);
-    }
 
     let path = PathBuf::from(doc_arg);
     let html = match std::fs::read_to_string(&path) {
@@ -742,14 +1487,15 @@ fn resolve_doc_from_args() -> Result<(String, String), ExitCode> {
         }
     };
 
-    Ok((html, path.display().to_string()))
+    Ok((html, path.display().to_string(), profiling_enabled))
 }
 
 fn main() -> ExitCode {
     println!("wgpu-html demo:");
     println!("  F12  →  save current frame as screenshot-<unix>.png");
+    println!("  F9   →  toggle frame profiling logs");
     println!("  Esc  →  quit");
-    let (doc_html, doc_source) = match resolve_doc_from_args() {
+    let (doc_html, doc_source, profiling_enabled) = match resolve_doc_from_args() {
         Ok(doc) => doc,
         Err(code) => return code,
     };
@@ -763,8 +1509,12 @@ fn main() -> ExitCode {
     }
 
     let event_loop = EventLoop::new().expect("event loop");
-    event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-    let mut app = App::new(doc_html);
+    // Event-driven redraws: avoid running full layout/paint/render when idle.
+    event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
+    if profiling_enabled {
+        eprintln!("demo: profiling enabled via --profile");
+    }
+    let mut app = App::new(doc_html, profiling_enabled);
     event_loop.run_app(&mut app).expect("event loop run");
     ExitCode::SUCCESS
 }

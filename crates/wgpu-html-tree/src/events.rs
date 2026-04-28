@@ -5,7 +5,12 @@
 //! demo needs: a hover path, an active path, and per-node `on_click /
 //! on_mouse_{down,up,enter,leave}` callback slots.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Instant;
+
+// Re-export the full event type hierarchy so tree users only need one crate.
+pub use wgpu_html_events::{HtmlEvent, HtmlEventType};
 
 /// A caret/selection endpoint in shaped text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,8 +92,16 @@ pub struct MouseEvent {
 /// (e.g. `Arc<AtomicUsize>`, `Arc<Mutex<T>>`) for mutable state.
 pub type MouseCallback = Arc<dyn Fn(&MouseEvent) + Send + Sync + 'static>;
 
+/// General-purpose event callback that receives the full [`HtmlEvent`].
+///
+/// Attached to `Node::on_event`; fired for *every* event that reaches the
+/// node (after the type-specific slot, if both are wired). Prefer
+/// `on_click` / `on_mouse_down` etc. for ordinary pointer work; use this
+/// for keyboard, focus, wheel, or other events that have no dedicated slot.
+pub type EventCallback = Arc<dyn Fn(&HtmlEvent) + Send + Sync + 'static>;
+
 /// Per-document interaction state. Reset on document reload.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct InteractionState {
     /// Path to the deepest element currently under the pointer, or
     /// `None` if the pointer is outside the document or never moved.
@@ -104,4 +117,31 @@ pub struct InteractionState {
     pub selecting_text: bool,
     /// Colors used to paint selected text/background.
     pub selection_colors: SelectionColors,
+    /// Vertical scroll offsets keyed by layout/tree child-index path.
+    pub scroll_offsets_y: BTreeMap<Vec<usize>, f32>,
+    /// Instant at which the document interaction state was created.
+    /// Used to compute `Event::time_stamp` (milliseconds since origin,
+    /// matching `performance.now()` semantics).
+    pub time_origin: Instant,
+    /// DOM-style bitmask of mouse buttons currently held down.
+    ///
+    /// Bit 0 = primary, bit 1 = secondary, bit 2 = middle,
+    /// bit 3/4 = back/forward (matches the W3C `MouseEvent.buttons` spec).
+    pub buttons_down: u16,
+}
+
+impl Default for InteractionState {
+    fn default() -> Self {
+        Self {
+            hover_path: None,
+            active_path: None,
+            pointer_pos: None,
+            selection: None,
+            selecting_text: false,
+            selection_colors: SelectionColors::default(),
+            scroll_offsets_y: BTreeMap::new(),
+            time_origin: Instant::now(),
+            buttons_down: 0,
+        }
+    }
 }

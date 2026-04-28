@@ -13,8 +13,8 @@ mod events;
 mod fonts;
 
 pub use events::{
-    InteractionState, Modifiers, MouseButton, MouseCallback, MouseEvent, SelectionColors,
-    TextCursor, TextSelection,
+    EventCallback, HtmlEvent, HtmlEventType, InteractionState, Modifiers, MouseButton,
+    MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 
@@ -133,6 +133,11 @@ pub struct Node {
     /// Fires when the pointer leaves this node's subtree
     /// (deepest-first across the left chain).
     pub on_mouse_leave: Option<MouseCallback>,
+    /// General-purpose handler that receives the full [`HtmlEvent`] for any
+    /// event dispatched to this node, fired *after* the type-specific slot
+    /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
+    /// without a dedicated slot.
+    pub on_event: Option<EventCallback>,
 }
 
 impl std::fmt::Debug for Node {
@@ -156,6 +161,7 @@ impl std::fmt::Debug for Node {
                 "on_mouse_leave",
                 &self.on_mouse_leave.as_ref().map(|_| "<fn>"),
             )
+            .field("on_event", &self.on_event.as_ref().map(|_| "<fn>"))
             .finish()
     }
 }
@@ -170,6 +176,7 @@ impl Node {
             on_mouse_up: None,
             on_mouse_enter: None,
             on_mouse_leave: None,
+            on_event: None,
         }
     }
 

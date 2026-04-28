@@ -16,8 +16,87 @@
 //!   press (matches browser drag-out-cancel behaviour).
 //! - `pointer_leave` — clears `hover_path`, fires `on_mouse_leave`.
 
+use wgpu_html_events as ev;
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_tree::{Modifiers, MouseButton, MouseEvent, Tree};
+
+// ── internal helpers ──────────────────────────────────────────────────────────
+
+/// Map our `MouseButton` to the DOM `MouseEvent.button` value (i16).
+fn button_to_i16(button: Option<MouseButton>) -> i16 {
+    match button {
+        None | Some(MouseButton::Primary) => 0,
+        Some(MouseButton::Middle) => 1,
+        Some(MouseButton::Secondary) => 2,
+        Some(MouseButton::Other(n)) => n as i16,
+    }
+}
+
+/// Map our `MouseButton` to its bit in the DOM `MouseEvent.buttons` bitmask.
+fn button_to_bit(button: MouseButton) -> u16 {
+    match button {
+        MouseButton::Primary => 1,
+        MouseButton::Secondary => 2,
+        MouseButton::Middle => 4,
+        MouseButton::Other(n) => 1u16 << (n.min(15)),
+    }
+}
+
+/// Build the `wgpu_html_events` base chain for a mouse event.
+fn make_mouse_html_event(
+    event_type: &'static str,
+    bubbles: bool,
+    detail: i32,
+    pos: (f32, f32),
+    button: Option<MouseButton>,
+    buttons_down: u16,
+    modifiers: Modifiers,
+    target_path: &[usize],
+    current_path: Vec<usize>,
+    time_stamp: f64,
+) -> ev::HtmlEvent {
+    let event_phase = if current_path.as_slice() == target_path {
+        ev::EventPhase::AtTarget
+    } else {
+        ev::EventPhase::BubblingPhase
+    };
+    ev::HtmlEvent::Mouse(ev::events::MouseEvent {
+        base: ev::events::UIEvent {
+            base: ev::events::Event {
+                event_type: ev::HtmlEventType::from(event_type),
+                bubbles,
+                cancelable: true,
+                composed: true,
+                target: Some(target_path.to_vec()),
+                current_target: Some(current_path),
+                event_phase,
+                default_prevented: false,
+                is_trusted: true,
+                time_stamp,
+            },
+            detail,
+        },
+        screen_x: pos.0 as f64,
+        screen_y: pos.1 as f64,
+        client_x: pos.0 as f64,
+        client_y: pos.1 as f64,
+        offset_x: pos.0 as f64,
+        offset_y: pos.1 as f64,
+        page_x: pos.0 as f64,
+        page_y: pos.1 as f64,
+        movement_x: 0.0,
+        movement_y: 0.0,
+        button: button_to_i16(button),
+        buttons: buttons_down,
+        ctrl_key: modifiers.ctrl,
+        shift_key: modifiers.shift,
+        alt_key: modifiers.alt,
+        meta_key: modifiers.meta,
+        related_target: None,
+    })
+}
+
+// ── public API ────────────────────────────────────────────────────────────────
 
 /// Update the hover path to whatever lies under `pos` and fire any
 /// `on_mouse_enter` / `on_mouse_leave` callbacks that change implies.
@@ -66,6 +145,9 @@ pub fn mouse_down(
     button: MouseButton,
     modifiers: Modifiers,
 ) -> bool {
+    // Update buttons bitmask.
+    tree.interaction.buttons_down |= button_to_bit(button);
+
     let Some(target_path) = layout.hit_path(pos) else {
         if button == MouseButton::Primary {
             tree.clear_selection();
@@ -105,6 +187,9 @@ pub fn mouse_up(
     button: MouseButton,
     modifiers: Modifiers,
 ) -> bool {
+    // Update buttons bitmask before constructing events (button is now released).
+    tree.interaction.buttons_down &= !button_to_bit(button);
+
     let Some(target_path) = layout.hit_path(pos) else {
         if button == MouseButton::Primary {
             tree.interaction.active_path = None;
@@ -157,11 +242,34 @@ pub fn mouse_up(
     true
 }
 
+// ── private dispatch ──────────────────────────────────────────────────────────
+
 #[derive(Copy, Clone)]
 enum Slot {
     MouseDown,
     MouseUp,
     Click,
+}
+
+impl Slot {
+    fn event_type_str(self) -> &'static str {
+        match self {
+            Slot::MouseDown => ev::HtmlEventType::MOUSEDOWN,
+            Slot::MouseUp => ev::HtmlEventType::MOUSEUP,
+            Slot::Click => ev::HtmlEventType::CLICK,
+        }
+    }
+
+    fn bubbles(self) -> bool {
+        true // mousedown, mouseup, click all bubble
+    }
+
+    fn detail(self) -> i32 {
+        match self {
+            Slot::Click => 1,
+            _ => 0,
+        }
+    }
 }
 
 fn bubble(
@@ -172,6 +280,10 @@ fn bubble(
     modifiers: Modifiers,
     slot: Slot,
 ) {
+    // Snapshot interaction state before borrowing root.
+    let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+    let buttons_down = tree.interaction.buttons_down;
+
     let Some(root) = tree.root.as_mut() else {
         return;
     };
@@ -180,22 +292,43 @@ fn bubble(
     // chain[i]'s path is target_path[..target_path.len() - i].
     let depth = target_path.len();
     for (i, node) in chain.into_iter().enumerate() {
+        let current_path = target_path[..depth.saturating_sub(i)].to_vec();
+
+        // ── specific slot callback (legacy / ergonomic) ────────────────
         let cb_slot = match slot {
             Slot::MouseDown => &node.on_mouse_down,
             Slot::MouseUp => &node.on_mouse_up,
             Slot::Click => &node.on_click,
         };
-        let Some(cb) = cb_slot.as_ref() else { continue };
-        let cb = cb.clone();
-        let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-        let ev = MouseEvent {
-            pos,
-            button,
-            modifiers,
-            target_path: target_path.to_vec(),
-            current_path,
-        };
-        cb(&ev);
+        if let Some(cb) = cb_slot.as_ref() {
+            let cb = cb.clone();
+            let ev = MouseEvent {
+                pos,
+                button,
+                modifiers,
+                target_path: target_path.to_vec(),
+                current_path: current_path.clone(),
+            };
+            cb(&ev);
+        }
+
+        // ── general on_event callback ──────────────────────────────────
+        if let Some(on_ev) = node.on_event.as_ref() {
+            let on_ev = on_ev.clone();
+            let html_ev = make_mouse_html_event(
+                slot.event_type_str(),
+                slot.bubbles(),
+                slot.detail(),
+                pos,
+                button,
+                buttons_down,
+                modifiers,
+                target_path,
+                current_path,
+                time_stamp,
+            );
+            on_ev(&html_ev);
+        }
     }
 }
 
@@ -203,6 +336,10 @@ fn bubble(
 /// then each on `new_path \ old_path` (root-first enter). Mirrors DOM
 /// `mouseenter` / `mouseleave` semantics: outer enters fire before
 /// inner enters, inner leaves before outer leaves.
+///
+/// `fire_chain_segment` only handles nodes at depths ≥ 1.  The root node
+/// (depth 0, path `[]`) is therefore fired explicitly whenever the pointer
+/// transitions between hovering-nothing and hovering-something.
 fn update_hover(
     tree: &mut Tree,
     old_path: Option<&[usize]>,
@@ -231,11 +368,21 @@ fn update_hover(
                 Slot2::Leave,
             );
         }
+        // Root leave: only when the pointer is leaving the document entirely
+        // (new_path is None). When just moving between children the root
+        // remains continuously hovered and must not re-fire leave.
+        if new_path.is_none() {
+            fire_root_hover_event(tree, pos, modifiers, old, Slot2::Leave);
+        }
     }
 
     // Enters: every element on new_path strictly past `common_len`,
     // walked root-first.
     if let Some(new) = new_path {
+        // Root enter: only when the pointer was not previously over anything.
+        if old_path.is_none() {
+            fire_root_hover_event(tree, pos, modifiers, new, Slot2::Enter);
+        }
         if new.len() > common_len {
             fire_chain_segment(
                 tree,
@@ -252,10 +399,69 @@ fn update_hover(
     }
 }
 
+/// Fire hover callbacks (specific slot + `on_event`) on the *root* node only.
+///
+/// `fire_chain_segment` covers depths ≥ 1; this covers depth 0.
+fn fire_root_hover_event(
+    tree: &mut Tree,
+    pos: (f32, f32),
+    modifiers: Modifiers,
+    target_path: &[usize],
+    slot: Slot2,
+) {
+    let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+    let buttons_down = tree.interaction.buttons_down;
+    let Some(root) = tree.root.as_mut() else {
+        return;
+    };
+    let current_path: Vec<usize> = vec![];
+
+    // ── specific slot callback ─────────────────────────────────────────
+    let cb_slot = match slot {
+        Slot2::Enter => root.on_mouse_enter.as_ref(),
+        Slot2::Leave => root.on_mouse_leave.as_ref(),
+    };
+    if let Some(cb) = cb_slot.cloned() {
+        cb(&MouseEvent {
+            pos,
+            button: None,
+            modifiers,
+            target_path: target_path.to_vec(),
+            current_path: current_path.clone(),
+        });
+    }
+
+    // ── general on_event callback ──────────────────────────────────────
+    if let Some(on_ev) = root.on_event.as_ref().cloned() {
+        let html_ev = make_mouse_html_event(
+            slot.event_type_str(),
+            false, // mouseenter/leave do not bubble
+            0,
+            pos,
+            None,
+            buttons_down,
+            modifiers,
+            target_path,
+            current_path,
+            time_stamp,
+        );
+        on_ev(&html_ev);
+    }
+}
+
 #[derive(Copy, Clone)]
 enum Slot2 {
     Enter,
     Leave,
+}
+
+impl Slot2 {
+    fn event_type_str(self) -> &'static str {
+        match self {
+            Slot2::Enter => ev::HtmlEventType::MOUSEENTER,
+            Slot2::Leave => ev::HtmlEventType::MOUSELEAVE,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -273,6 +479,11 @@ fn fire_chain_segment(
     if end <= start {
         return;
     }
+
+    // Snapshot interaction state before borrowing root.
+    let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+    let buttons_down = tree.interaction.buttons_down;
+
     let Some(root) = tree.root.as_mut() else {
         return;
     };
@@ -299,21 +510,42 @@ fn fire_chain_segment(
             // Equivalent to: end - (count - 1 - idx).
             end - (count - 1 - idx)
         };
+        let current_path = path[..plen].to_vec();
+
+        // ── specific slot callback ─────────────────────────────────────
         let cb_slot = match slot {
             Slot2::Enter => &node.on_mouse_enter,
             Slot2::Leave => &node.on_mouse_leave,
         };
-        let Some(cb) = cb_slot.as_ref() else { continue };
-        let cb = cb.clone();
-        let current_path = path[..plen].to_vec();
-        let ev = MouseEvent {
-            pos,
-            button: None,
-            modifiers,
-            target_path: target.clone(),
-            current_path,
-        };
-        cb(&ev);
+        if let Some(cb) = cb_slot.as_ref() {
+            let cb = cb.clone();
+            let ev = MouseEvent {
+                pos,
+                button: None,
+                modifiers,
+                target_path: target.clone(),
+                current_path: current_path.clone(),
+            };
+            cb(&ev);
+        }
+
+        // ── general on_event callback ──────────────────────────────────
+        if let Some(on_ev) = node.on_event.as_ref() {
+            let on_ev = on_ev.clone();
+            let html_ev = make_mouse_html_event(
+                slot.event_type_str(),
+                false, // mouseenter/leave do not bubble
+                0,
+                pos,
+                None,
+                buttons_down,
+                modifiers,
+                &target,
+                current_path,
+                time_stamp,
+            );
+            on_ev(&html_ev);
+        }
     }
 }
 
@@ -453,5 +685,110 @@ mod tests {
         );
 
         assert_eq!(counter.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn on_event_receives_html_click_event() {
+        use std::sync::Mutex;
+        let received = Arc::new(Mutex::new(Vec::<String>::new()));
+        let received2 = received.clone();
+
+        let mut root = Node::new("text");
+        root.on_event = Some(Arc::new(move |ev| {
+            received2
+                .lock()
+                .unwrap()
+                .push(ev.event_type().to_string());
+        }));
+        let lay = synthetic_text_layout();
+        let mut tree = Tree::new(root);
+
+        mouse_down(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+        mouse_up(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+
+        let events = received.lock().unwrap().clone();
+        assert!(
+            events.contains(&"mousedown".to_string()),
+            "expected mousedown in {events:?}"
+        );
+        assert!(
+            events.contains(&"mouseup".to_string()),
+            "expected mouseup in {events:?}"
+        );
+        assert!(
+            events.contains(&"click".to_string()),
+            "expected click in {events:?}"
+        );
+    }
+
+    #[test]
+    fn on_event_receives_mouseenter_and_mouseleave() {
+        use std::sync::Mutex;
+        let received = Arc::new(Mutex::new(Vec::<String>::new()));
+        let received2 = received.clone();
+
+        let mut root = Node::new("text");
+        root.on_mouse_enter = None; // not wired
+        root.on_event = Some(Arc::new(move |ev| {
+            received2
+                .lock()
+                .unwrap()
+                .push(ev.event_type().to_string());
+        }));
+        let lay = synthetic_text_layout();
+        let mut tree = Tree::new(root);
+
+        // Move into the element.
+        pointer_move(&mut tree, &lay, (5.0, 5.0), Modifiers::default());
+        // Move out.
+        pointer_leave(&mut tree, Modifiers::default());
+
+        let events = received.lock().unwrap().clone();
+        assert!(
+            events.contains(&"mouseenter".to_string()),
+            "expected mouseenter in {events:?}"
+        );
+        assert!(
+            events.contains(&"mouseleave".to_string()),
+            "expected mouseleave in {events:?}"
+        );
+    }
+
+    #[test]
+    fn buttons_down_bitmask_tracks_press_and_release() {
+        let mut root = Node::new("text");
+        root.on_event = Some(Arc::new(|_| {}));
+        let lay = synthetic_text_layout();
+        let mut tree = Tree::new(root);
+
+        assert_eq!(tree.interaction.buttons_down, 0);
+        mouse_down(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+        assert_eq!(tree.interaction.buttons_down, 1);
+        mouse_up(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+        assert_eq!(tree.interaction.buttons_down, 0);
     }
 }

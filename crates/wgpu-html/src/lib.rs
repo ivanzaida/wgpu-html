@@ -3,6 +3,8 @@
 //! Re-exports the model types and the renderer so downstream apps only need
 //! one dependency.
 
+use std::time::Instant;
+
 pub use wgpu_html_layout as layout;
 pub use wgpu_html_models as models;
 pub use wgpu_html_parser as parser;
@@ -21,6 +23,19 @@ use wgpu_html_renderer::DisplayList;
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{TextCursor, TextSelection, Tree};
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PipelineTimings {
+    pub cascade_ms: f64,
+    pub layout_ms: f64,
+    pub paint_ms: f64,
+}
+
+impl PipelineTimings {
+    pub fn total_ms(self) -> f64 {
+        self.cascade_ms + self.layout_ms + self.paint_ms
+    }
+}
+
 /// Cascade + lay out `tree` against `text_ctx` and return the
 /// resulting `LayoutBox` without painting. Hosts that need the layout
 /// for hit-testing (e.g. dispatching pointer events between frames)
@@ -32,6 +47,16 @@ pub fn compute_layout(
     viewport_h: f32,
     scale: f32,
 ) -> Option<LayoutBox> {
+    compute_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale).0
+}
+
+pub fn compute_layout_profiled(
+    tree: &Tree,
+    text_ctx: &mut TextContext,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+) -> (Option<LayoutBox>, PipelineTimings) {
     text_ctx.sync_fonts(&tree.fonts);
     if let Some(ttl) = tree.asset_cache_ttl {
         wgpu_html_layout::set_image_cache_ttl(ttl);
@@ -39,8 +64,23 @@ pub fn compute_layout(
     for url in &tree.preload_queue {
         wgpu_html_layout::preload_image(url);
     }
+
+    let cascade_t0 = Instant::now();
     let cascaded = wgpu_html_style::cascade(tree);
-    wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale)
+    let cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
+
+    let layout_t0 = Instant::now();
+    let layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale);
+    let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+
+    (
+        layout,
+        PipelineTimings {
+            cascade_ms,
+            layout_ms,
+            paint_ms: 0.0,
+        },
+    )
 }
 
 /// Convenience: [`compute_layout`] + [`paint::paint_layout`] in one
@@ -53,20 +93,40 @@ pub fn paint_tree_returning_layout(
     viewport_h: f32,
     scale: f32,
 ) -> (DisplayList, Option<LayoutBox>) {
-    let layout = compute_layout(tree, text_ctx, viewport_w, viewport_h, scale);
+    let (list, layout, _) = paint_tree_returning_layout_profiled(
+        tree,
+        text_ctx,
+        viewport_w,
+        viewport_h,
+        scale,
+    );
+    (list, layout)
+}
+
+pub fn paint_tree_returning_layout_profiled(
+    tree: &Tree,
+    text_ctx: &mut TextContext,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+) -> (DisplayList, Option<LayoutBox>, PipelineTimings) {
+    let (layout, mut timings) = compute_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale);
     let mut list = DisplayList::new();
+    let paint_t0 = Instant::now();
     if let Some(root) = layout.as_ref() {
-        paint::paint_layout_with_selection(
+        paint::paint_layout_with_interaction(
             root,
             &mut list,
             tree.interaction.selection.as_ref(),
             tree.interaction.selection_colors,
+            &tree.interaction.scroll_offsets_y,
         );
         list.finalize();
     } else {
         list.finalize();
     }
-    (list, layout)
+    timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
+    (list, layout, timings)
 }
 
 /// Select every text run in document order.

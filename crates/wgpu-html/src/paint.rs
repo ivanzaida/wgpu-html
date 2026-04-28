@@ -3,12 +3,19 @@
 //! M4: walks `wgpu_html_layout::LayoutBox` and emits one solid quad per
 //! box with a resolved background color.
 
+use std::collections::BTreeMap;
+
 use wgpu_html_layout::LayoutBox;
+use wgpu_html_models::common::css_enums::Overflow;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{SelectionColors, TextCursor, TextSelection, Tree};
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
+const SCROLLBAR_THICKNESS: f32 = 10.0;
+const SCROLLBAR_MIN_THUMB: f32 = 18.0;
+const SCROLLBAR_TRACK: [f32; 4] = [0.15, 0.18, 0.22, 0.45];
+const SCROLLBAR_THUMB: [f32; 4] = [0.55, 0.60, 0.68, 0.85];
 
 /// Convenience: cascade `tree` against any embedded `<style>` blocks,
 /// lay it out at `(viewport_w × viewport_h)`, and paint the result into
@@ -52,6 +59,8 @@ pub fn paint_tree_with_text(
             &mut path,
             tree.interaction.selection.as_ref(),
             tree.interaction.selection_colors,
+            &tree.interaction.scroll_offsets_y,
+            0.0,
         );
     }
     list.finalize();
@@ -85,6 +94,7 @@ pub fn paint_layout_with_selection(
 ) {
     let mut clip_stack: Vec<ClipFrame> = Vec::new();
     let mut path = Vec::new();
+    let scroll_offsets_y = BTreeMap::new();
     paint_box_in_clip(
         root,
         list,
@@ -92,6 +102,31 @@ pub fn paint_layout_with_selection(
         &mut path,
         selection,
         selection_colors,
+        &scroll_offsets_y,
+        0.0,
+    );
+}
+
+/// Paint a precomputed layout while applying document interaction
+/// state such as text selection and per-element scroll offsets.
+pub fn paint_layout_with_interaction(
+    root: &LayoutBox,
+    list: &mut DisplayList,
+    selection: Option<&TextSelection>,
+    selection_colors: SelectionColors,
+    scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+) {
+    let mut clip_stack: Vec<ClipFrame> = Vec::new();
+    let mut path = Vec::new();
+    paint_box_in_clip(
+        root,
+        list,
+        &mut clip_stack,
+        &mut path,
+        selection,
+        selection_colors,
+        scroll_offsets_y,
+        0.0,
     );
 }
 
@@ -161,15 +196,17 @@ fn paint_box_in_clip(
     path: &mut Vec<usize>,
     selection: Option<&TextSelection>,
     selection_colors: SelectionColors,
+    scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+    paint_offset_y: f32,
 ) {
-    let rect = to_renderer_rect(b.border_rect);
+    let rect = to_renderer_rect_y(b.border_rect, paint_offset_y);
     let (rh, rv) = corner_radii(b);
     let rounded = has_any_radius(&rh) || has_any_radius(&rv);
 
     // Background paints into the rectangle picked by `background-clip`
     // (border-box by default; padding-box / content-box also supported).
     if let Some(color) = b.background {
-        let bg = to_renderer_rect(b.background_rect);
+        let bg = to_renderer_rect_y(b.background_rect, paint_offset_y);
         if bg.w > 0.0 && bg.h > 0.0 {
             let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
             if has_any_radius(&bg_h) || has_any_radius(&bg_v) {
@@ -188,7 +225,7 @@ fn paint_box_in_clip(
     // rounded shape — otherwise the rectangular tiles would paint
     // outside the rounded background.
     if let Some(ref bgi) = b.background_image {
-        let bg = to_renderer_rect(b.background_rect);
+        let bg = to_renderer_rect_y(b.background_rect, paint_offset_y);
         if bg.w > 0.0 && bg.h > 0.0 && !bgi.tiles.is_empty() {
             let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
             let needs_round_clip = has_any_radius(&bg_h) || has_any_radius(&bg_v);
@@ -196,7 +233,7 @@ fn paint_box_in_clip(
                 out.push_clip(Some(bg), bg_h, bg_v);
             }
             for tile in &bgi.tiles {
-                let r = Rect::new(tile.x, tile.y, tile.w, tile.h);
+                let r = Rect::new(tile.x, tile.y + paint_offset_y, tile.w, tile.h);
                 if r.w > 0.0 && r.h > 0.0 {
                     out.push_image(r, bgi.image_id, bgi.data.clone(), bgi.width, bgi.height);
                 }
@@ -232,7 +269,7 @@ fn paint_box_in_clip(
             paint_rounded_per_side_borders(b, rect, rh, rv, out);
         }
     } else {
-        paint_border_edges(b, out);
+        paint_border_edges(b, out, paint_offset_y);
     }
 
     // Image: emit one image quad covering the content rect.
@@ -240,7 +277,7 @@ fn paint_box_in_clip(
         let cr = b.content_rect;
         if cr.w > 0.0 && cr.h > 0.0 {
             out.push_image(
-                Rect::new(cr.x, cr.y, cr.w, cr.h),
+                Rect::new(cr.x, cr.y + paint_offset_y, cr.w, cr.h),
                 img.image_id,
                 img.data.clone(),
                 img.width,
@@ -255,7 +292,8 @@ fn paint_box_in_clip(
     // atlas with them.
     if let Some(run) = &b.text_run {
         let color = b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]);
-        let origin = b.content_rect;
+        let mut origin = b.content_rect;
+        origin.y += paint_offset_y;
         let selected_range = selection_range_for_path(selection, path, run.glyphs.len());
 
         // Decorations sit relative to the run's baseline, behind the
@@ -317,7 +355,7 @@ fn paint_box_in_clip(
     //   containers with rounded corners.
     let clips_children = b.overflow.clips_any();
     let pushed = if clips_children {
-        let pad = padding_box(b);
+        let pad = shift_rect_y(padding_box(b), paint_offset_y);
         let effective_rect = overflow_clip_rect(b, pad, clip_stack.last().copied());
         let (inner_h, inner_v) = if b.overflow.clips_both() {
             padding_box_radii(b)
@@ -336,9 +374,20 @@ fn paint_box_in_clip(
         false
     };
 
+    let scroll_y = element_scroll_y(b, path, scroll_offsets_y);
+    let child_offset_y = paint_offset_y - scroll_y;
     for (i, child) in b.children.iter().enumerate() {
         path.push(i);
-        paint_box_in_clip(child, out, clip_stack, path, selection, selection_colors);
+        paint_box_in_clip(
+            child,
+            out,
+            clip_stack,
+            path,
+            selection,
+            selection_colors,
+            scroll_offsets_y,
+            child_offset_y,
+        );
         path.pop();
     }
 
@@ -351,6 +400,8 @@ fn paint_box_in_clip(
             parent.map(|f| f.radii_v).unwrap_or([0.0; 4]),
         );
     }
+
+    paint_scrollbars(b, out, paint_offset_y, scroll_y);
 }
 
 fn selection_range_for_path(
@@ -482,6 +533,71 @@ fn overflow_clip_rect(b: &LayoutBox, pad: Rect, parent: Option<ClipFrame>) -> Re
     }
 }
 
+fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, scroll_y: f32) {
+    if !should_paint_vertical_scrollbar(b) {
+        return;
+    }
+    let pad = shift_rect_y(padding_box(b), paint_offset_y);
+    if pad.w <= 0.0 || pad.h <= 0.0 {
+        return;
+    }
+    let track_w = SCROLLBAR_THICKNESS.min(pad.w);
+    let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
+    out.push_quad(track, SCROLLBAR_TRACK);
+
+    let scroll_h = scrollable_content_height(b).max(pad.h);
+    let max_scroll = (scroll_h - pad.h).max(0.0);
+    let ratio = (pad.h / scroll_h).clamp(0.0, 1.0);
+    let thumb_h = (pad.h * ratio).clamp(SCROLLBAR_MIN_THUMB.min(pad.h), pad.h);
+    let travel = (pad.h - thumb_h).max(0.0);
+    let thumb_y = track.y + travel * (scroll_y / max_scroll.max(1.0));
+    let thumb = Rect::new(
+        track.x + 2.0,
+        thumb_y + 2.0,
+        (track.w - 4.0).max(1.0),
+        (thumb_h - 4.0).max(1.0),
+    );
+    out.push_quad(thumb, SCROLLBAR_THUMB);
+}
+
+fn element_scroll_y(
+    b: &LayoutBox,
+    path: &[usize],
+    scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+) -> f32 {
+    let max_scroll = (scrollable_content_height(b) - padding_box(b).h).max(0.0);
+    scroll_offsets_y
+        .get(path)
+        .copied()
+        .unwrap_or(0.0)
+        .clamp(0.0, max_scroll)
+}
+
+fn should_paint_vertical_scrollbar(b: &LayoutBox) -> bool {
+    match b.overflow.y {
+        Overflow::Scroll => true,
+        Overflow::Auto => scrollable_content_height(b) > padding_box(b).h + 0.5,
+        _ => false,
+    }
+}
+
+fn scrollable_content_height(b: &LayoutBox) -> f32 {
+    let pad = padding_box(b);
+    let mut bottom = pad.y + pad.h;
+    for child in &b.children {
+        bottom = bottom.max(subtree_bottom(child));
+    }
+    (bottom - pad.y).max(0.0)
+}
+
+fn subtree_bottom(b: &LayoutBox) -> f32 {
+    let mut bottom = b.margin_rect.y + b.margin_rect.h;
+    for child in &b.children {
+        bottom = bottom.max(subtree_bottom(child));
+    }
+    bottom
+}
+
 /// If every set border side shares the same colour AND a renderable
 /// `solid` style (or has no style set, which we treat as solid when the
 /// width and colour are present), return that colour. Non-solid styles
@@ -607,7 +723,8 @@ fn paint_rounded_per_side_borders(
                     ];
                     out.push_quad_stroke_patterned(rect, color, rh, rv, stroke, pattern);
                 } else {
-                    let edge_rect = side.edge_rect_rounded(r, bd, radii);
+                    let edge_rect =
+                        shift_rect_y(side.edge_rect_rounded(r, bd, radii), rect.y - r.y);
                     let axis = side.axis();
                     paint_edge(edge_rect, axis, w, kind, color, out);
                 }
@@ -738,7 +855,7 @@ fn has_any_radius(r: &[f32; 4]) -> bool {
 /// is independently coloured and styled. `solid` is one full-edge quad;
 /// `dashed` and `dotted` are emitted as a row of short segment quads;
 /// `none` and `hidden` are skipped. Other values render as solid.
-fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
+fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32) {
     use wgpu_html_models::common::css_enums::BorderStyle;
 
     let r = b.border_rect;
@@ -756,7 +873,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
     if bd.top > 0.0 {
         if let Some(c) = bc.top {
             paint_edge(
-                Rect::new(r.x, r.y, r.w, bd.top),
+                Rect::new(r.x, r.y + paint_offset_y, r.w, bd.top),
                 Axis::Horizontal,
                 bd.top,
                 resolve_style(&bs.top),
@@ -769,7 +886,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
     if bd.bottom > 0.0 {
         if let Some(c) = bc.bottom {
             paint_edge(
-                Rect::new(r.x, r.y + r.h - bd.bottom, r.w, bd.bottom),
+                Rect::new(r.x, r.y + paint_offset_y + r.h - bd.bottom, r.w, bd.bottom),
                 Axis::Horizontal,
                 bd.bottom,
                 resolve_style(&bs.bottom),
@@ -782,7 +899,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
     if bd.left > 0.0 && inner_h > 0.0 {
         if let Some(c) = bc.left {
             paint_edge(
-                Rect::new(r.x, r.y + bd.top, bd.left, inner_h),
+                Rect::new(r.x, r.y + paint_offset_y + bd.top, bd.left, inner_h),
                 Axis::Vertical,
                 bd.left,
                 resolve_style(&bs.left),
@@ -795,7 +912,12 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList) {
     if bd.right > 0.0 && inner_h > 0.0 {
         if let Some(c) = bc.right {
             paint_edge(
-                Rect::new(r.x + r.w - bd.right, r.y + bd.top, bd.right, inner_h),
+                Rect::new(
+                    r.x + r.w - bd.right,
+                    r.y + paint_offset_y + bd.top,
+                    bd.right,
+                    inner_h,
+                ),
                 Axis::Vertical,
                 bd.right,
                 resolve_style(&bs.right),
@@ -893,8 +1015,12 @@ fn paint_segments(
     }
 }
 
-fn to_renderer_rect(r: wgpu_html_layout::Rect) -> Rect {
-    Rect::new(r.x, r.y, r.w, r.h)
+fn to_renderer_rect_y(r: wgpu_html_layout::Rect, dy: f32) -> Rect {
+    Rect::new(r.x, r.y + dy, r.w, r.h)
+}
+
+fn shift_rect_y(r: Rect, dy: f32) -> Rect {
+    Rect::new(r.x, r.y + dy, r.w, r.h)
 }
 
 #[cfg(test)]
@@ -1316,6 +1442,91 @@ mod tests {
             .expect("blue quad emitted");
         let blue = blue_idx as u32;
         assert!(blue >= clipped.quad_range.0 && blue < clipped.quad_range.1);
+    }
+
+    #[test]
+    fn overflow_y_scroll_paints_vertical_scrollbar() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; max-height: 50px;
+                             overflow-y: scroll; background-color: white;">
+                    <div style="height: 120px; background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+
+        let list = paint_tree(&tree, 800.0, 600.0);
+
+        assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_TRACK));
+        assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_THUMB));
+    }
+
+    #[test]
+    fn overflow_y_scroll_paints_scrollbar_without_overflow() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; height: 80px;
+                             overflow-y: scroll; background-color: white;">
+                    <div style="height: 20px; background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+
+        let list = paint_tree(&tree, 800.0, 600.0);
+
+        assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_TRACK));
+        assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_THUMB));
+    }
+
+    #[test]
+    fn overflow_scroll_offset_moves_descendants_and_thumb() {
+        let mut tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; max-height: 50px;
+                             overflow-y: scroll; background-color: white;">
+                    <div style="height: 120px; background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        tree.interaction.scroll_offsets_y.insert(vec![0], 30.0);
+
+        let list = paint_tree(&tree, 800.0, 600.0);
+
+        let blue = list
+            .quads
+            .iter()
+            .find(|q| q.color == [0.0, 0.0, 1.0, 1.0])
+            .expect("blue child quad");
+        assert_eq!(blue.rect.y, -30.0);
+
+        let track = list
+            .quads
+            .iter()
+            .find(|q| q.color == SCROLLBAR_TRACK)
+            .expect("scrollbar track");
+        let thumb = list
+            .quads
+            .iter()
+            .find(|q| q.color == SCROLLBAR_THUMB)
+            .expect("scrollbar thumb");
+        assert!(thumb.rect.y > track.rect.y + 2.0);
+    }
+
+    #[test]
+    fn overflow_y_auto_without_overflow_does_not_paint_scrollbar() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; height: 80px;
+                             overflow-y: auto; background-color: white;">
+                    <div style="height: 20px; background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+
+        let list = paint_tree(&tree, 800.0, 600.0);
+
+        assert!(!list.quads.iter().any(|q| q.color == SCROLLBAR_TRACK));
+        assert!(!list.quads.iter().any(|q| q.color == SCROLLBAR_THUMB));
     }
 
     #[test]
