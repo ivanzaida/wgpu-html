@@ -1,11 +1,11 @@
 //! parse_inline_style: per-property / per-value-type coverage.
 
-use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
-    AlignItems, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssLength, Cursor, Display,
-    FlexDirection, FlexWrap, FontStyle, FontWeight, JustifyContent, Overflow, PointerEvents,
-    Position, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
+    AlignItems, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssImage, CssLength, Cursor,
+    Display, FlexDirection, FlexWrap, FontStyle, FontWeight, JustifyContent, Overflow,
+    PointerEvents, Position, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
 };
+use wgpu_html_models::Style;
 use wgpu_html_parser::parse_inline_style;
 
 fn s(css: &str) -> Style {
@@ -76,6 +76,34 @@ fn length_auto() {
     assert!(matches!(style.width, Some(CssLength::Auto)));
 }
 
+#[test]
+fn length_calc_preserved_as_math_tree() {
+    let style = s("width: calc(100% - 20px);");
+    assert!(matches!(style.width, Some(CssLength::Calc(_))));
+}
+
+#[test]
+fn length_min_max_clamp_parse() {
+    assert!(matches!(
+        s("width: min(100%, 420px);").width,
+        Some(CssLength::Min(_))
+    ));
+    assert!(matches!(
+        s("width: max(12px, 2em);").width,
+        Some(CssLength::Max(_))
+    ));
+    assert!(matches!(
+        s("font-size: clamp(12px, 2vw, 24px);").font_size,
+        Some(CssLength::Clamp { .. })
+    ));
+}
+
+#[test]
+fn length_math_functions_parse_inside_calc() {
+    let style = s("width: calc(pow(2, 3) * 10px);");
+    assert!(matches!(style.width, Some(CssLength::Calc(_))));
+}
+
 // --------------------------------------------------------------------------
 // Color values
 // --------------------------------------------------------------------------
@@ -118,6 +146,16 @@ fn color_rgba_with_alpha() {
 }
 
 #[test]
+fn color_rgb_modern_space_syntax_with_percent_alpha() {
+    let style = s("color: rgb(255 128 64 / 50%);");
+    let CssColor::Rgba(r, g, b, a) = style.color.unwrap() else {
+        panic!("expected rgba")
+    };
+    assert_eq!((r, g, b), (255, 128, 64));
+    assert!((a - 0.5).abs() < 1e-6);
+}
+
+#[test]
 fn color_hsl() {
     let style = s("color: hsl(120, 100%, 50%);");
     let CssColor::Hsl(h, sat, l) = style.color.unwrap() else {
@@ -133,15 +171,27 @@ fn color_hsla() {
 }
 
 #[test]
+fn color_modern_functions_are_preserved() {
+    let style = s("color: oklch(60% 0.2 30);");
+    assert!(matches!(style.color, Some(CssColor::Function(ref f)) if f == "oklch(60% 0.2 30)"));
+}
+
+#[test]
 fn color_transparent() {
     let style = s("background-color: transparent;");
-    assert!(matches!(style.background_color, Some(CssColor::Transparent)));
+    assert!(matches!(
+        style.background_color,
+        Some(CssColor::Transparent)
+    ));
 }
 
 #[test]
 fn color_currentcolor() {
     let style = s("background-color: currentcolor;");
-    assert!(matches!(style.background_color, Some(CssColor::CurrentColor)));
+    assert!(matches!(
+        style.background_color,
+        Some(CssColor::CurrentColor)
+    ));
 }
 
 // --------------------------------------------------------------------------
@@ -189,7 +239,12 @@ fn margin_shorthand_four_values() {
 #[test]
 fn padding_shorthand_one_value_sets_all_sides() {
     let style = s("padding: 6px;");
-    for v in [&style.padding_top, &style.padding_right, &style.padding_bottom, &style.padding_left] {
+    for v in [
+        &style.padding_top,
+        &style.padding_right,
+        &style.padding_bottom,
+        &style.padding_left,
+    ] {
         assert!(matches!(v, Some(CssLength::Px(p)) if *p == 6.0));
     }
 }
@@ -237,21 +292,42 @@ fn position_offsets() {
 
 #[test]
 fn display_keywords() {
-    assert!(matches!(s("display: block;").display,        Some(Display::Block)));
-    assert!(matches!(s("display: inline;").display,       Some(Display::Inline)));
-    assert!(matches!(s("display: inline-block;").display, Some(Display::InlineBlock)));
-    assert!(matches!(s("display: flex;").display,         Some(Display::Flex)));
-    assert!(matches!(s("display: grid;").display,         Some(Display::Grid)));
-    assert!(matches!(s("display: none;").display,         Some(Display::None)));
+    assert!(matches!(s("display: block;").display, Some(Display::Block)));
+    assert!(matches!(
+        s("display: inline;").display,
+        Some(Display::Inline)
+    ));
+    assert!(matches!(
+        s("display: inline-block;").display,
+        Some(Display::InlineBlock)
+    ));
+    assert!(matches!(s("display: flex;").display, Some(Display::Flex)));
+    assert!(matches!(s("display: grid;").display, Some(Display::Grid)));
+    assert!(matches!(s("display: none;").display, Some(Display::None)));
 }
 
 #[test]
 fn position_keywords() {
-    assert!(matches!(s("position: static;").position,   Some(Position::Static)));
-    assert!(matches!(s("position: relative;").position, Some(Position::Relative)));
-    assert!(matches!(s("position: absolute;").position, Some(Position::Absolute)));
-    assert!(matches!(s("position: fixed;").position,    Some(Position::Fixed)));
-    assert!(matches!(s("position: sticky;").position,   Some(Position::Sticky)));
+    assert!(matches!(
+        s("position: static;").position,
+        Some(Position::Static)
+    ));
+    assert!(matches!(
+        s("position: relative;").position,
+        Some(Position::Relative)
+    ));
+    assert!(matches!(
+        s("position: absolute;").position,
+        Some(Position::Absolute)
+    ));
+    assert!(matches!(
+        s("position: fixed;").position,
+        Some(Position::Fixed)
+    ));
+    assert!(matches!(
+        s("position: sticky;").position,
+        Some(Position::Sticky)
+    ));
 }
 
 // --------------------------------------------------------------------------
@@ -260,33 +336,78 @@ fn position_keywords() {
 
 #[test]
 fn flex_direction_values() {
-    assert!(matches!(s("flex-direction: row;").flex_direction,            Some(FlexDirection::Row)));
-    assert!(matches!(s("flex-direction: row-reverse;").flex_direction,    Some(FlexDirection::RowReverse)));
-    assert!(matches!(s("flex-direction: column;").flex_direction,         Some(FlexDirection::Column)));
-    assert!(matches!(s("flex-direction: column-reverse;").flex_direction, Some(FlexDirection::ColumnReverse)));
+    assert!(matches!(
+        s("flex-direction: row;").flex_direction,
+        Some(FlexDirection::Row)
+    ));
+    assert!(matches!(
+        s("flex-direction: row-reverse;").flex_direction,
+        Some(FlexDirection::RowReverse)
+    ));
+    assert!(matches!(
+        s("flex-direction: column;").flex_direction,
+        Some(FlexDirection::Column)
+    ));
+    assert!(matches!(
+        s("flex-direction: column-reverse;").flex_direction,
+        Some(FlexDirection::ColumnReverse)
+    ));
 }
 
 #[test]
 fn flex_wrap_values() {
-    assert!(matches!(s("flex-wrap: nowrap;").flex_wrap,        Some(FlexWrap::Nowrap)));
-    assert!(matches!(s("flex-wrap: wrap;").flex_wrap,          Some(FlexWrap::Wrap)));
-    assert!(matches!(s("flex-wrap: wrap-reverse;").flex_wrap,  Some(FlexWrap::WrapReverse)));
+    assert!(matches!(
+        s("flex-wrap: nowrap;").flex_wrap,
+        Some(FlexWrap::Nowrap)
+    ));
+    assert!(matches!(
+        s("flex-wrap: wrap;").flex_wrap,
+        Some(FlexWrap::Wrap)
+    ));
+    assert!(matches!(
+        s("flex-wrap: wrap-reverse;").flex_wrap,
+        Some(FlexWrap::WrapReverse)
+    ));
 }
 
 #[test]
 fn justify_content_values() {
-    assert!(matches!(s("justify-content: center;").justify_content,        Some(JustifyContent::Center)));
-    assert!(matches!(s("justify-content: space-between;").justify_content, Some(JustifyContent::SpaceBetween)));
-    assert!(matches!(s("justify-content: space-around;").justify_content,  Some(JustifyContent::SpaceAround)));
-    assert!(matches!(s("justify-content: space-evenly;").justify_content,  Some(JustifyContent::SpaceEvenly)));
-    assert!(matches!(s("justify-content: flex-end;").justify_content,      Some(JustifyContent::FlexEnd)));
+    assert!(matches!(
+        s("justify-content: center;").justify_content,
+        Some(JustifyContent::Center)
+    ));
+    assert!(matches!(
+        s("justify-content: space-between;").justify_content,
+        Some(JustifyContent::SpaceBetween)
+    ));
+    assert!(matches!(
+        s("justify-content: space-around;").justify_content,
+        Some(JustifyContent::SpaceAround)
+    ));
+    assert!(matches!(
+        s("justify-content: space-evenly;").justify_content,
+        Some(JustifyContent::SpaceEvenly)
+    ));
+    assert!(matches!(
+        s("justify-content: flex-end;").justify_content,
+        Some(JustifyContent::FlexEnd)
+    ));
 }
 
 #[test]
 fn align_items_values() {
-    assert!(matches!(s("align-items: stretch;").align_items, Some(AlignItems::Stretch)));
-    assert!(matches!(s("align-items: center;").align_items,  Some(AlignItems::Center)));
-    assert!(matches!(s("align-items: baseline;").align_items, Some(AlignItems::Baseline)));
+    assert!(matches!(
+        s("align-items: stretch;").align_items,
+        Some(AlignItems::Stretch)
+    ));
+    assert!(matches!(
+        s("align-items: center;").align_items,
+        Some(AlignItems::Center)
+    ));
+    assert!(matches!(
+        s("align-items: baseline;").align_items,
+        Some(AlignItems::Baseline)
+    ));
 }
 
 #[test]
@@ -307,47 +428,109 @@ fn font_size() {
 
 #[test]
 fn font_weight_keywords_and_numeric() {
-    assert!(matches!(s("font-weight: normal;").font_weight,  Some(FontWeight::Normal)));
-    assert!(matches!(s("font-weight: bold;").font_weight,    Some(FontWeight::Bold)));
-    assert!(matches!(s("font-weight: bolder;").font_weight,  Some(FontWeight::Bolder)));
-    assert!(matches!(s("font-weight: lighter;").font_weight, Some(FontWeight::Lighter)));
-    assert!(matches!(s("font-weight: 700;").font_weight,     Some(FontWeight::Weight(700))));
+    assert!(matches!(
+        s("font-weight: normal;").font_weight,
+        Some(FontWeight::Normal)
+    ));
+    assert!(matches!(
+        s("font-weight: bold;").font_weight,
+        Some(FontWeight::Bold)
+    ));
+    assert!(matches!(
+        s("font-weight: bolder;").font_weight,
+        Some(FontWeight::Bolder)
+    ));
+    assert!(matches!(
+        s("font-weight: lighter;").font_weight,
+        Some(FontWeight::Lighter)
+    ));
+    assert!(matches!(
+        s("font-weight: 700;").font_weight,
+        Some(FontWeight::Weight(700))
+    ));
 }
 
 #[test]
 fn font_style_keywords() {
-    assert!(matches!(s("font-style: normal;").font_style,  Some(FontStyle::Normal)));
-    assert!(matches!(s("font-style: italic;").font_style,  Some(FontStyle::Italic)));
-    assert!(matches!(s("font-style: oblique;").font_style, Some(FontStyle::Oblique)));
+    assert!(matches!(
+        s("font-style: normal;").font_style,
+        Some(FontStyle::Normal)
+    ));
+    assert!(matches!(
+        s("font-style: italic;").font_style,
+        Some(FontStyle::Italic)
+    ));
+    assert!(matches!(
+        s("font-style: oblique;").font_style,
+        Some(FontStyle::Oblique)
+    ));
 }
 
 #[test]
 fn text_align_keywords() {
-    assert!(matches!(s("text-align: left;").text_align,    Some(TextAlign::Left)));
-    assert!(matches!(s("text-align: center;").text_align,  Some(TextAlign::Center)));
-    assert!(matches!(s("text-align: right;").text_align,   Some(TextAlign::Right)));
-    assert!(matches!(s("text-align: justify;").text_align, Some(TextAlign::Justify)));
+    assert!(matches!(
+        s("text-align: left;").text_align,
+        Some(TextAlign::Left)
+    ));
+    assert!(matches!(
+        s("text-align: center;").text_align,
+        Some(TextAlign::Center)
+    ));
+    assert!(matches!(
+        s("text-align: right;").text_align,
+        Some(TextAlign::Right)
+    ));
+    assert!(matches!(
+        s("text-align: justify;").text_align,
+        Some(TextAlign::Justify)
+    ));
 }
 
 #[test]
 fn text_transform_keywords() {
-    assert!(matches!(s("text-transform: uppercase;").text_transform,  Some(TextTransform::Uppercase)));
-    assert!(matches!(s("text-transform: lowercase;").text_transform,  Some(TextTransform::Lowercase)));
-    assert!(matches!(s("text-transform: capitalize;").text_transform, Some(TextTransform::Capitalize)));
-    assert!(matches!(s("text-transform: none;").text_transform,       Some(TextTransform::None)));
+    assert!(matches!(
+        s("text-transform: uppercase;").text_transform,
+        Some(TextTransform::Uppercase)
+    ));
+    assert!(matches!(
+        s("text-transform: lowercase;").text_transform,
+        Some(TextTransform::Lowercase)
+    ));
+    assert!(matches!(
+        s("text-transform: capitalize;").text_transform,
+        Some(TextTransform::Capitalize)
+    ));
+    assert!(matches!(
+        s("text-transform: none;").text_transform,
+        Some(TextTransform::None)
+    ));
 }
 
 #[test]
 fn white_space_keywords() {
-    assert!(matches!(s("white-space: nowrap;").white_space,   Some(WhiteSpace::Nowrap)));
-    assert!(matches!(s("white-space: pre;").white_space,      Some(WhiteSpace::Pre)));
-    assert!(matches!(s("white-space: pre-wrap;").white_space, Some(WhiteSpace::PreWrap)));
-    assert!(matches!(s("white-space: pre-line;").white_space, Some(WhiteSpace::PreLine)));
+    assert!(matches!(
+        s("white-space: nowrap;").white_space,
+        Some(WhiteSpace::Nowrap)
+    ));
+    assert!(matches!(
+        s("white-space: pre;").white_space,
+        Some(WhiteSpace::Pre)
+    ));
+    assert!(matches!(
+        s("white-space: pre-wrap;").white_space,
+        Some(WhiteSpace::PreWrap)
+    ));
+    assert!(matches!(
+        s("white-space: pre-line;").white_space,
+        Some(WhiteSpace::PreLine)
+    ));
 }
 
 #[test]
 fn line_height_length() {
-    assert!(matches!(s("line-height: 1.5em;").line_height, Some(CssLength::Em(v)) if (v - 1.5).abs() < 1e-6));
+    assert!(
+        matches!(s("line-height: 1.5em;").line_height, Some(CssLength::Em(v)) if (v - 1.5).abs() < 1e-6)
+    );
 }
 
 // --------------------------------------------------------------------------
@@ -356,9 +539,18 @@ fn line_height_length() {
 
 #[test]
 fn overflow_keywords() {
-    assert!(matches!(s("overflow: hidden;").overflow, Some(Overflow::Hidden)));
-    assert!(matches!(s("overflow: auto;").overflow,   Some(Overflow::Auto)));
-    assert!(matches!(s("overflow: scroll;").overflow, Some(Overflow::Scroll)));
+    assert!(matches!(
+        s("overflow: hidden;").overflow,
+        Some(Overflow::Hidden)
+    ));
+    assert!(matches!(
+        s("overflow: auto;").overflow,
+        Some(Overflow::Auto)
+    ));
+    assert!(matches!(
+        s("overflow: scroll;").overflow,
+        Some(Overflow::Scroll)
+    ));
 }
 
 #[test]
@@ -370,9 +562,18 @@ fn overflow_axis_independent() {
 
 #[test]
 fn visibility_keywords() {
-    assert!(matches!(s("visibility: hidden;").visibility,   Some(Visibility::Hidden)));
-    assert!(matches!(s("visibility: visible;").visibility,  Some(Visibility::Visible)));
-    assert!(matches!(s("visibility: collapse;").visibility, Some(Visibility::Collapse)));
+    assert!(matches!(
+        s("visibility: hidden;").visibility,
+        Some(Visibility::Hidden)
+    ));
+    assert!(matches!(
+        s("visibility: visible;").visibility,
+        Some(Visibility::Visible)
+    ));
+    assert!(matches!(
+        s("visibility: collapse;").visibility,
+        Some(Visibility::Collapse)
+    ));
 }
 
 #[test]
@@ -394,17 +595,50 @@ fn z_index_integer() {
 
 #[test]
 fn background_repeat_keywords() {
-    assert!(matches!(s("background-repeat: no-repeat;").background_repeat, Some(BackgroundRepeat::NoRepeat)));
-    assert!(matches!(s("background-repeat: repeat-x;").background_repeat,  Some(BackgroundRepeat::RepeatX)));
+    assert!(matches!(
+        s("background-repeat: no-repeat;").background_repeat,
+        Some(BackgroundRepeat::NoRepeat)
+    ));
+    assert!(matches!(
+        s("background-repeat: repeat-x;").background_repeat,
+        Some(BackgroundRepeat::RepeatX)
+    ));
+}
+
+#[test]
+fn background_image_url_parses_to_typed_image() {
+    let style = s("background-image: url('assets/bg.png');");
+    assert!(matches!(
+        style.background_image,
+        Some(CssImage::Url(ref url)) if url == "assets/bg.png"
+    ));
+}
+
+#[test]
+fn background_image_function_is_preserved() {
+    let style = s("background-image: linear-gradient(red, blue);");
+    assert!(matches!(
+        style.background_image,
+        Some(CssImage::Function(ref f)) if f == "linear-gradient(red, blue)"
+    ));
+}
+
+#[test]
+fn background_image_none_clears_value() {
+    let style = s("background-image: none;");
+    assert!(style.background_image.is_none());
 }
 
 #[test]
 fn border_style_keyword_fans_to_all_sides() {
     let style = s("border-style: solid;");
-    assert!(matches!(style.border_top_style,    Some(BorderStyle::Solid)));
-    assert!(matches!(style.border_right_style,  Some(BorderStyle::Solid)));
-    assert!(matches!(style.border_bottom_style, Some(BorderStyle::Solid)));
-    assert!(matches!(style.border_left_style,   Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Solid)));
+    assert!(matches!(style.border_right_style, Some(BorderStyle::Solid)));
+    assert!(matches!(
+        style.border_bottom_style,
+        Some(BorderStyle::Solid)
+    ));
+    assert!(matches!(style.border_left_style, Some(BorderStyle::Solid)));
 }
 
 #[test]
@@ -493,7 +727,10 @@ fn per_side_longhand_overrides_general_shorthand() {
     assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
     // Other sides retain the shorthand values.
     assert!(matches!(style.border_right_width, Some(CssLength::Px(v)) if v == 2.0));
-    assert!(matches!(style.border_bottom_style, Some(BorderStyle::Solid)));
+    assert!(matches!(
+        style.border_bottom_style,
+        Some(BorderStyle::Solid)
+    ));
 }
 
 #[test]
@@ -528,19 +765,23 @@ fn border_color_box_shorthand_four_values() {
 #[test]
 fn border_style_box_shorthand_two_values() {
     let style = s("border-style: solid dashed;");
-    assert!(matches!(style.border_top_style,    Some(BorderStyle::Solid)));
-    assert!(matches!(style.border_bottom_style, Some(BorderStyle::Solid)));
-    assert!(matches!(style.border_right_style,  Some(BorderStyle::Dashed)));
-    assert!(matches!(style.border_left_style,   Some(BorderStyle::Dashed)));
+    assert!(matches!(style.border_top_style, Some(BorderStyle::Solid)));
+    assert!(matches!(
+        style.border_bottom_style,
+        Some(BorderStyle::Solid)
+    ));
+    assert!(matches!(
+        style.border_right_style,
+        Some(BorderStyle::Dashed)
+    ));
+    assert!(matches!(style.border_left_style, Some(BorderStyle::Dashed)));
 }
 
 #[test]
 fn explicit_border_pieces_parse() {
-    let style = s(
-        "border-top-width: 2px;
+    let style = s("border-top-width: 2px;
          border-top-style: dashed;
-         border-top-color: blue;",
-    );
+         border-top-color: blue;");
     assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 2.0));
     assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
     assert!(style.border_top_color.is_some());
@@ -548,12 +789,10 @@ fn explicit_border_pieces_parse() {
 
 #[test]
 fn per_corner_radius_explicit_pieces_parse() {
-    let style = s(
-        "border-top-left-radius: 1px;
+    let style = s("border-top-left-radius: 1px;
          border-top-right-radius: 2px;
          border-bottom-right-radius: 3px;
-         border-bottom-left-radius: 4px;",
-    );
+         border-bottom-left-radius: 4px;");
     assert!(matches!(style.border_top_left_radius,     Some(CssLength::Px(v)) if v == 1.0));
     assert!(matches!(style.border_top_right_radius,    Some(CssLength::Px(v)) if v == 2.0));
     assert!(matches!(style.border_bottom_right_radius, Some(CssLength::Px(v)) if v == 3.0));
@@ -562,8 +801,14 @@ fn per_corner_radius_explicit_pieces_parse() {
 
 #[test]
 fn box_sizing_keywords() {
-    assert!(matches!(s("box-sizing: border-box;").box_sizing,  Some(BoxSizing::BorderBox)));
-    assert!(matches!(s("box-sizing: content-box;").box_sizing, Some(BoxSizing::ContentBox)));
+    assert!(matches!(
+        s("box-sizing: border-box;").box_sizing,
+        Some(BoxSizing::BorderBox)
+    ));
+    assert!(matches!(
+        s("box-sizing: content-box;").box_sizing,
+        Some(BoxSizing::ContentBox)
+    ));
 }
 
 // --------------------------------------------------------------------------
@@ -572,23 +817,47 @@ fn box_sizing_keywords() {
 
 #[test]
 fn cursor_keywords() {
-    assert!(matches!(s("cursor: pointer;").cursor,     Some(Cursor::Pointer)));
-    assert!(matches!(s("cursor: default;").cursor,     Some(Cursor::Default)));
-    assert!(matches!(s("cursor: not-allowed;").cursor, Some(Cursor::NotAllowed)));
-    assert!(matches!(s("cursor: text;").cursor,        Some(Cursor::Text)));
+    assert!(matches!(
+        s("cursor: pointer;").cursor,
+        Some(Cursor::Pointer)
+    ));
+    assert!(matches!(
+        s("cursor: default;").cursor,
+        Some(Cursor::Default)
+    ));
+    assert!(matches!(
+        s("cursor: not-allowed;").cursor,
+        Some(Cursor::NotAllowed)
+    ));
+    assert!(matches!(s("cursor: text;").cursor, Some(Cursor::Text)));
 }
 
 #[test]
 fn pointer_events_keywords() {
-    assert!(matches!(s("pointer-events: none;").pointer_events, Some(PointerEvents::None)));
-    assert!(matches!(s("pointer-events: auto;").pointer_events, Some(PointerEvents::Auto)));
+    assert!(matches!(
+        s("pointer-events: none;").pointer_events,
+        Some(PointerEvents::None)
+    ));
+    assert!(matches!(
+        s("pointer-events: auto;").pointer_events,
+        Some(PointerEvents::Auto)
+    ));
 }
 
 #[test]
 fn user_select_keywords() {
-    assert!(matches!(s("user-select: none;").user_select, Some(UserSelect::None)));
-    assert!(matches!(s("user-select: text;").user_select, Some(UserSelect::Text)));
-    assert!(matches!(s("user-select: all;").user_select,  Some(UserSelect::All)));
+    assert!(matches!(
+        s("user-select: none;").user_select,
+        Some(UserSelect::None)
+    ));
+    assert!(matches!(
+        s("user-select: text;").user_select,
+        Some(UserSelect::Text)
+    ));
+    assert!(matches!(
+        s("user-select: all;").user_select,
+        Some(UserSelect::All)
+    ));
 }
 
 // --------------------------------------------------------------------------

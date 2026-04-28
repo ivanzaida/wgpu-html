@@ -12,22 +12,16 @@ pub fn resolve_color(c: &CssColor) -> Option<Color> {
     let srgb = match c {
         CssColor::Transparent => return Some([0.0, 0.0, 0.0, 0.0]),
         CssColor::CurrentColor => return None, // not tracked yet
-        CssColor::Rgb(r, g, b) => [
-            *r as f32 / 255.0,
-            *g as f32 / 255.0,
-            *b as f32 / 255.0,
-            1.0,
-        ],
-        CssColor::Rgba(r, g, b, a) => [
-            *r as f32 / 255.0,
-            *g as f32 / 255.0,
-            *b as f32 / 255.0,
-            *a,
-        ],
+        CssColor::Rgb(r, g, b) => [*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, 1.0],
+        CssColor::Rgba(r, g, b, a) => [*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, *a],
         CssColor::Hex(s) => parse_hex(s)?,
         CssColor::Named(name) => named_color(name)?,
         CssColor::Hsl(h, s, l) => hsl_to_rgb(*h, *s, *l, 1.0),
         CssColor::Hsla(h, s, l, a) => hsl_to_rgb(*h, *s, *l, *a),
+        // Modern colour functions (`color()`, `lab()`, `oklch()`, …)
+        // are parsed but not yet resolved here. Treat as
+        // `None` (skip the paint) until a resolver is wired in.
+        CssColor::Function(_) => return None,
     };
     Some([
         srgb_to_linear(srgb[0]),
@@ -109,12 +103,7 @@ fn named_color(name: &str) -> Option<[f32; 4]> {
         "transparent" => return Some([0.0, 0.0, 0.0, 0.0]),
         _ => return None,
     };
-    Some([
-        r as f32 / 255.0,
-        g as f32 / 255.0,
-        b as f32 / 255.0,
-        1.0,
-    ])
+    Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
 }
 
 fn hsl_to_rgb(h: f32, s: f32, l: f32, a: f32) -> [f32; 4] {

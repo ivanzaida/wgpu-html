@@ -27,19 +27,55 @@ fn body_fills_viewport_with_no_explicit_size() {
 
 #[test]
 fn explicit_size_used_verbatim() {
-    let tree = make(
-        r#"<body style="margin: 0; width: 400px; height: 200px;"></body>"#,
-    );
+    let tree = make(r#"<body style="margin: 0; width: 400px; height: 200px;"></body>"#);
     let root = layout(&tree, 800.0, 600.0).unwrap();
     assert_eq!(root.border_rect.w, 400.0);
     assert_eq!(root.border_rect.h, 200.0);
 }
 
 #[test]
-fn margin_offsets_border_rect() {
+fn calc_width_resolves_mixed_percent_and_px() {
     let tree = make(
-        r#"<body style="margin: 0; margin: 10px; width: 100px; height: 50px;"></body>"#,
+        r#"<body style="margin: 0;">
+            <div style="width: calc(50% - 20px); height: 10px;"></div>
+        </body>"#,
     );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let child = first_child(&root);
+    assert_eq!(child.border_rect.w, 380.0);
+}
+
+#[test]
+fn min_max_clamp_lengths_resolve() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div style="width: min(100%, 300px); height: clamp(10px, 5vw, 80px);"></div>
+            <div style="width: max(20px, 10%); height: 10px;"></div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(root.children[0].border_rect.w, 300.0);
+    assert_eq!(root.children[0].border_rect.h, 40.0);
+    assert_eq!(root.children[1].border_rect.w, 80.0);
+}
+
+#[test]
+fn calc_numeric_functions_resolve_inside_lengths() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div style="width: calc(pow(2, 3) * 10px); height: calc(sqrt(16) * 5px);"></div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let child = first_child(&root);
+    assert_eq!(child.border_rect.w, 80.0);
+    assert_eq!(child.border_rect.h, 20.0);
+}
+
+#[test]
+fn margin_offsets_border_rect() {
+    let tree =
+        make(r#"<body style="margin: 0; margin: 10px; width: 100px; height: 50px;"></body>"#);
     let root = layout(&tree, 800.0, 600.0).unwrap();
     // margin_rect outer
     assert_eq!(root.margin_rect.x, 0.0);
@@ -55,9 +91,8 @@ fn margin_offsets_border_rect() {
 
 #[test]
 fn padding_shrinks_content_rect() {
-    let tree = make(
-        r#"<body style="margin: 0; padding: 8px; width: 100px; height: 50px;"></body>"#,
-    );
+    let tree =
+        make(r#"<body style="margin: 0; padding: 8px; width: 100px; height: 50px;"></body>"#);
     let root = layout(&tree, 800.0, 600.0).unwrap();
     // border_rect = content + padding on each side → 100 + 16 = 116, 50 + 16 = 66
     assert_eq!(root.border_rect.w, 116.0);
@@ -192,9 +227,8 @@ fn nested_body_div_div_stacks_correctly() {
 #[test]
 fn box_sizing_content_box_is_default() {
     // `width` is the content-box width; padding is added on the outside.
-    let tree = make(
-        r#"<body style="margin: 0; width: 100px; padding: 10px; height: 50px;"></body>"#,
-    );
+    let tree =
+        make(r#"<body style="margin: 0; width: 100px; padding: 10px; height: 50px;"></body>"#);
     let root = layout(&tree, 800.0, 600.0).unwrap();
     assert_eq!(root.content_rect.w, 100.0);
     assert_eq!(root.border_rect.w, 120.0); // 100 + 10*2 padding
@@ -415,11 +449,7 @@ fn flex_test_html_layout() {
     assert_eq!(parent.border_rect.w, 120.0);
     // 3 × 30 = 90 main used inside content_w=100, free=10 → space-between
     // gaps of 5, items at content_x=10, 45, 80.
-    let xs: Vec<f32> = parent
-        .children
-        .iter()
-        .map(|c| c.margin_rect.x)
-        .collect();
+    let xs: Vec<f32> = parent.children.iter().map(|c| c.margin_rect.x).collect();
     assert_eq!(xs, vec![10.0, 45.0, 80.0]);
 }
 
@@ -724,9 +754,8 @@ fn box_sizing_border_box_with_full_width_fits_within_container() {
 #[test]
 fn border_width_pushes_content_inward() {
     // content-box: width=100 + border-width=4 (each side) → border_rect=108.
-    let tree = make(
-        r#"<body style="margin: 0; width: 100px; height: 50px; border-width: 4px;"></body>"#,
-    );
+    let tree =
+        make(r#"<body style="margin: 0; width: 100px; height: 50px; border-width: 4px;"></body>"#);
     let root = layout(&tree, 800.0, 600.0).unwrap();
     assert_eq!(root.border.top, 4.0);
     assert_eq!(root.border.left, 4.0);
@@ -992,16 +1021,17 @@ fn hit_path_drills_to_inner_div() {
 #[test]
 fn find_element_outside_returns_none() {
     let (mut tree, lay) = hit_setup();
-    assert!(
-        lay.find_element_from_point(&mut tree, (10_000.0, 10_000.0))
-            .is_none()
-    );
+    assert!(lay
+        .find_element_from_point(&mut tree, (10_000.0, 10_000.0))
+        .is_none());
 }
 
 #[test]
 fn find_element_returns_deepest_node() {
     let (mut tree, lay) = hit_setup();
-    let node = lay.find_element_from_point(&mut tree, (20.0, 20.0)).unwrap();
+    let node = lay
+        .find_element_from_point(&mut tree, (20.0, 20.0))
+        .unwrap();
     assert_eq!(element_kind(node), "div");
     assert!(node.children.is_empty()); // it's the inner div
 }
@@ -1016,9 +1046,7 @@ fn find_element_lets_caller_mutate_style() {
         // The whole point of returning &mut Node: mutate the source
         // element's style attribute, then re-cascade and re-layout.
         if let wgpu_html_tree::Element::Div(div) = &mut node.element {
-            div.style = Some(
-                "width: 123px; height: 40px; margin: 10px 0 0 10px;".to_string(),
-            );
+            div.style = Some("width: 123px; height: 40px; margin: 10px 0 0 10px;".to_string());
         } else {
             panic!("expected a Div at the hit point");
         }
@@ -1055,10 +1083,9 @@ fn find_elements_orders_child_to_parent() {
 #[test]
 fn find_elements_outside_is_empty() {
     let (mut tree, lay) = hit_setup();
-    assert!(
-        lay.find_elements_from_point(&mut tree, (-1.0, -1.0))
-            .is_empty()
-    );
+    assert!(lay
+        .find_elements_from_point(&mut tree, (-1.0, -1.0))
+        .is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -1067,9 +1094,7 @@ fn find_elements_outside_is_empty() {
 
 #[test]
 fn overflow_field_propagates_from_style() {
-    let tree = make(
-        r#"<body style="overflow: hidden; width: 100px; height: 50px;"></body>"#,
-    );
+    let tree = make(r#"<body style="overflow: hidden; width: 100px; height: 50px;"></body>"#);
     let body = layout(&tree, 800.0, 600.0).unwrap();
     use wgpu_html_models::common::css_enums::Overflow;
     assert!(matches!(body.overflow, Overflow::Hidden));
@@ -1087,9 +1112,7 @@ fn overflow_visible_is_default() {
 fn overflow_axis_longhand_wins_over_shorthand() {
     // `overflow-y: hidden` collapses to the effective overflow
     // (v1 collapses both axes on any non-Visible).
-    let tree = make(
-        r#"<body style="overflow-y: hidden; width: 100px; height: 50px;"></body>"#,
-    );
+    let tree = make(r#"<body style="overflow-y: hidden; width: 100px; height: 50px;"></body>"#);
     let body = layout(&tree, 800.0, 600.0).unwrap();
     use wgpu_html_models::common::css_enums::Overflow;
     assert!(matches!(body.overflow, Overflow::Hidden));

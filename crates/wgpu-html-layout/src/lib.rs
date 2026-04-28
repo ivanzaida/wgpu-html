@@ -13,8 +13,10 @@
 //!   come in later milestones.
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
+use wgpu_html_models::common::css_enums::{
+    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow,
+};
 use wgpu_html_models::Style;
-use wgpu_html_models::common::css_enums::{BorderStyle, BoxSizing, CssLength, Display, Overflow};
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedRun, TextContext};
 use wgpu_html_tree::{Element, Node, Tree};
@@ -24,14 +26,14 @@ mod flex;
 mod grid;
 mod length;
 
-pub use color::{Color, resolve_color};
+pub use color::{resolve_color, Color};
 
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::Read;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -51,8 +53,16 @@ struct DecodedFrameRaw {
 /// preserved.
 #[derive(Debug, Clone)]
 enum DecodedAsset {
-    Still { rgba: Arc<Vec<u8>>, w: u32, h: u32 },
-    Animated { frames: Arc<Vec<DecodedFrameRaw>>, w: u32, h: u32 },
+    Still {
+        rgba: Arc<Vec<u8>>,
+        w: u32,
+        h: u32,
+    },
+    Animated {
+        frames: Arc<Vec<DecodedFrameRaw>>,
+        w: u32,
+        h: u32,
+    },
 }
 
 /// State of a unique `src` in the raw (pre-resize) decode cache.
@@ -75,17 +85,40 @@ enum RawState {
 /// for both the raw-by-URL and the sized-by-(URL,w,h) caches so that
 /// stale entries (not touched by any `load_image` call within the
 /// configured TTL) can be reclaimed by [`sweep_image_cache`].
+///
+/// `max_age` is the optional per-entry freshness hint sourced from
+/// HTTP `Cache-Control: max-age` / `Expires` on remote responses.
+/// When present it overrides the global TTL for *this* entry —
+/// long-lived CDN assets stay warm; `Cache-Control: max-age=0`
+/// resources evict on the next sweep.
 struct CacheEntry<V> {
     value: V,
     last_access: Instant,
+    max_age: Option<Duration>,
 }
 
 impl<V> CacheEntry<V> {
     fn new(value: V) -> Self {
-        Self { value, last_access: Instant::now() }
+        Self {
+            value,
+            last_access: Instant::now(),
+            max_age: None,
+        }
+    }
+    fn with_max_age(value: V, max_age: Option<Duration>) -> Self {
+        Self {
+            value,
+            last_access: Instant::now(),
+            max_age,
+        }
     }
     fn touch(&mut self) {
         self.last_access = Instant::now();
+    }
+    /// Effective freshness window: HTTP `max-age` if known, else the
+    /// global TTL.
+    fn effective_ttl(&self, global_ttl: Duration) -> Duration {
+        self.max_age.unwrap_or(global_ttl)
     }
 }
 
@@ -160,13 +193,15 @@ pub fn sweep_image_cache() {
     let ttl = image_cache_ttl();
     let now = Instant::now();
     if let Ok(mut cache) = sized_cache().lock() {
-        cache.retain(|_, entry| now.duration_since(entry.last_access) < ttl);
+        cache.retain(|_, entry| {
+            now.duration_since(entry.last_access) < entry.effective_ttl(ttl)
+        });
     }
     if let Ok(mut cache) = raw_cache().lock() {
         cache.retain(|_, entry| {
             // Never evict an in-flight fetch (we'd lose the result).
             matches!(entry.value, RawState::Pending)
-                || now.duration_since(entry.last_access) < ttl
+                || now.duration_since(entry.last_access) < entry.effective_ttl(ttl)
         });
     }
 }
@@ -188,6 +223,132 @@ fn maybe_sweep() {
     };
     if due {
         sweep_image_cache();
+        enforce_image_cache_budget();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Byte-budget LRU eviction
+// ---------------------------------------------------------------------------
+
+/// Default cache budget — 256 MiB of decoded RGBA. Generous enough
+/// that typical pages never trip eviction, small enough that hostile
+/// or runaway content can't OOM the host. Tunable via
+/// [`set_image_cache_budget`].
+const DEFAULT_CACHE_BUDGET_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Total combined byte budget across `raw_cache` + `sized_cache`.
+/// `0` disables the cap entirely. Tracked as `AtomicU64` so reads on
+/// the hot path are lock-free.
+static CACHE_BUDGET_BYTES: AtomicU64 = AtomicU64::new(DEFAULT_CACHE_BUDGET_BYTES);
+
+/// Returns the current cache byte budget. `0` means "no upper bound".
+pub fn image_cache_budget() -> u64 {
+    CACHE_BUDGET_BYTES.load(Ordering::Acquire)
+}
+
+/// Override the cache byte budget. Pass `0` to disable. New value
+/// takes effect on the next [`enforce_image_cache_budget`] call (or
+/// the next periodic sweep). Only counts decoded RGBA — overheads
+/// (hashmap nodes, `Arc` headers, …) are ignored, so leave some
+/// slack vs. desired RSS.
+pub fn set_image_cache_budget(bytes: u64) {
+    CACHE_BUDGET_BYTES.store(bytes, Ordering::Release);
+}
+
+/// Approximate the byte cost of a `RawState`. Pending/Failed are
+/// treated as zero — only the decoded RGBA is accounted for, since
+/// that dominates by orders of magnitude.
+fn raw_state_bytes(state: &RawState) -> usize {
+    match state {
+        RawState::Pending | RawState::Failed => 0,
+        RawState::Ready(DecodedAsset::Still { rgba, .. }) => rgba.len(),
+        RawState::Ready(DecodedAsset::Animated { frames, .. }) => {
+            frames.iter().map(|f| f.rgba.len()).sum()
+        }
+    }
+}
+
+/// Approximate the byte cost of a sized cache entry.
+fn sized_value_bytes(value: &Option<ImageData>) -> usize {
+    match value {
+        None => 0,
+        Some(d) => match &d.frames {
+            Some(frames) => frames.iter().map(|f| f.data.len()).sum(),
+            None => d.data.len(),
+        },
+    }
+}
+
+/// If the combined cache size exceeds the configured budget, evict
+/// the oldest non-`Pending` entries (oldest by `last_access`) until
+/// we're back under. `Pending` entries are skipped so in-flight
+/// fetches aren't orphaned.
+///
+/// Two-pass: first sized_cache (bigger, more redundant), then
+/// raw_cache (the source-of-truth — losing it forces a refetch on
+/// the next access).
+pub fn enforce_image_cache_budget() {
+    let budget = CACHE_BUDGET_BYTES.load(Ordering::Acquire);
+    if budget == 0 {
+        return;
+    }
+
+    // Compute current totals without holding both locks at once to
+    // minimise contention.
+    let mut total = 0u64;
+    if let Ok(cache) = sized_cache().lock() {
+        for entry in cache.values() {
+            total += sized_value_bytes(&entry.value) as u64;
+        }
+    }
+    if let Ok(cache) = raw_cache().lock() {
+        for entry in cache.values() {
+            total += raw_state_bytes(&entry.value) as u64;
+        }
+    }
+    if total <= budget {
+        return;
+    }
+
+    // Phase 1: trim the sized cache (post-resize variants, often
+    // duplicated across declared sizes). Sort by oldest first.
+    if let Ok(mut cache) = sized_cache().lock() {
+        let mut by_age: Vec<(SizedKey, Instant, usize)> = cache
+            .iter()
+            .map(|(k, e)| (k.clone(), e.last_access, sized_value_bytes(&e.value)))
+            .collect();
+        by_age.sort_by_key(|(_, instant, _)| *instant);
+        for (key, _, bytes) in by_age {
+            if total <= budget {
+                break;
+            }
+            cache.remove(&key);
+            total = total.saturating_sub(bytes as u64);
+        }
+    }
+    if total <= budget {
+        return;
+    }
+
+    // Phase 2: trim raw entries. Skip `Pending` so we don't orphan a
+    // worker's in-flight write. `Failed` is fair game (reclaiming
+    // ~zero bytes but pulling the entry out so the next access can
+    // legitimately retry from scratch).
+    if let Ok(mut cache) = raw_cache().lock() {
+        let mut by_age: Vec<(String, Instant, usize)> = cache
+            .iter()
+            .filter(|(_, e)| !matches!(e.value, RawState::Pending))
+            .map(|(k, e)| (k.clone(), e.last_access, raw_state_bytes(&e.value)))
+            .collect();
+        by_age.sort_by_key(|(_, instant, _)| *instant);
+        for (key, _, bytes) in by_age {
+            if total <= budget {
+                break;
+            }
+            cache.remove(&key);
+            total = total.saturating_sub(bytes as u64);
+        }
     }
 }
 
@@ -207,29 +368,275 @@ pub fn image_load_revision() -> u64 {
     revision().load(Ordering::Acquire)
 }
 
-/// Fetch the raw bytes for an `<img>` `src`. Supports `http://` and
-/// `https://` URLs (blocking via `ureq`, intended to run on a worker
-/// thread); anything else is treated as a local filesystem path.
-fn fetch_image_bytes(src: &str) -> Option<Vec<u8>> {
+/// Maximum bytes we'll pull off a remote response. 32 MiB is enough
+/// for typical page imagery while bounding worst-case memory use on
+/// hostile servers.
+const REMOTE_BODY_CAP: u64 = 32 * 1024 * 1024;
+
+/// Maximum number of HTTP redirects we'll follow per fetch — enough
+/// to cover canonical-host hops and CDN handoffs without enabling
+/// loop attacks. We follow them manually so http→https (and the
+/// reverse) both work, which `ureq`'s built-in redirect follower
+/// refuses for safety.
+const MAX_REDIRECTS: u8 = 5;
+
+/// Outcome of a single fetch attempt — bytes plus any HTTP freshness
+/// metadata extracted from the response. Local files / `data:` URIs
+/// always carry `max_age = None` (the engine's TTL governs them).
+struct FetchedBytes {
+    bytes: Vec<u8>,
+    max_age: Option<Duration>,
+}
+
+/// Fetch the raw bytes for an `<img>` `src` and any associated cache
+/// metadata. Dispatches on scheme: `http(s)://`, `data:`,
+/// anything-else → local filesystem. Always runs on a pool worker so
+/// the layout thread never blocks on I/O.
+fn fetch_image_bytes(src: &str) -> Option<FetchedBytes> {
     if src.starts_with("http://") || src.starts_with("https://") {
-        let resp = ureq::get(src).call().ok()?;
-        // Cap at a sane upper bound (32 MiB) to avoid unbounded reads.
+        return fetch_remote(src);
+    }
+    if src.starts_with("data:") {
+        return fetch_data_uri(src).map(|bytes| FetchedBytes { bytes, max_age: None });
+    }
+    std::fs::read(src)
+        .ok()
+        .map(|bytes| FetchedBytes { bytes, max_age: None })
+}
+
+/// Shared `ureq` agent configured with redirects disabled — we
+/// follow them manually so http↔https hops work, which `ureq`'s
+/// built-in redirect follower refuses for safety.
+fn http_agent() -> &'static ureq::Agent {
+    static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
+    AGENT.get_or_init(|| ureq::AgentBuilder::new().redirects(0).build())
+}
+
+/// Manual redirect-following GET that handles cross-scheme hops.
+/// `ureq`'s built-in follower refuses http↔https redirects, so we
+/// disable it and inspect the `Location` header ourselves. Both
+/// relative and absolute redirect targets are supported. The
+/// response's `Cache-Control: max-age` (falling back to `Expires`)
+/// is captured and returned so the cache entry can use a per-URL
+/// freshness window instead of the engine's global TTL.
+fn fetch_remote(src: &str) -> Option<FetchedBytes> {
+    let agent = http_agent();
+    let mut current = src.to_string();
+    for _ in 0..=MAX_REDIRECTS {
+        let resp = agent.get(&current).call().ok()?;
+        let status = resp.status();
+        if (300..400).contains(&status) && status != 304 {
+            let Some(location) = resp.header("Location") else {
+                return None;
+            };
+            current = resolve_redirect_target(&current, location)?;
+            continue;
+        }
+        if !(200..300).contains(&status) {
+            return None;
+        }
+        let max_age = parse_cache_control_max_age(resp.header("Cache-Control"))
+            .or_else(|| parse_expires_relative(resp.header("Date"), resp.header("Expires")));
         let mut buf = Vec::new();
         resp.into_reader()
-            .take(32 * 1024 * 1024)
+            .take(REMOTE_BODY_CAP)
             .read_to_end(&mut buf)
             .ok()?;
-        Some(buf)
+        return Some(FetchedBytes { bytes: buf, max_age });
+    }
+    None
+}
+
+/// Extract `max-age=<seconds>` from a `Cache-Control` header value.
+/// `no-store` / `no-cache` collapse to `Some(0)` so the entry evicts
+/// on the next sweep — equivalent to "always refetch".
+fn parse_cache_control_max_age(header: Option<&str>) -> Option<Duration> {
+    let header = header?;
+    let mut zero = false;
+    let mut max_age: Option<Duration> = None;
+    for token in header.split(',') {
+        let t = token.trim().to_ascii_lowercase();
+        if t == "no-store" || t == "no-cache" {
+            zero = true;
+        } else if let Some(rest) = t.strip_prefix("max-age=") {
+            if let Ok(secs) = rest.trim().parse::<u64>() {
+                max_age = Some(Duration::from_secs(secs));
+            }
+        } else if let Some(rest) = t.strip_prefix("s-maxage=") {
+            if let Ok(secs) = rest.trim().parse::<u64>() {
+                max_age = Some(Duration::from_secs(secs));
+            }
+        }
+    }
+    if zero { Some(Duration::ZERO) } else { max_age }
+}
+
+/// Compute a max-age duration from `Date` + `Expires` HTTP headers.
+/// Both are RFC 1123 dates; we only need the difference, so a tiny
+/// hand-rolled parser is enough. Returns `None` if either header is
+/// missing or unparseable.
+fn parse_expires_relative(date: Option<&str>, expires: Option<&str>) -> Option<Duration> {
+    let date = parse_rfc1123(date?)?;
+    let expires = parse_rfc1123(expires?)?;
+    expires.checked_sub(date).map(Duration::from_secs)
+}
+
+/// Parse an RFC 1123 / RFC 850 / asctime date to seconds since the
+/// Unix epoch. We don't need calendar accuracy — the caller only
+/// uses the difference between two such values — but we have to
+/// match the formats real servers emit.
+fn parse_rfc1123(s: &str) -> Option<u64> {
+    let s = s.trim();
+    // "Sun, 06 Nov 1994 08:49:37 GMT" → split, expect day-month-year h:m:s.
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.len() < 5 {
+        return None;
+    }
+    // Try RFC 1123: "Sun," "06" "Nov" "1994" "08:49:37" "GMT"
+    let (day, mon, year, hms) = if parts[0].ends_with(',') && parts.len() >= 6 {
+        (parts[1], parts[2], parts[3], parts[4])
     } else {
-        std::fs::read(src).ok()
+        return None;
+    };
+    let day: u32 = day.parse().ok()?;
+    let year: i64 = year.parse().ok()?;
+    let mon = match mon.to_ascii_lowercase().as_str() {
+        "jan" => 1u32,
+        "feb" => 2,
+        "mar" => 3,
+        "apr" => 4,
+        "may" => 5,
+        "jun" => 6,
+        "jul" => 7,
+        "aug" => 8,
+        "sep" => 9,
+        "oct" => 10,
+        "nov" => 11,
+        "dec" => 12,
+        _ => return None,
+    };
+    let mut hms_parts = hms.split(':');
+    let hh: u64 = hms_parts.next()?.parse().ok()?;
+    let mm: u64 = hms_parts.next()?.parse().ok()?;
+    let ss: u64 = hms_parts.next()?.parse().ok()?;
+    // Civil-from-days (Howard Hinnant). Treats months [3..14] for
+    // March-onward simplification.
+    let y = if mon <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = (y - era * 400) as i64;
+    let m = if mon > 2 { mon - 3 } else { mon + 9 };
+    let doy = ((153 * m as i64 + 2) / 5) + day as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days_since_epoch = era * 146097 + doe - 719468;
+    if days_since_epoch < 0 {
+        return None;
+    }
+    Some((days_since_epoch as u64) * 86400 + hh * 3600 + mm * 60 + ss)
+}
+
+/// Resolve a redirect `Location` against the current URL. Absolute
+/// targets (with their own scheme) replace the URL outright; relative
+/// targets are joined onto the current URL's origin or path.
+fn resolve_redirect_target(current: &str, location: &str) -> Option<String> {
+    if location.starts_with("http://") || location.starts_with("https://") {
+        return Some(location.to_string());
+    }
+    // Find the scheme + authority of `current`, e.g. "https://example.com".
+    let scheme_end = current.find("://")?;
+    let after_scheme = &current[scheme_end + 3..];
+    let path_start = after_scheme.find('/').unwrap_or(after_scheme.len());
+    let origin = &current[..scheme_end + 3 + path_start];
+    if let Some(stripped) = location.strip_prefix('/') {
+        Some(format!("{origin}/{stripped}"))
+    } else {
+        // Relative path: chop everything after the last '/' in the
+        // current path and append the new segment.
+        let last_slash = current.rfind('/').unwrap_or(scheme_end + 2);
+        Some(format!("{}/{}", &current[..last_slash], location))
     }
 }
 
+/// Decode an `RFC 2397` `data:` URI to its payload bytes. Supports
+/// both percent-encoded and `;base64` forms; ignores the MIME type
+/// since the decoder sniffs format itself. Returns `None` for
+/// malformed inputs (no comma, bad base64, …).
+fn fetch_data_uri(src: &str) -> Option<Vec<u8>> {
+    let rest = src.strip_prefix("data:")?;
+    let comma = rest.find(',')?;
+    let meta = &rest[..comma];
+    let payload = &rest[comma + 1..];
+    let is_base64 = meta.split(';').any(|p| p.eq_ignore_ascii_case("base64"));
+    if is_base64 {
+        decode_base64(payload)
+    } else {
+        decode_percent_encoded(payload)
+    }
+}
+
+/// Standard base64 alphabet decoder. Tolerates whitespace and
+/// trailing `=` padding; rejects out-of-alphabet bytes by returning
+/// `None`. Hand-rolled to keep the dependency footprint minimal.
+fn decode_base64(input: &str) -> Option<Vec<u8>> {
+    fn val(c: u8) -> Option<u32> {
+        match c {
+            b'A'..=b'Z' => Some((c - b'A') as u32),
+            b'a'..=b'z' => Some((c - b'a' + 26) as u32),
+            b'0'..=b'9' => Some((c - b'0' + 52) as u32),
+            b'+' | b'-' => Some(62),
+            b'/' | b'_' => Some(63),
+            _ => None,
+        }
+    }
+    let mut quartet: u32 = 0;
+    let mut filled = 0u32;
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    for &b in input.as_bytes() {
+        if matches!(b, b' ' | b'\n' | b'\r' | b'\t' | b'=') {
+            continue;
+        }
+        let v = val(b)?;
+        quartet = (quartet << 6) | v;
+        filled += 6;
+        if filled >= 8 {
+            filled -= 8;
+            out.push(((quartet >> filled) & 0xff) as u8);
+        }
+    }
+    Some(out)
+}
+
+/// Decode the percent-encoded payload of a non-base64 `data:` URI.
+fn decode_percent_encoded(input: &str) -> Option<Vec<u8>> {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'%' && i + 2 < bytes.len() {
+            let hi = (bytes[i + 1] as char).to_digit(16)?;
+            let lo = (bytes[i + 2] as char).to_digit(16)?;
+            out.push(((hi << 4) | lo) as u8);
+            i += 3;
+        } else {
+            out.push(b);
+            i += 1;
+        }
+    }
+    Some(out)
+}
+
+/// Detect whether `bytes` is a WebP container (animated or otherwise).
+/// WebP files are RIFF-wrapped, with the FourCC "WEBP" at offset 8.
+fn is_webp(bytes: &[u8]) -> bool {
+    bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP"
+}
+
 /// Decode arbitrary image bytes to a still or animated [`DecodedAsset`].
-/// GIFs are detected by magic bytes and routed through the animated
-/// decoder; everything else takes the single-frame path. A GIF that
-/// only contains one frame collapses to `Still` after decoding so
-/// downstream code never has to special-case it.
+/// GIFs and animated WebPs are detected by magic bytes and routed
+/// through their respective animation decoders; everything else takes
+/// the single-frame path. Animated containers that yield exactly one
+/// frame collapse back to `Still` so downstream code never has to
+/// special-case "animated with one frame".
 fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
     if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
         if let Some(asset) = decode_animated_gif(bytes) {
@@ -238,6 +645,13 @@ fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
         // GIF magic but the decoder failed — fall through to the
         // single-frame path which may still extract the first frame
         // via the generic `image::load_from_memory` route.
+    }
+    if is_webp(bytes) {
+        if let Some(asset) = decode_animated_webp(bytes) {
+            return Some(asset);
+        }
+        // Static WebP or animated-decoder failure: fall through to
+        // the regular still-image decoder.
     }
     let dyn_img = image::load_from_memory(bytes).ok()?;
     let rgba = dyn_img.to_rgba8();
@@ -249,13 +663,62 @@ fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
     })
 }
 
+/// Decode every frame of an animated WebP. Mirrors `decode_animated_gif`
+/// — same `AnimationDecoder` trait, same per-frame delay handling.
+/// Single-frame WebPs collapse to `Still` so the animation machinery
+/// stays dormant for the common case.
+fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
+    use image::codecs::webp::WebPDecoder;
+    use image::AnimationDecoder;
+
+    let decoder = WebPDecoder::new(std::io::Cursor::new(bytes)).ok()?;
+    let frames = decoder.into_frames().collect_frames().ok()?;
+    if frames.is_empty() {
+        return None;
+    }
+    let (w, h) = {
+        let first = frames.first()?;
+        (first.buffer().width(), first.buffer().height())
+    };
+    if frames.len() == 1 {
+        let buffer = frames.into_iter().next()?.into_buffer();
+        return Some(DecodedAsset::Still {
+            rgba: Arc::new(buffer.into_raw()),
+            w,
+            h,
+        });
+    }
+    let decoded: Vec<DecodedFrameRaw> = frames
+        .into_iter()
+        .map(|f| {
+            let (numer, denom) = f.delay().numer_denom_ms();
+            let delay = if denom == 0 {
+                100
+            } else {
+                numer / denom.max(1)
+            };
+            let delay_ms = delay.max(10);
+            let buffer = f.into_buffer();
+            DecodedFrameRaw {
+                rgba: Arc::new(buffer.into_raw()),
+                delay_ms,
+            }
+        })
+        .collect();
+    Some(DecodedAsset::Animated {
+        frames: Arc::new(decoded),
+        w,
+        h,
+    })
+}
+
 /// Decode every frame of an animated GIF, preserving per-frame delays.
 /// Each yielded `Frame` from `image::AnimationDecoder` is already a
 /// fully-composited canvas (the decoder applies disposal/transparency
 /// internally), so we just copy its RGBA buffer.
 fn decode_animated_gif(bytes: &[u8]) -> Option<DecodedAsset> {
-    use image::AnimationDecoder;
     use image::codecs::gif::GifDecoder;
+    use image::AnimationDecoder;
 
     let decoder = GifDecoder::new(std::io::Cursor::new(bytes)).ok()?;
     let frames = decoder.into_frames().collect_frames().ok()?;
@@ -283,7 +746,11 @@ fn decode_animated_gif(bytes: &[u8]) -> Option<DecodedAsset> {
             // Defend against pathological metadata: `denom == 0` is
             // illegal but seen in the wild; `0`-delay frames cause a
             // tight repaint loop, so clamp to ~100 fps.
-            let delay = if denom == 0 { 100 } else { numer / denom.max(1) };
+            let delay = if denom == 0 {
+                100
+            } else {
+                numer / denom.max(1)
+            };
             let delay_ms = delay.max(10);
             let buffer = f.into_buffer();
             DecodedFrameRaw {
@@ -457,30 +924,93 @@ pub(crate) fn current_frame(data: &ImageData) -> ImageData {
 /// How many concurrent fetch+decode workers run. Conservative default:
 /// most pages have only a handful of images and decoding a megapixel
 /// PNG is fast, so a small pool keeps thread count bounded without
-/// becoming a bottleneck. Tunable later if needed.
-const FETCH_POOL_WORKERS: usize = 4;
+/// becoming a bottleneck. Tunable at runtime via
+/// [`set_image_pool_size`]; the pool will grow lazily if a higher
+/// value is requested before any worker has been spawned, or after
+/// initialisation by spawning the additional workers immediately.
+/// Workers are never removed (cheap idle, simpler lifecycle).
+const DEFAULT_POOL_WORKERS: usize = 4;
+
+/// Configured target pool size. The actual number of running workers
+/// is tracked separately so concurrent `set_image_pool_size` calls
+/// can grow the pool without spawning duplicates.
+static REQUESTED_POOL_SIZE: AtomicUsize = AtomicUsize::new(DEFAULT_POOL_WORKERS);
+
+/// Number of workers actually running. Updated each time
+/// [`spawn_fetch_worker`] is called.
+static RUNNING_POOL_SIZE: AtomicUsize = AtomicUsize::new(0);
+
+/// Set the maximum number of fetch+decode worker threads. Applies
+/// immediately:
+///
+/// - Before the pool has been initialised: changes the count used
+///   on first init.
+/// - After init: spawns additional workers if `n` exceeds the
+///   current count. **Shrinking is a no-op** — workers are never
+///   killed once started.
+///
+/// Calling with `0` is treated as `1` (a pool of zero workers
+/// would silently drop jobs).
+pub fn set_image_pool_size(n: usize) {
+    let n = n.max(1);
+    REQUESTED_POOL_SIZE.store(n, Ordering::Release);
+    grow_pool_if_needed();
+}
+
+/// Returns the current target pool size (the value most recently
+/// passed to [`set_image_pool_size`], or the default).
+pub fn image_pool_size() -> usize {
+    REQUESTED_POOL_SIZE.load(Ordering::Acquire)
+}
 
 /// Sender side of the bounded work queue feeding the fetch+decode
 /// worker pool. Lazily initialised on first job submission; once
 /// initialised the pool runs for the life of the process.
-fn pool_sender() -> &'static Mutex<Sender<String>> {
-    static SENDER: OnceLock<Mutex<Sender<String>>> = OnceLock::new();
-    SENDER.get_or_init(|| {
+fn pool_sender() -> &'static (Mutex<Sender<String>>, Arc<Mutex<Receiver<String>>>) {
+    static POOL: OnceLock<(Mutex<Sender<String>>, Arc<Mutex<Receiver<String>>>)> = OnceLock::new();
+    POOL.get_or_init(|| {
         let (tx, rx) = channel::<String>();
         let rx = Arc::new(Mutex::new(rx));
-        for _ in 0..FETCH_POOL_WORKERS {
+        let target = REQUESTED_POOL_SIZE.load(Ordering::Acquire).max(1);
+        for _ in 0..target {
             spawn_fetch_worker(Arc::clone(&rx));
         }
-        Mutex::new(tx)
+        (Mutex::new(tx), rx)
     })
 }
 
+/// Spawn additional workers if the running count is below the
+/// requested target. Idempotent — safe to call repeatedly.
+fn grow_pool_if_needed() {
+    let (_, rx) = pool_sender();
+    loop {
+        let target = REQUESTED_POOL_SIZE.load(Ordering::Acquire);
+        let current = RUNNING_POOL_SIZE.load(Ordering::Acquire);
+        if current >= target {
+            break;
+        }
+        // Try to claim a slot; if someone else got there first, retry
+        // and re-evaluate against the latest target.
+        if RUNNING_POOL_SIZE
+            .compare_exchange(current, current + 1, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            spawn_fetch_worker_no_count(Arc::clone(rx));
+        }
+    }
+}
+
 /// Spawn one persistent worker thread. The worker takes the next URL
-/// off the shared `Receiver`, fetches+decodes it, and writes the
-/// outcome (`Ready` or `Failed`) into `raw_cache`. Termination
+/// off the shared `Receiver`, fetches+decodes it (with retry-on-
+/// failure), and writes the outcome into `raw_cache`. Termination
 /// happens implicitly when the `Sender` is dropped (i.e. on process
 /// exit) — `recv` returns `Err` and the worker exits.
 fn spawn_fetch_worker(rx: Arc<Mutex<Receiver<String>>>) {
+    RUNNING_POOL_SIZE.fetch_add(1, Ordering::AcqRel);
+    spawn_fetch_worker_no_count(rx);
+}
+
+fn spawn_fetch_worker_no_count(rx: Arc<Mutex<Receiver<String>>>) {
     std::thread::spawn(move || {
         loop {
             let url = match rx.lock() {
@@ -490,16 +1020,52 @@ fn spawn_fetch_worker(rx: Arc<Mutex<Receiver<String>>>) {
                 },
                 Err(_) => break,
             };
-            let outcome = match fetch_image_bytes(&url).as_deref().and_then(decode_asset) {
-                Some(asset) => RawState::Ready(asset),
-                None => RawState::Failed,
+            let (outcome, max_age) = match fetch_with_retry(&url) {
+                Some(FetchedBytes { bytes, max_age }) => match decode_asset(&bytes) {
+                    Some(asset) => (RawState::Ready(asset), max_age),
+                    None => (RawState::Failed, None),
+                },
+                None => (RawState::Failed, None),
             };
             if let Ok(mut cache) = raw_cache().lock() {
-                cache.insert(url, CacheEntry::new(outcome));
+                cache.insert(url, CacheEntry::with_max_age(outcome, max_age));
             }
             revision().fetch_add(1, Ordering::AcqRel);
+            // Enforce after every insert so a flood of large remote
+            // fetches can't push memory past the budget between
+            // periodic sweeps. Cheap when we're under budget.
+            enforce_image_cache_budget();
         }
     });
+}
+
+/// Maximum number of fetch attempts per URL. Applies to remote
+/// loads; local fetches generally succeed or fail deterministically
+/// (no point retrying a missing file), but the same loop runs for
+/// uniformity.
+const MAX_FETCH_ATTEMPTS: u8 = 3;
+
+/// Initial backoff duration. Doubled after every failed attempt.
+const FETCH_RETRY_INITIAL_BACKOFF: Duration = Duration::from_millis(200);
+
+/// Wrap [`fetch_image_bytes`] with a small bounded retry loop +
+/// exponential backoff. The worker thread sleeps between attempts so
+/// it doesn't hammer transient-failure URLs in a tight loop. Failure
+/// modes that are inherently permanent (missing local files, 4xx
+/// responses) still pay the retry cost — acceptable for v1 since
+/// `fetch_remote` distinguishes only success from failure today.
+fn fetch_with_retry(src: &str) -> Option<FetchedBytes> {
+    let mut backoff = FETCH_RETRY_INITIAL_BACKOFF;
+    for attempt in 0..MAX_FETCH_ATTEMPTS {
+        if let Some(fetched) = fetch_image_bytes(src) {
+            return Some(fetched);
+        }
+        if attempt + 1 < MAX_FETCH_ATTEMPTS {
+            std::thread::sleep(backoff);
+            backoff = backoff.saturating_mul(2);
+        }
+    }
+    None
 }
 
 /// Submit `url` to the worker pool. Caller must have already inserted
@@ -507,7 +1073,8 @@ fn spawn_fetch_worker(rx: Arc<Mutex<Receiver<String>>>) {
 /// for the same URL coalesce on the cache rather than enqueuing
 /// duplicate jobs.
 fn submit_fetch_job(url: String) {
-    if let Ok(tx) = pool_sender().lock() {
+    let (tx, _) = pool_sender();
+    if let Ok(tx) = tx.lock() {
         let _ = tx.send(url);
     }
 }
@@ -621,30 +1188,6 @@ pub(crate) fn load_image_url(
 // CSS background-image resolution
 // ---------------------------------------------------------------------------
 
-/// Extract the URL from a CSS `url(...)` token. Accepts unquoted,
-/// `"…"`-quoted, and `'…'`-quoted forms; returns `None` for any
-/// other syntax (including gradient functions, `none`, etc.).
-fn extract_url(value: &str) -> Option<String> {
-    let v = value.trim();
-    let inner = v.strip_prefix("url(")?.strip_suffix(')')?.trim();
-    let unquoted = if (inner.starts_with('"') && inner.ends_with('"'))
-        || (inner.starts_with('\'') && inner.ends_with('\''))
-    {
-        if inner.len() < 2 {
-            return None;
-        }
-        &inner[1..inner.len() - 1]
-    } else {
-        inner
-    };
-    let trimmed = unquoted.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
 /// Parse a single token from `background-size` / `background-position`
 /// into a length in physical pixels. Supports `<n>px`, bare `<n>`
 /// (interpreted as pixels), `<n>%` (resolved against `container`), and
@@ -656,7 +1199,11 @@ fn parse_bg_axis(token: &str, container: f32) -> Option<f32> {
         return None;
     }
     if let Some(stripped) = t.strip_suffix('%') {
-        return stripped.trim().parse::<f32>().ok().map(|p| container * p / 100.0);
+        return stripped
+            .trim()
+            .parse::<f32>()
+            .ok()
+            .map(|p| container * p / 100.0);
     }
     let numeric = t.strip_suffix("px").unwrap_or(&t);
     numeric.trim().parse::<f32>().ok()
@@ -667,7 +1214,13 @@ fn parse_bg_axis(token: &str, container: f32) -> Option<f32> {
 /// `<length-percentage>` (applied to width, height auto), and a
 /// `<lp> <lp>` pair. Aspect ratio is preserved when one axis is
 /// `auto` (the standard CSS behaviour).
-fn resolve_bg_size(value: Option<&str>, img_w: u32, img_h: u32, bg_w: f32, bg_h: f32) -> (f32, f32) {
+fn resolve_bg_size(
+    value: Option<&str>,
+    img_w: u32,
+    img_h: u32,
+    bg_w: f32,
+    bg_h: f32,
+) -> (f32, f32) {
     let intrinsic_w = img_w as f32;
     let intrinsic_h = img_h as f32;
     if intrinsic_w <= 0.0 || intrinsic_h <= 0.0 || bg_w <= 0.0 || bg_h <= 0.0 {
@@ -855,13 +1408,15 @@ fn compute_bg_tiles(
 
 /// Top-level: turn `style.background_image` (+ associated longhands)
 /// into a [`BackgroundImagePaint`] positioned within `bg`. Returns
-/// `None` when there's no `url(...)` reference, the image hasn't
+/// `None` when there's no supported image reference, the image hasn't
 /// finished loading yet, or the resolved tile size collapses to zero.
 fn resolve_background_image(style: &Style, bg: Rect) -> Option<BackgroundImagePaint> {
     use wgpu_html_models::common::css_enums::BackgroundRepeat as BR;
-    let raw = style.background_image.as_deref()?;
-    let url = extract_url(raw)?;
-    let img = load_image_url(&url, None, None)?;
+    let url = match style.background_image.as_ref()? {
+        CssImage::Url(url) => url,
+        CssImage::Function(_) => return None,
+    };
+    let img = load_image_url(url, None, None)?;
 
     let (tile_w, tile_h) = resolve_bg_size(
         style.background_size.as_deref(),
@@ -1349,14 +1904,8 @@ fn layout_block(
         // the soft-wrap budget so paragraphs that are *direct* text
         // children of a block (rare, but legal) wrap rather than
         // overflow.
-        let (box_, _w, _h, _ascent) = make_text_leaf(
-            s,
-            &node.style,
-            origin_x,
-            origin_y,
-            Some(container_w),
-            ctx,
-        );
+        let (box_, _w, _h, _ascent) =
+            make_text_leaf(s, &node.style, origin_x, origin_y, Some(container_w), ctx);
         return box_;
     }
 
@@ -1435,8 +1984,7 @@ fn layout_block(
     let auto_right = is_auto_margin(&style.margin_right, &style.margin);
     let has_explicit_width = style.width.is_some();
     if !from_flex && has_explicit_width && (auto_left || auto_right) {
-        let used =
-            margin.horizontal() + border.horizontal() + padding.horizontal() + inner_width;
+        let used = margin.horizontal() + border.horizontal() + padding.horizontal() + inner_width;
         let free = (container_w - used).max(0.0);
         match (auto_left, auto_right) {
             (true, true) => {
@@ -1519,13 +2067,8 @@ fn layout_block(
             // origin. Otherwise fall back to the block flow that
             // stacks children vertically.
             if all_children_inline_level(node) {
-                let (kids, _w_used, h_used) = layout_inline_block_children(
-                    node,
-                    content_x,
-                    content_y_top,
-                    inner_width,
-                    ctx,
-                );
+                let (kids, _w_used, h_used) =
+                    layout_inline_block_children(node, content_x, content_y_top, inner_width, ctx);
                 (kids, h_used)
             } else {
                 let mut children = Vec::with_capacity(node.children.len());
@@ -2046,14 +2589,7 @@ fn layout_inline_subtree(
         // instead of breaking. Block-flow text leaves (rare;
         // direct text under a block) still get container-width wrap
         // via `layout_block`'s text path.
-        let (box_, w, h, ascent) = make_text_leaf(
-            s,
-            &node.style,
-            origin_x,
-            origin_y,
-            None,
-            ctx,
-        );
+        let (box_, w, h, ascent) = make_text_leaf(s, &node.style, origin_x, origin_y, None, ctx);
         let _ = container_w; // eliminated — IFC doesn't wrap leaves itself
         let descent = (h - ascent).max(0.0);
         return InlineLayout {
@@ -2168,14 +2704,8 @@ fn layout_inline_block_children(
     if node.children.len() == 1 {
         if let Element::Text(s) = &node.children[0].element {
             let child_style = &node.children[0].style;
-            let (box_, w, h, _ascent) = make_text_leaf(
-                s,
-                child_style,
-                origin_x,
-                origin_y,
-                Some(container_w),
-                ctx,
-            );
+            let (box_, w, h, _ascent) =
+                make_text_leaf(s, child_style, origin_x, origin_y, Some(container_w), ctx);
             // Heuristic text-align: the wrapped run's `width` is the
             // *widest* line, so right / center align by shifting the
             // whole box. Multi-line per-line align (the proper
@@ -2241,11 +2771,7 @@ struct ParagraphPlan {
 /// children that contributed any spans is recorded as an
 /// `InlineBlockSpan` if it has a background or decoration, so its
 /// per-line bounds can be reconstructed after shaping.
-fn collect_paragraph_spans(
-    node: &CascadedNode,
-    plan: &mut ParagraphPlan,
-    ctx: &mut Ctx,
-) {
+fn collect_paragraph_spans(node: &CascadedNode, plan: &mut ParagraphPlan, ctx: &mut Ctx) {
     if matches!(node.style.display, Some(Display::None)) {
         return;
     }
@@ -2255,10 +2781,7 @@ fn collect_paragraph_spans(
         if collapsed.is_empty() {
             return;
         }
-        let display = match apply_text_transform(
-            &collapsed,
-            node.style.text_transform.as_ref(),
-        ) {
+        let display = match apply_text_transform(&collapsed, node.style.text_transform.as_ref()) {
             Some(t) => t,
             None => collapsed,
         };
@@ -2300,11 +2823,7 @@ fn collect_paragraph_spans(
     }
     let leaf_end = plan.spans.len() as u32;
     if leaf_end > leaf_start {
-        let bg = node
-            .style
-            .background_color
-            .as_ref()
-            .and_then(resolve_color);
+        let bg = node.style.background_color.as_ref().and_then(resolve_color);
         let decos = resolve_text_decorations(&node.style);
         if bg.is_some() || !decos.is_empty() {
             let decoration_color = node
@@ -2451,9 +2970,7 @@ fn layout_inline_paragraph(
                 for deco in &inline.decorations {
                     let y = match deco {
                         TextDecorationLine::Underline => line.baseline + thickness,
-                        TextDecorationLine::LineThrough => {
-                            line.baseline - ascent * 0.30
-                        }
+                        TextDecorationLine::LineThrough => line.baseline - ascent * 0.30,
                         TextDecorationLine::Overline => line.top,
                     };
                     let r = Rect::new(
@@ -2662,20 +3179,18 @@ fn compute_background_box(
     radii: &CornerRadii,
 ) -> (Rect, CornerRadii) {
     use wgpu_html_models::common::css_enums::BackgroundClip;
-    match style.background_clip.clone().unwrap_or(BackgroundClip::BorderBox) {
+    match style
+        .background_clip
+        .clone()
+        .unwrap_or(BackgroundClip::BorderBox)
+    {
         BackgroundClip::BorderBox => (border_rect, radii.clone()),
         BackgroundClip::PaddingBox => {
             let inset_top = border.top;
             let inset_right = border.right;
             let inset_bottom = border.bottom;
             let inset_left = border.left;
-            let r = inset_radii(
-                radii,
-                inset_top,
-                inset_right,
-                inset_bottom,
-                inset_left,
-            );
+            let r = inset_radii(radii, inset_top, inset_right, inset_bottom, inset_left);
             let rect = Rect::new(
                 border_rect.x + inset_left,
                 border_rect.y + inset_top,
@@ -2689,13 +3204,7 @@ fn compute_background_box(
             let inset_right = border.right + padding.right;
             let inset_bottom = border.bottom + padding.bottom;
             let inset_left = border.left + padding.left;
-            let r = inset_radii(
-                radii,
-                inset_top,
-                inset_right,
-                inset_bottom,
-                inset_left,
-            );
+            let r = inset_radii(radii, inset_top, inset_right, inset_bottom, inset_left);
             (content_rect, r)
         }
     }

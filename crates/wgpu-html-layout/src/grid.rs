@@ -27,16 +27,16 @@
 //! `grid-template-areas`, named grid lines, negative line numbers,
 //! subgrid, baseline alignment.
 
-use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
     AlignContent, AlignItems, AlignSelf, CssLength, GridAutoFlow, GridLine, GridTrackSize,
     JustifyContent, JustifyItems, JustifySelf,
 };
+use wgpu_html_models::Style;
 use wgpu_html_style::CascadedNode;
 
 use crate::{
-    BlockOverrides, Ctx, LayoutBox, layout_block_at_with, length, translate_box_x_in_place,
-    translate_box_y_in_place,
+    layout_block_at_with, length, translate_box_x_in_place, translate_box_y_in_place,
+    BlockOverrides, Ctx, LayoutBox,
 };
 
 const EPS: f32 = 0.001;
@@ -60,10 +60,7 @@ pub(crate) fn layout_grid_children(
         .grid_auto_flow
         .clone()
         .unwrap_or(GridAutoFlow::Row);
-    let column_first = matches!(
-        auto_flow,
-        GridAutoFlow::Column | GridAutoFlow::ColumnDense
-    );
+    let column_first = matches!(auto_flow, GridAutoFlow::Column | GridAutoFlow::ColumnDense);
 
     // Gaps. Per-axis longhands win over `gap`; otherwise default to 0.
     let gap_col = length::resolve(
@@ -126,10 +123,8 @@ pub(crate) fn layout_grid_children(
         .grid_template_columns
         .clone()
         .unwrap_or_default();
-    let explicit_rows: Vec<GridTrackSize> = parent_style
-        .grid_template_rows
-        .clone()
-        .unwrap_or_default();
+    let explicit_rows: Vec<GridTrackSize> =
+        parent_style.grid_template_rows.clone().unwrap_or_default();
     let auto_col_size = parent_style
         .grid_auto_columns
         .clone()
@@ -263,21 +258,20 @@ pub(crate) fn layout_grid_children(
         let cell_w = sum_track_extent(&col_widths, item.col_start, item.col_end, gap_col);
         let cell_h = sum_track_extent(&row_heights, item.row_start, item.row_end, gap_row);
 
-        let justify = resolve_justify_self(
-            item.justify_self.as_ref(),
-            &default_justify_items,
-        );
+        let justify = resolve_justify_self(item.justify_self.as_ref(), &default_justify_items);
         let align = resolve_align_self(item.align_self.as_ref(), &default_align_items);
 
-        let stretch_x = matches!(justify, ResolvedAxis::Stretch)
-            && !item.has_explicit_inline_size;
-        let stretch_y =
-            matches!(align, ResolvedAxis::Stretch) && !item.has_explicit_block_size;
+        let stretch_x = matches!(justify, ResolvedAxis::Stretch) && !item.has_explicit_inline_size;
+        let stretch_y = matches!(align, ResolvedAxis::Stretch) && !item.has_explicit_block_size;
 
         // Re-lay the item if the placement requires stretching to the
         // cell on either axis. Otherwise reuse the box from phase 5.
         let mut child_box = if stretch_x || stretch_y {
-            let target_w = if stretch_x { Some(cell_w) } else { Some(item.measured_w) };
+            let target_w = if stretch_x {
+                Some(cell_w)
+            } else {
+                Some(item.measured_w)
+            };
             let target_h = if stretch_y { Some(cell_h) } else { None };
             layout_block_at_with(
                 item.node,
@@ -823,7 +817,10 @@ fn resolve_track_sizes(
             // item's measurement: the auto tracks need to cover only
             // what's left.
             let span_len = end - start;
-            let fixed_sum: f32 = (start..end).filter(|&i| !is_auto[i]).map(|i| sizes[i]).sum();
+            let fixed_sum: f32 = (start..end)
+                .filter(|&i| !is_auto[i])
+                .map(|i| sizes[i])
+                .sum();
             let gaps = gap * (span_len as f32 - 1.0).max(0.0);
             let needed = (measure - fixed_sum - gaps).max(0.0);
             // Distribute proportionally to current auto track sizes,
@@ -849,8 +846,7 @@ fn resolve_track_sizes(
 
     // Pass 3: distribute remainder to `fr` tracks.
     if is_fr.iter().any(|&b| b) {
-        let used: f32 =
-            sizes.iter().sum::<f32>() + gap * (n as f32 - 1.0).max(0.0);
+        let used: f32 = sizes.iter().sum::<f32>() + gap * (n as f32 - 1.0).max(0.0);
         let free = (container_extent - used).max(0.0);
         let total_factor: f32 = fr_factor.iter().sum();
         if total_factor > EPS && free > 0.0 {
@@ -916,11 +912,7 @@ fn sum_track_extent(tracks: &[f32], start: usize, end: usize, gap: f32) -> f32 {
 
 /// Build cumulative offsets for each track, including gaps and any
 /// extra distribution between tracks (e.g. from `space-between`).
-fn cumulative_track_positions(
-    sizes: &[f32],
-    gap: f32,
-    extra_between: f32,
-) -> Vec<f32> {
+fn cumulative_track_positions(sizes: &[f32], gap: f32, extra_between: f32) -> Vec<f32> {
     let mut out = Vec::with_capacity(sizes.len() + 1);
     let mut cursor = 0.0_f32;
     for (i, s) in sizes.iter().enumerate() {
@@ -960,10 +952,7 @@ fn resolve_align_self(item: Option<&AlignSelf>, parent: &AlignItems) -> Resolved
     }
 }
 
-fn resolve_justify_self(
-    item: Option<&JustifySelf>,
-    parent: &JustifyItems,
-) -> ResolvedAxis {
+fn resolve_justify_self(item: Option<&JustifySelf>, parent: &JustifyItems) -> ResolvedAxis {
     let effective = match item {
         Some(JustifySelf::Auto) | None => JustifyItems_to_JustifySelf(parent),
         Some(other) => other.clone(),

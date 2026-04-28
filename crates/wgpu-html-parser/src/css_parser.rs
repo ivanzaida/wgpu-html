@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::*;
+use wgpu_html_models::Style;
 
 use crate::style_props::clear_value_for;
 
@@ -159,32 +159,98 @@ fn overlay(dst: &mut Style, src: &Style) {
         };
     }
     overlay_fields!(
-        display, position,
-        top, right, bottom, left,
-        width, height, min_width, min_height, max_width, max_height,
-        margin, margin_top, margin_right, margin_bottom, margin_left,
-        padding, padding_top, padding_right, padding_bottom, padding_left,
+        display,
+        position,
+        top,
+        right,
+        bottom,
+        left,
+        width,
+        height,
+        min_width,
+        min_height,
+        max_width,
+        max_height,
+        margin,
+        margin_top,
+        margin_right,
+        margin_bottom,
+        margin_left,
+        padding,
+        padding_top,
+        padding_right,
+        padding_bottom,
+        padding_left,
         color,
-        background, background_color, background_image, background_size,
-        background_position, background_repeat, background_clip,
+        background,
+        background_color,
+        background_image,
+        background_size,
+        background_position,
+        background_repeat,
+        background_clip,
         border,
-        border_top_width, border_right_width, border_bottom_width, border_left_width,
-        border_top_style, border_right_style, border_bottom_style, border_left_style,
-        border_top_color, border_right_color, border_bottom_color, border_left_color,
-        border_top_left_radius, border_top_right_radius,
-        border_bottom_right_radius, border_bottom_left_radius,
-        border_top_left_radius_v, border_top_right_radius_v,
-        border_bottom_right_radius_v, border_bottom_left_radius_v,
-        font_family, font_size, font_weight, font_style,
-        line_height, letter_spacing, text_align, text_decoration,
-        text_transform, white_space,
-        overflow, overflow_x, overflow_y, opacity, visibility, z_index,
-        flex_direction, flex_wrap, justify_content, align_items, align_content,
-        gap, row_gap, column_gap,
-        flex, flex_grow, flex_shrink, flex_basis,
-        grid_template_columns, grid_template_rows, grid_column, grid_row,
-        transform, transform_origin, transition, animation,
-        cursor, pointer_events, user_select, box_shadow, box_sizing,
+        border_top_width,
+        border_right_width,
+        border_bottom_width,
+        border_left_width,
+        border_top_style,
+        border_right_style,
+        border_bottom_style,
+        border_left_style,
+        border_top_color,
+        border_right_color,
+        border_bottom_color,
+        border_left_color,
+        border_top_left_radius,
+        border_top_right_radius,
+        border_bottom_right_radius,
+        border_bottom_left_radius,
+        border_top_left_radius_v,
+        border_top_right_radius_v,
+        border_bottom_right_radius_v,
+        border_bottom_left_radius_v,
+        font_family,
+        font_size,
+        font_weight,
+        font_style,
+        line_height,
+        letter_spacing,
+        text_align,
+        text_decoration,
+        text_transform,
+        white_space,
+        overflow,
+        overflow_x,
+        overflow_y,
+        opacity,
+        visibility,
+        z_index,
+        flex_direction,
+        flex_wrap,
+        justify_content,
+        align_items,
+        align_content,
+        gap,
+        row_gap,
+        column_gap,
+        flex,
+        flex_grow,
+        flex_shrink,
+        flex_basis,
+        grid_template_columns,
+        grid_template_rows,
+        grid_column,
+        grid_row,
+        transform,
+        transform_origin,
+        transition,
+        animation,
+        cursor,
+        pointer_events,
+        user_select,
+        box_shadow,
+        box_sizing,
     );
 }
 
@@ -233,7 +299,7 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "color" => style.color = parse_css_color(value),
         "background" => style.background = Some(value.to_string()),
         "background-color" => style.background_color = parse_css_color(value),
-        "background-image" => style.background_image = Some(value.to_string()),
+        "background-image" => style.background_image = parse_css_image(value),
         "background-size" => style.background_size = Some(value.to_string()),
         "background-position" => style.background_position = Some(value.to_string()),
         "background-repeat" => style.background_repeat = parse_background_repeat(value),
@@ -396,24 +462,48 @@ fn parse_border_side_shorthand(value: &str, style: &mut Style, side: Side) {
     let (w, s, c) = parse_border_pieces(value);
     match side {
         Side::Top => {
-            if let Some(w) = w { style.border_top_width = Some(w); }
-            if let Some(s) = s { style.border_top_style = Some(s); }
-            if let Some(c) = c { style.border_top_color = Some(c); }
+            if let Some(w) = w {
+                style.border_top_width = Some(w);
+            }
+            if let Some(s) = s {
+                style.border_top_style = Some(s);
+            }
+            if let Some(c) = c {
+                style.border_top_color = Some(c);
+            }
         }
         Side::Right => {
-            if let Some(w) = w { style.border_right_width = Some(w); }
-            if let Some(s) = s { style.border_right_style = Some(s); }
-            if let Some(c) = c { style.border_right_color = Some(c); }
+            if let Some(w) = w {
+                style.border_right_width = Some(w);
+            }
+            if let Some(s) = s {
+                style.border_right_style = Some(s);
+            }
+            if let Some(c) = c {
+                style.border_right_color = Some(c);
+            }
         }
         Side::Bottom => {
-            if let Some(w) = w { style.border_bottom_width = Some(w); }
-            if let Some(s) = s { style.border_bottom_style = Some(s); }
-            if let Some(c) = c { style.border_bottom_color = Some(c); }
+            if let Some(w) = w {
+                style.border_bottom_width = Some(w);
+            }
+            if let Some(s) = s {
+                style.border_bottom_style = Some(s);
+            }
+            if let Some(c) = c {
+                style.border_bottom_color = Some(c);
+            }
         }
         Side::Left => {
-            if let Some(w) = w { style.border_left_width = Some(w); }
-            if let Some(s) = s { style.border_left_style = Some(s); }
-            if let Some(c) = c { style.border_left_color = Some(c); }
+            if let Some(w) = w {
+                style.border_left_width = Some(w);
+            }
+            if let Some(s) = s {
+                style.border_left_style = Some(s);
+            }
+            if let Some(c) = c {
+                style.border_left_color = Some(c);
+            }
         }
     }
 }
@@ -494,28 +584,52 @@ fn split_top_level_whitespace(value: &str) -> Vec<&str> {
 /// `border-width: 1 / 2 / 3 / 4 values` → fans into the four per-side widths.
 fn apply_border_widths(value: &str, style: &mut Style) {
     let (t, r, b, l) = parse_box_shorthand(value);
-    if let Some(t) = t { style.border_top_width = Some(t); }
-    if let Some(r) = r { style.border_right_width = Some(r); }
-    if let Some(b) = b { style.border_bottom_width = Some(b); }
-    if let Some(l) = l { style.border_left_width = Some(l); }
+    if let Some(t) = t {
+        style.border_top_width = Some(t);
+    }
+    if let Some(r) = r {
+        style.border_right_width = Some(r);
+    }
+    if let Some(b) = b {
+        style.border_bottom_width = Some(b);
+    }
+    if let Some(l) = l {
+        style.border_left_width = Some(l);
+    }
 }
 
 /// `border-style: 1 / 2 / 3 / 4 values` → fans into the four per-side styles.
 fn apply_border_styles(value: &str, style: &mut Style) {
     let (t, r, b, l) = parse_keyword_box_shorthand(value, parse_border_style);
-    if let Some(t) = t { style.border_top_style = Some(t); }
-    if let Some(r) = r { style.border_right_style = Some(r); }
-    if let Some(b) = b { style.border_bottom_style = Some(b); }
-    if let Some(l) = l { style.border_left_style = Some(l); }
+    if let Some(t) = t {
+        style.border_top_style = Some(t);
+    }
+    if let Some(r) = r {
+        style.border_right_style = Some(r);
+    }
+    if let Some(b) = b {
+        style.border_bottom_style = Some(b);
+    }
+    if let Some(l) = l {
+        style.border_left_style = Some(l);
+    }
 }
 
 /// `border-color: 1 / 2 / 3 / 4 values` → fans into the four per-side colors.
 fn apply_border_colors(value: &str, style: &mut Style) {
     let (t, r, b, l) = parse_keyword_box_shorthand(value, parse_css_color);
-    if let Some(t) = t { style.border_top_color = Some(t); }
-    if let Some(r) = r { style.border_right_color = Some(r); }
-    if let Some(b) = b { style.border_bottom_color = Some(b); }
-    if let Some(l) = l { style.border_left_color = Some(l); }
+    if let Some(t) = t {
+        style.border_top_color = Some(t);
+    }
+    if let Some(r) = r {
+        style.border_right_color = Some(r);
+    }
+    if let Some(b) = b {
+        style.border_bottom_color = Some(b);
+    }
+    if let Some(l) = l {
+        style.border_left_color = Some(l);
+    }
 }
 
 /// `border-radius: <h-list> [ / <v-list> ]` — each list 1..4 values in
@@ -529,29 +643,60 @@ fn apply_border_radii(value: &str, style: &mut Style) {
     };
 
     let (h_tl, h_tr, h_br, h_bl) = expand_corner_list(h_part);
-    if let Some(v) = h_tl.clone() { style.border_top_left_radius = Some(v); }
-    if let Some(v) = h_tr.clone() { style.border_top_right_radius = Some(v); }
-    if let Some(v) = h_br.clone() { style.border_bottom_right_radius = Some(v); }
-    if let Some(v) = h_bl.clone() { style.border_bottom_left_radius = Some(v); }
+    if let Some(v) = h_tl.clone() {
+        style.border_top_left_radius = Some(v);
+    }
+    if let Some(v) = h_tr.clone() {
+        style.border_top_right_radius = Some(v);
+    }
+    if let Some(v) = h_br.clone() {
+        style.border_bottom_right_radius = Some(v);
+    }
+    if let Some(v) = h_bl.clone() {
+        style.border_bottom_left_radius = Some(v);
+    }
 
     if let Some(v_str) = v_part {
         let (v_tl, v_tr, v_br, v_bl) = expand_corner_list(v_str);
-        if let Some(v) = v_tl { style.border_top_left_radius_v = Some(v); }
-        if let Some(v) = v_tr { style.border_top_right_radius_v = Some(v); }
-        if let Some(v) = v_br { style.border_bottom_right_radius_v = Some(v); }
-        if let Some(v) = v_bl { style.border_bottom_left_radius_v = Some(v); }
+        if let Some(v) = v_tl {
+            style.border_top_left_radius_v = Some(v);
+        }
+        if let Some(v) = v_tr {
+            style.border_top_right_radius_v = Some(v);
+        }
+        if let Some(v) = v_br {
+            style.border_bottom_right_radius_v = Some(v);
+        }
+        if let Some(v) = v_bl {
+            style.border_bottom_left_radius_v = Some(v);
+        }
     } else {
         // Without a slash, the vertical axis equals the horizontal one.
-        if let Some(v) = h_tl { style.border_top_left_radius_v = Some(v); }
-        if let Some(v) = h_tr { style.border_top_right_radius_v = Some(v); }
-        if let Some(v) = h_br { style.border_bottom_right_radius_v = Some(v); }
-        if let Some(v) = h_bl { style.border_bottom_left_radius_v = Some(v); }
+        if let Some(v) = h_tl {
+            style.border_top_left_radius_v = Some(v);
+        }
+        if let Some(v) = h_tr {
+            style.border_top_right_radius_v = Some(v);
+        }
+        if let Some(v) = h_br {
+            style.border_bottom_right_radius_v = Some(v);
+        }
+        if let Some(v) = h_bl {
+            style.border_bottom_left_radius_v = Some(v);
+        }
     }
 }
 
 /// Expand a 1..4-value space-separated CSS length list to per-corner
 /// `(TL, TR, BR, BL)`.
-fn expand_corner_list(value: &str) -> (Option<CssLength>, Option<CssLength>, Option<CssLength>, Option<CssLength>) {
+fn expand_corner_list(
+    value: &str,
+) -> (
+    Option<CssLength>,
+    Option<CssLength>,
+    Option<CssLength>,
+    Option<CssLength>,
+) {
     let parts: Vec<&str> = value.split_whitespace().collect();
     match parts.len() {
         0 => (None, None, None, None),
@@ -586,7 +731,7 @@ fn apply_corner_radius(
     h_field: &mut Option<CssLength>,
     v_field: &mut Option<CssLength>,
 ) {
-    let parts: Vec<&str> = value.split_whitespace().collect();
+    let parts = split_top_level_whitespace(value);
     match parts.len() {
         0 => {}
         1 => {
@@ -608,7 +753,7 @@ fn parse_keyword_box_shorthand<T: Clone>(
     value: &str,
     parse_one: fn(&str) -> Option<T>,
 ) -> (Option<T>, Option<T>, Option<T>, Option<T>) {
-    let parts: Vec<&str> = value.split_whitespace().collect();
+    let parts = split_top_level_whitespace(value);
     match parts.len() {
         0 => (None, None, None, None),
         1 => {
@@ -656,8 +801,13 @@ fn parse_definite_length(token: &str) -> Option<CssLength> {
 /// becomes `None` for that side.
 pub fn parse_box_shorthand(
     value: &str,
-) -> (Option<CssLength>, Option<CssLength>, Option<CssLength>, Option<CssLength>) {
-    let parts: Vec<&str> = value.split_whitespace().collect();
+) -> (
+    Option<CssLength>,
+    Option<CssLength>,
+    Option<CssLength>,
+    Option<CssLength>,
+) {
+    let parts = split_top_level_whitespace(value);
     match parts.len() {
         1 => {
             let v = parse_css_length(parts[0]);
@@ -686,11 +836,62 @@ pub fn parse_box_shorthand(
 
 pub fn parse_css_length(value: &str) -> Option<CssLength> {
     let v = value.trim();
+    if v.is_empty() {
+        return None;
+    }
     if v.eq_ignore_ascii_case("auto") {
         return Some(CssLength::Auto);
     }
     if v == "0" {
         return Some(CssLength::Zero);
+    }
+    if let Some(inner) = strip_func(v, "calc") {
+        if let Some(expr) = parse_css_math_expr(inner) {
+            return Some(CssLength::Calc(Box::new(expr)));
+        }
+        return Some(CssLength::Raw(v.to_string()));
+    }
+    if let Some(inner) = strip_func(v, "min") {
+        let args: Vec<CssLength> = split_top_level_commas(inner)
+            .into_iter()
+            .filter_map(parse_css_length)
+            .collect();
+        if !args.is_empty() {
+            return Some(CssLength::Min(args));
+        }
+        return Some(CssLength::Raw(v.to_string()));
+    }
+    if let Some(inner) = strip_func(v, "max") {
+        let args: Vec<CssLength> = split_top_level_commas(inner)
+            .into_iter()
+            .filter_map(parse_css_length)
+            .collect();
+        if !args.is_empty() {
+            return Some(CssLength::Max(args));
+        }
+        return Some(CssLength::Raw(v.to_string()));
+    }
+    if let Some(inner) = strip_func(v, "clamp") {
+        let args: Vec<CssLength> = split_top_level_commas(inner)
+            .into_iter()
+            .filter_map(parse_css_length)
+            .collect();
+        if args.len() == 3 {
+            return Some(CssLength::Clamp {
+                min: Box::new(args[0].clone()),
+                preferred: Box::new(args[1].clone()),
+                max: Box::new(args[2].clone()),
+            });
+        }
+        return Some(CssLength::Raw(v.to_string()));
+    }
+    if let Some(inner) = strip_func(v, "fit-content") {
+        return parse_css_length(inner).or_else(|| Some(CssLength::Raw(v.to_string())));
+    }
+    if is_numeric_function_value(v) {
+        if let Some(expr) = parse_css_math_expr(v) {
+            return Some(CssLength::Calc(Box::new(expr)));
+        }
     }
     if let Some(s) = v.strip_suffix("px") {
         return s.trim().parse::<f32>().ok().map(CssLength::Px);
@@ -720,6 +921,261 @@ pub fn parse_css_length(value: &str) -> Option<CssLength> {
     Some(CssLength::Raw(v.to_string()))
 }
 
+fn is_numeric_function_value(v: &str) -> bool {
+    let Some(open) = v.find('(') else {
+        return false;
+    };
+    let name = v[..open].trim();
+    numeric_function_from_name(name).is_some() && v.ends_with(')')
+}
+
+fn parse_css_math_expr(input: &str) -> Option<CssMathExpr> {
+    let mut parser = MathParser::new(input);
+    let expr = parser.parse_sum()?;
+    parser.skip_ws();
+    if parser.is_eof() {
+        Some(expr)
+    } else {
+        None
+    }
+}
+
+struct MathParser<'a> {
+    input: &'a str,
+    pos: usize,
+}
+
+impl<'a> MathParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, pos: 0 }
+    }
+
+    fn parse_sum(&mut self) -> Option<CssMathExpr> {
+        let mut lhs = self.parse_product()?;
+        loop {
+            self.skip_ws();
+            if self.consume_char('+') {
+                let rhs = self.parse_product()?;
+                lhs = CssMathExpr::Add(Box::new(lhs), Box::new(rhs));
+            } else if self.consume_char('-') {
+                let rhs = self.parse_product()?;
+                lhs = CssMathExpr::Sub(Box::new(lhs), Box::new(rhs));
+            } else {
+                return Some(lhs);
+            }
+        }
+    }
+
+    fn parse_product(&mut self) -> Option<CssMathExpr> {
+        let mut lhs = self.parse_unary()?;
+        loop {
+            self.skip_ws();
+            if self.consume_char('*') {
+                let rhs = self.parse_unary()?;
+                lhs = CssMathExpr::Mul(Box::new(lhs), Box::new(rhs));
+            } else if self.consume_char('/') {
+                let rhs = self.parse_unary()?;
+                lhs = CssMathExpr::Div(Box::new(lhs), Box::new(rhs));
+            } else {
+                return Some(lhs);
+            }
+        }
+    }
+
+    fn parse_unary(&mut self) -> Option<CssMathExpr> {
+        self.skip_ws();
+        if self.consume_char('+') {
+            return self.parse_unary();
+        }
+        if self.consume_char('-') {
+            let rhs = self.parse_unary()?;
+            return Some(CssMathExpr::Sub(
+                Box::new(CssMathExpr::Number(0.0)),
+                Box::new(rhs),
+            ));
+        }
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Option<CssMathExpr> {
+        self.skip_ws();
+        if self.consume_char('(') {
+            let inner = self.parse_sum()?;
+            self.skip_ws();
+            return self.consume_char(')').then_some(inner);
+        }
+
+        let start = self.pos;
+        let ch = self.peek_char()?;
+        if ch.is_ascii_alphabetic() || ch == '_' {
+            let name = self.consume_ident();
+            self.skip_ws();
+            if self.consume_char('(') {
+                let args_start = self.pos;
+                let mut depth = 1i32;
+                while let Some(c) = self.next_char() {
+                    match c {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                let args = &self.input[args_start..self.pos - 1];
+                                return self.parse_function(&name, args);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                return None;
+            }
+            self.pos = start;
+        }
+
+        self.parse_numeric_or_length()
+    }
+
+    fn parse_function(&self, name: &str, args: &str) -> Option<CssMathExpr> {
+        let fn_kind = numeric_function_from_name(name)?;
+        let parsed: Vec<CssMathExpr> = split_top_level_commas(args)
+            .into_iter()
+            .map(parse_css_math_expr)
+            .collect::<Option<Vec<_>>>()?;
+        Some(CssMathExpr::Function(fn_kind, parsed))
+    }
+
+    fn parse_numeric_or_length(&mut self) -> Option<CssMathExpr> {
+        let start = self.pos;
+        let _number = self.consume_number_text()?;
+        let unit_start = self.pos;
+        while let Some(c) = self.peek_char() {
+            if c.is_ascii_alphabetic() || c == '%' {
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+        let token = &self.input[start..self.pos];
+        if self.pos > unit_start {
+            return parse_css_length(token).map(CssMathExpr::Length);
+        }
+        token.parse::<f32>().ok().map(CssMathExpr::Number)
+    }
+
+    fn consume_number_text(&mut self) -> Option<&'a str> {
+        let start = self.pos;
+        if matches!(self.peek_char(), Some('+') | Some('-')) {
+            self.next_char();
+        }
+        let mut saw_digit = false;
+        while let Some(c) = self.peek_char() {
+            if c.is_ascii_digit() {
+                saw_digit = true;
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+        if self.consume_char('.') {
+            while let Some(c) = self.peek_char() {
+                if c.is_ascii_digit() {
+                    saw_digit = true;
+                    self.next_char();
+                } else {
+                    break;
+                }
+            }
+        }
+        if !saw_digit {
+            self.pos = start;
+            return None;
+        }
+        if matches!(self.peek_char(), Some('e') | Some('E')) {
+            let exp_start = self.pos;
+            self.next_char();
+            if matches!(self.peek_char(), Some('+') | Some('-')) {
+                self.next_char();
+            }
+            let mut saw_exp_digit = false;
+            while let Some(c) = self.peek_char() {
+                if c.is_ascii_digit() {
+                    saw_exp_digit = true;
+                    self.next_char();
+                } else {
+                    break;
+                }
+            }
+            if !saw_exp_digit {
+                self.pos = exp_start;
+            }
+        }
+        Some(&self.input[start..self.pos])
+    }
+
+    fn consume_ident(&mut self) -> String {
+        let start = self.pos;
+        while let Some(c) = self.peek_char() {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+        self.input[start..self.pos].to_string()
+    }
+
+    fn skip_ws(&mut self) {
+        while matches!(self.peek_char(), Some(c) if c.is_whitespace()) {
+            self.next_char();
+        }
+    }
+
+    fn consume_char(&mut self, expected: char) -> bool {
+        if self.peek_char() == Some(expected) {
+            self.next_char();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        self.input[self.pos..].chars().next()
+    }
+
+    fn next_char(&mut self) -> Option<char> {
+        let c = self.peek_char()?;
+        self.pos += c.len_utf8();
+        Some(c)
+    }
+
+    fn is_eof(&self) -> bool {
+        self.pos >= self.input.len()
+    }
+}
+
+fn numeric_function_from_name(name: &str) -> Option<CssNumericFunction> {
+    match name.to_ascii_lowercase().as_str() {
+        "sin" => Some(CssNumericFunction::Sin),
+        "cos" => Some(CssNumericFunction::Cos),
+        "tan" => Some(CssNumericFunction::Tan),
+        "asin" => Some(CssNumericFunction::Asin),
+        "acos" => Some(CssNumericFunction::Acos),
+        "atan" => Some(CssNumericFunction::Atan),
+        "atan2" => Some(CssNumericFunction::Atan2),
+        "pow" => Some(CssNumericFunction::Pow),
+        "sqrt" => Some(CssNumericFunction::Sqrt),
+        "hypot" => Some(CssNumericFunction::Hypot),
+        "log" => Some(CssNumericFunction::Log),
+        "exp" => Some(CssNumericFunction::Exp),
+        "abs" => Some(CssNumericFunction::Abs),
+        "sign" => Some(CssNumericFunction::Sign),
+        "mod" => Some(CssNumericFunction::Mod),
+        "rem" => Some(CssNumericFunction::Rem),
+        "round" => Some(CssNumericFunction::Round),
+        _ => None,
+    }
+}
+
 /// Parse a CSS color value.
 pub fn parse_css_color(value: &str) -> Option<CssColor> {
     let v = value.trim();
@@ -732,51 +1188,84 @@ pub fn parse_css_color(value: &str) -> Option<CssColor> {
     if v.starts_with('#') {
         return Some(CssColor::Hex(v.to_string()));
     }
-    if let Some(inner) = strip_func(v, "rgba") {
-        let parts: Vec<&str> = inner.split(|c| c == ',' || c == '/').map(str::trim).collect();
-        if parts.len() >= 4 {
-            let r = parse_color_component(parts[0]);
-            let g = parse_color_component(parts[1]);
-            let b = parse_color_component(parts[2]);
-            let a = parts[3].parse::<f32>().unwrap_or(1.0);
-            return Some(CssColor::Rgba(r, g, b, a));
-        }
-    }
-    if let Some(inner) = strip_func(v, "rgb") {
-        let parts: Vec<&str> = inner.split(|c| c == ',' || c == ' ').map(str::trim).filter(|s| !s.is_empty()).collect();
+    if let Some(inner) = strip_func(v, "rgba").or_else(|| strip_func(v, "rgb")) {
+        let parts = split_color_function_args(inner);
         if parts.len() >= 3 {
             let r = parse_color_component(parts[0]);
             let g = parse_color_component(parts[1]);
             let b = parse_color_component(parts[2]);
-            if parts.len() >= 4 || inner.contains('/') {
-                let a_str = parts.last().unwrap_or(&"1");
-                let a = a_str.parse::<f32>().unwrap_or(1.0);
-                return Some(CssColor::Rgba(r, g, b, a));
+            if let Some(alpha) = parts.get(3).map(|s| parse_alpha_component(s)) {
+                return Some(CssColor::Rgba(r, g, b, alpha));
             }
             return Some(CssColor::Rgb(r, g, b));
         }
     }
-    if let Some(inner) = strip_func(v, "hsla") {
-        let parts: Vec<&str> = inner.split(|c| c == ',' || c == '/').map(str::trim).collect();
-        if parts.len() >= 4 {
-            let h = parts[0].trim_end_matches("deg").parse::<f32>().unwrap_or(0.0);
-            let s = parts[1].trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
-            let l = parts[2].trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
-            let a = parts[3].parse::<f32>().unwrap_or(1.0);
-            return Some(CssColor::Hsla(h, s, l, a));
-        }
-    }
-    if let Some(inner) = strip_func(v, "hsl") {
-        let parts: Vec<&str> = inner.split(|c| c == ',' || c == ' ').map(str::trim).filter(|s| !s.is_empty()).collect();
+    if let Some(inner) = strip_func(v, "hsla").or_else(|| strip_func(v, "hsl")) {
+        let parts = split_color_function_args(inner);
         if parts.len() >= 3 {
-            let h = parts[0].trim_end_matches("deg").parse::<f32>().unwrap_or(0.0);
+            let h = parse_hue_component(parts[0]);
             let s = parts[1].trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
             let l = parts[2].trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
+            if let Some(alpha) = parts.get(3).map(|s| parse_alpha_component(s)) {
+                return Some(CssColor::Hsla(h, s, l, alpha));
+            }
             return Some(CssColor::Hsl(h, s, l));
         }
     }
+    if is_preserved_color_function(v) {
+        return Some(CssColor::Function(v.to_string()));
+    }
     // Treat as named color
     Some(CssColor::Named(v.to_string()))
+}
+
+pub fn parse_css_image(value: &str) -> Option<CssImage> {
+    let v = value.trim();
+    if v.is_empty() || v.eq_ignore_ascii_case("none") {
+        return None;
+    }
+    if let Some(url) = parse_css_url(v) {
+        return Some(CssImage::Url(url));
+    }
+    if looks_like_function(v) {
+        return Some(CssImage::Function(v.to_string()));
+    }
+    None
+}
+
+pub fn parse_css_url(value: &str) -> Option<String> {
+    let inner = strip_function(value, "url")?;
+    let inner = inner.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let unquoted = if (inner.starts_with('"') && inner.ends_with('"'))
+        || (inner.starts_with('\'') && inner.ends_with('\''))
+    {
+        if inner.len() < 2 {
+            return None;
+        }
+        &inner[1..inner.len() - 1]
+    } else {
+        inner
+    };
+    let trimmed = unquoted.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn looks_like_function(value: &str) -> bool {
+    let trimmed = value.trim();
+    let Some(open) = trimmed.find('(') else {
+        return false;
+    };
+    trimmed.ends_with(')')
+        && trimmed[..open]
+            .chars()
+            .all(|c| c.is_ascii_alphabetic() || c == '-')
 }
 
 fn strip_func<'a>(value: &'a str, func_name: &str) -> Option<&'a str> {
@@ -796,10 +1285,66 @@ fn parse_color_component(s: &str) -> u8 {
     let s = s.trim();
     if let Some(pct) = s.strip_suffix('%') {
         let pct_val: f32 = pct.parse().unwrap_or(0.0);
-        (pct_val * 2.55).round() as u8
+        (pct_val * 2.55).round().clamp(0.0, 255.0) as u8
     } else {
-        s.parse().unwrap_or(0)
+        s.parse::<f32>().unwrap_or(0.0).round().clamp(0.0, 255.0) as u8
     }
+}
+
+fn parse_alpha_component(s: &str) -> f32 {
+    let s = s.trim();
+    if let Some(pct) = s.strip_suffix('%') {
+        pct.parse::<f32>().unwrap_or(100.0) / 100.0
+    } else {
+        s.parse::<f32>().unwrap_or(1.0)
+    }
+    .clamp(0.0, 1.0)
+}
+
+fn parse_hue_component(s: &str) -> f32 {
+    let s = s.trim();
+    if let Some(v) = s.strip_suffix("deg") {
+        v.trim().parse::<f32>().unwrap_or(0.0)
+    } else if let Some(v) = s.strip_suffix("rad") {
+        v.trim().parse::<f32>().unwrap_or(0.0).to_degrees()
+    } else if let Some(v) = s.strip_suffix("turn") {
+        v.trim().parse::<f32>().unwrap_or(0.0) * 360.0
+    } else {
+        s.parse::<f32>().unwrap_or(0.0)
+    }
+}
+
+fn split_color_function_args(inner: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, ch) in inner.char_indices() {
+        if ch == ',' || ch == '/' || ch.is_whitespace() {
+            if let Some(s) = start.take() {
+                out.push(inner[s..i].trim());
+            }
+        } else if start.is_none() {
+            start = Some(i);
+        }
+    }
+    if let Some(s) = start {
+        out.push(inner[s..].trim());
+    }
+    out.into_iter().filter(|s| !s.is_empty()).collect()
+}
+
+fn is_preserved_color_function(v: &str) -> bool {
+    [
+        "color",
+        "color-mix",
+        "hwb",
+        "lab",
+        "lch",
+        "oklab",
+        "oklch",
+        "light-dark",
+    ]
+    .iter()
+    .any(|name| strip_func(v, name).is_some())
 }
 
 fn parse_display(value: &str) -> Option<Display> {
@@ -1065,7 +1610,11 @@ fn parse_grid_auto_flow(value: &str) -> Option<GridAutoFlow> {
         (false, true) => Some(GridAutoFlow::RowDense),
         (false, false) => {
             // Empty token list is invalid; otherwise default to Row.
-            if tokens.is_empty() { None } else { Some(GridAutoFlow::Row) }
+            if tokens.is_empty() {
+                None
+            } else {
+                Some(GridAutoFlow::Row)
+            }
         }
     }
 }
@@ -1457,10 +2006,18 @@ mod tests {
     fn test_parse_css_length() {
         assert!(matches!(parse_css_length("auto"), Some(CssLength::Auto)));
         assert!(matches!(parse_css_length("0"), Some(CssLength::Zero)));
-        assert!(matches!(parse_css_length("10px"), Some(CssLength::Px(v)) if (v - 10.0).abs() < 0.01));
-        assert!(matches!(parse_css_length("50%"), Some(CssLength::Percent(v)) if (v - 50.0).abs() < 0.01));
-        assert!(matches!(parse_css_length("1.5em"), Some(CssLength::Em(v)) if (v - 1.5).abs() < 0.01));
-        assert!(matches!(parse_css_length("2rem"), Some(CssLength::Rem(v)) if (v - 2.0).abs() < 0.01));
+        assert!(
+            matches!(parse_css_length("10px"), Some(CssLength::Px(v)) if (v - 10.0).abs() < 0.01)
+        );
+        assert!(
+            matches!(parse_css_length("50%"), Some(CssLength::Percent(v)) if (v - 50.0).abs() < 0.01)
+        );
+        assert!(
+            matches!(parse_css_length("1.5em"), Some(CssLength::Em(v)) if (v - 1.5).abs() < 0.01)
+        );
+        assert!(
+            matches!(parse_css_length("2rem"), Some(CssLength::Rem(v)) if (v - 2.0).abs() < 0.01)
+        );
     }
 
     #[test]
@@ -1482,22 +2039,28 @@ mod tests {
 
     #[test]
     fn test_parse_css_color_transparent() {
-        assert!(matches!(parse_css_color("transparent"), Some(CssColor::Transparent)));
+        assert!(matches!(
+            parse_css_color("transparent"),
+            Some(CssColor::Transparent)
+        ));
     }
 
     #[test]
     fn test_font_weight_numeric() {
-        assert!(matches!(parse_font_weight("700"), Some(FontWeight::Weight(700))));
+        assert!(matches!(
+            parse_font_weight("700"),
+            Some(FontWeight::Weight(700))
+        ));
         assert!(matches!(parse_font_weight("bold"), Some(FontWeight::Bold)));
     }
 
     #[test]
     fn padding_shorthand_one_value() {
         let s = parse_inline_style("padding: 10px;");
-        assert!(matches!(s.padding_top,    Some(CssLength::Px(10.0))));
-        assert!(matches!(s.padding_right,  Some(CssLength::Px(10.0))));
+        assert!(matches!(s.padding_top, Some(CssLength::Px(10.0))));
+        assert!(matches!(s.padding_right, Some(CssLength::Px(10.0))));
         assert!(matches!(s.padding_bottom, Some(CssLength::Px(10.0))));
-        assert!(matches!(s.padding_left,   Some(CssLength::Px(10.0))));
+        assert!(matches!(s.padding_left, Some(CssLength::Px(10.0))));
         // shorthand field stays set so the merge layer's "shorthand clears
         // inherited per-side base" rule still fires.
         assert!(s.padding.is_some());
@@ -1506,28 +2069,28 @@ mod tests {
     #[test]
     fn padding_shorthand_two_values() {
         let s = parse_inline_style("padding: 6px 10px;");
-        assert!(matches!(s.padding_top,    Some(CssLength::Px(6.0))));
+        assert!(matches!(s.padding_top, Some(CssLength::Px(6.0))));
         assert!(matches!(s.padding_bottom, Some(CssLength::Px(6.0))));
-        assert!(matches!(s.padding_left,   Some(CssLength::Px(10.0))));
-        assert!(matches!(s.padding_right,  Some(CssLength::Px(10.0))));
+        assert!(matches!(s.padding_left, Some(CssLength::Px(10.0))));
+        assert!(matches!(s.padding_right, Some(CssLength::Px(10.0))));
     }
 
     #[test]
     fn padding_shorthand_three_values() {
         let s = parse_inline_style("padding: 1px 2px 3px;");
-        assert!(matches!(s.padding_top,    Some(CssLength::Px(1.0))));
-        assert!(matches!(s.padding_right,  Some(CssLength::Px(2.0))));
-        assert!(matches!(s.padding_left,   Some(CssLength::Px(2.0))));
+        assert!(matches!(s.padding_top, Some(CssLength::Px(1.0))));
+        assert!(matches!(s.padding_right, Some(CssLength::Px(2.0))));
+        assert!(matches!(s.padding_left, Some(CssLength::Px(2.0))));
         assert!(matches!(s.padding_bottom, Some(CssLength::Px(3.0))));
     }
 
     #[test]
     fn padding_shorthand_four_values() {
         let s = parse_inline_style("padding: 1px 2px 3px 4px;");
-        assert!(matches!(s.padding_top,    Some(CssLength::Px(1.0))));
-        assert!(matches!(s.padding_right,  Some(CssLength::Px(2.0))));
+        assert!(matches!(s.padding_top, Some(CssLength::Px(1.0))));
+        assert!(matches!(s.padding_right, Some(CssLength::Px(2.0))));
         assert!(matches!(s.padding_bottom, Some(CssLength::Px(3.0))));
-        assert!(matches!(s.padding_left,   Some(CssLength::Px(4.0))));
+        assert!(matches!(s.padding_left, Some(CssLength::Px(4.0))));
     }
 
     #[test]
@@ -1535,17 +2098,17 @@ mod tests {
         let s = parse_inline_style("margin: 1em 20px;");
         assert!(matches!(s.margin_top,    Some(CssLength::Em(v)) if (v - 1.0).abs() < 0.01));
         assert!(matches!(s.margin_bottom, Some(CssLength::Em(v)) if (v - 1.0).abs() < 0.01));
-        assert!(matches!(s.margin_left,   Some(CssLength::Px(20.0))));
-        assert!(matches!(s.margin_right,  Some(CssLength::Px(20.0))));
+        assert!(matches!(s.margin_left, Some(CssLength::Px(20.0))));
+        assert!(matches!(s.margin_right, Some(CssLength::Px(20.0))));
     }
 
     #[test]
     fn padding_shorthand_zero_and_auto() {
         let s = parse_inline_style("margin: 0 auto;");
-        assert!(matches!(s.margin_top,    Some(CssLength::Zero)));
+        assert!(matches!(s.margin_top, Some(CssLength::Zero)));
         assert!(matches!(s.margin_bottom, Some(CssLength::Zero)));
-        assert!(matches!(s.margin_left,   Some(CssLength::Auto)));
-        assert!(matches!(s.margin_right,  Some(CssLength::Auto)));
+        assert!(matches!(s.margin_left, Some(CssLength::Auto)));
+        assert!(matches!(s.margin_right, Some(CssLength::Auto)));
     }
 
     #[test]
@@ -1603,7 +2166,10 @@ mod tests {
         assert!(matches!(style.display, Some(Display::Grid)));
         assert!(matches!(style.position, Some(Position::Sticky)));
         assert!(matches!(style.flex_direction, Some(FlexDirection::Column)));
-        assert!(matches!(style.justify_content, Some(JustifyContent::SpaceBetween)));
+        assert!(matches!(
+            style.justify_content,
+            Some(JustifyContent::SpaceBetween)
+        ));
         assert!(matches!(style.align_items, Some(AlignItems::Center)));
         assert!(matches!(style.font_weight, Some(FontWeight::Weight(600))));
         assert!(matches!(style.opacity, Some(v) if (v - 0.8).abs() < 0.01));
@@ -1625,9 +2191,7 @@ mod tests {
 
     #[test]
     fn normal_and_important_in_same_block_split_by_property() {
-        let decls = parse_inline_style_decls(
-            "color: red !important; background-color: blue;",
-        );
+        let decls = parse_inline_style_decls("color: red !important; background-color: blue;");
         assert!(decls.normal.color.is_none());
         assert!(decls.normal.background_color.is_some());
         assert!(decls.important.color.is_some());

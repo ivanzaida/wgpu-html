@@ -26,17 +26,17 @@
 //!   wired through block layout — only the inline pass currently
 //!   tracks them).
 
-use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
     AlignContent, AlignItems, AlignSelf, BoxSizing, CssLength, FlexDirection, FlexWrap,
     JustifyContent,
 };
+use wgpu_html_models::Style;
 use wgpu_html_style::CascadedNode;
 use wgpu_html_tree::Element;
 
 use crate::{
-    BlockOverrides, Ctx, LayoutBox, is_auto_margin, layout_block_at_with, length,
-    translate_box_x_in_place, translate_box_y_in_place,
+    is_auto_margin, layout_block_at_with, length, translate_box_x_in_place,
+    translate_box_y_in_place, BlockOverrides, Ctx, LayoutBox,
 };
 
 // ---------------------------------------------------------------------------
@@ -73,10 +73,7 @@ pub(crate) fn layout_flex_children(
         .clone()
         .unwrap_or(AlignContent::Normal);
 
-    let is_row = matches!(
-        direction,
-        FlexDirection::Row | FlexDirection::RowReverse
-    );
+    let is_row = matches!(direction, FlexDirection::Row | FlexDirection::RowReverse);
     let is_dir_reverse = matches!(
         direction,
         FlexDirection::RowReverse | FlexDirection::ColumnReverse
@@ -266,8 +263,8 @@ pub(crate) fn layout_flex_children(
         // container has a definite cross size; with an indefinite
         // cross size lines stay at their max-of-items size.
         // ------------------------------------------------------------
-        let total_lines_cross: f32 = line_cross_sizes.iter().sum::<f32>()
-            + gap_cross * (lines.len() as f32 - 1.0).max(0.0);
+        let total_lines_cross: f32 =
+            line_cross_sizes.iter().sum::<f32>() + gap_cross * (lines.len() as f32 - 1.0).max(0.0);
         let cross_box = cross_axis_size.unwrap_or(total_lines_cross);
         let lines_free_cross = (cross_box - total_lines_cross).max(0.0);
         let (start, between, stretch_extra) = align_content_distribution(
@@ -320,10 +317,7 @@ pub(crate) fn layout_flex_children(
         let line_cross_pos = line_cross_positions[line_idx];
 
         // Items' total outer main + gaps used on this line.
-        let total_main: f32 = line
-            .iter()
-            .map(|&i| items[i].outer_main())
-            .sum::<f32>()
+        let total_main: f32 = line.iter().map(|&i| items[i].outer_main()).sum::<f32>()
             + gap_main * (line.len() as f32 - 1.0).max(0.0);
         let mut free_main = (main_axis_size - total_main).max(0.0);
 
@@ -341,8 +335,7 @@ pub(crate) fn layout_flex_children(
             0.0
         };
 
-        let (start_main, between_extra) =
-            distribution(&justify, free_main, line.len() as f32);
+        let (start_main, between_extra) = distribution(&justify, free_main, line.len() as f32);
 
         // Walk the line, placing each item at its main + cross
         // position. `*-reverse` direction flips the main axis after
@@ -398,9 +391,7 @@ pub(crate) fn layout_flex_children(
             // cross extent as the cross dimension. Only items with no
             // explicit cross style and no auto cross margins stretch.
             let mut child_box = if stretched {
-                let stretch_target = (line_cross_size
-                    - item.margin_cross_outer_known())
-                .max(0.0);
+                let stretch_target = (line_cross_size - item.margin_cross_outer_known()).max(0.0);
                 let overrides = if is_row {
                     BlockOverrides {
                         width: Some(item.resolved_main),
@@ -617,18 +608,8 @@ fn build_item<'a>(
     // Resolve insets. We keep the four sides separate so auto-margin
     // bookkeeping per axis is exact.
     let margin_top = side_margin(&style.margin_top, &style.margin, parent_inner_main, ctx);
-    let margin_right = side_margin(
-        &style.margin_right,
-        &style.margin,
-        parent_inner_main,
-        ctx,
-    );
-    let margin_bottom = side_margin(
-        &style.margin_bottom,
-        &style.margin,
-        parent_inner_main,
-        ctx,
-    );
+    let margin_right = side_margin(&style.margin_right, &style.margin, parent_inner_main, ctx);
+    let margin_bottom = side_margin(&style.margin_bottom, &style.margin, parent_inner_main, ctx);
     let margin_left = side_margin(&style.margin_left, &style.margin, parent_inner_main, ctx);
 
     let auto_top = is_auto_margin(&style.margin_top, &style.margin);
@@ -640,22 +621,13 @@ fn build_item<'a>(
         length::resolve(style.border_top_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
     let border_right =
         length::resolve(style.border_right_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
-    let border_bottom = length::resolve(
-        style.border_bottom_width.as_ref(),
-        parent_inner_main,
-        ctx,
-    )
-    .unwrap_or(0.0);
-    let border_left = length::resolve(style.border_left_width.as_ref(), parent_inner_main, ctx)
-        .unwrap_or(0.0);
+    let border_bottom =
+        length::resolve(style.border_bottom_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+    let border_left =
+        length::resolve(style.border_left_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
 
     let pad_top = side_pad(&style.padding_top, &style.padding, parent_inner_main, ctx);
-    let pad_right = side_pad(
-        &style.padding_right,
-        &style.padding,
-        parent_inner_main,
-        ctx,
-    );
+    let pad_right = side_pad(&style.padding_right, &style.padding, parent_inner_main, ctx);
     let pad_bottom = side_pad(
         &style.padding_bottom,
         &style.padding,
@@ -741,17 +713,8 @@ fn build_item<'a>(
         style.width.as_ref()
     };
     let parent_cross_for_pct = parent_inner_cross.unwrap_or(0.0);
-    let has_explicit_cross_size = matches!(
-        cross_size_prop,
-        Some(CssLength::Px(_))
-            | Some(CssLength::Percent(_))
-            | Some(CssLength::Em(_))
-            | Some(CssLength::Rem(_))
-            | Some(CssLength::Vw(_))
-            | Some(CssLength::Vh(_))
-            | Some(CssLength::Vmin(_))
-            | Some(CssLength::Vmax(_))
-    ) && length::resolve(cross_size_prop, parent_cross_for_pct, ctx).is_some();
+    let has_explicit_cross_size =
+        length::resolve(cross_size_prop, parent_cross_for_pct, ctx).is_some();
 
     FlexItem {
         node,
@@ -884,9 +847,8 @@ fn resolve_flexible_lengths(
         return;
     }
 
-    let frame_outer = |it: &FlexItem| -> f32 {
-        it.frame_main + it.margin_main_start + it.margin_main_end
-    };
+    let frame_outer =
+        |it: &FlexItem| -> f32 { it.frame_main + it.margin_main_start + it.margin_main_end };
     let gap_total = gap_main * (line.len() as f32 - 1.0).max(0.0);
 
     for _ in 0..(line.len() + 1) {

@@ -38,33 +38,50 @@ The decoder is the `image` crate, configured (`Cargo.toml`) with
 | JPEG   | `.jpg/.jpeg` | Baseline + progressive             |
 | GIF    | `.gif`       | Animated; multi-frame, with delays |
 | BMP    | `.bmp`       | Uncompressed                       |
-| WebP   | `.webp`      | Lossy + lossless still images only |
+| WebP   | `.webp`      | Animated; multi-frame, with delays |
 
-Formats not in the feature list (TIFF, AVIF, HDR, animated WebP,
-SVG, …) are not decoded; they fail to load and show as a missing
-image (`load_image` returns `None`). Add the matching `image`
-crate feature (and a per-format frame iterator next to
+Formats not in the feature list (TIFF, AVIF, HDR, SVG, …) are not
+decoded; they fail to load and show as a missing image
+(`load_image` returns `None`). Add the matching `image` crate
+feature (and a per-format frame iterator next to
 `decode_animated_gif` if it's animated) to enable more.
 
 ## 3. Schemes
 
-`load_image_url` (in `crates/wgpu-html-layout/src/lib.rs`) dispatches
-on the `src` prefix:
+`fetch_image_bytes` (in `crates/wgpu-html-layout/src/lib.rs`)
+dispatches on the `src` prefix:
 
-- **`http://` / `https://`** — fetched with `ureq` (rustls TLS).
-  Response bodies are capped at 32 MiB to bound memory.
+- **`http://` / `https://`** — fetched with `ureq` (rustls TLS)
+  via `fetch_remote`. Manual redirect following supports
+  cross-scheme hops (http↔https) up to `MAX_REDIRECTS` (5).
+  Response bodies are capped at 32 MiB to bound memory. Per-URL
+  fetches retry up to `MAX_FETCH_ATTEMPTS` (3) with exponential
+  backoff (200 ms → 400 ms → 800 ms) before declaring `Failed`.
+- **`data:` URIs** — base64 and percent-encoded payloads decoded
+  inline (`fetch_data_uri`). MIME type is ignored; the decoder
+  sniffs format from the bytes.
 - **Anything else** — treated as a local filesystem path and read
   with `std::fs::read`.
 
-In both cases the actual fetch+decode runs on a small bounded
+In every case the actual fetch+decode runs on the small bounded
 worker pool — never on the layout thread. The first call for a URL
 inserts a `Pending` entry and submits a job to the pool; subsequent
 calls return `None` while `Pending` and the cached result once
 `Ready`. Failures are cached as `Failed` for the TTL window before
 being retried.
 
-`data:` URIs, `file://` URLs, redirects across schemes, and HTTP
-caching headers (ETag / Cache-Control) are not yet supported.
+HTTP `Cache-Control: max-age` (and the `Date` / `Expires` pair as
+fallback) is parsed off remote responses and stored on the cache
+entry. `sweep_image_cache` honours the per-entry max-age over the
+global TTL, so long-cached CDN assets stay warm for hours and
+`Cache-Control: no-store` / `no-cache` resources evict on the next
+sweep.
+
+`file://` URLs, full HTTP conditional GETs (`If-None-Match` /
+`If-Modified-Since` revalidation against still-cached bytes), and
+`Cache-Control: must-revalidate` enforcement are still TODO — only
+the freshness window is honoured today, not the conditional-GET
+optimisation on stale entries.
 
 ## 4. Sizing
 
@@ -135,16 +152,24 @@ load_image
             return None (placeholder)
 ```
 
-A small bounded pool of `FETCH_POOL_WORKERS` (currently `4`)
-persistent worker threads is initialised lazily on first job
-submission. The `pool_sender()` is a single `Sender<String>`; each
-worker shares a single `Arc<Mutex<Receiver<String>>>` and pulls
-URLs off it in a loop. For each URL the worker calls
-`fetch_image_bytes` + `decode_asset` (which routes GIFs through
-`decode_animated_gif` and everything else through the single-frame
-path), writes the outcome (`Ready(asset)` / `Failed`) into
-`raw_cache`, and bumps an `AtomicU64` exposed as
-`image_load_revision()`.
+A small bounded pool of persistent worker threads (default size
+`DEFAULT_POOL_WORKERS = 4`, tunable via `set_image_pool_size(n)`)
+is initialised lazily on first job submission. The pool size is
+**grow-only**: requesting a larger value spawns the additional
+workers immediately; shrinking is a no-op (workers are cheap idle
+and the simpler lifecycle is worth keeping). The `pool_sender()`
+is a single `Sender<String>`; each worker shares a single
+`Arc<Mutex<Receiver<String>>>` and pulls URLs off it in a loop.
+For each URL the worker calls `fetch_with_retry` (which wraps
+`fetch_image_bytes` with bounded exponential backoff) + then
+`decode_asset` (routing GIFs through `decode_animated_gif`,
+WebPs through `decode_animated_webp`, everything else through
+the single-frame path), writes the outcome — `Ready(asset)` with
+captured `max_age` metadata, or `Failed` — into `raw_cache`, and
+bumps an `AtomicU64` exposed as `image_load_revision()`. After
+every insert it calls `enforce_image_cache_budget()` so a flood of
+large remote fetches can't push memory past the configured
+[byte budget](#7a-byte-budget-eviction) between periodic sweeps.
 
 Both http(s) URLs and local filesystem paths flow through the same
 pool — the dispatch on scheme happens inside `fetch_image_bytes` on
@@ -168,12 +193,16 @@ no-op — so it's cheap to leave in place. `preload_image` is also
 exposed as a public free function for ad-hoc calls outside a
 `Tree` context.
 
-## 6a. Animated images (GIF)
+## 6a. Animated images (GIF + WebP)
 
-GIF is decoded as a sequence of fully-composited RGBA frames plus
-per-frame delays (the `image` crate's `AnimationDecoder` applies
-disposal/transparency internally). Single-frame GIFs collapse back
-to the still path.
+GIF and WebP are both decoded as sequences of fully-composited
+RGBA frames plus per-frame delays via the `image` crate's
+`AnimationDecoder` trait — the decoder applies disposal /
+transparency / blending internally so we just consume the yielded
+frames as opaque RGBA buffers. Single-frame containers collapse
+back to the still path automatically. Magic-byte sniffing in
+`decode_asset` routes `GIF87a`/`GIF89a` to `decode_animated_gif`
+and `RIFF…WEBP` to `decode_animated_webp`.
 
 - The raw cache stores a `DecodedAsset::Animated { frames, w, h }`
   variant alongside the existing `Still`. Sized cache entries for
@@ -212,16 +241,36 @@ Idle entries are reclaimed by `sweep_image_cache`:
   `Tree`'s `asset_cache_ttl: Option<Duration>` field, which is
   applied at the start of every `compute_layout` /
   `paint_tree_with_text` call.
+- Each cache entry can carry a per-URL `max_age` override sourced
+  from HTTP `Cache-Control: max-age` / `Expires`. When set, the
+  sweep uses it instead of the global TTL — `entry.effective_ttl`
+  picks `max_age.unwrap_or(global_ttl)`.
 - The sweep walks both maps with `HashMap::retain` and drops any
-  entry whose `last_access` is older than the TTL.
+  entry whose `last_access` is older than its effective TTL.
 - `RawState::Pending` is **never** evicted: dropping it would
   orphan the worker thread's eventual write.
 - The sweep is rate-limited to once per `SWEEP_INTERVAL`
   (10 seconds) by a `Mutex<Instant>` last-sweep timestamp, and
   is run opportunistically at the top of `load_image`. No
-  background timer thread is needed.
+  background timer thread is needed. After each sweep
+  `enforce_image_cache_budget()` runs to honour the byte budget.
 - `purge_image_cache()` clears everything regardless of age
   (still preserves `Pending`).
+
+## 7a. Byte-budget eviction
+
+Independent from the TTL pass, `enforce_image_cache_budget`
+caps total decoded RGBA in both caches:
+
+- Default budget: 256 MiB, configurable via
+  `set_image_cache_budget(bytes)`. `0` disables the cap.
+- When over budget, evicts oldest non-`Pending` entries by
+  ascending `last_access` until back under. The sized cache (post-
+  resize duplicates) is trimmed first; raw cache is the
+  source-of-truth and only trimmed if more reclaim is needed.
+- Runs every periodic sweep AND immediately after every worker
+  insert, so a flood of large remote fetches can't grow memory
+  unbounded between sweeps.
 
 ## 8. Public API
 
@@ -230,8 +279,13 @@ Re-exported from `wgpu_html::layout`:
 ```rust
 pub fn image_cache_ttl()              -> Duration;
 pub fn set_image_cache_ttl(ttl: Duration);
+pub fn image_cache_budget()           -> u64;
+pub fn set_image_cache_budget(bytes: u64);
+pub fn image_pool_size()              -> usize;
+pub fn set_image_pool_size(n: usize);
 pub fn image_load_revision()          -> u64;
 pub fn sweep_image_cache();
+pub fn enforce_image_cache_budget();
 pub fn purge_image_cache();
 pub fn preload_image(src: &str);
 ```
@@ -249,34 +303,22 @@ document and survives across renderer instances.
 
 ## 9. Caveats and known gaps
 
-- **Pool size is fixed at 4.** `FETCH_POOL_WORKERS` is a `const`
-  for now; tuning will need a setter (and a way to grow the pool
-  beyond what was lazily initialised). 4 is enough for typical
-  pages without saturating the network on residential links.
-- **No HTTP cache semantics.** ETags, `Cache-Control`,
-  `If-Modified-Since`, and similar are ignored. The TTL is the
-  only freshness control.
-- **No redirects across schemes.** `ureq` follows http→http and
-  https→https redirects by default but not http↔https.
-- **No `data:` URIs.** Trivial to add inside `fetch_image_bytes`.
-- **Animated WebP not supported.** Animation is wired in for GIF
-  only. The same `DecodedAsset::Animated` machinery would handle
-  WebP if `decode_animated_webp` were added next to
-  `decode_animated_gif` and the magic-byte dispatch in
-  `decode_asset` were extended.
+- **No HTTP conditional GETs (yet).** `Cache-Control: max-age` is
+  honoured for freshness, but ETag / `Last-Modified` revalidation
+  with `If-None-Match` / `If-Modified-Since` isn't wired up — once
+  an entry expires we always do a full GET. The infrastructure to
+  add this (per-entry meta sidecar + `RemoteMeta` headers in the
+  worker) is in place; the missing bit is preserving the previous
+  asset across the revalidation window.
 - **Process-wide cache.** Multiple documents driven by the same
-  process share one cache. Two trees with conflicting
-  `asset_cache_ttl`s last-applied-wins; if you need per-document
-  isolation, hold the lowest TTL globally.
-- **No upper bound on cache size.** TTL is the only eviction
-  trigger. Hosts that load thousands of unique images within a
-  single TTL window will see growing memory until the next sweep.
-  An LRU cap is straightforward to add by sorting the
-  `last_access` timestamps and trimming the tail.
-- **No retry-on-failure.** A `Failed` entry is treated as cached
-  data: the image won't be retried until the TTL expires. For
-  transient network errors a small retry budget on the worker
-  side would be friendlier.
+  process share one cache. This is *by design* for the common case
+  (multiple windows of the same app reuse images for free) but
+  hosts that need isolation must currently `purge_image_cache()`
+  between document switches or namespace their URLs (e.g.
+  `doc1://…` prefixes). Lifting the cache state into a
+  `ImageCache` struct owned by `Tree` is the natural next step;
+  it requires plumbing a cache reference through every layout
+  call site and is therefore deliberately deferred.
 
 ## 10. Tests
 
