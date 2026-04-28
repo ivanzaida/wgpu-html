@@ -16,7 +16,7 @@ use winit::window::{Window, WindowId};
 
 use wgpu_html::interactivity;
 use wgpu_html::layout::LayoutBox;
-use wgpu_html::renderer::{FrameOutcome, Renderer, GLYPH_ATLAS_SIZE};
+use wgpu_html::renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{FontFace, FontStyleAxis, Modifiers, MouseButton, Tree};
 
@@ -93,42 +93,43 @@ struct DemoFont {
 /// faces as already loaded on the second-and-later sync.
 fn demo_fonts() -> &'static [DemoFont] {
     static FACES: OnceLock<Vec<DemoFont>> = OnceLock::new();
-    FACES.get_or_init(|| {
-        for row in FONT_FAMILIES {
-            let regular_path = row[0];
-            let Ok(reg_bytes) = std::fs::read(regular_path) else {
-                continue;
-            };
-            eprintln!("demo: loaded font family from {regular_path}");
-            let mut out = vec![DemoFont {
-                weight: 400,
-                style: FontStyleAxis::Normal,
-                data: Arc::from(reg_bytes.into_boxed_slice()),
-            }];
-            // (path, weight, style) for the optional 3 variants.
-            let variants: [(&str, u16, FontStyleAxis); 3] = [
-                (row[1], 700, FontStyleAxis::Normal),
-                (row[2], 400, FontStyleAxis::Italic),
-                (row[3], 700, FontStyleAxis::Italic),
-            ];
-            for (path, weight, style) in variants {
-                if path.is_empty() {
+    FACES
+        .get_or_init(|| {
+            for row in FONT_FAMILIES {
+                let regular_path = row[0];
+                let Ok(reg_bytes) = std::fs::read(regular_path) else {
                     continue;
+                };
+                eprintln!("demo: loaded font family from {regular_path}");
+                let mut out = vec![DemoFont {
+                    weight: 400,
+                    style: FontStyleAxis::Normal,
+                    data: Arc::from(reg_bytes.into_boxed_slice()),
+                }];
+                // (path, weight, style) for the optional 3 variants.
+                let variants: [(&str, u16, FontStyleAxis); 3] = [
+                    (row[1], 700, FontStyleAxis::Normal),
+                    (row[2], 400, FontStyleAxis::Italic),
+                    (row[3], 700, FontStyleAxis::Italic),
+                ];
+                for (path, weight, style) in variants {
+                    if path.is_empty() {
+                        continue;
+                    }
+                    if let Ok(bytes) = std::fs::read(path) {
+                        eprintln!("demo:   + variant {path} @ {weight} {style:?}");
+                        out.push(DemoFont {
+                            weight,
+                            style,
+                            data: Arc::from(bytes.into_boxed_slice()),
+                        });
+                    }
                 }
-                if let Ok(bytes) = std::fs::read(path) {
-                    eprintln!("demo:   + variant {path} @ {weight} {style:?}");
-                    out.push(DemoFont {
-                        weight,
-                        style,
-                        data: Arc::from(bytes.into_boxed_slice()),
-                    });
-                }
+                return out;
             }
-            return out;
-        }
-        Vec::new()
-    })
-    .as_slice()
+            Vec::new()
+        })
+        .as_slice()
 }
 
 struct App {
@@ -255,12 +256,7 @@ impl ApplicationHandler for App {
         self.renderer = Some(renderer);
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let (Some(window), Some(renderer)) = (self.window.as_ref(), self.renderer.as_mut()) else {
             return;
         };
@@ -292,8 +288,7 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
                 self.cursor_pos = Some(pos);
-                if let (Some(tree), Some(layout)) =
-                    (self.tree.as_mut(), self.last_layout.as_ref())
+                if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
                     interactivity::pointer_move(tree, layout, pos, Modifiers::default());
                 }
@@ -307,27 +302,14 @@ impl ApplicationHandler for App {
             WindowEvent::MouseInput { state, button, .. } => {
                 let Some(pos) = self.cursor_pos else { return };
                 let btn = translate_button(button);
-                if let (Some(tree), Some(layout)) =
-                    (self.tree.as_mut(), self.last_layout.as_ref())
+                if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
                     match state {
                         ElementState::Pressed => {
-                            interactivity::mouse_down(
-                                tree,
-                                layout,
-                                pos,
-                                btn,
-                                Modifiers::default(),
-                            );
+                            interactivity::mouse_down(tree, layout, pos, btn, Modifiers::default());
                         }
                         ElementState::Released => {
-                            interactivity::mouse_up(
-                                tree,
-                                layout,
-                                pos,
-                                btn,
-                                Modifiers::default(),
-                            );
+                            interactivity::mouse_up(tree, layout, pos, btn, Modifiers::default());
                         }
                     }
                 }
@@ -338,8 +320,7 @@ impl ApplicationHandler for App {
                 // Build the tree on first frame; subsequent frames
                 // reuse it so callbacks set in `ensure_tree_built`
                 // persist.
-                let tree_ref =
-                    App::ensure_tree_built(&mut self.tree, &self.click_count);
+                let tree_ref = App::ensure_tree_built(&mut self.tree, &self.click_count);
                 let (list, layout) = wgpu_html::paint_tree_returning_layout(
                     tree_ref,
                     &mut self.text_ctx,

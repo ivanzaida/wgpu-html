@@ -284,12 +284,7 @@ impl DisplayList {
     }
 
     /// Push a filled box with circular rounded corners (`radii.h == radii.v`).
-    pub fn push_quad_rounded(
-        &mut self,
-        rect: Rect,
-        color: Color,
-        radii: CornerRadii,
-    ) -> &mut Self {
+    pub fn push_quad_rounded(&mut self, rect: Rect, color: Color, radii: CornerRadii) -> &mut Self {
         self.quads.push(Quad {
             rect,
             color,

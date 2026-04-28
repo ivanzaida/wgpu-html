@@ -100,7 +100,7 @@ impl ImagePipeline {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: true,
                         min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<Globals>() as u64,
+                            std::mem::size_of::<Globals>() as u64
                         ),
                     },
                     count: None,
@@ -272,8 +272,7 @@ impl ImagePipeline {
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::COPY_DST,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                     view_formats: &[],
                 });
                 queue.write_texture(
@@ -305,9 +304,7 @@ impl ImagePipeline {
                             resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                                 buffer: &self.globals_buffer,
                                 offset: 0,
-                                size: wgpu::BufferSize::new(
-                                    std::mem::size_of::<Globals>() as u64,
-                                ),
+                                size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
                             }),
                         },
                         wgpu::BindGroupEntry {
@@ -348,11 +345,7 @@ impl ImagePipeline {
             });
             self.instance_capacity = new_cap;
         }
-        queue.write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(&instances),
-        );
+        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
 
         // Globals: one slot per clip range that has images.
         let mut slot_idx = 0u32;
@@ -415,9 +408,7 @@ impl ImagePipeline {
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                             buffer: &self.globals_buffer,
                             offset: 0,
-                            size: wgpu::BufferSize::new(
-                                std::mem::size_of::<Globals>() as u64,
-                            ),
+                            size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
                         }),
                     },
                     wgpu::BindGroupEntry {

@@ -191,13 +191,26 @@ impl Tokenizer {
 
         // Check for raw-text elements: script, style, textarea, title
         let lower_name = name.to_ascii_lowercase();
-        if !self_closing && matches!(lower_name.as_str(), "script" | "style" | "textarea" | "title") {
-            self.tokens.push(Token::OpenTag { name: name.clone(), attrs, self_closing: false });
+        if !self_closing
+            && matches!(
+                lower_name.as_str(),
+                "script" | "style" | "textarea" | "title"
+            )
+        {
+            self.tokens.push(Token::OpenTag {
+                name: name.clone(),
+                attrs,
+                self_closing: false,
+            });
             self.consume_raw_text(&lower_name);
             return;
         }
 
-        self.tokens.push(Token::OpenTag { name, attrs, self_closing });
+        self.tokens.push(Token::OpenTag {
+            name,
+            attrs,
+            self_closing,
+        });
     }
 
     fn consume_raw_text(&mut self, tag_name: &str) {
@@ -372,47 +385,63 @@ mod tests {
     #[test]
     fn test_simple_tag() {
         let tokens = tokenize("<div></div>");
-        assert_eq!(tokens, vec![
-            Token::OpenTag { name: "div".into(), attrs: vec![], self_closing: false },
-            Token::CloseTag("div".into()),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::OpenTag {
+                    name: "div".into(),
+                    attrs: vec![],
+                    self_closing: false
+                },
+                Token::CloseTag("div".into()),
+            ]
+        );
     }
 
     #[test]
     fn test_self_closing() {
         let tokens = tokenize("<br/>");
-        assert_eq!(tokens, vec![
-            Token::OpenTag { name: "br".into(), attrs: vec![], self_closing: true },
-        ]);
+        assert_eq!(
+            tokens,
+            vec![Token::OpenTag {
+                name: "br".into(),
+                attrs: vec![],
+                self_closing: true
+            },]
+        );
     }
 
     #[test]
     fn test_attributes() {
         let tokens = tokenize(r#"<a href="http://example.com" target="_blank">link</a>"#);
-        assert_eq!(tokens, vec![
-            Token::OpenTag {
-                name: "a".into(),
-                attrs: vec![
-                    ("href".into(), "http://example.com".into()),
-                    ("target".into(), "_blank".into()),
-                ],
-                self_closing: false,
-            },
-            Token::Text("link".into()),
-            Token::CloseTag("a".into()),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::OpenTag {
+                    name: "a".into(),
+                    attrs: vec![
+                        ("href".into(), "http://example.com".into()),
+                        ("target".into(), "_blank".into()),
+                    ],
+                    self_closing: false,
+                },
+                Token::Text("link".into()),
+                Token::CloseTag("a".into()),
+            ]
+        );
     }
 
     #[test]
     fn test_boolean_attribute() {
         let tokens = tokenize("<input disabled>");
-        assert_eq!(tokens, vec![
-            Token::OpenTag {
+        assert_eq!(
+            tokens,
+            vec![Token::OpenTag {
                 name: "input".into(),
                 attrs: vec![("disabled".into(), String::new())],
                 self_closing: false,
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -437,23 +466,41 @@ mod tests {
     #[test]
     fn test_text_and_elements() {
         let tokens = tokenize("<p>Hello <b>world</b></p>");
-        assert_eq!(tokens, vec![
-            Token::OpenTag { name: "p".into(), attrs: vec![], self_closing: false },
-            Token::Text("Hello ".into()),
-            Token::OpenTag { name: "b".into(), attrs: vec![], self_closing: false },
-            Token::Text("world".into()),
-            Token::CloseTag("b".into()),
-            Token::CloseTag("p".into()),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::OpenTag {
+                    name: "p".into(),
+                    attrs: vec![],
+                    self_closing: false
+                },
+                Token::Text("Hello ".into()),
+                Token::OpenTag {
+                    name: "b".into(),
+                    attrs: vec![],
+                    self_closing: false
+                },
+                Token::Text("world".into()),
+                Token::CloseTag("b".into()),
+                Token::CloseTag("p".into()),
+            ]
+        );
     }
 
     #[test]
     fn test_script_raw_text() {
         let tokens = tokenize("<script>var x = '<div>';</script>");
-        assert_eq!(tokens, vec![
-            Token::OpenTag { name: "script".into(), attrs: vec![], self_closing: false },
-            Token::Text("var x = '<div>';".into()),
-            Token::CloseTag("script".into()),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::OpenTag {
+                    name: "script".into(),
+                    attrs: vec![],
+                    self_closing: false
+                },
+                Token::Text("var x = '<div>';".into()),
+                Token::CloseTag("script".into()),
+            ]
+        );
     }
 }

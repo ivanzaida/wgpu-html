@@ -444,8 +444,7 @@ impl GlyphPipeline {
             self.instance_capacity = new_cap;
         }
 
-        let instances: Vec<GlyphInstance> =
-            list.glyphs.iter().map(GlyphInstance::from).collect();
+        let instances: Vec<GlyphInstance> = list.glyphs.iter().map(GlyphInstance::from).collect();
         queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
     }
 

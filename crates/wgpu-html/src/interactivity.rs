@@ -17,7 +17,7 @@
 //! - `pointer_leave` — clears `hover_path`, fires `on_mouse_leave`.
 
 use wgpu_html_layout::LayoutBox;
-use wgpu_html_tree::{MouseButton, MouseEvent, Modifiers, Tree};
+use wgpu_html_tree::{Modifiers, MouseButton, MouseEvent, Tree};
 
 /// Update the hover path to whatever lies under `pos` and fire any
 /// `on_mouse_enter` / `on_mouse_leave` callbacks that change implies.
@@ -282,10 +282,6 @@ fn fire_chain_segment(
 
 /// Return the longest path that is a prefix of both `a` and `b`.
 fn common_prefix<'a>(a: &'a [usize], b: &[usize]) -> &'a [usize] {
-    let n = a
-        .iter()
-        .zip(b.iter())
-        .take_while(|(x, y)| x == y)
-        .count();
+    let n = a.iter().zip(b.iter()).take_while(|(x, y)| x == y).count();
     &a[..n]
 }

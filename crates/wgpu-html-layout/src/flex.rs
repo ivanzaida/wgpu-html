@@ -26,17 +26,17 @@
 //!   wired through block layout — only the inline pass currently
 //!   tracks them).
 
+use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
     AlignContent, AlignItems, AlignSelf, BoxSizing, CssLength, FlexDirection, FlexWrap,
     JustifyContent,
 };
-use wgpu_html_models::Style;
 use wgpu_html_style::CascadedNode;
 use wgpu_html_tree::Element;
 
 use crate::{
-    is_auto_margin, layout_block_at_with, length, translate_box_x_in_place,
-    translate_box_y_in_place, BlockOverrides, Ctx, LayoutBox,
+    BlockOverrides, Ctx, LayoutBox, is_auto_margin, layout_block_at_with, length,
+    translate_box_x_in_place, translate_box_y_in_place,
 };
 
 // ---------------------------------------------------------------------------

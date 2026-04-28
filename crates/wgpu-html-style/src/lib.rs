@@ -17,8 +17,7 @@ use std::collections::HashMap;
 
 use wgpu_html_models::Style;
 use wgpu_html_parser::{
-    CssWideKeyword, PseudoClass, Selector, Stylesheet, parse_inline_style_decls,
-    parse_stylesheet,
+    CssWideKeyword, PseudoClass, Selector, Stylesheet, parse_inline_style_decls, parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
@@ -96,9 +95,10 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
     let interaction = &tree.interaction;
     let mut path: Vec<usize> = Vec::new();
     CascadedTree {
-        root: tree.root.as_ref().map(|n| {
-            cascade_node(n, &stylesheet, None, &[], &mut path, interaction)
-        }),
+        root: tree
+            .root
+            .as_ref()
+            .map(|n| cascade_node(n, &stylesheet, None, &[], &mut path, interaction)),
     }
 }
 
@@ -143,12 +143,8 @@ fn cascade_node(
     interaction: &InteractionState,
 ) -> CascadedNode {
     let element_ctx = MatchContext::for_path(path, interaction);
-    let (mut style, keywords) = computed_decls_in_tree_with_context(
-        &node.element,
-        &element_ctx,
-        sheet,
-        ancestors,
-    );
+    let (mut style, keywords) =
+        computed_decls_in_tree_with_context(&node.element, &element_ctx, sheet, ancestors);
 
     // Resolve every CSS-wide keyword override against the parent's
     // already-resolved style. Each entry replaces the matching field
@@ -177,14 +173,7 @@ fn cascade_node(
         .enumerate()
         .map(|(i, c)| {
             path.push(i);
-            let cn = cascade_node(
-                c,
-                sheet,
-                Some(&style),
-                &child_ancestors,
-                path,
-                interaction,
-            );
+            let cn = cascade_node(c, sheet, Some(&style), &child_ancestors, path, interaction);
             path.pop();
             cn
         })
@@ -200,11 +189,7 @@ fn cascade_node(
 /// resolved style. Skips properties already touched by a CSS-wide
 /// keyword in this layer — those have been resolved authoritatively
 /// (an explicit `initial` shouldn't be implicitly re-inherited).
-fn inherit_into(
-    child: &mut Style,
-    parent: &Style,
-    keywords: &HashMap<String, CssWideKeyword>,
-) {
+fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, CssWideKeyword>) {
     macro_rules! inherit {
         ($(($field:ident, $name:literal)),* $(,)?) => {
             $(
@@ -275,8 +260,10 @@ pub fn computed_decls_in_tree(
     sheet: &Stylesheet,
     ancestors: &[&Element],
 ) -> (Style, HashMap<String, CssWideKeyword>) {
-    let with_default: Vec<(&Element, MatchContext)> =
-        ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
+    let with_default: Vec<(&Element, MatchContext)> = ancestors
+        .iter()
+        .map(|e| (*e, MatchContext::default()))
+        .collect();
     computed_decls_in_tree_with_context(element, &MatchContext::default(), sheet, &with_default)
 }
 
@@ -293,9 +280,10 @@ pub fn computed_decls_in_tree_with_context(
     let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
     let inline = element_style_attr(element).map(parse_inline_style_decls);
 
-    let select_layers = |target: fn(&wgpu_html_parser::Rule) -> (&Style, &HashMap<String, CssWideKeyword>)|
-        -> Vec<(u32, &Style, &HashMap<String, CssWideKeyword>)>
-    {
+    let select_layers = |target: fn(
+        &wgpu_html_parser::Rule,
+    ) -> (&Style, &HashMap<String, CssWideKeyword>)|
+     -> Vec<(u32, &Style, &HashMap<String, CssWideKeyword>)> {
         sheet
             .rules
             .iter()
@@ -303,9 +291,7 @@ pub fn computed_decls_in_tree_with_context(
                 rule.selectors
                     .iter()
                     .filter(|s| {
-                        matches_selector_in_tree_with_context(
-                            s, element, element_ctx, ancestors,
-                        )
+                        matches_selector_in_tree_with_context(s, element, element_ctx, ancestors)
                     })
                     .map(|s| s.specificity())
                     .max()
@@ -409,19 +395,12 @@ pub fn matches_selector_with_context(
 /// Dynamic pseudo-classes (`:hover`, `:active`) on the subject or
 /// any ancestor compound fail without a `MatchContext`; use
 /// [`matches_selector_in_tree_with_context`] for stateful matching.
-pub fn matches_selector_in_tree(
-    sel: &Selector,
-    element: &Element,
-    ancestors: &[&Element],
-) -> bool {
-    let with_default: Vec<(&Element, MatchContext)> =
-        ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
-    matches_selector_in_tree_with_context(
-        sel,
-        element,
-        &MatchContext::default(),
-        &with_default,
-    )
+pub fn matches_selector_in_tree(sel: &Selector, element: &Element, ancestors: &[&Element]) -> bool {
+    let with_default: Vec<(&Element, MatchContext)> = ancestors
+        .iter()
+        .map(|e| (*e, MatchContext::default()))
+        .collect();
+    matches_selector_in_tree_with_context(sel, element, &MatchContext::default(), &with_default)
 }
 
 /// Stateful variant of [`matches_selector_in_tree`]. Each ancestor
@@ -450,9 +429,7 @@ pub fn matches_selector_in_tree_with_context(
         while idx < ancestors.len() {
             let (cand, cand_ctx) = ancestors[idx];
             idx += 1;
-            if matches_compound(required, cand)
-                && pseudo_classes_satisfied(required, &cand_ctx)
-            {
+            if matches_compound(required, cand) && pseudo_classes_satisfied(required, &cand_ctx) {
                 matched = true;
                 break;
             }

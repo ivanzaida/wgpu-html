@@ -109,7 +109,9 @@ pub(crate) fn finish_capture(
         let _ = tx.send(r);
     });
     let _ = device.poll(wgpu::PollType::wait_indefinitely());
-    rx.recv().expect("map callback dropped").map_err(ScreenshotError::Map)?;
+    rx.recv()
+        .expect("map callback dropped")
+        .map_err(ScreenshotError::Map)?;
 
     let mut rgba = Vec::with_capacity((stg.bytes_per_row_unpadded * height) as usize);
     {

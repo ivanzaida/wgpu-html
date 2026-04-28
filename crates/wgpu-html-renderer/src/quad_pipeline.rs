@@ -120,9 +120,7 @@ impl QuadPipeline {
                     // Dynamic offset → one shared buffer with one
                     // slot per clip range, addressed at draw time.
                     has_dynamic_offset: true,
-                    min_binding_size: wgpu::BufferSize::new(
-                        std::mem::size_of::<Globals>() as u64
-                    ),
+                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<Globals>() as u64),
                 },
                 count: None,
             }],

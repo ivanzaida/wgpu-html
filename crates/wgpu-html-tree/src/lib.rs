@@ -126,10 +126,19 @@ impl std::fmt::Debug for Node {
             .field("element", &self.element)
             .field("children", &self.children)
             .field("on_click", &self.on_click.as_ref().map(|_| "<fn>"))
-            .field("on_mouse_down", &self.on_mouse_down.as_ref().map(|_| "<fn>"))
+            .field(
+                "on_mouse_down",
+                &self.on_mouse_down.as_ref().map(|_| "<fn>"),
+            )
             .field("on_mouse_up", &self.on_mouse_up.as_ref().map(|_| "<fn>"))
-            .field("on_mouse_enter", &self.on_mouse_enter.as_ref().map(|_| "<fn>"))
-            .field("on_mouse_leave", &self.on_mouse_leave.as_ref().map(|_| "<fn>"))
+            .field(
+                "on_mouse_enter",
+                &self.on_mouse_enter.as_ref().map(|_| "<fn>"),
+            )
+            .field(
+                "on_mouse_leave",
+                &self.on_mouse_leave.as_ref().map(|_| "<fn>"),
+            )
             .finish()
     }
 }
@@ -398,18 +407,108 @@ element_from! {
 macro_rules! all_element_variants {
     ($cb:ident) => {
         $cb!(
-            Html, Head, Body, Title, Meta, Link, StyleElement, Script, Noscript,
-            H1, H2, H3, H4, H5, H6, P, Br, Hr, Pre, Blockquote, Address,
-            Span, A, Strong, B, Em, I, U, S, Small, Mark, Code, Kbd, Samp, Var,
-            Abbr, Cite, Dfn, Sub, Sup, Time,
-            Ul, Ol, Li, Dl, Dt, Dd,
-            Header, Nav, Main, Section, Article, Aside, Footer, Div,
-            Img, Picture, Source, Video, Audio, Track, Iframe, Canvas, Svg,
-            Table, Caption, Thead, Tbody, Tfoot, Tr, Th, Td, Colgroup, Col,
-            Form, Label, Input, Textarea, Button, Select, OptionElement, Optgroup,
-            Fieldset, Legend, Datalist, Output, Progress, Meter,
-            Details, Summary, Dialog, Template, Slot,
-            Del, Ins, Bdi, Bdo, Wbr, Data, Ruby, Rt, Rp,
+            Html,
+            Head,
+            Body,
+            Title,
+            Meta,
+            Link,
+            StyleElement,
+            Script,
+            Noscript,
+            H1,
+            H2,
+            H3,
+            H4,
+            H5,
+            H6,
+            P,
+            Br,
+            Hr,
+            Pre,
+            Blockquote,
+            Address,
+            Span,
+            A,
+            Strong,
+            B,
+            Em,
+            I,
+            U,
+            S,
+            Small,
+            Mark,
+            Code,
+            Kbd,
+            Samp,
+            Var,
+            Abbr,
+            Cite,
+            Dfn,
+            Sub,
+            Sup,
+            Time,
+            Ul,
+            Ol,
+            Li,
+            Dl,
+            Dt,
+            Dd,
+            Header,
+            Nav,
+            Main,
+            Section,
+            Article,
+            Aside,
+            Footer,
+            Div,
+            Img,
+            Picture,
+            Source,
+            Video,
+            Audio,
+            Track,
+            Iframe,
+            Canvas,
+            Svg,
+            Table,
+            Caption,
+            Thead,
+            Tbody,
+            Tfoot,
+            Tr,
+            Th,
+            Td,
+            Colgroup,
+            Col,
+            Form,
+            Label,
+            Input,
+            Textarea,
+            Button,
+            Select,
+            OptionElement,
+            Optgroup,
+            Fieldset,
+            Legend,
+            Datalist,
+            Output,
+            Progress,
+            Meter,
+            Details,
+            Summary,
+            Dialog,
+            Template,
+            Slot,
+            Del,
+            Ins,
+            Bdi,
+            Bdo,
+            Wbr,
+            Data,
+            Ruby,
+            Rt,
+            Rp,
         )
     };
 }
@@ -470,10 +569,9 @@ mod tests {
 
         // Direct field assignment in the friendly style:
         // `tree.get_element_by_id(id).on_click = cb`.
-        tree.get_element_by_id("target").unwrap().on_click =
-            Some(Arc::new(move |_ev| {
-                c2.fetch_add(1, Ordering::Relaxed);
-            }));
+        tree.get_element_by_id("target").unwrap().on_click = Some(Arc::new(move |_ev| {
+            c2.fetch_add(1, Ordering::Relaxed);
+        }));
 
         // The callback isn't fired by storage alone — invoke it.
         let cb = tree

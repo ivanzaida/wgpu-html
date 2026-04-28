@@ -286,17 +286,27 @@ fn form_with_inputs_and_button() {
         .collect();
     // Three children (label, input, button) plus possibly text whitespace nodes
     // are filtered out by the parser; assert by structural matching instead.
-    assert!(r.children.iter().any(|c| matches!(c.element, Element::Label(_))));
-    assert!(r.children.iter().any(|c| matches!(c.element, Element::Input(_))));
-    assert!(r.children.iter().any(|c| matches!(c.element, Element::Button(_))));
+    assert!(
+        r.children
+            .iter()
+            .any(|c| matches!(c.element, Element::Label(_)))
+    );
+    assert!(
+        r.children
+            .iter()
+            .any(|c| matches!(c.element, Element::Input(_)))
+    );
+    assert!(
+        r.children
+            .iter()
+            .any(|c| matches!(c.element, Element::Button(_)))
+    );
     let _ = kinds; // silence unused warning if the assertions above suffice
 }
 
 #[test]
 fn select_with_options() {
-    let r = root(
-        "<select><option>a</option><option>b</option><optgroup></optgroup></select>",
-    );
+    let r = root("<select><option>a</option><option>b</option><optgroup></optgroup></select>");
     assert!(matches!(r.element, Element::Select(_)));
     assert!(matches!(r.children[0].element, Element::OptionElement(_)));
     assert!(matches!(r.children[1].element, Element::OptionElement(_)));
@@ -395,9 +405,7 @@ fn unknown_tag_subtree_is_dropped() {
 
 #[test]
 fn doctype_and_comments_are_stripped() {
-    let r = root(
-        "<!DOCTYPE html><!--top--><div><!--inside-->ok<!--end--></div>",
-    );
+    let r = root("<!DOCTYPE html><!--top--><div><!--inside-->ok<!--end--></div>");
     assert!(matches!(r.element, Element::Div(_)));
     assert_eq!(r.children.len(), 1);
     assert_eq!(text_of(&r.children[0]), "ok");
@@ -440,12 +448,19 @@ fn multiple_data_attrs_are_all_preserved() {
 
 #[test]
 fn multiple_aria_attrs_are_all_preserved() {
-    let r = root(r#"<button aria-label="Close" aria-pressed="false" aria-controls="menu"></button>"#);
+    let r =
+        root(r#"<button aria-label="Close" aria-pressed="false" aria-controls="menu"></button>"#);
     let Element::Button(b) = &r.element else {
         panic!("expected button");
     };
     assert_eq!(b.aria_attrs.len(), 3);
     assert_eq!(b.aria_attrs.get("label").map(String::as_str), Some("Close"));
-    assert_eq!(b.aria_attrs.get("pressed").map(String::as_str), Some("false"));
-    assert_eq!(b.aria_attrs.get("controls").map(String::as_str), Some("menu"));
+    assert_eq!(
+        b.aria_attrs.get("pressed").map(String::as_str),
+        Some("false")
+    );
+    assert_eq!(
+        b.aria_attrs.get("controls").map(String::as_str),
+        Some("menu")
+    );
 }

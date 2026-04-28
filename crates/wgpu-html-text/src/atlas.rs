@@ -110,7 +110,12 @@ impl Atlas {
             // (0, 0) so the caller can still produce a UV range. They
             // contribute no pixels to the atlas.
             return Some(AtlasEntry {
-                rect: AtlasRect { x: 0, y: 0, w: 0, h: 0 },
+                rect: AtlasRect {
+                    x: 0,
+                    y: 0,
+                    w: 0,
+                    h: 0,
+                },
             });
         }
         if w > self.width {
@@ -262,7 +267,15 @@ mod tests {
     fn insert_places_glyph_top_left() {
         let mut atlas = Atlas::new(64, 64);
         let entry = atlas.insert(8, 4, &solid(8, 4, 0xAA)).unwrap();
-        assert_eq!(entry.rect, AtlasRect { x: 0, y: 0, w: 8, h: 4 });
+        assert_eq!(
+            entry.rect,
+            AtlasRect {
+                x: 0,
+                y: 0,
+                w: 8,
+                h: 4
+            }
+        );
         // Pixels were copied into the right rows.
         for row in 0..4 {
             for col in 0..8 {
@@ -277,7 +290,15 @@ mod tests {
         let _a = atlas.insert(10, 8, &solid(10, 8, 0x10)).unwrap();
         let b = atlas.insert(12, 6, &solid(12, 6, 0x20)).unwrap();
         // Same shelf (y=0); next to the first.
-        assert_eq!(b.rect, AtlasRect { x: 10, y: 0, w: 12, h: 6 });
+        assert_eq!(
+            b.rect,
+            AtlasRect {
+                x: 10,
+                y: 0,
+                w: 12,
+                h: 6
+            }
+        );
     }
 
     #[test]
@@ -297,7 +318,15 @@ mod tests {
         let mut atlas = Atlas::new(64, 64);
         let _a = atlas.insert(50, 8, &solid(50, 8, 0)).unwrap();
         let b = atlas.insert(20, 8, &solid(20, 8, 0)).unwrap();
-        assert_eq!(b.rect, AtlasRect { x: 0, y: 8, w: 20, h: 8 });
+        assert_eq!(
+            b.rect,
+            AtlasRect {
+                x: 0,
+                y: 8,
+                w: 20,
+                h: 8
+            }
+        );
     }
 
     #[test]
@@ -321,7 +350,15 @@ mod tests {
         // Whitespace glyphs etc. — they don't take pixels but still
         // give the caller a valid (empty) AtlasEntry.
         let e = atlas.insert(0, 0, &[]).unwrap();
-        assert_eq!(e.rect, AtlasRect { x: 0, y: 0, w: 0, h: 0 });
+        assert_eq!(
+            e.rect,
+            AtlasRect {
+                x: 0,
+                y: 0,
+                w: 0,
+                h: 0
+            }
+        );
     }
 
     #[test]
@@ -362,7 +399,15 @@ mod tests {
         assert!(atlas.pixels().iter().all(|&b| b == 0));
         // Re-insert lands at top-left again (packer reset).
         let b = atlas.insert(8, 8, &solid(8, 8, 0)).unwrap();
-        assert_eq!(b.rect, AtlasRect { x: 0, y: 0, w: 8, h: 8 });
+        assert_eq!(
+            b.rect,
+            AtlasRect {
+                x: 0,
+                y: 0,
+                w: 8,
+                h: 8
+            }
+        );
         // Two dirty rects accumulated: the full-atlas wipe and the new
         // 8×8 insert.
         let mut count = 0;

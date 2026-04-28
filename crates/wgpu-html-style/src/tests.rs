@@ -122,11 +122,7 @@ fn matches_selector_in_tree_walks_ancestors() {
     assert!(!matches_selector_in_tree(&sel, &item, &[&neutral]));
     // Deeper ancestor `.row` (with an unrelated parent in between) →
     // descendant combinator is non-adjacent, still fires.
-    assert!(matches_selector_in_tree(
-        &sel,
-        &item,
-        &[&neutral, &row]
-    ));
+    assert!(matches_selector_in_tree(&sel, &item, &[&neutral, &row]));
 }
 
 // --------------------------------------------------------------------------
@@ -526,9 +522,7 @@ fn root_inherit_keyword_resolves_to_initial() {
     // initial (None in our impl). The synthetic body wrapping in the
     // parser places the styled element under a body that does have a
     // parent — so write it on the root html instead.
-    let tree = wgpu_html_parser::parse(
-        r#"<div style="color: inherit;"></div>"#,
-    );
+    let tree = wgpu_html_parser::parse(r#"<div style="color: inherit;"></div>"#);
     let cascaded = cascade(&tree);
     let root = cascaded.root.expect("root");
     // Whether `root` is the div directly or a body wrapper depends on
@@ -574,10 +568,8 @@ fn hover_rule_does_not_match_without_state() {
         "#,
     );
     let cascaded = cascade(&tree);
-    let style = find_style(&cascaded.root.unwrap(), &|el| {
-        element_id(el) == Some("b")
-    })
-    .expect("found");
+    let style =
+        find_style(&cascaded.root.unwrap(), &|el| element_id(el) == Some("b")).expect("found");
     let bg = style.background_color.expect("set");
     assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
 }
@@ -599,10 +591,8 @@ fn hover_rule_applies_when_path_in_hover_chain() {
     // at index 1.
     tree.interaction.hover_path = Some(vec![1]);
     let cascaded = cascade(&tree);
-    let style = find_style(&cascaded.root.unwrap(), &|el| {
-        element_id(el) == Some("b")
-    })
-    .expect("found");
+    let style =
+        find_style(&cascaded.root.unwrap(), &|el| element_id(el) == Some("b")).expect("found");
     let bg = style.background_color.expect("set");
     // :hover rule wins now (same specificity as #b alone, source order
     // says the :hover rule comes second).
@@ -650,8 +640,8 @@ fn hover_specificity_beats_plain_class() {
     );
     tree.interaction.hover_path = Some(vec![1]);
     let cascaded = cascade(&tree);
-    let style = find_style(&cascaded.root.unwrap(), &|el| matches!(el, Element::Div(_)))
-        .expect("found");
+    let style =
+        find_style(&cascaded.root.unwrap(), &|el| matches!(el, Element::Div(_))).expect("found");
     let bg = style.background_color.expect("set");
     // div:hover (tag + pseudo = 1 tag + 1 class) beats plain div (1 tag).
     assert!(matches!(bg, CssColor::Named(s) if s == "red"));

@@ -7,10 +7,39 @@ use wgpu_html_tree::Element;
 /// Returns `None` for unrecognized tags; callers should drop the subtree.
 pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
     Some(match tag {
-        "html" => { let mut el = html::Html::default(); set_global!(el, attrs); for (n, v) in attrs { match n.as_str() { "xmlns" => el.xmlns = Some(v.clone()), _ => {} } } Element::Html(el) }
-        "head" => { let mut el = html::Head::default(); set_global!(el, attrs); Element::Head(el) }
-        "body" => { let mut el = html::Body::default(); set_global!(el, attrs); for (n, v) in attrs { match n.as_str() { "onload" => el.onload = Some(v.clone()), "onunload" => el.onunload = Some(v.clone()), _ => {} } } Element::Body(el) }
-        "title" => { let mut el = html::Title::default(); set_global!(el, attrs); Element::Title(el) }
+        "html" => {
+            let mut el = html::Html::default();
+            set_global!(el, attrs);
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "xmlns" => el.xmlns = Some(v.clone()),
+                    _ => {}
+                }
+            }
+            Element::Html(el)
+        }
+        "head" => {
+            let mut el = html::Head::default();
+            set_global!(el, attrs);
+            Element::Head(el)
+        }
+        "body" => {
+            let mut el = html::Body::default();
+            set_global!(el, attrs);
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "onload" => el.onload = Some(v.clone()),
+                    "onunload" => el.onunload = Some(v.clone()),
+                    _ => {}
+                }
+            }
+            Element::Body(el)
+        }
+        "title" => {
+            let mut el = html::Title::default();
+            set_global!(el, attrs);
+            Element::Title(el)
+        }
         "meta" => {
             let mut el = html::Meta::default();
             set_global!(el, attrs);
@@ -77,25 +106,82 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::Script(el)
         }
-        "noscript" => { let mut el = html::Noscript::default(); set_global!(el, attrs); Element::Noscript(el) }
-        "h1" => { let mut el = html::H1::default(); set_global!(el, attrs); Element::H1(el) }
-        "h2" => { let mut el = html::H2::default(); set_global!(el, attrs); Element::H2(el) }
-        "h3" => { let mut el = html::H3::default(); set_global!(el, attrs); Element::H3(el) }
-        "h4" => { let mut el = html::H4::default(); set_global!(el, attrs); Element::H4(el) }
-        "h5" => { let mut el = html::H5::default(); set_global!(el, attrs); Element::H5(el) }
-        "h6" => { let mut el = html::H6::default(); set_global!(el, attrs); Element::H6(el) }
-        "p" => { let mut el = html::P::default(); set_global!(el, attrs); Element::P(el) }
-        "br" => { let mut el = html::Br::default(); set_global!(el, attrs); Element::Br(el) }
-        "hr" => { let mut el = html::Hr::default(); set_global!(el, attrs); Element::Hr(el) }
-        "pre" => { let mut el = html::Pre::default(); set_global!(el, attrs); Element::Pre(el) }
+        "noscript" => {
+            let mut el = html::Noscript::default();
+            set_global!(el, attrs);
+            Element::Noscript(el)
+        }
+        "h1" => {
+            let mut el = html::H1::default();
+            set_global!(el, attrs);
+            Element::H1(el)
+        }
+        "h2" => {
+            let mut el = html::H2::default();
+            set_global!(el, attrs);
+            Element::H2(el)
+        }
+        "h3" => {
+            let mut el = html::H3::default();
+            set_global!(el, attrs);
+            Element::H3(el)
+        }
+        "h4" => {
+            let mut el = html::H4::default();
+            set_global!(el, attrs);
+            Element::H4(el)
+        }
+        "h5" => {
+            let mut el = html::H5::default();
+            set_global!(el, attrs);
+            Element::H5(el)
+        }
+        "h6" => {
+            let mut el = html::H6::default();
+            set_global!(el, attrs);
+            Element::H6(el)
+        }
+        "p" => {
+            let mut el = html::P::default();
+            set_global!(el, attrs);
+            Element::P(el)
+        }
+        "br" => {
+            let mut el = html::Br::default();
+            set_global!(el, attrs);
+            Element::Br(el)
+        }
+        "hr" => {
+            let mut el = html::Hr::default();
+            set_global!(el, attrs);
+            Element::Hr(el)
+        }
+        "pre" => {
+            let mut el = html::Pre::default();
+            set_global!(el, attrs);
+            Element::Pre(el)
+        }
         "blockquote" => {
             let mut el = html::Blockquote::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "cite" => el.cite = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "cite" => el.cite = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Blockquote(el)
         }
-        "address" => { let mut el = html::Address::default(); set_global!(el, attrs); Element::Address(el) }
-        "span" => { let mut el = html::Span::default(); set_global!(el, attrs); Element::Span(el) }
+        "address" => {
+            let mut el = html::Address::default();
+            set_global!(el, attrs);
+            Element::Address(el)
+        }
+        "span" => {
+            let mut el = html::Span::default();
+            set_global!(el, attrs);
+            Element::Span(el)
+        }
         "a" => {
             let mut el = html::A::default();
             set_global!(el, attrs);
@@ -114,30 +200,107 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::A(el)
         }
-        "strong" => { let mut el = html::Strong::default(); set_global!(el, attrs); Element::Strong(el) }
-        "b" => { let mut el = html::B::default(); set_global!(el, attrs); Element::B(el) }
-        "em" => { let mut el = html::Em::default(); set_global!(el, attrs); Element::Em(el) }
-        "i" => { let mut el = html::I::default(); set_global!(el, attrs); Element::I(el) }
-        "u" => { let mut el = html::U::default(); set_global!(el, attrs); Element::U(el) }
-        "s" => { let mut el = html::S::default(); set_global!(el, attrs); Element::S(el) }
-        "small" => { let mut el = html::Small::default(); set_global!(el, attrs); Element::Small(el) }
-        "mark" => { let mut el = html::Mark::default(); set_global!(el, attrs); Element::Mark(el) }
-        "code" => { let mut el = html::Code::default(); set_global!(el, attrs); Element::Code(el) }
-        "kbd" => { let mut el = html::Kbd::default(); set_global!(el, attrs); Element::Kbd(el) }
-        "samp" => { let mut el = html::Samp::default(); set_global!(el, attrs); Element::Samp(el) }
-        "var" => { let mut el = html::Var::default(); set_global!(el, attrs); Element::Var(el) }
-        "abbr" => { let mut el = html::Abbr::default(); set_global!(el, attrs); Element::Abbr(el) }
-        "cite" => { let mut el = html::Cite::default(); set_global!(el, attrs); Element::Cite(el) }
-        "dfn" => { let mut el = html::Dfn::default(); set_global!(el, attrs); Element::Dfn(el) }
-        "sub" => { let mut el = html::Sub::default(); set_global!(el, attrs); Element::Sub(el) }
-        "sup" => { let mut el = html::Sup::default(); set_global!(el, attrs); Element::Sup(el) }
+        "strong" => {
+            let mut el = html::Strong::default();
+            set_global!(el, attrs);
+            Element::Strong(el)
+        }
+        "b" => {
+            let mut el = html::B::default();
+            set_global!(el, attrs);
+            Element::B(el)
+        }
+        "em" => {
+            let mut el = html::Em::default();
+            set_global!(el, attrs);
+            Element::Em(el)
+        }
+        "i" => {
+            let mut el = html::I::default();
+            set_global!(el, attrs);
+            Element::I(el)
+        }
+        "u" => {
+            let mut el = html::U::default();
+            set_global!(el, attrs);
+            Element::U(el)
+        }
+        "s" => {
+            let mut el = html::S::default();
+            set_global!(el, attrs);
+            Element::S(el)
+        }
+        "small" => {
+            let mut el = html::Small::default();
+            set_global!(el, attrs);
+            Element::Small(el)
+        }
+        "mark" => {
+            let mut el = html::Mark::default();
+            set_global!(el, attrs);
+            Element::Mark(el)
+        }
+        "code" => {
+            let mut el = html::Code::default();
+            set_global!(el, attrs);
+            Element::Code(el)
+        }
+        "kbd" => {
+            let mut el = html::Kbd::default();
+            set_global!(el, attrs);
+            Element::Kbd(el)
+        }
+        "samp" => {
+            let mut el = html::Samp::default();
+            set_global!(el, attrs);
+            Element::Samp(el)
+        }
+        "var" => {
+            let mut el = html::Var::default();
+            set_global!(el, attrs);
+            Element::Var(el)
+        }
+        "abbr" => {
+            let mut el = html::Abbr::default();
+            set_global!(el, attrs);
+            Element::Abbr(el)
+        }
+        "cite" => {
+            let mut el = html::Cite::default();
+            set_global!(el, attrs);
+            Element::Cite(el)
+        }
+        "dfn" => {
+            let mut el = html::Dfn::default();
+            set_global!(el, attrs);
+            Element::Dfn(el)
+        }
+        "sub" => {
+            let mut el = html::Sub::default();
+            set_global!(el, attrs);
+            Element::Sub(el)
+        }
+        "sup" => {
+            let mut el = html::Sup::default();
+            set_global!(el, attrs);
+            Element::Sup(el)
+        }
         "time" => {
             let mut el = html::Time::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "datetime" => el.datetime = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "datetime" => el.datetime = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Time(el)
         }
-        "ul" => { let mut el = html::Ul::default(); set_global!(el, attrs); Element::Ul(el) }
+        "ul" => {
+            let mut el = html::Ul::default();
+            set_global!(el, attrs);
+            Element::Ul(el)
+        }
         "ol" => {
             let mut el = html::Ol::default();
             set_global!(el, attrs);
@@ -154,20 +317,69 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
         "li" => {
             let mut el = html::Li::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "value" => el.value = v.parse().ok(), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "value" => el.value = v.parse().ok(),
+                    _ => {}
+                }
+            }
             Element::Li(el)
         }
-        "dl" => { let mut el = html::Dl::default(); set_global!(el, attrs); Element::Dl(el) }
-        "dt" => { let mut el = html::Dt::default(); set_global!(el, attrs); Element::Dt(el) }
-        "dd" => { let mut el = html::Dd::default(); set_global!(el, attrs); Element::Dd(el) }
-        "header" => { let mut el = html::Header::default(); set_global!(el, attrs); Element::Header(el) }
-        "nav" => { let mut el = html::Nav::default(); set_global!(el, attrs); Element::Nav(el) }
-        "main" => { let mut el = html::Main::default(); set_global!(el, attrs); Element::Main(el) }
-        "section" => { let mut el = html::Section::default(); set_global!(el, attrs); Element::Section(el) }
-        "article" => { let mut el = html::Article::default(); set_global!(el, attrs); Element::Article(el) }
-        "aside" => { let mut el = html::Aside::default(); set_global!(el, attrs); Element::Aside(el) }
-        "footer" => { let mut el = html::Footer::default(); set_global!(el, attrs); Element::Footer(el) }
-        "div" => { let mut el = html::Div::default(); set_global!(el, attrs); Element::Div(el) }
+        "dl" => {
+            let mut el = html::Dl::default();
+            set_global!(el, attrs);
+            Element::Dl(el)
+        }
+        "dt" => {
+            let mut el = html::Dt::default();
+            set_global!(el, attrs);
+            Element::Dt(el)
+        }
+        "dd" => {
+            let mut el = html::Dd::default();
+            set_global!(el, attrs);
+            Element::Dd(el)
+        }
+        "header" => {
+            let mut el = html::Header::default();
+            set_global!(el, attrs);
+            Element::Header(el)
+        }
+        "nav" => {
+            let mut el = html::Nav::default();
+            set_global!(el, attrs);
+            Element::Nav(el)
+        }
+        "main" => {
+            let mut el = html::Main::default();
+            set_global!(el, attrs);
+            Element::Main(el)
+        }
+        "section" => {
+            let mut el = html::Section::default();
+            set_global!(el, attrs);
+            Element::Section(el)
+        }
+        "article" => {
+            let mut el = html::Article::default();
+            set_global!(el, attrs);
+            Element::Article(el)
+        }
+        "aside" => {
+            let mut el = html::Aside::default();
+            set_global!(el, attrs);
+            Element::Aside(el)
+        }
+        "footer" => {
+            let mut el = html::Footer::default();
+            set_global!(el, attrs);
+            Element::Footer(el)
+        }
+        "div" => {
+            let mut el = html::Div::default();
+            set_global!(el, attrs);
+            Element::Div(el)
+        }
         "img" => {
             let mut el = html::Img::default();
             set_global!(el, attrs);
@@ -190,7 +402,11 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::Img(el)
         }
-        "picture" => { let mut el = html::Picture::default(); set_global!(el, attrs); Element::Picture(el) }
+        "picture" => {
+            let mut el = html::Picture::default();
+            set_global!(el, attrs);
+            Element::Picture(el)
+        }
         "source" => {
             let mut el = html::Source::default();
             set_global!(el, attrs);
@@ -284,7 +500,13 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
         "canvas" => {
             let mut el = html::Canvas::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "width" => el.width = v.parse().ok(), "height" => el.height = v.parse().ok(), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "width" => el.width = v.parse().ok(),
+                    "height" => el.height = v.parse().ok(),
+                    _ => {}
+                }
+            }
             Element::Canvas(el)
         }
         "svg" => {
@@ -303,12 +525,36 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::Svg(el)
         }
-        "table" => { let mut el = html::Table::default(); set_global!(el, attrs); Element::Table(el) }
-        "caption" => { let mut el = html::Caption::default(); set_global!(el, attrs); Element::Caption(el) }
-        "thead" => { let mut el = html::Thead::default(); set_global!(el, attrs); Element::Thead(el) }
-        "tbody" => { let mut el = html::Tbody::default(); set_global!(el, attrs); Element::Tbody(el) }
-        "tfoot" => { let mut el = html::Tfoot::default(); set_global!(el, attrs); Element::Tfoot(el) }
-        "tr" => { let mut el = html::Tr::default(); set_global!(el, attrs); Element::Tr(el) }
+        "table" => {
+            let mut el = html::Table::default();
+            set_global!(el, attrs);
+            Element::Table(el)
+        }
+        "caption" => {
+            let mut el = html::Caption::default();
+            set_global!(el, attrs);
+            Element::Caption(el)
+        }
+        "thead" => {
+            let mut el = html::Thead::default();
+            set_global!(el, attrs);
+            Element::Thead(el)
+        }
+        "tbody" => {
+            let mut el = html::Tbody::default();
+            set_global!(el, attrs);
+            Element::Tbody(el)
+        }
+        "tfoot" => {
+            let mut el = html::Tfoot::default();
+            set_global!(el, attrs);
+            Element::Tfoot(el)
+        }
+        "tr" => {
+            let mut el = html::Tr::default();
+            set_global!(el, attrs);
+            Element::Tr(el)
+        }
         "th" => {
             let mut el = html::Th::default();
             set_global!(el, attrs);
@@ -340,13 +586,23 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
         "colgroup" => {
             let mut el = html::Colgroup::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "span" => el.span = v.parse().ok(), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "span" => el.span = v.parse().ok(),
+                    _ => {}
+                }
+            }
             Element::Colgroup(el)
         }
         "col" => {
             let mut el = html::Col::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "span" => el.span = v.parse().ok(), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "span" => el.span = v.parse().ok(),
+                    _ => {}
+                }
+            }
             Element::Col(el)
         }
         "form" => {
@@ -370,7 +626,12 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
         "label" => {
             let mut el = html::Label::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "for" => el.r#for = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "for" => el.r#for = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Label(el)
         }
         "input" => {
@@ -505,8 +766,16 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::Fieldset(el)
         }
-        "legend" => { let mut el = html::Legend::default(); set_global!(el, attrs); Element::Legend(el) }
-        "datalist" => { let mut el = html::Datalist::default(); set_global!(el, attrs); Element::Datalist(el) }
+        "legend" => {
+            let mut el = html::Legend::default();
+            set_global!(el, attrs);
+            Element::Legend(el)
+        }
+        "datalist" => {
+            let mut el = html::Datalist::default();
+            set_global!(el, attrs);
+            Element::Datalist(el)
+        }
         "output" => {
             let mut el = html::Output::default();
             set_global!(el, attrs);
@@ -523,7 +792,13 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
         "progress" => {
             let mut el = html::Progress::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "value" => el.value = v.parse().ok(), "max" => el.max = v.parse().ok(), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "value" => el.value = v.parse().ok(),
+                    "max" => el.max = v.parse().ok(),
+                    _ => {}
+                }
+            }
             Element::Progress(el)
         }
         "meter" => {
@@ -554,49 +829,109 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::Details(el)
         }
-        "summary" => { let mut el = html::Summary::default(); set_global!(el, attrs); Element::Summary(el) }
+        "summary" => {
+            let mut el = html::Summary::default();
+            set_global!(el, attrs);
+            Element::Summary(el)
+        }
         "dialog" => {
             let mut el = html::Dialog::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "open" => el.open = Some(parse_bool_attr(v)), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "open" => el.open = Some(parse_bool_attr(v)),
+                    _ => {}
+                }
+            }
             Element::Dialog(el)
         }
         "template" => {
             let mut el = html::Template::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "shadowrootmode" => el.shadowrootmode = parse_shadow_root_mode(v), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "shadowrootmode" => el.shadowrootmode = parse_shadow_root_mode(v),
+                    _ => {}
+                }
+            }
             Element::Template(el)
         }
         "slot" => {
             let mut el = html::Slot::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "name" => el.name = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "name" => el.name = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Slot(el)
         }
         "del" => {
             let mut el = html::Del::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "cite" => el.cite = Some(v.clone()), "datetime" => el.datetime = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "cite" => el.cite = Some(v.clone()),
+                    "datetime" => el.datetime = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Del(el)
         }
         "ins" => {
             let mut el = html::Ins::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "cite" => el.cite = Some(v.clone()), "datetime" => el.datetime = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "cite" => el.cite = Some(v.clone()),
+                    "datetime" => el.datetime = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Ins(el)
         }
-        "bdi" => { let mut el = html::Bdi::default(); set_global!(el, attrs); Element::Bdi(el) }
-        "bdo" => { let mut el = html::Bdo::default(); set_global!(el, attrs); Element::Bdo(el) }
-        "wbr" => { let mut el = html::Wbr::default(); set_global!(el, attrs); Element::Wbr(el) }
+        "bdi" => {
+            let mut el = html::Bdi::default();
+            set_global!(el, attrs);
+            Element::Bdi(el)
+        }
+        "bdo" => {
+            let mut el = html::Bdo::default();
+            set_global!(el, attrs);
+            Element::Bdo(el)
+        }
+        "wbr" => {
+            let mut el = html::Wbr::default();
+            set_global!(el, attrs);
+            Element::Wbr(el)
+        }
         "data" => {
             let mut el = html::Data::default();
             set_global!(el, attrs);
-            for (n, v) in attrs { match n.as_str() { "value" => el.value = Some(v.clone()), _ => {} } }
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "value" => el.value = Some(v.clone()),
+                    _ => {}
+                }
+            }
             Element::Data(el)
         }
-        "ruby" => { let mut el = html::Ruby::default(); set_global!(el, attrs); Element::Ruby(el) }
-        "rt" => { let mut el = html::Rt::default(); set_global!(el, attrs); Element::Rt(el) }
-        "rp" => { let mut el = html::Rp::default(); set_global!(el, attrs); Element::Rp(el) }
+        "ruby" => {
+            let mut el = html::Ruby::default();
+            set_global!(el, attrs);
+            Element::Ruby(el)
+        }
+        "rt" => {
+            let mut el = html::Rt::default();
+            set_global!(el, attrs);
+            Element::Rt(el)
+        }
+        "rp" => {
+            let mut el = html::Rp::default();
+            set_global!(el, attrs);
+            Element::Rp(el)
+        }
         _ => return None,
     })
 }

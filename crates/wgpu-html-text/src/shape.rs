@@ -242,9 +242,7 @@ impl TextContext {
             let face = db.face(fontdb_id)?;
             // `face.families` is `Vec<(String, Language)>`; take the
             // first family name.
-            face.families
-                .first()
-                .map(|(name, _)| name.clone())?
+            face.families.first().map(|(name, _)| name.clone())?
         };
 
         let metrics = Metrics::new(size_px, line_height_px.max(size_px));
@@ -309,88 +307,91 @@ impl TextContext {
         for (line_glyphs, line_y, _line_h) in &layout_lines {
             let baseline_y = *line_y;
             for (glyph_index, (physical, layout_x, layout_w)) in line_glyphs.iter().enumerate() {
-            // Cumulative `letter-spacing` offset for this glyph (zero
-            // for the first one, then `letter_spacing_px` per logical
-            // glyph step).
-            let spacing_dx = (glyph_index as f32) * letter_spacing_px;
-            let key = physical.cache_key;
-            let entry = match self.glyph_cache.get(&key).copied() {
-                Some(e) => e,
-                None => {
-                    let Some(image) =
-                        self.swash.get_image_uncached(
-                            self.font_db.font_system_mut(),
-                            key,
-                        )
-                    else {
-                        // Glyph has no rasterisable outline (e.g. control
-                        // char). Skip it; it still contributes its
-                        // advance.
-                        continue;
-                    };
+                // Cumulative `letter-spacing` offset for this glyph (zero
+                // for the first one, then `letter_spacing_px` per logical
+                // glyph step).
+                let spacing_dx = (glyph_index as f32) * letter_spacing_px;
+                let key = physical.cache_key;
+                let entry = match self.glyph_cache.get(&key).copied() {
+                    Some(e) => e,
+                    None => {
+                        let Some(image) = self
+                            .swash
+                            .get_image_uncached(self.font_db.font_system_mut(), key)
+                        else {
+                            // Glyph has no rasterisable outline (e.g. control
+                            // char). Skip it; it still contributes its
+                            // advance.
+                            continue;
+                        };
 
-                    let w = image.placement.width;
-                    let h = image.placement.height;
-                    let rect = if w == 0 || h == 0 {
-                        AtlasRect { x: 0, y: 0, w: 0, h: 0 }
-                    } else {
-                        // SwashImage data: row-major, top-down, R8 alpha.
-                        match self.atlas.insert(w, h, &image.data) {
-                            Some(e) => e.rect,
-                            None => continue, // atlas full — skip glyph
-                        }
-                    };
-                    let entry = AtlasGlyph {
-                        rect,
-                        top: image.placement.top,
-                        left: image.placement.left,
-                        w,
-                        h,
-                    };
-                    self.glyph_cache.insert(key, entry);
-                    entry
+                        let w = image.placement.width;
+                        let h = image.placement.height;
+                        let rect = if w == 0 || h == 0 {
+                            AtlasRect {
+                                x: 0,
+                                y: 0,
+                                w: 0,
+                                h: 0,
+                            }
+                        } else {
+                            // SwashImage data: row-major, top-down, R8 alpha.
+                            match self.atlas.insert(w, h, &image.data) {
+                                Some(e) => e.rect,
+                                None => continue, // atlas full — skip glyph
+                            }
+                        };
+                        let entry = AtlasGlyph {
+                            rect,
+                            top: image.placement.top,
+                            left: image.placement.left,
+                            w,
+                            h,
+                        };
+                        self.glyph_cache.insert(key, entry);
+                        entry
+                    }
+                };
+
+                // Glyph position. `baseline_y` is this line's baseline
+                // in run-relative pixel coords (cosmic-text reports
+                // `run.line_y` per layout run). Subtract the bitmap top
+                // bearing for the quad's top-left. Both coords are
+                // rounded so the linear sampler doesn't blend the mask
+                // with zeroed padding rows.
+                let pos_x = (physical.x as f32 + entry.left as f32 + spacing_dx).round();
+                let pos_y = (baseline_y - entry.top as f32).round();
+
+                let quad_w = entry.w as f32;
+                let quad_h = entry.h as f32;
+
+                if entry.w > 0 && entry.h > 0 {
+                    let uv_min = [
+                        entry.rect.x as f32 / atlas_w as f32,
+                        entry.rect.y as f32 / atlas_h as f32,
+                    ];
+                    let uv_max = [
+                        (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
+                        (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
+                    ];
+                    glyphs.push(PositionedGlyph {
+                        x: pos_x,
+                        y: pos_y,
+                        w: quad_w,
+                        h: quad_h,
+                        uv_min,
+                        uv_max,
+                        color,
+                    });
                 }
-            };
 
-            // Glyph position. `baseline_y` is this line's baseline
-            // in run-relative pixel coords (cosmic-text reports
-            // `run.line_y` per layout run). Subtract the bitmap top
-            // bearing for the quad's top-left. Both coords are
-            // rounded so the linear sampler doesn't blend the mask
-            // with zeroed padding rows.
-            let pos_x = (physical.x as f32 + entry.left as f32 + spacing_dx).round();
-            let pos_y = (baseline_y - entry.top as f32).round();
-
-            let quad_w = entry.w as f32;
-            let quad_h = entry.h as f32;
-
-            if entry.w > 0 && entry.h > 0 {
-                let uv_min = [
-                    entry.rect.x as f32 / atlas_w as f32,
-                    entry.rect.y as f32 / atlas_h as f32,
-                ];
-                let uv_max = [
-                    (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
-                    (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
-                ];
-                glyphs.push(PositionedGlyph {
-                    x: pos_x,
-                    y: pos_y,
-                    w: quad_w,
-                    h: quad_h,
-                    uv_min,
-                    uv_max,
-                    color,
-                });
-            }
-
-            // The line's used width is the right edge of the last
-            // glyph's advance (with letter-spacing). `max_x` tracks
-            // the widest line.
-            let advance_right = layout_x + layout_w + spacing_dx;
-            if advance_right > max_x {
-                max_x = advance_right;
-            }
+                // The line's used width is the right edge of the last
+                // glyph's advance (with letter-spacing). `max_x` tracks
+                // the widest line.
+                let advance_right = layout_x + layout_w + spacing_dx;
+                if advance_right > max_x {
+                    max_x = advance_right;
+                }
             }
         }
 
@@ -621,7 +622,9 @@ impl TextContext {
 
                 let advance_left = snap.layout_x;
                 let advance_right = snap.layout_x + snap.layout_w;
-                let entry_xs = leaf_x.entry(leaf_id).or_insert((advance_left, advance_right));
+                let entry_xs = leaf_x
+                    .entry(leaf_id)
+                    .or_insert((advance_left, advance_right));
                 if advance_left < entry_xs.0 {
                     entry_xs.0 = advance_left;
                 }

@@ -139,7 +139,9 @@ pub fn parse_stylesheet(css: &str) -> Stylesheet {
         let Some(open) = input.find('{') else { break };
         let header = input[..open].trim().to_string();
         let after_open = &input[open + 1..];
-        let Some(close) = after_open.find('}') else { break };
+        let Some(close) = after_open.find('}') else {
+            break;
+        };
         let body = &after_open[..close];
 
         let selectors = parse_selector_list(&header);

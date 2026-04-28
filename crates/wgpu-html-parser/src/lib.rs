@@ -14,9 +14,7 @@ pub mod stylesheet;
 pub mod tokenizer;
 pub mod tree_builder;
 
-pub use css_parser::{
-    CssWideKeyword, StyleDecls, parse_inline_style, parse_inline_style_decls,
-};
+pub use css_parser::{CssWideKeyword, StyleDecls, parse_inline_style, parse_inline_style_decls};
 pub use style_props::{
     apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords,
 };

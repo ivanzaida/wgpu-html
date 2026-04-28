@@ -61,10 +61,7 @@ impl FontDb {
         // Empty fontdb → no system fonts. Locale "en-US" is just a
         // shaping-time hint; the registry is the source of truth.
         let db = fontdb::Database::new();
-        let system = cosmic_text::FontSystem::new_with_locale_and_db(
-            "en-US".to_string(),
-            db,
-        );
+        let system = cosmic_text::FontSystem::new_with_locale_and_db("en-US".to_string(), db);
         Self {
             system,
             loaded: HashMap::new(),

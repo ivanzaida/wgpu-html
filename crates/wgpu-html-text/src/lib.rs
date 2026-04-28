@@ -21,8 +21,8 @@ mod shape;
 pub use atlas::{Atlas, AtlasEntry, AtlasRect};
 pub use font_db::FontDb;
 pub use shape::{
-    LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, PositionedGlyph,
-    ShapedRun, TextContext,
+    LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, PositionedGlyph, ShapedRun,
+    TextContext,
 };
 
 // Re-export the host-facing font types so callers don't need to depend

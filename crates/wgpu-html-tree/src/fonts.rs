@@ -104,12 +104,7 @@ impl FontRegistry {
     /// override an earlier registration by re-registering.
     ///
     /// Returns `None` if no face has that family name.
-    pub fn find(
-        &self,
-        family: &str,
-        weight: u16,
-        style: FontStyleAxis,
-    ) -> Option<FontHandle> {
+    pub fn find(&self, family: &str, weight: u16, style: FontStyleAxis) -> Option<FontHandle> {
         let mut best: Option<(u32, FontHandle)> = None;
         for (h, face) in self.iter() {
             if !family_eq(&face.family, family) {
@@ -184,8 +179,7 @@ fn weight_distance(candidate: u16, target: u16) -> u32 {
     let dist = (c - t).unsigned_abs();
     let prefers_heavier = t > 500;
     let prefers_lighter = t < 400;
-    let wrong_direction =
-        (prefers_heavier && c < t) || (prefers_lighter && c > t);
+    let wrong_direction = (prefers_heavier && c < t) || (prefers_lighter && c > t);
     if wrong_direction {
         // 10_000 keeps wrong-direction matches strictly worse than any
         // right-direction match (max raw weight gap is 800).
@@ -227,10 +221,7 @@ mod tests {
         let mut r = FontRegistry::new();
         let regular = r.register(face("Inter", 400, FontStyleAxis::Normal, 1));
         let bold = r.register(face("Inter", 700, FontStyleAxis::Normal, 2));
-        assert_eq!(
-            r.find("Inter", 400, FontStyleAxis::Normal),
-            Some(regular)
-        );
+        assert_eq!(r.find("Inter", 400, FontStyleAxis::Normal), Some(regular));
         assert_eq!(r.find("Inter", 700, FontStyleAxis::Normal), Some(bold));
         // Resolves to the bytes we registered, not just the handle.
         assert_eq!(r.get(regular).unwrap().data[0], 1);
@@ -256,10 +247,7 @@ mod tests {
         // 500 → 400 (200 gap) is closer than 500 → 700 (200 gap, but
         // ties break to the later-registered, which is bold, also at 200 gap).
         // 450 → 400 wins (50 vs 250).
-        assert_eq!(
-            r.find("Inter", 450, FontStyleAxis::Normal),
-            Some(regular)
-        );
+        assert_eq!(r.find("Inter", 450, FontStyleAxis::Normal), Some(regular));
     }
 
     #[test]
@@ -301,10 +289,7 @@ mod tests {
         let oblique = r.register(face("Inter", 400, FontStyleAxis::Oblique, 2));
         // Asking for Italic with only Normal + Oblique present: Oblique
         // wins via the swap band (better than Normal).
-        assert_eq!(
-            r.find("Inter", 400, FontStyleAxis::Italic),
-            Some(oblique)
-        );
+        assert_eq!(r.find("Inter", 400, FontStyleAxis::Italic), Some(oblique));
         // Sanity: Normal still resolves to Normal.
         assert_eq!(r.find("Inter", 400, FontStyleAxis::Normal), Some(normal));
     }
@@ -328,7 +313,11 @@ mod tests {
         let _other = r.register(face("Helvetica", 400, FontStyleAxis::Normal, 2));
         // Roboto missing → falls through to Inter.
         assert_eq!(
-            r.find_first(&["Roboto", "Inter", "Helvetica"], 400, FontStyleAxis::Normal),
+            r.find_first(
+                &["Roboto", "Inter", "Helvetica"],
+                400,
+                FontStyleAxis::Normal
+            ),
             Some(inter)
         );
         // No families match → None.

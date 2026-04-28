@@ -31,7 +31,10 @@ pub fn build(tokens: Vec<Token>) -> Tree {
         1 => Some(roots.pop().unwrap()),
         _ => Some(Node::new(Element::Body(wgpu_html_models::Body::default())).with_children(roots)),
     };
-    Tree { root, ..Tree::default() }
+    Tree {
+        root,
+        ..Tree::default()
+    }
 }
 
 struct TreeBuilder {
