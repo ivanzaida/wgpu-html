@@ -193,9 +193,7 @@ pub fn sweep_image_cache() {
     let ttl = image_cache_ttl();
     let now = Instant::now();
     if let Ok(mut cache) = sized_cache().lock() {
-        cache.retain(|_, entry| {
-            now.duration_since(entry.last_access) < entry.effective_ttl(ttl)
-        });
+        cache.retain(|_, entry| now.duration_since(entry.last_access) < entry.effective_ttl(ttl));
     }
     if let Ok(mut cache) = raw_cache().lock() {
         cache.retain(|_, entry| {
@@ -397,11 +395,15 @@ fn fetch_image_bytes(src: &str) -> Option<FetchedBytes> {
         return fetch_remote(src);
     }
     if src.starts_with("data:") {
-        return fetch_data_uri(src).map(|bytes| FetchedBytes { bytes, max_age: None });
+        return fetch_data_uri(src).map(|bytes| FetchedBytes {
+            bytes,
+            max_age: None,
+        });
     }
-    std::fs::read(src)
-        .ok()
-        .map(|bytes| FetchedBytes { bytes, max_age: None })
+    std::fs::read(src).ok().map(|bytes| FetchedBytes {
+        bytes,
+        max_age: None,
+    })
 }
 
 /// Shared `ureq` agent configured with redirects disabled — we
@@ -442,7 +444,10 @@ fn fetch_remote(src: &str) -> Option<FetchedBytes> {
             .take(REMOTE_BODY_CAP)
             .read_to_end(&mut buf)
             .ok()?;
-        return Some(FetchedBytes { bytes: buf, max_age });
+        return Some(FetchedBytes {
+            bytes: buf,
+            max_age,
+        });
     }
     None
 }
@@ -468,7 +473,11 @@ fn parse_cache_control_max_age(header: Option<&str>) -> Option<Duration> {
             }
         }
     }
-    if zero { Some(Duration::ZERO) } else { max_age }
+    if zero {
+        Some(Duration::ZERO)
+    } else {
+        max_age
+    }
 }
 
 /// Compute a max-age duration from `Date` + `Expires` HTTP headers.
@@ -1118,7 +1127,7 @@ pub fn preload_image(src: &str) {
 /// `width`/`height`s reuses the single decoded buffer.
 pub(crate) fn load_image(img: &wgpu_html_models::Img) -> Option<ImageData> {
     let src = img.src.as_deref()?;
-    load_image_url(src, img.width, img.height)
+    load_image_url(src, None, None)
 }
 
 /// Lower-level entry point: load a decoded `ImageData` for a given URL
@@ -1917,6 +1926,10 @@ fn layout_block(
     } else {
         None
     };
+    let (html_img_width, html_img_height) = match &node.element {
+        Element::Img(img) => (img.width.map(|v| v as f32), img.height.map(|v| v as f32)),
+        _ => (None, None),
+    };
 
     let style = &node.style;
 
@@ -1948,9 +1961,12 @@ fn layout_block(
                     }
                 },
                 None => {
-                    // Replaced elements (<img>) use intrinsic width
-                    // when no CSS width is specified.
-                    if let Some(ref id) = img_data {
+                    // Replaced elements (<img>) use HTML width first,
+                    // then decoded intrinsic width when no CSS width is
+                    // specified.
+                    if let Some(w) = html_img_width {
+                        w
+                    } else if let Some(ref id) = img_data {
                         id.width as f32
                     } else {
                         (container_w - frame_w).max(0.0)
@@ -2011,9 +2027,12 @@ fn layout_block(
         Some(h) => Some(h),
         None => {
             // Replaced elements use intrinsic height when no CSS
-            // height is specified.
+            // height is specified. HTML height wins over the decoded
+            // intrinsic height, but does not force a CPU resize.
             let css_h = length::resolve(style.height.as_ref(), container_h, ctx);
-            let effective_h = css_h.or_else(|| img_data.as_ref().map(|id| id.height as f32));
+            let effective_h = css_h
+                .or(html_img_height)
+                .or_else(|| img_data.as_ref().map(|id| id.height as f32));
             effective_h.map(|specified| {
                 let raw = match box_sizing {
                     BoxSizing::ContentBox => specified,
