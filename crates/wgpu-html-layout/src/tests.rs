@@ -222,6 +222,53 @@ fn sized_img_occupies_inline_replaced_space() {
 }
 
 #[test]
+fn inline_block_preserves_padding_margin_and_radius_geometry() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div>
+                <span style="display: inline-block;
+                             width: 40px; height: 20px;
+                             padding: 4px 8px;
+                             margin-right: 6px;
+                             background-color: red;
+                             border-radius: 999px;">x</span>
+            </div>
+        </body>"#,
+    );
+    let root = layout(&tree, 300.0, 200.0).unwrap();
+    let line = &root.children[0];
+    assert_eq!(line.children.len(), 1);
+    let chip = &line.children[0];
+    assert_eq!(chip.margin_rect.w, 40.0 + 16.0 + 6.0);
+    assert_eq!(chip.border_rect.w, 40.0 + 16.0);
+    assert_eq!(chip.border_rect.h, 20.0 + 8.0);
+    assert!(chip.background.is_some());
+    assert!(chip.border_radius.top_left.h > 0.0);
+    assert!(chip.border_radius.top_left.h <= chip.border_rect.w * 0.5 + 0.1);
+}
+
+#[test]
+fn inline_block_children_wrap_between_atomic_boxes() {
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <div>
+                <span style="display: inline-block; width: 70px; height: 20px; margin-right: 10px;
+                             background-color: red;">a</span>
+                <span style="display: inline-block; width: 70px; height: 20px; margin-right: 10px;
+                             background-color: red;">b</span>
+                <span style="display: inline-block; width: 70px; height: 20px;
+                             background-color: red;">c</span>
+            </div>
+        </body>"#,
+    );
+    let root = layout(&tree, 170.0, 200.0).unwrap();
+    let line = &root.children[0];
+    assert_eq!(line.children.len(), 3);
+    assert_eq!(line.children[0].margin_rect.y, line.children[1].margin_rect.y);
+    assert!(line.children[2].margin_rect.y > line.children[0].margin_rect.y);
+}
+
+#[test]
 fn nested_body_div_div_stacks_correctly() {
     let tree = make(
         r#"<body style="margin: 0;">

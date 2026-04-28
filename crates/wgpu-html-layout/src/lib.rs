@@ -2796,6 +2796,10 @@ fn layout_inline_subtree(
         };
     }
 
+    if is_atomic_inline(node) {
+        return layout_atomic_inline_subtree(node, origin_x, origin_y, container_w, ctx);
+    }
+
     if matches!(&node.element, Element::Img(_)) {
         if is_empty_inline_img(node) {
             return InlineLayout {
@@ -2893,6 +2897,209 @@ fn layout_inline_subtree(
     }
 }
 
+fn layout_atomic_inline_subtree(
+    node: &CascadedNode,
+    origin_x: f32,
+    origin_y: f32,
+    container_w: f32,
+    ctx: &mut Ctx,
+) -> InlineLayout {
+    let style = &node.style;
+    let margin = resolve_insets_margin(style, container_w, ctx);
+    let border = Insets {
+        top: length::resolve(style.border_top_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+        right: length::resolve(style.border_right_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+        bottom: length::resolve(style.border_bottom_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+        left: length::resolve(style.border_left_width.as_ref(), container_w, ctx).unwrap_or(0.0),
+    };
+    let padding = resolve_insets_padding(style, container_w, ctx);
+    let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
+
+    let specified_w = length::resolve(style.width.as_ref(), container_w, ctx).map(|specified| {
+        match box_sizing {
+            BoxSizing::ContentBox => specified,
+            BoxSizing::BorderBox => {
+                (specified - border.horizontal() - padding.horizontal()).max(0.0)
+            }
+        }
+    });
+    let content_x = origin_x + margin.left + border.left + padding.left;
+    let content_y = origin_y + margin.top + border.top + padding.top;
+
+    let (mut children, measured_w, measured_h, max_ascent, _max_descent) =
+        layout_inline_children_no_wrap(
+            node,
+            content_x,
+            content_y,
+            specified_w.unwrap_or(container_w),
+            ctx,
+        );
+
+    let inner_width = specified_w.unwrap_or(measured_w);
+    let specified_h = length::resolve(style.height.as_ref(), 0.0, ctx).map(|specified| match box_sizing {
+        BoxSizing::ContentBox => specified,
+        BoxSizing::BorderBox => (specified - border.vertical() - padding.vertical()).max(0.0),
+    });
+    let inner_height = specified_h.unwrap_or(measured_h);
+
+    if inner_height > measured_h && max_ascent > 0.0 {
+        let baseline_y = content_y + max_ascent + (inner_height - measured_h);
+        for child in &mut children {
+            let child_ascent = child
+                .text_run
+                .as_ref()
+                .map(|run| run.ascent)
+                .unwrap_or(child.margin_rect.h);
+            let target_top = baseline_y - child_ascent;
+            let dy = target_top - child.margin_rect.y;
+            if dy != 0.0 {
+                translate_box_y_in_place(child, dy);
+            }
+        }
+    }
+
+    let border_rect = Rect::new(
+        origin_x + margin.left,
+        origin_y + margin.top,
+        border.horizontal() + padding.horizontal() + inner_width,
+        border.vertical() + padding.vertical() + inner_height,
+    );
+    let content_rect = Rect::new(content_x, content_y, inner_width, inner_height);
+    let margin_rect = Rect::new(
+        origin_x,
+        origin_y,
+        margin.horizontal() + border_rect.w,
+        margin.vertical() + border_rect.h,
+    );
+
+    let background = style.background_color.as_ref().and_then(resolve_color);
+    let border_colors = BorderColors {
+        top: style.border_top_color.as_ref().and_then(resolve_color),
+        right: style.border_right_color.as_ref().and_then(resolve_color),
+        bottom: style.border_bottom_color.as_ref().and_then(resolve_color),
+        left: style.border_left_color.as_ref().and_then(resolve_color),
+    };
+    let border_styles = BorderStyles {
+        top: style.border_top_style.clone(),
+        right: style.border_right_style.clone(),
+        bottom: style.border_bottom_style.clone(),
+        left: style.border_left_style.clone(),
+    };
+    let resolve_corner = |h: Option<&CssLength>, v: Option<&CssLength>, ctx: &mut Ctx| -> Radius {
+        let h_px = length::resolve(h, container_w, ctx).unwrap_or(0.0).max(0.0);
+        let v_px = match v {
+            Some(_) => length::resolve(v, inner_height.max(1.0), ctx).unwrap_or(0.0).max(0.0),
+            None => h_px,
+        };
+        Radius { h: h_px, v: v_px }
+    };
+    let mut border_radius = CornerRadii {
+        top_left: resolve_corner(
+            style.border_top_left_radius.as_ref(),
+            style.border_top_left_radius_v.as_ref(),
+            ctx,
+        ),
+        top_right: resolve_corner(
+            style.border_top_right_radius.as_ref(),
+            style.border_top_right_radius_v.as_ref(),
+            ctx,
+        ),
+        bottom_right: resolve_corner(
+            style.border_bottom_right_radius.as_ref(),
+            style.border_bottom_right_radius_v.as_ref(),
+            ctx,
+        ),
+        bottom_left: resolve_corner(
+            style.border_bottom_left_radius.as_ref(),
+            style.border_bottom_left_radius_v.as_ref(),
+            ctx,
+        ),
+    };
+    clamp_corner_radii(&mut border_radius, border_rect.w, border_rect.h);
+    let (background_rect, background_radii) = compute_background_box(
+        style,
+        border_rect,
+        content_rect,
+        border,
+        padding,
+        &border_radius,
+    );
+
+    InlineLayout {
+        box_: LayoutBox {
+            margin_rect,
+            border_rect,
+            content_rect,
+            background,
+            background_rect,
+            background_radii,
+            border,
+            border_colors,
+            border_styles,
+            border_radius,
+            kind: BoxKind::Block,
+            text_run: None,
+            text_color: None,
+            text_decorations: Vec::new(),
+            overflow: OverflowAxes::visible(),
+            image: None,
+            background_image: None,
+            children,
+        },
+        width: margin_rect.w,
+        ascent: margin_rect.h,
+        descent: 0.0,
+    }
+}
+
+fn layout_inline_children_no_wrap(
+    node: &CascadedNode,
+    origin_x: f32,
+    origin_y: f32,
+    container_w: f32,
+    ctx: &mut Ctx,
+) -> (Vec<LayoutBox>, f32, f32, f32, f32) {
+    let mut cursor_x = 0.0_f32;
+    let mut max_ascent = 0.0_f32;
+    let mut max_descent = 0.0_f32;
+    let mut child_layouts: Vec<InlineLayout> = Vec::new();
+    for child in &node.children {
+        let cl = layout_inline_subtree(
+            child,
+            origin_x + cursor_x,
+            origin_y,
+            (container_w - cursor_x).max(0.0),
+            ctx,
+        );
+        max_ascent = max_ascent.max(cl.ascent);
+        max_descent = max_descent.max(cl.descent);
+        cursor_x += cl.width;
+        child_layouts.push(cl);
+    }
+
+    let line_h = max_ascent + max_descent;
+    let baseline_y = origin_y + max_ascent;
+    let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
+    for cl in child_layouts {
+        let target_top = baseline_y - cl.ascent;
+        let dy = target_top - cl.box_.margin_rect.y;
+        let mut b = cl.box_;
+        if dy != 0.0 {
+            translate_box_y_in_place(&mut b, dy);
+        }
+        final_children.push(b);
+    }
+
+    (final_children, cursor_x, line_h, max_ascent, max_descent)
+}
+
+fn is_atomic_inline(node: &CascadedNode) -> bool {
+    matches!(
+        node.style.display,
+        Some(Display::InlineBlock | Display::InlineFlex)
+    )
+}
+
 /// Lay out a block's inline-level children as a stack of line boxes
 /// at `(origin_x, origin_y)`. Returns the final children (already
 /// positioned absolutely) plus the paragraph's used width (max line
@@ -2943,7 +3150,7 @@ fn layout_inline_block_children(
         }
     }
 
-    if contains_inline_replaced(node) {
+    if contains_atomic_inline(node) {
         return layout_inline_mixed_children(node, origin_x, origin_y, container_w, ctx);
     }
 
@@ -2966,49 +3173,87 @@ fn layout_inline_mixed_children(
     container_w: f32,
     ctx: &mut Ctx,
 ) -> (Vec<LayoutBox>, f32, f32) {
-    let mut cursor_x = 0.0_f32;
-    let mut max_ascent = 0.0_f32;
-    let mut max_descent = 0.0_f32;
-    let mut child_layouts: Vec<InlineLayout> = Vec::new();
+    struct Line {
+        items: Vec<InlineLayout>,
+        width: f32,
+        ascent: f32,
+        descent: f32,
+        y: f32,
+    }
+
+    let wrap = container_w.is_finite() && container_w > 0.0;
+    let mut lines: Vec<Line> = Vec::new();
+    let mut current = Line {
+        items: Vec::new(),
+        width: 0.0,
+        ascent: 0.0,
+        descent: 0.0,
+        y: origin_y,
+    };
+    let mut cursor_y = origin_y;
 
     for child in &node.children {
-        let cl = layout_inline_subtree(
+        let mut cl = layout_inline_subtree(
             child,
-            origin_x + cursor_x,
-            origin_y,
-            (container_w - cursor_x).max(0.0),
+            origin_x + current.width,
+            cursor_y,
+            (container_w - current.width).max(0.0),
             ctx,
         );
-        max_ascent = max_ascent.max(cl.ascent);
-        max_descent = max_descent.max(cl.descent);
-        cursor_x += cl.width;
-        child_layouts.push(cl);
+        if wrap
+            && !current.items.is_empty()
+            && current.width + cl.width > container_w
+        {
+            let line_h = current.ascent + current.descent;
+            cursor_y += line_h;
+            lines.push(current);
+            current = Line {
+                items: Vec::new(),
+                width: 0.0,
+                ascent: 0.0,
+                descent: 0.0,
+                y: cursor_y,
+            };
+            cl = layout_inline_subtree(child, origin_x, cursor_y, container_w, ctx);
+        }
+        current.width += cl.width;
+        current.ascent = current.ascent.max(cl.ascent);
+        current.descent = current.descent.max(cl.descent);
+        current.items.push(cl);
+    }
+    lines.push(current);
+
+    let mut final_children: Vec<LayoutBox> = Vec::new();
+    let mut max_width = 0.0_f32;
+    let mut total_h = 0.0_f32;
+    for line in lines {
+        max_width = max_width.max(line.width);
+        let line_h = line.ascent + line.descent;
+        total_h = (line.y - origin_y) + line_h;
+        let baseline_y = line.y + line.ascent;
+        let align_dx = horizontal_align_offset(node.style.text_align.as_ref(), container_w, line.width);
+        for cl in line.items {
+            let target_top = baseline_y - cl.ascent;
+            let dy = target_top - cl.box_.margin_rect.y;
+            let mut b = cl.box_;
+            if dy != 0.0 {
+                translate_box_y_in_place(&mut b, dy);
+            }
+            if align_dx != 0.0 {
+                translate_box_x_in_place(&mut b, align_dx);
+            }
+            final_children.push(b);
+        }
     }
 
-    let line_h = max_ascent + max_descent;
-    let baseline_y = origin_y + max_ascent;
-    let align_dx = horizontal_align_offset(node.style.text_align.as_ref(), container_w, cursor_x);
-    let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
-    for cl in child_layouts {
-        let target_top = baseline_y - cl.ascent;
-        let dy = target_top - cl.box_.margin_rect.y;
-        let mut b = cl.box_;
-        if dy != 0.0 {
-            translate_box_y_in_place(&mut b, dy);
-        }
-        if align_dx != 0.0 {
-            translate_box_x_in_place(&mut b, align_dx);
-        }
-        final_children.push(b);
-    }
-
-    (final_children, cursor_x, line_h)
+    (final_children, max_width, total_h)
 }
 
-fn contains_inline_replaced(node: &CascadedNode) -> bool {
+fn contains_atomic_inline(node: &CascadedNode) -> bool {
     node.children.iter().any(|child| {
         matches!(&child.element, Element::Img(_))
-            || (!child.children.is_empty() && contains_inline_replaced(child))
+            || is_atomic_inline(child)
+            || (!child.children.is_empty() && contains_atomic_inline(child))
     })
 }
 
