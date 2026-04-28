@@ -695,10 +695,7 @@ mod tests {
 
         let mut root = Node::new("text");
         root.on_event = Some(Arc::new(move |ev| {
-            received2
-                .lock()
-                .unwrap()
-                .push(ev.event_type().to_string());
+            received2.lock().unwrap().push(ev.event_type().to_string());
         }));
         let lay = synthetic_text_layout();
         let mut tree = Tree::new(root);
@@ -742,10 +739,7 @@ mod tests {
         let mut root = Node::new("text");
         root.on_mouse_enter = None; // not wired
         root.on_event = Some(Arc::new(move |ev| {
-            received2
-                .lock()
-                .unwrap()
-                .push(ev.event_type().to_string());
+            received2.lock().unwrap().push(ev.event_type().to_string());
         }));
         let lay = synthetic_text_layout();
         let mut tree = Tree::new(root);

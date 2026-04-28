@@ -486,15 +486,12 @@ ggg<style>
 <div id="log-bar">
     <div id="log-bar-title">Terminal event log</div>
     <div class="log-hint">
-        ● Live events (green zones) print to stderr via eprintln! — run with:
+        ● Live events (green zones) are wired in the demo — run with:
     </div>
     <div class="log-hint2">
         cargo run -p wgpu-html-demo -- crates/wgpu-html-demo/html/events-test.html
     </div>
     <div class="log-hint2" style="margin-top:6px;">
         Dispatched now: mousedown · mouseup · click · mouseenter · mouseleave
-    </div>
-    <div class="log-hint2">
-        Each on_event callback prints: [zone-id] type  client=({x},{y})  button={b}  buttons={mask}  mods={mods}  ts={ms}ms
     </div>
 </div>

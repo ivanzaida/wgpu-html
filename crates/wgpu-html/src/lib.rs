@@ -70,7 +70,8 @@ pub fn compute_layout_profiled(
     let cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
     let layout_t0 = Instant::now();
-    let layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale);
+    let layout =
+        wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale);
     let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
     (
@@ -93,13 +94,8 @@ pub fn paint_tree_returning_layout(
     viewport_h: f32,
     scale: f32,
 ) -> (DisplayList, Option<LayoutBox>) {
-    let (list, layout, _) = paint_tree_returning_layout_profiled(
-        tree,
-        text_ctx,
-        viewport_w,
-        viewport_h,
-        scale,
-    );
+    let (list, layout, _) =
+        paint_tree_returning_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale);
     (list, layout)
 }
 
@@ -110,7 +106,8 @@ pub fn paint_tree_returning_layout_profiled(
     viewport_h: f32,
     scale: f32,
 ) -> (DisplayList, Option<LayoutBox>, PipelineTimings) {
-    let (layout, mut timings) = compute_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale);
+    let (layout, mut timings) =
+        compute_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale);
     let mut list = DisplayList::new();
     let paint_t0 = Instant::now();
     if let Some(root) = layout.as_ref() {

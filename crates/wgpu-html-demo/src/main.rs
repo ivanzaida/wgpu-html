@@ -106,7 +106,6 @@ fn demo_fonts() -> &'static [DemoFont] {
                 let Ok(reg_bytes) = std::fs::read(regular_path) else {
                     continue;
                 };
-                eprintln!("demo: loaded font family from {regular_path}");
                 let mut out = vec![DemoFont {
                     weight: 400,
                     style: FontStyleAxis::Normal,
@@ -123,7 +122,6 @@ fn demo_fonts() -> &'static [DemoFont] {
                         continue;
                     }
                     if let Ok(bytes) = std::fs::read(path) {
-                        eprintln!("demo:   + variant {path} @ {weight} {style:?}");
                         out.push(DemoFont {
                             weight,
                             style,
@@ -239,6 +237,10 @@ impl ProfileWindow {
         if !self.is_due() {
             return None;
         }
+        if self.frames == 0 && self.hover_moves == 0 && self.hover_frames == 0 {
+            self.reset();
+            return None;
+        }
 
         let secs = self.started_at.elapsed().as_secs_f64().max(f64::EPSILON);
         let frames = self.frames;
@@ -266,10 +268,26 @@ impl ProfileWindow {
             self.atlas_upload.max_ms,
             self.render.avg_ms(frames),
             self.render.max_ms,
-            if frames == 0 { 0 } else { self.quads_sum / frames },
-            if frames == 0 { 0 } else { self.glyphs_sum / frames },
-            if frames == 0 { 0 } else { self.images_sum / frames },
-            if frames == 0 { 0 } else { self.clips_sum / frames },
+            if frames == 0 {
+                0
+            } else {
+                self.quads_sum / frames
+            },
+            if frames == 0 {
+                0
+            } else {
+                self.glyphs_sum / frames
+            },
+            if frames == 0 {
+                0
+            } else {
+                self.images_sum / frames
+            },
+            if frames == 0 {
+                0
+            } else {
+                self.clips_sum / frames
+            },
             self.hover_moves,
             self.hover_changed,
             self.hover_pointer_move.avg_ms(self.hover_moves),
@@ -456,87 +474,19 @@ impl App {
             }
 
             // Wire callbacks via the friendly `get_element_by_id` API.
-            // The button increments a shared counter; the panel logs
-            // hover transitions and clicks.
+            // Keep demo callbacks silent so profiling logs stay readable.
             let counter = click_count.clone();
             if let Some(btn) = tree.get_element_by_id("btn") {
-                btn.on_click = Some(Arc::new(move |ev| {
+                btn.on_click = Some(Arc::new(move |_| {
                     let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    eprintln!("[btn] click #{n} at {:?}", ev.pos);
+                    let _ = n;
                 }));
-            } else {
-                eprintln!("demo: no element with id=\"btn\"");
             }
 
             if let Some(panel) = tree.get_element_by_id("panel") {
-                panel.on_mouse_enter = Some(Arc::new(|ev| {
-                    eprintln!("[panel] mouse enter at {:?}", ev.pos);
-                }));
-                panel.on_mouse_leave = Some(Arc::new(|ev| {
-                    eprintln!("[panel] mouse leave at {:?}", ev.pos);
-                }));
-                panel.on_click = Some(Arc::new(|ev| {
-                    eprintln!("[panel] click at {:?}", ev.pos);
-                }));
-            }
-
-            // ── events-test.html: wire on_event for every live zone ──────
-            // Each callback prints a one-liner to stderr with all the key
-            // fields from the HtmlEvent so the user can verify the full
-            // event hierarchy is populated correctly.
-            let live_zone_ids: &[&str] = &[
-                "zone-click",
-                "zone-mousedown",
-                "zone-mouseup",
-                "zone-enterleave",
-                "zone-buttons",
-            ];
-            for zone_id in live_zone_ids {
-                if let Some(el) = tree.get_element_by_id(zone_id) {
-                    let id = zone_id.to_string();
-                    el.on_event = Some(Arc::new(move |ev| {
-                        use wgpu_html_tree::HtmlEvent;
-                        let base = ev.base();
-                        let (cx, cy, btn, btns, phase) = match ev {
-                            HtmlEvent::Mouse(m) => (
-                                m.client_x,
-                                m.client_y,
-                                m.button,
-                                m.buttons,
-                                format!("{:?}", base.event_phase),
-                            ),
-                            _ => (0.0, 0.0, -1, 0, format!("{:?}", base.event_phase)),
-                        };
-                        let mods = format!(
-                            "{}{}{}{}",
-                            if base.is_trusted { "" } else { "!" },
-                            // modifier keys: read from the Mouse variant
-                            match ev {
-                                HtmlEvent::Mouse(m) => {
-                                    let mut s = String::new();
-                                    if m.ctrl_key  { s.push_str("C"); }
-                                    if m.shift_key { s.push_str("S"); }
-                                    if m.alt_key   { s.push_str("A"); }
-                                    if m.meta_key  { s.push_str("M"); }
-                                    if s.is_empty() { s.push('-'); }
-                                    s
-                                }
-                                _ => "-".into(),
-                            },
-                            "",
-                            "",
-                        );
-                        eprintln!(
-                            "[{id}] {type_}  client=({cx:.0},{cy:.0})  \
-                             button={btn}  buttons=0b{btns:05b}  \
-                             mods={mods}  phase={phase}  \
-                             ts={ts:.2}ms  bubbles={bub}",
-                            type_ = ev.event_type(),
-                            ts    = base.time_stamp,
-                            bub   = base.bubbles,
-                        );
-                    }));
-                }
+                panel.on_mouse_enter = Some(Arc::new(|_| {}));
+                panel.on_mouse_leave = Some(Arc::new(|_| {}));
+                panel.on_click = Some(Arc::new(|_| {}));
             }
 
             *tree_slot = Some(tree);
@@ -583,11 +533,14 @@ impl App {
         self.hover_redraw_pending = false;
         eprintln!(
             "demo: profiling {} (use --profile to enable on startup)",
-            if self.profiling_enabled { "enabled" } else { "disabled" }
+            if self.profiling_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
         );
     }
 }
-
 
 fn translate_button(b: WinitMouseButton) -> MouseButton {
     match b {
@@ -736,7 +689,8 @@ impl ApplicationHandler for App {
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
                     let hover_t0 = self.profiling_enabled.then(Instant::now);
-                    let changed = interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                    let changed =
+                        interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
                     if let Some(t0) = hover_t0 {
                         self.profile_window
                             .add_hover_move(t0.elapsed().as_secs_f64() * 1000.0, changed);
@@ -747,8 +701,7 @@ impl ApplicationHandler for App {
                     // queues a redundant pass.
                     if changed || tree.interaction.selecting_text {
                         const HOVER_FRAME_MS: u64 = 16;
-                        if self.last_hover_redraw.elapsed()
-                            >= Duration::from_millis(HOVER_FRAME_MS)
+                        if self.last_hover_redraw.elapsed() >= Duration::from_millis(HOVER_FRAME_MS)
                         {
                             if self.profiling_enabled {
                                 self.profile_window.mark_hover_redraw_requested();

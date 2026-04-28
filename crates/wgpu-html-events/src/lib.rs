@@ -254,8 +254,8 @@ impl HtmlEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::enums::EventPhase;
+    use super::*;
 
     fn make_base(event_type: &str) -> Event {
         Event {
@@ -273,7 +273,10 @@ mod tests {
     }
 
     fn make_ui(event_type: &str, detail: i32) -> UIEvent {
-        UIEvent { base: make_base(event_type), detail }
+        UIEvent {
+            base: make_base(event_type),
+            detail,
+        }
     }
 
     #[test]

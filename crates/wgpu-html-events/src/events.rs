@@ -12,8 +12,10 @@
 //! # }
 //! ```
 
+use crate::enums::{
+    EventPhase, InputType, KeyboardLocation, PointerType, ToggleState, WheelDeltaMode,
+};
 use crate::{ClipboardDataId, DataTransferId, FormDataId, HtmlEventType, NodeId};
-use crate::enums::{EventPhase, InputType, KeyboardLocation, PointerType, ToggleState, WheelDeltaMode};
 
 // ── Event ────────────────────────────────────────────────────────────────────
 

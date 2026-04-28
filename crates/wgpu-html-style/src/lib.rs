@@ -13,18 +13,20 @@
 //! 2. The element's inline `style="…"` attribute (treated as specificity
 //!    higher than any selector, per CSS)
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use wgpu_html_models::Style;
 use wgpu_html_parser::{
-    CssWideKeyword, PseudoClass, Selector, Stylesheet, parse_inline_style_decls, parse_stylesheet,
+    CssWideKeyword, PseudoClass, Rule, Selector, Stylesheet, parse_inline_style_decls,
+    parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
 /// Per-element state consulted by the matcher when resolving dynamic
 /// pseudo-classes (`:hover`, `:active`, …). Default is "nothing on";
 /// rules with pseudo-classes never match a default context.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct MatchContext {
     pub is_hover: bool,
     pub is_active: bool,
@@ -75,6 +77,184 @@ pub struct CascadedNode {
     pub children: Vec<CascadedNode>,
 }
 
+#[derive(Debug, Clone)]
+struct PreparedStylesheet {
+    sheet: Arc<Stylesheet>,
+    index: RuleIndex,
+    normal_nonempty: Vec<bool>,
+    important_nonempty: Vec<bool>,
+    relevant: RelevantSelectors,
+}
+
+#[derive(Debug, Clone, Default)]
+struct RelevantSelectors {
+    ids: HashSet<String>,
+    classes: HashSet<String>,
+    tags: HashSet<String>,
+    attrs: HashSet<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct RuleIndex {
+    by_id: HashMap<String, Vec<SelectorRuleRef>>,
+    by_class: HashMap<String, Vec<SelectorRuleRef>>,
+    by_tag: HashMap<String, Vec<SelectorRuleRef>>,
+    universal: Vec<SelectorRuleRef>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SelectorRuleRef {
+    rule_idx: usize,
+    selector_idx: usize,
+}
+
+impl PreparedStylesheet {
+    fn from_sheet(sheet: Arc<Stylesheet>) -> Self {
+        let mut index = RuleIndex::default();
+        let mut normal_nonempty = Vec::with_capacity(sheet.rules.len());
+        let mut important_nonempty = Vec::with_capacity(sheet.rules.len());
+        let mut relevant = RelevantSelectors::default();
+        for (rule_idx, rule) in sheet.rules.iter().enumerate() {
+            normal_nonempty.push(!rule.keywords.is_empty() || style_has_values(&rule.declarations));
+            important_nonempty
+                .push(!rule.important_keywords.is_empty() || style_has_values(&rule.important));
+            for (selector_idx, selector) in rule.selectors.iter().enumerate() {
+                collect_relevant_selector_bits(selector, &mut relevant);
+                let entry = SelectorRuleRef {
+                    rule_idx,
+                    selector_idx,
+                };
+                if let Some(id) = &selector.id {
+                    index.by_id.entry(id.clone()).or_default().push(entry);
+                } else if let Some(class) = selector.classes.first() {
+                    index.by_class.entry(class.clone()).or_default().push(entry);
+                } else if let Some(tag) = &selector.tag {
+                    index.by_tag.entry(tag.clone()).or_default().push(entry);
+                } else {
+                    index.universal.push(entry);
+                }
+            }
+        }
+        Self {
+            sheet,
+            index,
+            normal_nonempty,
+            important_nonempty,
+            relevant,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct DeclCacheKey {
+    element: SelectorSignature,
+    ancestors: Vec<SelectorSignature>,
+    inline_style: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SelectorSignature {
+    tag: Option<String>,
+    id: Option<String>,
+    classes: Vec<String>,
+    attrs: Vec<(String, Option<String>)>,
+    ctx: MatchContext,
+}
+
+fn collect_relevant_selector_bits(sel: &Selector, relevant: &mut RelevantSelectors) {
+    if let Some(id) = &sel.id {
+        relevant.ids.insert(id.clone());
+    }
+    if let Some(tag) = &sel.tag {
+        relevant.tags.insert(tag.clone());
+    }
+    relevant.classes.extend(sel.classes.iter().cloned());
+    relevant
+        .attrs
+        .extend(sel.attributes.iter().map(|attr| attr.name.clone()));
+    for ancestor in &sel.ancestors {
+        collect_relevant_selector_bits(ancestor, relevant);
+    }
+}
+
+fn decl_cache_key(
+    element: &Element,
+    element_ctx: MatchContext,
+    sheets: &[&PreparedStylesheet],
+    ancestors: &[(&Element, MatchContext)],
+) -> DeclCacheKey {
+    DeclCacheKey {
+        element: selector_signature(element, element_ctx, sheets),
+        ancestors: ancestors
+            .iter()
+            .map(|(ancestor, ctx)| selector_signature(ancestor, *ctx, sheets))
+            .collect(),
+        inline_style: element_style_attr(element).map(str::to_owned),
+    }
+}
+
+fn selector_signature(
+    element: &Element,
+    ctx: MatchContext,
+    sheets: &[&PreparedStylesheet],
+) -> SelectorSignature {
+    let tag = element_tag(element)
+        .filter(|tag| relevant_tag(sheets, tag))
+        .map(str::to_owned);
+    let id = element_id(element)
+        .filter(|id| relevant_id(sheets, id))
+        .map(str::to_owned);
+    let mut classes = element_class(element)
+        .into_iter()
+        .flat_map(|class_attr| class_attr.split_ascii_whitespace())
+        .filter(|class| relevant_class(sheets, class))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    classes.sort_unstable();
+    classes.dedup();
+
+    let mut attr_names = relevant_attr_names(sheets);
+    let attrs = attr_names
+        .drain(..)
+        .map(|name| {
+            let value = element_attr(element, &name);
+            (name, value)
+        })
+        .collect();
+
+    SelectorSignature {
+        tag,
+        id,
+        classes,
+        attrs,
+        ctx,
+    }
+}
+
+fn relevant_id(sheets: &[&PreparedStylesheet], id: &str) -> bool {
+    sheets.iter().any(|sheet| sheet.relevant.ids.contains(id))
+}
+
+fn relevant_class(sheets: &[&PreparedStylesheet], class: &str) -> bool {
+    sheets
+        .iter()
+        .any(|sheet| sheet.relevant.classes.contains(class))
+}
+
+fn relevant_tag(sheets: &[&PreparedStylesheet], tag: &str) -> bool {
+    sheets.iter().any(|sheet| sheet.relevant.tags.contains(tag))
+}
+
+fn relevant_attr_names(sheets: &[&PreparedStylesheet]) -> Vec<String> {
+    let mut names = sheets
+        .iter()
+        .flat_map(|sheet| sheet.relevant.attrs.iter().cloned())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -90,38 +270,82 @@ pub struct CascadedNode {
 ///    resolved style (CSS-Cascade-3 §3.3 — `color`, font-related
 ///    properties, line-height, text-align, etc.).
 pub fn cascade(tree: &Tree) -> CascadedTree {
-    // UA defaults sit before author rules in the rules list, so on
-    // a specificity tie the author rule wins on source order.
-    let mut stylesheet = ua::ua_stylesheet().clone();
-    stylesheet.append(collect_stylesheet(tree));
+    // UA defaults sit before author rules, so on a specificity tie
+    // the author rule wins on source order.
+    let author = collect_prepared_stylesheet_cached(tree);
+    let stylesheets = [ua_prepared_stylesheet(), author.as_ref()];
     let interaction = &tree.interaction;
     let mut path: Vec<usize> = Vec::new();
+    let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> =
+        HashMap::new();
     CascadedTree {
-        root: tree
-            .root
-            .as_ref()
-            .map(|n| cascade_node(n, &stylesheet, None, &[], &mut path, interaction)),
+        root: tree.root.as_ref().map(|n| {
+            cascade_node(
+                n,
+                &stylesheets,
+                None,
+                &[],
+                &mut path,
+                interaction,
+                &mut decl_cache,
+            )
+        }),
     }
 }
 
 /// Walk the tree, gather text content of all `<style>` blocks, and parse it.
 pub fn collect_stylesheet(tree: &Tree) -> Stylesheet {
-    let mut sheet = Stylesheet::default();
-    if let Some(root) = &tree.root {
-        gather(root, &mut sheet);
-    }
-    sheet
+    collect_prepared_stylesheet_cached(tree)
+        .sheet
+        .as_ref()
+        .clone()
 }
 
-fn gather(node: &Node, out: &mut Stylesheet) {
+fn collect_prepared_stylesheet_cached(tree: &Tree) -> Arc<PreparedStylesheet> {
+    let css = collect_stylesheet_source(tree);
+    if css.is_empty() {
+        return Arc::new(PreparedStylesheet::from_sheet(Arc::new(
+            Stylesheet::default(),
+        )));
+    }
+    static CACHE: OnceLock<Mutex<HashMap<String, Arc<PreparedStylesheet>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(mut cache) = cache.lock() {
+        if let Some(sheet) = cache.get(&css) {
+            return sheet.clone();
+        }
+        let prepared = Arc::new(PreparedStylesheet::from_sheet(Arc::new(parse_stylesheet(
+            &css,
+        ))));
+        cache.insert(css, prepared.clone());
+        return prepared;
+    }
+    Arc::new(PreparedStylesheet::from_sheet(Arc::new(parse_stylesheet(
+        &css,
+    ))))
+}
+
+fn ua_prepared_stylesheet() -> &'static PreparedStylesheet {
+    static UA: OnceLock<PreparedStylesheet> = OnceLock::new();
+    UA.get_or_init(|| PreparedStylesheet::from_sheet(Arc::new(ua::ua_stylesheet().clone())))
+}
+
+fn collect_stylesheet_source(tree: &Tree) -> String {
+    let mut css = String::new();
+    if let Some(root) = &tree.root {
+        gather(root, &mut css);
+    }
+    css
+}
+
+fn gather(node: &Node, out: &mut String) {
     if matches!(&node.element, Element::StyleElement(_)) {
-        let mut css = String::new();
         for child in &node.children {
             if let Element::Text(t) = &child.element {
-                css.push_str(t);
+                out.push_str(t);
             }
         }
-        out.append(parse_stylesheet(&css));
+        out.push('\n');
     }
     for child in &node.children {
         gather(child, out);
@@ -138,15 +362,31 @@ fn gather(node: &Node, out: &mut Stylesheet) {
 /// document's `InteractionState`.
 fn cascade_node(
     node: &Node,
-    sheet: &Stylesheet,
+    sheets: &[&PreparedStylesheet],
     parent_style: Option<&Style>,
     ancestors: &[(&Element, MatchContext)],
     path: &mut Vec<usize>,
     interaction: &InteractionState,
+    decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
 ) -> CascadedNode {
     let element_ctx = MatchContext::for_path(path, interaction);
-    let (mut style, keywords) =
-        computed_decls_in_tree_with_context(&node.element, &element_ctx, sheet, ancestors);
+    let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
+        (Style::default(), HashMap::new())
+    } else {
+        let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors);
+        if let Some(cached) = decl_cache.get(&key) {
+            cached.clone()
+        } else {
+            let computed = computed_decls_in_prepared_stylesheets_with_context(
+                &node.element,
+                &element_ctx,
+                sheets,
+                ancestors,
+            );
+            decl_cache.insert(key, computed.clone());
+            computed
+        }
+    };
 
     // Resolve every CSS-wide keyword override against the parent's
     // already-resolved style. Each entry replaces the matching field
@@ -175,7 +415,15 @@ fn cascade_node(
         .enumerate()
         .map(|(i, c)| {
             path.push(i);
-            let cn = cascade_node(c, sheet, Some(&style), &child_ancestors, path, interaction);
+            let cn = cascade_node(
+                c,
+                sheets,
+                Some(&style),
+                &child_ancestors,
+                path,
+                interaction,
+                decl_cache,
+            );
             path.pop();
             cn
         })
@@ -296,43 +544,66 @@ pub fn computed_decls_in_tree_with_context(
     sheet: &Stylesheet,
     ancestors: &[(&Element, MatchContext)],
 ) -> (Style, HashMap<String, CssWideKeyword>) {
+    let prepared = PreparedStylesheet::from_sheet(Arc::new(sheet.clone()));
+    computed_decls_in_prepared_stylesheets_with_context(
+        element,
+        element_ctx,
+        &[&prepared],
+        ancestors,
+    )
+}
+
+fn computed_decls_in_prepared_stylesheets_with_context(
+    element: &Element,
+    element_ctx: &MatchContext,
+    sheets: &[&PreparedStylesheet],
+    ancestors: &[(&Element, MatchContext)],
+) -> (Style, HashMap<String, CssWideKeyword>) {
     let mut values = Style::default();
     let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
     let inline = element_style_attr(element).map(parse_inline_style_decls);
+    let tag = element_tag(element);
+    let id = element_id(element);
+    let class_attr = element_class(element);
 
-    let select_layers = |target: fn(
-        &wgpu_html_parser::Rule,
-    ) -> (&Style, &HashMap<String, CssWideKeyword>)|
-     -> Vec<(u32, &Style, &HashMap<String, CssWideKeyword>)> {
-        sheet
-            .rules
-            .iter()
-            .filter_map(|rule| {
-                rule.selectors
-                    .iter()
-                    .filter(|s| {
-                        matches_selector_in_tree_with_context(s, element, element_ctx, ancestors)
-                    })
-                    .map(|s| s.specificity())
-                    .max()
-                    .map(|spec| {
-                        let (decls, kws) = target(rule);
-                        (spec, decls, kws)
-                    })
-            })
-            .collect()
-    };
+    let mut matched_rules: Vec<(u32, usize, usize, &Rule, bool, bool)> = sheets
+        .iter()
+        .enumerate()
+        .flat_map(|(sheet_idx, sheet)| {
+            matching_rules_for_element(sheet, element, element_ctx, ancestors, tag, id, class_attr)
+                .into_iter()
+                .map(
+                    move |(spec, rule_idx, rule, normal_nonempty, important_nonempty)| {
+                        (
+                            spec,
+                            sheet_idx,
+                            rule_idx,
+                            rule,
+                            normal_nonempty,
+                            important_nonempty,
+                        )
+                    },
+                )
+        })
+        .collect();
+    matched_rules
+        .sort_by_key(|(spec, sheet_idx, rule_idx, _, _, _)| (*spec, *sheet_idx, *rule_idx));
 
     // 1. Author normal.
-    let mut author_normal = select_layers(|r| (&r.declarations, &r.keywords));
-    author_normal.sort_by_key(|(spec, _, _)| *spec);
-    for (_, v, k) in author_normal {
-        apply_layer(&mut values, &mut keywords, v, k);
+    for (_, _, _, rule, normal_nonempty, _) in &matched_rules {
+        if *normal_nonempty {
+            apply_layer(
+                &mut values,
+                &mut keywords,
+                &rule.declarations,
+                &rule.keywords,
+            );
+        }
     }
 
     // 2. Inline normal.
     if let Some(decls) = &inline {
-        apply_layer(
+        apply_layer_if_nonempty(
             &mut values,
             &mut keywords,
             &decls.normal,
@@ -341,15 +612,20 @@ pub fn computed_decls_in_tree_with_context(
     }
 
     // 3. Author !important.
-    let mut author_important = select_layers(|r| (&r.important, &r.important_keywords));
-    author_important.sort_by_key(|(spec, _, _)| *spec);
-    for (_, v, k) in author_important {
-        apply_layer(&mut values, &mut keywords, v, k);
+    for (_, _, _, rule, _, important_nonempty) in &matched_rules {
+        if *important_nonempty {
+            apply_layer(
+                &mut values,
+                &mut keywords,
+                &rule.important,
+                &rule.important_keywords,
+            );
+        }
     }
 
     // 4. Inline !important.
     if let Some(decls) = &inline {
-        apply_layer(
+        apply_layer_if_nonempty(
             &mut values,
             &mut keywords,
             &decls.important,
@@ -360,11 +636,140 @@ pub fn computed_decls_in_tree_with_context(
     (values, keywords)
 }
 
+fn selector_prefilter_is_complete(sel: &Selector) -> bool {
+    sel.ancestors.is_empty() && sel.attributes.is_empty() && sel.pseudo_classes.is_empty()
+}
+
+fn matching_rules_for_element<'a>(
+    sheet: &'a PreparedStylesheet,
+    element: &Element,
+    element_ctx: &MatchContext,
+    ancestors: &[(&Element, MatchContext)],
+    tag: Option<&str>,
+    id: Option<&str>,
+    class_attr: Option<&str>,
+) -> Vec<(u32, usize, &'a Rule, bool, bool)> {
+    let mut selector_entries = Vec::new();
+    let mut push_entries = |entries: &[SelectorRuleRef]| {
+        for entry in entries {
+            if !selector_entries.iter().any(|seen: &SelectorRuleRef| {
+                seen.rule_idx == entry.rule_idx && seen.selector_idx == entry.selector_idx
+            }) {
+                selector_entries.push(*entry);
+            }
+        }
+    };
+
+    if let Some(id) = id
+        && let Some(entries) = sheet.index.by_id.get(id)
+    {
+        push_entries(entries);
+    }
+    if let Some(class_attr) = class_attr {
+        for class in class_attr.split_ascii_whitespace() {
+            if let Some(entries) = sheet.index.by_class.get(class) {
+                push_entries(entries);
+            }
+        }
+    }
+    if let Some(tag) = tag
+        && let Some(entries) = sheet.index.by_tag.get(tag)
+    {
+        push_entries(entries);
+    }
+    push_entries(&sheet.index.universal);
+
+    let mut rule_specs: Vec<(usize, u32)> = Vec::new();
+    for entry in selector_entries {
+        let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else {
+            continue;
+        };
+        let Some(selector) = rule.selectors.get(entry.selector_idx) else {
+            continue;
+        };
+        if !selector_subject_might_match(selector, tag, id, class_attr) {
+            continue;
+        }
+        if !selector_prefilter_is_complete(selector)
+            && !matches_selector_in_tree_with_context(selector, element, element_ctx, ancestors)
+        {
+            continue;
+        }
+        let spec = selector.specificity();
+        if let Some((_, prev)) = rule_specs
+            .iter_mut()
+            .find(|(rule_idx, _)| *rule_idx == entry.rule_idx)
+        {
+            *prev = (*prev).max(spec);
+        } else {
+            rule_specs.push((entry.rule_idx, spec));
+        }
+    }
+
+    rule_specs
+        .into_iter()
+        .filter_map(|(rule_idx, spec)| {
+            let rule = sheet.sheet.rules.get(rule_idx)?;
+            let normal_nonempty = sheet.normal_nonempty.get(rule_idx).copied().unwrap_or(true);
+            let important_nonempty = sheet
+                .important_nonempty
+                .get(rule_idx)
+                .copied()
+                .unwrap_or(true);
+            Some((spec, rule_idx, rule, normal_nonempty, important_nonempty))
+        })
+        .collect()
+}
+
+fn selector_subject_might_match(
+    sel: &Selector,
+    tag: Option<&str>,
+    id: Option<&str>,
+    class_attr: Option<&str>,
+) -> bool {
+    if let Some(needed_tag) = &sel.tag
+        && tag != Some(needed_tag.as_str())
+    {
+        return false;
+    }
+    if let Some(needed_id) = &sel.id
+        && id != Some(needed_id.as_str())
+    {
+        return false;
+    }
+    if !sel.classes.is_empty() {
+        let Some(class_attr) = class_attr else {
+            return false;
+        };
+        for needed in &sel.classes {
+            if !class_attr
+                .split_ascii_whitespace()
+                .any(|class| class == needed)
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 /// Apply one cascade layer's `(values, keyword overrides)` to the
 /// running `(values, keywords)` accumulator. Keyword overrides go
 /// first — they clear the matching value field — then the value
 /// merge runs and drops any keyword left behind for fields the layer
 /// also wrote a value for.
+fn apply_layer_if_nonempty(
+    values: &mut Style,
+    keywords: &mut HashMap<String, CssWideKeyword>,
+    layer_values: &Style,
+    layer_keywords: &HashMap<String, CssWideKeyword>,
+) {
+    if layer_keywords.is_empty() && !style_has_values(layer_values) {
+        return;
+    }
+    apply_layer(values, keywords, layer_values, layer_keywords);
+}
+
 fn apply_layer(
     values: &mut Style,
     keywords: &mut HashMap<String, CssWideKeyword>,
@@ -380,6 +785,121 @@ fn apply_layer(
         keywords.insert(prop.clone(), *kw);
     }
     wgpu_html_parser::merge_values_clearing_keywords(values, keywords, layer_values);
+}
+
+fn style_has_values(style: &Style) -> bool {
+    macro_rules! any_option {
+        ($($field:ident),* $(,)?) => {
+            false $(|| style.$field.is_some())*
+        };
+    }
+    any_option!(
+        display,
+        position,
+        top,
+        right,
+        bottom,
+        left,
+        width,
+        height,
+        min_width,
+        min_height,
+        max_width,
+        max_height,
+        margin,
+        margin_top,
+        margin_right,
+        margin_bottom,
+        margin_left,
+        padding,
+        padding_top,
+        padding_right,
+        padding_bottom,
+        padding_left,
+        color,
+        background,
+        background_color,
+        background_image,
+        background_size,
+        background_position,
+        background_repeat,
+        background_clip,
+        border,
+        border_top_width,
+        border_right_width,
+        border_bottom_width,
+        border_left_width,
+        border_top_style,
+        border_right_style,
+        border_bottom_style,
+        border_left_style,
+        border_top_color,
+        border_right_color,
+        border_bottom_color,
+        border_left_color,
+        border_top_left_radius,
+        border_top_right_radius,
+        border_bottom_right_radius,
+        border_bottom_left_radius,
+        border_top_left_radius_v,
+        border_top_right_radius_v,
+        border_bottom_right_radius_v,
+        border_bottom_left_radius_v,
+        font_family,
+        font_size,
+        font_weight,
+        font_style,
+        line_height,
+        letter_spacing,
+        text_align,
+        text_decoration,
+        text_transform,
+        white_space,
+        overflow,
+        overflow_x,
+        overflow_y,
+        opacity,
+        visibility,
+        z_index,
+        flex_direction,
+        flex_wrap,
+        justify_content,
+        align_items,
+        align_content,
+        align_self,
+        order,
+        gap,
+        row_gap,
+        column_gap,
+        flex,
+        flex_grow,
+        flex_shrink,
+        flex_basis,
+        grid_template_columns,
+        grid_template_rows,
+        grid_auto_columns,
+        grid_auto_rows,
+        grid_auto_flow,
+        grid_column_start,
+        grid_column_end,
+        grid_row_start,
+        grid_row_end,
+        grid_column,
+        grid_row,
+        justify_items,
+        justify_self,
+        transform,
+        transform_origin,
+        transition,
+        animation,
+        cursor,
+        pointer_events,
+        user_select,
+        box_shadow,
+        box_sizing,
+    ) || !style.deferred_longhands.is_empty()
+        || !style.reset_properties.is_empty()
+        || !style.keyword_reset_properties.is_empty()
 }
 
 // ---------------------------------------------------------------------------

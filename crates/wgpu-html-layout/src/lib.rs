@@ -2076,8 +2076,15 @@ fn layout_block(
         // the soft-wrap budget so paragraphs that are *direct* text
         // children of a block (rare, but legal) wrap rather than
         // overflow.
-        let (box_, _w, _h, _ascent) =
-            make_text_leaf(s, &node.style, origin_x, origin_y, Some(container_w), true, ctx);
+        let (box_, _w, _h, _ascent) = make_text_leaf(
+            s,
+            &node.style,
+            origin_x,
+            origin_y,
+            Some(container_w),
+            true,
+            ctx,
+        );
         return box_;
     }
 
@@ -2632,7 +2639,10 @@ fn style_wraps_text(style: &Style) -> bool {
             _ => {}
         }
     }
-    !matches!(style_white_space(style), WhiteSpace::Nowrap | WhiteSpace::Pre)
+    !matches!(
+        style_white_space(style),
+        WhiteSpace::Nowrap | WhiteSpace::Pre
+    )
 }
 
 fn normalize_text_for_style(text: &str, style: &Style, prev_space: Option<&mut bool>) -> String {
@@ -2662,7 +2672,10 @@ fn normalize_text_for_style(text: &str, style: &Style, prev_space: Option<&mut b
     }
 }
 
-fn split_collapsed_first_word_prefix_and_tail(text: &str, style: &Style) -> Option<(String, String)> {
+fn split_collapsed_first_word_prefix_and_tail(
+    text: &str,
+    style: &Style,
+) -> Option<(String, String)> {
     if !style_collapses_whitespace(style) {
         return None;
     }
@@ -2927,12 +2940,12 @@ fn layout_inline_subtree(
     }
 
     if let Element::Text(s) = &node.element {
-        let max_width = if style_wraps_text(&node.style) && container_w.is_finite() && container_w > 0.0
-        {
-            Some(container_w)
-        } else {
-            None
-        };
+        let max_width =
+            if style_wraps_text(&node.style) && container_w.is_finite() && container_w > 0.0 {
+                Some(container_w)
+            } else {
+                None
+            };
         let (box_, w, h, ascent) =
             make_text_leaf(s, &node.style, origin_x, origin_y, max_width, false, ctx);
         let descent = (h - ascent).max(0.0);
@@ -3222,13 +3235,7 @@ fn layout_inline_children_no_wrap(
     let mut max_descent = 0.0_f32;
     let mut child_layouts: Vec<InlineLayout> = Vec::new();
     for child in &node.children {
-        let cl = layout_inline_subtree(
-            child,
-            origin_x + cursor_x,
-            origin_y,
-            f32::INFINITY,
-            ctx,
-        );
+        let cl = layout_inline_subtree(child, origin_x + cursor_x, origin_y, f32::INFINITY, ctx);
         max_ascent = max_ascent.max(cl.ascent);
         max_descent = max_descent.max(cl.descent);
         cursor_x += cl.width;
@@ -3293,8 +3300,15 @@ fn layout_inline_block_children(
     if node.children.len() == 1 {
         if let Element::Text(s) = &node.children[0].element {
             let child_style = &node.children[0].style;
-            let (box_, w, h, _ascent) =
-                make_text_leaf(s, child_style, origin_x, origin_y, Some(container_w), true, ctx);
+            let (box_, w, h, _ascent) = make_text_leaf(
+                s,
+                child_style,
+                origin_x,
+                origin_y,
+                Some(container_w),
+                true,
+                ctx,
+            );
             // Heuristic text-align: the wrapped run's `width` is the
             // *widest* line, so right / center align by shifting the
             // whole box. Multi-line per-line align (the proper
@@ -3478,17 +3492,17 @@ fn layout_inline_mixed_children(
                 }
             }
             if !kept_head_on_line {
-            let line_h = (current.ascent + current.descent).max(hard_break_height);
-            cursor_y += line_h;
-            lines.push(current);
-            current = Line {
-                items: Vec::new(),
-                width: 0.0,
-                ascent: 0.0,
-                descent: 0.0,
-                y: cursor_y,
-            };
-            cl = layout_inline_subtree(child, origin_x, cursor_y, container_w, ctx);
+                let line_h = (current.ascent + current.descent).max(hard_break_height);
+                cursor_y += line_h;
+                lines.push(current);
+                current = Line {
+                    items: Vec::new(),
+                    width: 0.0,
+                    ascent: 0.0,
+                    descent: 0.0,
+                    y: cursor_y,
+                };
+                cl = layout_inline_subtree(child, origin_x, cursor_y, container_w, ctx);
             }
         }
         let fit_width = first_line_width(&cl);
@@ -3779,18 +3793,14 @@ fn layout_inline_paragraph(
             leaf_id: i as u32,
         })
         .collect();
-    let para = match ctx
-        .text
-        .ctx
-        .shape_paragraph(
-            &paragraph_spans,
-            if style_wraps_text(&node.style) {
-                Some(container_w)
-            } else {
-                None
-            },
-        )
-    {
+    let para = match ctx.text.ctx.shape_paragraph(
+        &paragraph_spans,
+        if style_wraps_text(&node.style) {
+            Some(container_w)
+        } else {
+            None
+        },
+    ) {
         Some(p) => p,
         None => return (Vec::new(), 0.0, 0.0),
     };
