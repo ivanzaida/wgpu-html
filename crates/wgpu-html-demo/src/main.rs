@@ -153,6 +153,9 @@ struct App {
     /// layout tree stays in document coordinates; paint translates
     /// display items up by this offset and hit testing adds it back.
     scroll_y: f32,
+    /// Active viewport scrollbar thumb drag, if the primary button
+    /// started on the thumb or track.
+    scrollbar_drag: Option<ScrollbarDrag>,
     /// Counter incremented from the click callback. Demonstrates that
     /// closures capture state correctly.
     click_count: Arc<AtomicUsize>,
@@ -171,6 +174,7 @@ impl Default for App {
             last_layout: None,
             cursor_pos: None,
             scroll_y: 0.0,
+            scrollbar_drag: None,
             click_count: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -264,7 +268,10 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let (Some(window), Some(renderer)) = (self.window.as_ref(), self.renderer.as_mut()) else {
+        let Some(window) = self.window.clone() else {
+            return;
+        };
+        let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
 
@@ -275,6 +282,7 @@ impl ApplicationHandler for App {
                 if let Some(layout) = self.last_layout.as_ref() {
                     self.scroll_y = clamp_scroll_y(self.scroll_y, layout, size.height as f32);
                 }
+                self.scrollbar_drag = None;
                 window.request_redraw();
             }
             WindowEvent::KeyboardInput {
@@ -298,6 +306,18 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
                 self.cursor_pos = Some(pos);
+                if let (Some(drag), Some(layout)) =
+                    (self.scrollbar_drag, self.last_layout.as_ref())
+                {
+                    let size = window.inner_size();
+                    self.scroll_y = scroll_y_from_thumb_top(
+                        pos.1 - drag.grab_offset_y,
+                        layout,
+                        size.width as f32,
+                        size.height as f32,
+                    );
+                    window.request_redraw();
+                }
                 let doc_pos = viewport_to_document(pos, self.scroll_y);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
@@ -312,6 +332,22 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let Some(pos) = self.cursor_pos else { return };
+                if button == WinitMouseButton::Left {
+                    match state {
+                        ElementState::Pressed => {
+                            if self.start_scrollbar_drag(pos, window.inner_size()) {
+                                window.request_redraw();
+                                return;
+                            }
+                        }
+                        ElementState::Released => {
+                            if self.scrollbar_drag.take().is_some() {
+                                window.request_redraw();
+                                return;
+                            }
+                        }
+                    }
+                }
                 let doc_pos = viewport_to_document(pos, self.scroll_y);
                 let btn = translate_button(button);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
@@ -405,6 +441,56 @@ impl ApplicationHandler for App {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ScrollbarDrag {
+    grab_offset_y: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScrollbarGeometry {
+    track: Rect,
+    thumb: Rect,
+    max_scroll: f32,
+    travel: f32,
+}
+
+impl App {
+    fn start_scrollbar_drag(&mut self, pos: (f32, f32), size: PhysicalSize<u32>) -> bool {
+        let Some(layout) = self.last_layout.as_ref() else {
+            return false;
+        };
+        let Some(geom) =
+            scrollbar_geometry(layout, size.width as f32, size.height as f32, self.scroll_y)
+        else {
+            return false;
+        };
+        if rect_contains(geom.thumb, pos) {
+            self.scrollbar_drag = Some(ScrollbarDrag {
+                grab_offset_y: pos.1 - geom.thumb.y,
+            });
+            return true;
+        }
+        if rect_contains(geom.track, pos) {
+            let thumb_top = pos.1 - geom.thumb.h * 0.5;
+            self.scroll_y = scroll_y_from_thumb_top(
+                thumb_top,
+                layout,
+                size.width as f32,
+                size.height as f32,
+            );
+            if let Some(updated) =
+                scrollbar_geometry(layout, size.width as f32, size.height as f32, self.scroll_y)
+            {
+                self.scrollbar_drag = Some(ScrollbarDrag {
+                    grab_offset_y: pos.1 - updated.thumb.y,
+                });
+            }
+            return true;
+        }
+        false
+    }
+}
+
 /// Convert a `PhysicalPosition<f64>` from winit into the engine's
 /// `(f32, f32)` physical-pixel pair.
 fn physical_to_pos(p: PhysicalPosition<f64>) -> (f32, f32) {
@@ -428,6 +514,59 @@ fn clamp_scroll_y(scroll_y: f32, layout: &LayoutBox, viewport_h: f32) -> f32 {
 
 fn max_scroll_y(layout: &LayoutBox, viewport_h: f32) -> f32 {
     (document_bottom(layout) - viewport_h).max(0.0)
+}
+
+fn scrollbar_geometry(
+    layout: &LayoutBox,
+    viewport_w: f32,
+    viewport_h: f32,
+    scroll_y: f32,
+) -> Option<ScrollbarGeometry> {
+    let doc_h = document_bottom(layout).max(viewport_h);
+    if doc_h <= viewport_h + 0.5 || viewport_w < 12.0 || viewport_h <= 0.0 {
+        return None;
+    }
+
+    let track_w = 10.0;
+    let margin = 2.0;
+    let track = Rect::new(
+        viewport_w - track_w - margin,
+        margin,
+        track_w,
+        viewport_h - margin * 2.0,
+    );
+    let thumb_h = (track.h * viewport_h / doc_h).clamp(24.0, track.h);
+    let max_scroll = max_scroll_y(layout, viewport_h);
+    let travel = (track.h - thumb_h).max(0.0);
+    let thumb_y = track.y + travel * (scroll_y / max_scroll.max(1.0));
+    let thumb = Rect::new(track.x + 1.0, thumb_y, track.w - 2.0, thumb_h);
+
+    Some(ScrollbarGeometry {
+        track,
+        thumb,
+        max_scroll,
+        travel,
+    })
+}
+
+fn scroll_y_from_thumb_top(
+    thumb_top: f32,
+    layout: &LayoutBox,
+    viewport_w: f32,
+    viewport_h: f32,
+) -> f32 {
+    let Some(geom) = scrollbar_geometry(layout, viewport_w, viewport_h, 0.0) else {
+        return 0.0;
+    };
+    if geom.travel <= 0.0 {
+        return 0.0;
+    }
+    let t = ((thumb_top - geom.track.y) / geom.travel).clamp(0.0, 1.0);
+    t * geom.max_scroll
+}
+
+fn rect_contains(rect: Rect, pos: (f32, f32)) -> bool {
+    pos.0 >= rect.x && pos.0 < rect.x + rect.w && pos.1 >= rect.y && pos.1 < rect.y + rect.h
 }
 
 fn document_bottom(b: &LayoutBox) -> f32 {
@@ -461,24 +600,13 @@ fn paint_viewport_scrollbar(
     viewport_h: f32,
     scroll_y: f32,
 ) {
-    let doc_h = document_bottom(layout).max(viewport_h);
-    if doc_h <= viewport_h + 0.5 || viewport_w < 12.0 || viewport_h <= 0.0 {
+    let Some(geom) = scrollbar_geometry(layout, viewport_w, viewport_h, scroll_y) else {
         return;
-    }
+    };
 
     list.push_clip(None, [0.0; 4], [0.0; 4]);
-    let track_w = 10.0;
-    let margin = 2.0;
-    let track = Rect::new(viewport_w - track_w - margin, margin, track_w, viewport_h - margin * 2.0);
-    let thumb_h = (track.h * viewport_h / doc_h).clamp(24.0, track.h);
-    let travel = (track.h - thumb_h).max(0.0);
-    let thumb_y = track.y + travel * (scroll_y / max_scroll_y(layout, viewport_h).max(1.0));
-
-    list.push_quad(track, [0.0, 0.0, 0.0, 0.18]);
-    list.push_quad(
-        Rect::new(track.x + 1.0, thumb_y, track.w - 2.0, thumb_h),
-        [0.0, 0.0, 0.0, 0.55],
-    );
+    list.push_quad(geom.track, [0.0, 0.0, 0.0, 0.18]);
+    list.push_quad(geom.thumb, [0.0, 0.0, 0.0, 0.55]);
     list.finalize();
 }
 
