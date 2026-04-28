@@ -35,6 +35,26 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+/// One frame of an animated image as it sits in the raw (pre-resize)
+/// cache. `delay_ms` comes straight from the source format and is
+/// clamped to a sensible minimum (10 ms) for sources that report a
+/// 0-tick delay.
+#[derive(Debug, Clone)]
+struct DecodedFrameRaw {
+    rgba: Arc<Vec<u8>>,
+    delay_ms: u32,
+}
+
+/// Decode result placed into [`RawState::Ready`]. Single-frame
+/// formats (PNG, JPEG, …) become `Still`; GIFs (and any future
+/// animated decoders) become `Animated` with the per-frame delays
+/// preserved.
+#[derive(Debug, Clone)]
+enum DecodedAsset {
+    Still { rgba: Arc<Vec<u8>>, w: u32, h: u32 },
+    Animated { frames: Arc<Vec<DecodedFrameRaw>>, w: u32, h: u32 },
+}
+
 /// State of a unique `src` in the raw (pre-resize) decode cache.
 #[derive(Clone)]
 enum RawState {
@@ -42,10 +62,10 @@ enum RawState {
     /// Subsequent `load_image` calls return `None` (placeholder) until
     /// it transitions to `Ready` or `Failed`.
     Pending,
-    /// Decoded RGBA8 bytes plus intrinsic dimensions. The `Arc` lets
-    /// every sized variant share the same underlying buffer when no
-    /// resize is needed.
-    Ready { rgba: Arc<Vec<u8>>, w: u32, h: u32 },
+    /// Decoded asset (still or animated). The `Arc`s inside let every
+    /// sized variant share the underlying RGBA buffers when no resize
+    /// is needed.
+    Ready(DecodedAsset),
     /// A previous fetch/decode attempt failed; memoized so we don't
     /// retry forever.
     Failed,
@@ -205,48 +225,229 @@ fn fetch_image_bytes(src: &str) -> Option<Vec<u8>> {
     }
 }
 
-/// Decode arbitrary image bytes to RGBA8 + intrinsic dimensions.
-fn decode_rgba(bytes: &[u8]) -> Option<(Arc<Vec<u8>>, u32, u32)> {
+/// Decode arbitrary image bytes to a still or animated [`DecodedAsset`].
+/// GIFs are detected by magic bytes and routed through the animated
+/// decoder; everything else takes the single-frame path. A GIF that
+/// only contains one frame collapses to `Still` after decoding so
+/// downstream code never has to special-case it.
+fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        if let Some(asset) = decode_animated_gif(bytes) {
+            return Some(asset);
+        }
+        // GIF magic but the decoder failed — fall through to the
+        // single-frame path which may still extract the first frame
+        // via the generic `image::load_from_memory` route.
+    }
     let dyn_img = image::load_from_memory(bytes).ok()?;
     let rgba = dyn_img.to_rgba8();
     let (w, h) = (rgba.width(), rgba.height());
-    Some((Arc::new(rgba.into_raw()), w, h))
+    Some(DecodedAsset::Still {
+        rgba: Arc::new(rgba.into_raw()),
+        w,
+        h,
+    })
 }
 
-/// Build a sized `ImageData` from a raw cache entry. Resizes (Lanczos3)
-/// when the element's declared `width`/`height` differ from the
-/// intrinsic ones; otherwise the underlying RGBA `Arc` is shared.
-fn build_sized(
+/// Decode every frame of an animated GIF, preserving per-frame delays.
+/// Each yielded `Frame` from `image::AnimationDecoder` is already a
+/// fully-composited canvas (the decoder applies disposal/transparency
+/// internally), so we just copy its RGBA buffer.
+fn decode_animated_gif(bytes: &[u8]) -> Option<DecodedAsset> {
+    use image::AnimationDecoder;
+    use image::codecs::gif::GifDecoder;
+
+    let decoder = GifDecoder::new(std::io::Cursor::new(bytes)).ok()?;
+    let frames = decoder.into_frames().collect_frames().ok()?;
+    if frames.is_empty() {
+        return None;
+    }
+    let (w, h) = {
+        let first = frames.first()?;
+        (first.buffer().width(), first.buffer().height())
+    };
+    if frames.len() == 1 {
+        // Static GIF: collapse to the still path so the animation
+        // machinery never kicks in.
+        let buffer = frames.into_iter().next()?.into_buffer();
+        return Some(DecodedAsset::Still {
+            rgba: Arc::new(buffer.into_raw()),
+            w,
+            h,
+        });
+    }
+    let decoded: Vec<DecodedFrameRaw> = frames
+        .into_iter()
+        .map(|f| {
+            let (numer, denom) = f.delay().numer_denom_ms();
+            // Defend against pathological metadata: `denom == 0` is
+            // illegal but seen in the wild; `0`-delay frames cause a
+            // tight repaint loop, so clamp to ~100 fps.
+            let delay = if denom == 0 { 100 } else { numer / denom.max(1) };
+            let delay_ms = delay.max(10);
+            let buffer = f.into_buffer();
+            DecodedFrameRaw {
+                rgba: Arc::new(buffer.into_raw()),
+                delay_ms,
+            }
+        })
+        .collect();
+    Some(DecodedAsset::Animated {
+        frames: Arc::new(decoded),
+        w,
+        h,
+    })
+}
+
+/// Compute a stable `image_id` for an (URL, declared size, optional
+/// frame index) tuple. Animated frames get distinct ids so the
+/// renderer's GPU texture cache stores each as its own texture.
+fn make_image_id(
     src: &str,
-    rgba: Arc<Vec<u8>>,
-    decoded_w: u32,
-    decoded_h: u32,
     declared_w: Option<u32>,
     declared_h: Option<u32>,
-) -> Option<ImageData> {
-    let w = declared_w.unwrap_or(decoded_w);
-    let h = declared_h.unwrap_or(decoded_h);
-    let data = if w == decoded_w && h == decoded_h {
-        rgba
-    } else {
-        let buf = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(
-            decoded_w,
-            decoded_h,
-            (*rgba).clone(),
-        )?;
-        let resized = image::imageops::resize(&buf, w, h, image::imageops::FilterType::Lanczos3);
-        Arc::new(resized.into_raw())
-    };
+    frame_index: Option<usize>,
+) -> u64 {
     let mut hasher = DefaultHasher::new();
     src.hash(&mut hasher);
     declared_w.hash(&mut hasher);
     declared_h.hash(&mut hasher);
-    Some(ImageData {
-        image_id: hasher.finish(),
-        data,
-        width: w,
-        height: h,
-    })
+    frame_index.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Resize a single RGBA buffer if the declared dimensions differ from
+/// the intrinsic ones; otherwise share the input `Arc`. Returns
+/// `None` only when `ImageBuffer::from_raw` rejects the input length
+/// (shouldn't happen for buffers we produced ourselves, but the
+/// signature is conservative).
+fn resize_rgba(
+    src_rgba: Arc<Vec<u8>>,
+    decoded_w: u32,
+    decoded_h: u32,
+    target_w: u32,
+    target_h: u32,
+) -> Option<Arc<Vec<u8>>> {
+    if target_w == decoded_w && target_h == decoded_h {
+        return Some(src_rgba);
+    }
+    let buf = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(
+        decoded_w,
+        decoded_h,
+        (*src_rgba).clone(),
+    )?;
+    let resized = image::imageops::resize(
+        &buf,
+        target_w,
+        target_h,
+        image::imageops::FilterType::Lanczos3,
+    );
+    Some(Arc::new(resized.into_raw()))
+}
+
+/// Build a sized `ImageData` from a raw cache entry. For still images
+/// this is just a (possibly-shared) RGBA buffer + dims. For animated
+/// images, every frame is resized, each gets its own `image_id`, and
+/// the result's top-level `image_id`/`data` point at the first
+/// frame; per-frame entries live in `frames`. Callers substitute the
+/// active frame via [`current_frame`] before painting.
+fn build_sized(
+    src: &str,
+    asset: &DecodedAsset,
+    declared_w: Option<u32>,
+    declared_h: Option<u32>,
+) -> Option<ImageData> {
+    match asset {
+        DecodedAsset::Still { rgba, w, h } => {
+            let target_w = declared_w.unwrap_or(*w);
+            let target_h = declared_h.unwrap_or(*h);
+            let data = resize_rgba(rgba.clone(), *w, *h, target_w, target_h)?;
+            Some(ImageData {
+                image_id: make_image_id(src, declared_w, declared_h, None),
+                data,
+                width: target_w,
+                height: target_h,
+                frames: None,
+            })
+        }
+        DecodedAsset::Animated { frames, w, h } => {
+            let target_w = declared_w.unwrap_or(*w);
+            let target_h = declared_h.unwrap_or(*h);
+            let mut sized = Vec::with_capacity(frames.len());
+            for (i, f) in frames.iter().enumerate() {
+                let data = resize_rgba(f.rgba.clone(), *w, *h, target_w, target_h)?;
+                sized.push(ImageFrame {
+                    image_id: make_image_id(src, declared_w, declared_h, Some(i)),
+                    data,
+                    delay_ms: f.delay_ms,
+                });
+            }
+            let first = sized.first()?;
+            let head_id = first.image_id;
+            let head_data = first.data.clone();
+            Some(ImageData {
+                image_id: head_id,
+                data: head_data,
+                width: target_w,
+                height: target_h,
+                frames: Some(Arc::new(sized)),
+            })
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Animation: process-relative clock + active-frame selection
+// ---------------------------------------------------------------------------
+
+/// Wall-clock anchor used to drive every animated image. All
+/// `<img>`/`background-image` instances of the same animated GIF
+/// stay in lockstep (and across the whole document) because they
+/// all index off this single shared origin.
+fn animation_clock_origin() -> Instant {
+    static ORIGIN: OnceLock<Instant> = OnceLock::new();
+    *ORIGIN.get_or_init(Instant::now)
+}
+
+/// Pick the currently-visible frame index given a frame list and the
+/// process-relative animation clock. Loops infinitely (modulo the
+/// total animation duration). Falls back to frame 0 for empty / all-
+/// zero-delay sequences.
+fn current_frame_index(frames: &[ImageFrame]) -> usize {
+    let total: u64 = frames.iter().map(|f| f.delay_ms as u64).sum();
+    if total == 0 {
+        return 0;
+    }
+    let elapsed = animation_clock_origin().elapsed().as_millis() as u64;
+    let t = elapsed % total;
+    let mut acc = 0u64;
+    for (i, f) in frames.iter().enumerate() {
+        acc += f.delay_ms as u64;
+        if t < acc {
+            return i;
+        }
+    }
+    frames.len() - 1
+}
+
+/// If `data` is animated, return a copy whose `image_id`/`data` point
+/// at the currently-visible frame; otherwise return `data` unchanged.
+/// Cheap: at most a couple of `Arc` clones.
+pub(crate) fn current_frame(data: &ImageData) -> ImageData {
+    match &data.frames {
+        Some(frames) if !frames.is_empty() => {
+            let i = current_frame_index(frames);
+            let f = &frames[i];
+            ImageData {
+                image_id: f.image_id,
+                data: f.data.clone(),
+                width: data.width,
+                height: data.height,
+                frames: data.frames.clone(),
+            }
+        }
+        _ => data.clone(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -289,8 +490,8 @@ fn spawn_fetch_worker(rx: Arc<Mutex<Receiver<String>>>) {
                 },
                 Err(_) => break,
             };
-            let outcome = match fetch_image_bytes(&url).as_deref().and_then(decode_rgba) {
-                Some((rgba, w, h)) => RawState::Ready { rgba, w, h },
+            let outcome = match fetch_image_bytes(&url).as_deref().and_then(decode_asset) {
+                Some(asset) => RawState::Ready(asset),
                 None => RawState::Failed,
             };
             if let Ok(mut cache) = raw_cache().lock() {
@@ -370,11 +571,14 @@ pub(crate) fn load_image_url(
     maybe_sweep();
 
     // Fast path: we already produced the sized result for this URL+size.
-    // Touch its `last_access` so it stays warm.
+    // Touch its `last_access` so it stays warm. For animated assets
+    // we substitute the *current* frame on every hit so the renderer
+    // sees per-frame `image_id`s as time advances; the cached entry
+    // itself keeps the full frame list intact.
     if let Ok(mut cache) = sized_cache().lock() {
         if let Some(entry) = cache.get_mut(&sized_key) {
             entry.touch();
-            return entry.value.clone();
+            return entry.value.as_ref().map(current_frame);
         }
     }
 
@@ -399,18 +603,18 @@ pub(crate) fn load_image_url(
         }
     };
 
-    let result = match raw {
+    let full = match raw {
         RawState::Pending => return None,
         RawState::Failed => None,
-        RawState::Ready { rgba, w, h } => build_sized(src, rgba, w, h, declared_w, declared_h),
+        RawState::Ready(asset) => build_sized(src, &asset, declared_w, declared_h),
     };
 
-    // Cache the sized variant (including failures, so repeated misses
-    // are O(1) hashmap lookups rather than re-failing every pass).
+    // Cache the (full, all-frames) sized variant. Failures are also
+    // memoized so repeated misses stay O(1).
     if let Ok(mut cache) = sized_cache().lock() {
-        cache.insert(sized_key, CacheEntry::new(result.clone()));
+        cache.insert(sized_key, CacheEntry::new(full.clone()));
     }
-    result
+    full.as_ref().map(current_frame)
 }
 
 // ---------------------------------------------------------------------------
@@ -880,15 +1084,38 @@ pub struct LayoutBox {
     pub children: Vec<LayoutBox>,
 }
 
-/// Decoded RGBA image ready for GPU upload.
+/// Decoded RGBA image ready for GPU upload. For animated sources
+/// (GIF), `image_id` and `data` always point at the currently-active
+/// frame as picked by [`current_frame`]; the full frame list is in
+/// `frames` so callers that need to know the asset is animated can
+/// inspect it.
 #[derive(Debug, Clone)]
 pub struct ImageData {
-    /// Unique identifier derived from the image source path (hash).
+    /// Unique identifier — hashes (URL, declared size, frame index).
+    /// For still images the frame component is `None`; for animated,
+    /// it's the current frame's index. Drives the renderer's GPU
+    /// texture cache.
     pub image_id: u64,
-    /// RGBA8 pixel data, `width × height × 4` bytes.
+    /// RGBA8 pixel data, `width × height × 4` bytes — *current frame*
+    /// for animated assets.
     pub data: std::sync::Arc<Vec<u8>>,
     pub width: u32,
     pub height: u32,
+    /// Per-frame data for animated assets. `None` for still images.
+    /// The list is shared via `Arc` so cheap to clone through layout.
+    pub frames: Option<std::sync::Arc<Vec<ImageFrame>>>,
+}
+
+/// One frame of an animated image, fully resized to the requested
+/// declared dimensions and ready for upload as a standalone GPU
+/// texture (each frame's `image_id` is unique).
+#[derive(Debug, Clone)]
+pub struct ImageFrame {
+    pub image_id: u64,
+    pub data: std::sync::Arc<Vec<u8>>,
+    /// Display duration, milliseconds. Clamped to ≥10 ms during
+    /// decode to defend against pathological GIFs that report 0.
+    pub delay_ms: u32,
 }
 
 /// Pre-computed CSS `background-image` paint metadata. The texture

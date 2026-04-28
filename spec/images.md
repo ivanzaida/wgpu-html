@@ -36,14 +36,15 @@ The decoder is the `image` crate, configured (`Cargo.toml`) with
 |--------|--------------|------------------------------------|
 | PNG    | `.png`       | 8-bit RGBA — preferred            |
 | JPEG   | `.jpg/.jpeg` | Baseline + progressive             |
-| GIF    | `.gif`       | First frame only (no animation)    |
+| GIF    | `.gif`       | Animated; multi-frame, with delays |
 | BMP    | `.bmp`       | Uncompressed                       |
 | WebP   | `.webp`      | Lossy + lossless still images only |
 
-Formats not in the feature list (TIFF, AVIF, HDR, animated GIF,
-animated WebP, SVG, …) are not decoded; they fail to load and
-show as a missing image (`load_image` returns `None`). Add the
-matching `image` crate feature to enable more.
+Formats not in the feature list (TIFF, AVIF, HDR, animated WebP,
+SVG, …) are not decoded; they fail to load and show as a missing
+image (`load_image` returns `None`). Add the matching `image`
+crate feature (and a per-format frame iterator next to
+`decode_animated_gif` if it's animated) to enable more.
 
 ## 3. Schemes
 
@@ -97,15 +98,21 @@ sized_cache: HashMap<SizedKey, CacheEntry<Option<ImageData>>>
 ```
 
 - `raw_cache` is keyed by `src` only. `RawState` is one of
-  `Pending` (fetch in flight), `Ready { rgba, w, h }` (decoded
-  RGBA8 in an `Arc<Vec<u8>>`), or `Failed`.
+  `Pending` (fetch in flight), `Ready(DecodedAsset)`, or `Failed`.
+  `DecodedAsset` is itself either `Still { rgba, w, h }` (a single
+  `Arc<Vec<u8>>` of RGBA8 pixels) or `Animated { frames, w, h }`
+  (an `Arc<Vec<DecodedFrameRaw>>` of per-frame RGBA buffers and
+  delays, used for GIFs).
 - `sized_cache` is keyed by `(src, declared_w, declared_h)`. It
-  holds the post-resize `ImageData` ready for upload. `None` here
-  is a memoized failure.
-- The `Arc<Vec<u8>>` in `RawState::Ready` is shared across every
+  holds the post-resize `ImageData` ready for upload — including,
+  for animated assets, the full `Arc<Vec<ImageFrame>>`. `None`
+  here is a memoized failure.
+- The `Arc<Vec<u8>>`s inside `DecodedAsset` are shared across every
   sized variant of that URL, so a 1 MB image rendered at three
   different declared sizes keeps one 1 MB buffer plus three
-  resized variants — never four full-resolution copies.
+  resized variants — never four full-resolution copies. Animated
+  assets do the same per frame: one decoded copy in `raw_cache`
+  feeds every sized variant in `sized_cache`.
 
 Each `CacheEntry<V>` carries a `last_access: Instant` that is
 refreshed on every cache hit (`entry.touch()`).
@@ -133,9 +140,11 @@ persistent worker threads is initialised lazily on first job
 submission. The `pool_sender()` is a single `Sender<String>`; each
 worker shares a single `Arc<Mutex<Receiver<String>>>` and pulls
 URLs off it in a loop. For each URL the worker calls
-`fetch_image_bytes` + `decode_rgba`, writes the outcome
-(`Ready` / `Failed`) into `raw_cache`, and bumps an `AtomicU64`
-exposed as `image_load_revision()`.
+`fetch_image_bytes` + `decode_asset` (which routes GIFs through
+`decode_animated_gif` and everything else through the single-frame
+path), writes the outcome (`Ready(asset)` / `Failed`) into
+`raw_cache`, and bumps an `AtomicU64` exposed as
+`image_load_revision()`.
 
 Both http(s) URLs and local filesystem paths flow through the same
 pool — the dispatch on scheme happens inside `fetch_image_bytes` on
@@ -158,6 +167,41 @@ function is idempotent — already-known URLs are a hashmap-lookup
 no-op — so it's cheap to leave in place. `preload_image` is also
 exposed as a public free function for ad-hoc calls outside a
 `Tree` context.
+
+## 6a. Animated images (GIF)
+
+GIF is decoded as a sequence of fully-composited RGBA frames plus
+per-frame delays (the `image` crate's `AnimationDecoder` applies
+disposal/transparency internally). Single-frame GIFs collapse back
+to the still path.
+
+- The raw cache stores a `DecodedAsset::Animated { frames, w, h }`
+  variant alongside the existing `Still`. Sized cache entries for
+  animated assets carry the full `Vec<ImageFrame>` — every frame
+  has its own `image_id` (hash of URL + declared size + frame
+  index), so the renderer's GPU texture cache treats each frame as
+  an independent texture.
+- `current_frame(&ImageData)` picks the active frame at call time
+  using a process-wide clock anchored on the first call to
+  `animation_clock_origin()`. Every animated `<img>` and
+  `background-image` of the same GIF stays in lockstep regardless
+  of where it appears in the DOM.
+- `load_image_url` substitutes the active frame into the
+  `image_id`/`data` fields of the returned `ImageData` on every
+  call. The cache itself keeps the full frame list so the
+  substitution is just a couple of `Arc` clones.
+- Layout/paint don't need any animation-specific code: every
+  frame is a regular textured quad. Continuous redraws (e.g.
+  winit's `ControlFlow::Poll`) advance the animation; hosts that
+  redraw on demand can poll `image_load_revision()` once at
+  startup and request redraws when it changes — but to drive
+  animation forward they need to redraw on a timer too.
+
+Memory cost: a 30-frame, 256×256 GIF holds ~7.8 MiB of decoded
+RGBA in `raw_cache` plus the same again per declared-size variant
+in `sized_cache`, plus one GPU texture per frame in the renderer's
+cache. Pathological multi-thousand-frame GIFs will saturate
+texture memory; TTL eviction reclaims them once they idle.
 
 ## 7. TTL eviction
 
@@ -215,9 +259,11 @@ document and survives across renderer instances.
 - **No redirects across schemes.** `ureq` follows http→http and
   https→https redirects by default but not http↔https.
 - **No `data:` URIs.** Trivial to add inside `fetch_image_bytes`.
-- **Animated images flatten to first frame.** GIF / animated WebP
-  decode their first frame and stop there; there is no animation
-  driver in the renderer yet.
+- **Animated WebP not supported.** Animation is wired in for GIF
+  only. The same `DecodedAsset::Animated` machinery would handle
+  WebP if `decode_animated_webp` were added next to
+  `decode_animated_gif` and the magic-byte dispatch in
+  `decode_asset` were extended.
 - **Process-wide cache.** Multiple documents driven by the same
   process share one cache. Two trees with conflicting
   `asset_cache_ttl`s last-applied-wins; if you need per-document
