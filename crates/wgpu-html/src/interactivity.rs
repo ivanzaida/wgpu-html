@@ -29,6 +29,15 @@ pub fn pointer_move(
     modifiers: Modifiers,
 ) -> bool {
     tree.interaction.pointer_pos = Some(pos);
+
+    if tree.interaction.selecting_text {
+        if let Some(cursor) = layout.hit_text_cursor(pos) {
+            if let Some(sel) = tree.interaction.selection.as_mut() {
+                sel.focus = cursor;
+            }
+        }
+    }
+
     let new_path = layout.hit_path(pos);
     let changed = tree.interaction.hover_path != new_path;
     if changed {
@@ -58,10 +67,22 @@ pub fn mouse_down(
     modifiers: Modifiers,
 ) -> bool {
     let Some(target_path) = layout.hit_path(pos) else {
+        if button == MouseButton::Primary {
+            tree.clear_selection();
+        }
         return false;
     };
     if button == MouseButton::Primary {
         tree.interaction.active_path = Some(target_path.clone());
+        if let Some(cursor) = layout.hit_text_cursor(pos) {
+            tree.interaction.selection = Some(wgpu_html_tree::TextSelection {
+                anchor: cursor.clone(),
+                focus: cursor,
+            });
+            tree.interaction.selecting_text = true;
+        } else {
+            tree.clear_selection();
+        }
     }
     bubble(
         tree,
@@ -87,6 +108,7 @@ pub fn mouse_up(
     let Some(target_path) = layout.hit_path(pos) else {
         if button == MouseButton::Primary {
             tree.interaction.active_path = None;
+            tree.interaction.selecting_text = false;
         }
         return false;
     };
@@ -101,20 +123,35 @@ pub fn mouse_up(
     );
 
     if button == MouseButton::Primary {
+        if tree.interaction.selecting_text {
+            if let Some(cursor) = layout.hit_text_cursor(pos) {
+                if let Some(sel) = tree.interaction.selection.as_mut() {
+                    sel.focus = cursor;
+                }
+            }
+        }
         let press = tree.interaction.active_path.take();
+        let suppress_click = tree
+            .interaction
+            .selection
+            .as_ref()
+            .is_some_and(|sel| tree.interaction.selecting_text && !sel.is_collapsed());
+        tree.interaction.selecting_text = false;
         if let Some(press_path) = press {
             // Browser-style click target: deepest common ancestor of
             // the press and release paths. A drag-out-and-back release
             // still fires the click on whatever the two share.
             let click_target = common_prefix(&press_path, &target_path);
-            bubble(
-                tree,
-                click_target,
-                pos,
-                Some(button),
-                modifiers,
-                Slot::Click,
-            );
+            if !suppress_click {
+                bubble(
+                    tree,
+                    click_target,
+                    pos,
+                    Some(button),
+                    modifiers,
+                    Slot::Click,
+                );
+            }
         }
     }
     true
@@ -284,4 +321,137 @@ fn fire_chain_segment(
 fn common_prefix<'a>(a: &'a [usize], b: &[usize]) -> &'a [usize] {
     let n = a.iter().zip(b.iter()).take_while(|(x, y)| x == y).count();
     &a[..n]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use wgpu_html_tree::{Node, SelectionColors};
+
+    fn synthetic_text_layout() -> LayoutBox {
+        let r = wgpu_html_layout::Rect::new(0.0, 0.0, 80.0, 20.0);
+        LayoutBox {
+            margin_rect: r,
+            border_rect: r,
+            content_rect: r,
+            background: None,
+            background_rect: r,
+            background_radii: wgpu_html_layout::CornerRadii::zero(),
+            border: wgpu_html_layout::Insets::zero(),
+            border_colors: wgpu_html_layout::BorderColors::default(),
+            border_styles: wgpu_html_layout::BorderStyles::default(),
+            border_radius: wgpu_html_layout::CornerRadii::zero(),
+            kind: wgpu_html_layout::BoxKind::Text,
+            text_run: Some(wgpu_html_text::ShapedRun {
+                glyphs: vec![
+                    wgpu_html_text::PositionedGlyph {
+                        x: 0.0,
+                        y: 0.0,
+                        w: 10.0,
+                        h: 16.0,
+                        uv_min: [0.0, 0.0],
+                        uv_max: [1.0, 1.0],
+                        color: [0.0, 0.0, 0.0, 1.0],
+                    },
+                    wgpu_html_text::PositionedGlyph {
+                        x: 10.0,
+                        y: 0.0,
+                        w: 10.0,
+                        h: 16.0,
+                        uv_min: [0.0, 0.0],
+                        uv_max: [1.0, 1.0],
+                        color: [0.0, 0.0, 0.0, 1.0],
+                    },
+                    wgpu_html_text::PositionedGlyph {
+                        x: 20.0,
+                        y: 0.0,
+                        w: 10.0,
+                        h: 16.0,
+                        uv_min: [0.0, 0.0],
+                        uv_max: [1.0, 1.0],
+                        color: [0.0, 0.0, 0.0, 1.0],
+                    },
+                ],
+                lines: vec![wgpu_html_text::ShapedLine {
+                    top: 0.0,
+                    height: 16.0,
+                    glyph_range: (0, 3),
+                }],
+                text: "abc".to_string(),
+                byte_boundaries: wgpu_html_text::utf8_boundaries("abc"),
+                width: 30.0,
+                height: 16.0,
+                ascent: 12.0,
+            }),
+            text_color: Some([0.0, 0.0, 0.0, 1.0]),
+            text_decorations: Vec::new(),
+            overflow: wgpu_html_layout::OverflowAxes::visible(),
+            image: None,
+            background_image: None,
+            children: Vec::new(),
+        }
+    }
+
+    fn make_tree(counter: Arc<AtomicUsize>) -> Tree {
+        let mut root = Node::new("text");
+        root.on_click = Some(Arc::new(move |_| {
+            counter.fetch_add(1, Ordering::Relaxed);
+        }));
+        let mut tree = Tree::new(root);
+        tree.interaction.selection_colors = SelectionColors::default();
+        tree
+    }
+
+    #[test]
+    fn drag_selection_suppresses_click() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let mut tree = make_tree(counter.clone());
+        let lay = synthetic_text_layout();
+
+        mouse_down(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+        pointer_move(&mut tree, &lay, (26.0, 4.0), Modifiers::default());
+        mouse_up(
+            &mut tree,
+            &lay,
+            (26.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+
+        assert_eq!(counter.load(Ordering::Relaxed), 0);
+        let sel = tree.interaction.selection.expect("selection");
+        assert!(!sel.is_collapsed());
+    }
+
+    #[test]
+    fn collapsed_selection_keeps_click() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let mut tree = make_tree(counter.clone());
+        let lay = synthetic_text_layout();
+
+        mouse_down(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+        mouse_up(
+            &mut tree,
+            &lay,
+            (1.0, 4.0),
+            MouseButton::Primary,
+            Modifiers::default(),
+        );
+
+        assert_eq!(counter.load(Ordering::Relaxed), 1);
+    }
 }

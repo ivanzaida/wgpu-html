@@ -18,8 +18,8 @@ use wgpu_html_models::common::css_enums::{
     BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow,
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
-use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedRun, TextContext};
-use wgpu_html_tree::{Element, Node, Tree};
+use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
+use wgpu_html_tree::{Element, Node, TextCursor, Tree};
 
 mod color;
 mod flex;
@@ -1800,6 +1800,100 @@ impl LayoutBox {
         };
         root.ancestry_at_path_mut(&path)
     }
+
+    /// Hit-test a text caret position at `point`.
+    ///
+    /// Returns a cursor into the deepest text run under the pointer.
+    /// If the deepest hit box is not text, returns `None`.
+    pub fn hit_text_cursor(&self, point: (f32, f32)) -> Option<TextCursor> {
+        let path = self.hit_path(point)?;
+        let text_box = self.box_at_path(&path)?;
+        let run = text_box.text_run.as_ref()?;
+        Some(TextCursor {
+            path,
+            glyph_index: hit_glyph_boundary(text_box, run, point),
+        })
+    }
+
+    /// Return the box at `path` (empty path means `self`).
+    pub fn box_at_path(&self, path: &[usize]) -> Option<&LayoutBox> {
+        let mut cursor = self;
+        for &i in path {
+            cursor = cursor.children.get(i)?;
+        }
+        Some(cursor)
+    }
+}
+
+fn hit_glyph_boundary(b: &LayoutBox, run: &ShapedRun, point: (f32, f32)) -> usize {
+    if run.glyphs.is_empty() {
+        return 0;
+    }
+
+    let local_x = point.0 - b.content_rect.x;
+    let local_y = point.1 - b.content_rect.y;
+
+    let selected_line = if !run.lines.is_empty() {
+        nearest_line(local_y, &run.lines)
+    } else {
+        // Fallback for synthetic runs that didn't populate line metadata.
+        ShapedLine {
+            top: 0.0,
+            height: run.height.max(1.0),
+            glyph_range: (0, run.glyphs.len()),
+        }
+    };
+
+    let mut line: Vec<(usize, &PositionedGlyph)> = run
+        .glyphs
+        .iter()
+        .enumerate()
+        .skip(selected_line.glyph_range.0)
+        .take(
+            selected_line
+                .glyph_range
+                .1
+                .saturating_sub(selected_line.glyph_range.0),
+        )
+        .collect();
+    if line.is_empty() {
+        return run.glyphs.len();
+    }
+    line.sort_by(|(_, a), (_, b)| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+
+    for (idx, g) in &line {
+        let mid = g.x + g.w * 0.5;
+        if local_x < mid {
+            return *idx;
+        }
+    }
+
+    let max_idx = line.iter().map(|(idx, _)| *idx).max().unwrap_or(0);
+    (max_idx + 1).min(run.glyphs.len())
+}
+
+
+fn nearest_line(local_y: f32, lines: &[ShapedLine]) -> ShapedLine {
+    let mut best = lines[0];
+    let mut best_d = distance_to_line(local_y, best.top, best.height);
+    for line in &lines[1..] {
+        let d = distance_to_line(local_y, line.top, line.height);
+        if d < best_d {
+            best_d = d;
+            best = *line;
+        }
+    }
+    best
+}
+
+fn distance_to_line(y: f32, top: f32, height: f32) -> f32 {
+    if y < top {
+        top - y
+    } else if y > top + height {
+        y - (top + height)
+    } else {
+        0.0
+    }
 }
 
 fn collect_hit_path(
@@ -3206,8 +3300,30 @@ fn layout_inline_paragraph(
             });
         }
     }
+    let visible_text: String = paragraph_spans.iter().map(|span| span.text).collect();
+    let mut line_ranges: Vec<(usize, usize)> = Vec::with_capacity(para.lines.len());
+    let mut cursor = 0usize;
+    for line in &para.lines {
+        let count = line.glyph_range.1.saturating_sub(line.glyph_range.0);
+        let start = cursor;
+        cursor += count;
+        line_ranges.push((start, cursor));
+    }
+
     let run = ShapedRun {
         glyphs: positioned,
+        lines: para
+            .lines
+            .iter()
+            .zip(line_ranges.into_iter())
+            .map(|(line, glyph_range)| ShapedLine {
+                top: line.top,
+                height: line.height,
+                glyph_range,
+            })
+            .collect(),
+        text: visible_text.clone(),
+        byte_boundaries: wgpu_html_text::utf8_boundaries(&visible_text),
         width: para.width,
         height: para.height,
         ascent: para.first_line_ascent,

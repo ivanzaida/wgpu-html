@@ -12,7 +12,10 @@ use wgpu_html_models as m;
 mod events;
 mod fonts;
 
-pub use events::{InteractionState, Modifiers, MouseButton, MouseCallback, MouseEvent};
+pub use events::{
+    InteractionState, Modifiers, MouseButton, MouseCallback, MouseEvent, SelectionColors,
+    TextCursor, TextSelection,
+};
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 
 #[derive(Debug, Clone, Default)]
@@ -96,6 +99,20 @@ impl Tree {
     /// ```
     pub fn get_element_by_id(&mut self, id: &str) -> Option<&mut Node> {
         self.root.as_mut()?.find_by_id_mut(id)
+    }
+
+    /// Override the colors used when painting selected text.
+    pub fn set_selection_colors(&mut self, background: [f32; 4], foreground: [f32; 4]) {
+        self.interaction.selection_colors = SelectionColors {
+            background,
+            foreground,
+        };
+    }
+
+    /// Clear any active text selection and exit selection-drag mode.
+    pub fn clear_selection(&mut self) {
+        self.interaction.selection = None;
+        self.interaction.selecting_text = false;
     }
 }
 

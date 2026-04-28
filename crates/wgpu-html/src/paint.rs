@@ -6,7 +6,7 @@
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::{SelectionColors, TextCursor, TextSelection, Tree};
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 
@@ -44,7 +44,15 @@ pub fn paint_tree_with_text(
         wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale)
     {
         let mut clip_stack: Vec<ClipFrame> = Vec::new();
-        paint_box_in_clip(&root, &mut list, &mut clip_stack);
+        let mut path = Vec::new();
+        paint_box_in_clip(
+            &root,
+            &mut list,
+            &mut clip_stack,
+            &mut path,
+            tree.interaction.selection.as_ref(),
+            tree.interaction.selection_colors,
+        );
     }
     list.finalize();
     list
@@ -63,9 +71,21 @@ struct ClipFrame {
 
 /// Walk a laid-out tree, pushing one quad per styled background.
 pub fn paint_layout(root: &LayoutBox, list: &mut DisplayList) {
-    let mut clip_stack: Vec<ClipFrame> = Vec::new();
-    paint_box_in_clip(root, list, &mut clip_stack);
+    paint_layout_with_selection(root, list, None, SelectionColors::default());
     list.finalize();
+}
+
+/// Paint a precomputed layout while optionally applying an active text
+/// selection highlight.
+pub fn paint_layout_with_selection(
+    root: &LayoutBox,
+    list: &mut DisplayList,
+    selection: Option<&TextSelection>,
+    selection_colors: SelectionColors,
+) {
+    let mut clip_stack: Vec<ClipFrame> = Vec::new();
+    let mut path = Vec::new();
+    paint_box_in_clip(root, list, &mut clip_stack, &mut path, selection, selection_colors);
 }
 
 /// Compute the padding-box rect of a layout box. CSS-2.2 §11.1.1
@@ -127,7 +147,14 @@ fn intersect_rects(a: Rect, b: Rect) -> Rect {
     Rect::new(x0, y0, (x1 - x0).max(0.0), (y1 - y0).max(0.0))
 }
 
-fn paint_box_in_clip(b: &LayoutBox, out: &mut DisplayList, clip_stack: &mut Vec<ClipFrame>) {
+fn paint_box_in_clip(
+    b: &LayoutBox,
+    out: &mut DisplayList,
+    clip_stack: &mut Vec<ClipFrame>,
+    path: &mut Vec<usize>,
+    selection: Option<&TextSelection>,
+    selection_colors: SelectionColors,
+) {
     let rect = to_renderer_rect(b.border_rect);
     let (rh, rv) = corner_radii(b);
     let rounded = has_any_radius(&rh) || has_any_radius(&rv);
@@ -222,6 +249,7 @@ fn paint_box_in_clip(b: &LayoutBox, out: &mut DisplayList, clip_stack: &mut Vec<
     if let Some(run) = &b.text_run {
         let color = b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]);
         let origin = b.content_rect;
+        let selected_range = selection_range_for_path(selection, path, run.glyphs.len());
 
         // Decorations sit relative to the run's baseline, behind the
         // glyphs (under-line / line-through draw under the strokes;
@@ -242,14 +270,25 @@ fn paint_box_in_clip(b: &LayoutBox, out: &mut DisplayList, clip_stack: &mut Vec<
             }
         }
 
-        for g in &run.glyphs {
+        if let Some((start, end)) = selected_range {
+            paint_selection_background(run, origin, start, end, selection_colors.background, out);
+        }
+
+        for (idx, g) in run.glyphs.iter().enumerate() {
             // Per-glyph color: each glyph carries its source span's
             // resolved foreground (set at shape time). The per-leaf
             // `text_color` on the box stays around as a hint for
             // decorations / fallbacks but glyphs paint at `g.color`.
+            let glyph_color = if selected_range
+                .is_some_and(|(start, end)| idx >= start && idx < end)
+            {
+                selection_colors.foreground
+            } else {
+                g.color
+            };
             out.push_glyph(
                 Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),
-                g.color,
+                glyph_color,
                 g.uv_min,
                 g.uv_max,
             );
@@ -291,8 +330,10 @@ fn paint_box_in_clip(b: &LayoutBox, out: &mut DisplayList, clip_stack: &mut Vec<
         false
     };
 
-    for child in &b.children {
-        paint_box_in_clip(child, out, clip_stack);
+    for (i, child) in b.children.iter().enumerate() {
+        path.push(i);
+        paint_box_in_clip(child, out, clip_stack, path, selection, selection_colors);
+        path.pop();
     }
 
     if pushed {
@@ -304,6 +345,106 @@ fn paint_box_in_clip(b: &LayoutBox, out: &mut DisplayList, clip_stack: &mut Vec<
             parent.map(|f| f.radii_v).unwrap_or([0.0; 4]),
         );
     }
+}
+
+fn selection_range_for_path(
+    selection: Option<&TextSelection>,
+    path: &[usize],
+    glyph_count: usize,
+) -> Option<(usize, usize)> {
+    let sel = selection?;
+    if sel.is_collapsed() {
+        return None;
+    }
+
+    let (start, end) = ordered_cursors(&sel.anchor, &sel.focus);
+
+    if path_less(path, &start.path) || path_less(&end.path, path) {
+        return None;
+    }
+
+    let from = if path == start.path.as_slice() {
+        start.glyph_index.min(glyph_count)
+    } else {
+        0
+    };
+    let to = if path == end.path.as_slice() {
+        end.glyph_index.min(glyph_count)
+    } else {
+        glyph_count
+    };
+
+    (from < to).then_some((from, to))
+}
+
+fn paint_selection_background(
+    run: &wgpu_html_text::ShapedRun,
+    origin: wgpu_html_layout::Rect,
+    start: usize,
+    end: usize,
+    color: wgpu_html_renderer::Color,
+    out: &mut DisplayList,
+) {
+    if run.glyphs.is_empty() || start >= end || start >= run.glyphs.len() {
+        return;
+    }
+    let end = end.min(run.glyphs.len());
+
+    if run.lines.is_empty() {
+        // Fallback for synthetic runs that omit line metadata.
+        let mut x0 = f32::INFINITY;
+        let mut x1 = -f32::INFINITY;
+        for g in &run.glyphs[start..end] {
+            x0 = x0.min(g.x);
+            x1 = x1.max(g.x + g.w);
+        }
+        if x1 > x0 {
+            out.push_quad(Rect::new(origin.x + x0, origin.y, x1 - x0, run.height.max(1.0)), color);
+        }
+        return;
+    }
+
+    for line in &run.lines {
+        let a = start.max(line.glyph_range.0);
+        let b = end.min(line.glyph_range.1);
+        if a >= b {
+            continue;
+        }
+        let mut x0 = f32::INFINITY;
+        let mut x1 = -f32::INFINITY;
+        for g in &run.glyphs[a..b] {
+            x0 = x0.min(g.x);
+            x1 = x1.max(g.x + g.w);
+        }
+        if x1 <= x0 {
+            continue;
+        }
+        out.push_quad(
+            Rect::new(
+                origin.x + x0,
+                origin.y + line.top,
+                x1 - x0,
+                line.height.max(1.0),
+            ),
+            color,
+        );
+    }
+}
+
+fn ordered_cursors<'a>(a: &'a TextCursor, b: &'a TextCursor) -> (&'a TextCursor, &'a TextCursor) {
+    if cursor_leq(a, b) { (a, b) } else { (b, a) }
+}
+
+fn cursor_leq(a: &TextCursor, b: &TextCursor) -> bool {
+    if a.path == b.path {
+        a.glyph_index <= b.glyph_index
+    } else {
+        path_less(&a.path, &b.path)
+    }
+}
+
+fn path_less(a: &[usize], b: &[usize]) -> bool {
+    a.cmp(b).is_lt()
 }
 
 fn overflow_clip_rect(b: &LayoutBox, pad: Rect, parent: Option<ClipFrame>) -> Rect {
@@ -750,6 +891,71 @@ fn to_renderer_rect(r: wgpu_html_layout::Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wgpu_html_tree::{TextCursor, TextSelection};
+
+    fn synthetic_text_layout() -> LayoutBox {
+        let r = wgpu_html_layout::Rect::new(10.0, 20.0, 100.0, 24.0);
+        LayoutBox {
+            margin_rect: r,
+            border_rect: r,
+            content_rect: r,
+            background: None,
+            background_rect: r,
+            background_radii: wgpu_html_layout::CornerRadii::zero(),
+            border: wgpu_html_layout::Insets::zero(),
+            border_colors: wgpu_html_layout::BorderColors::default(),
+            border_styles: wgpu_html_layout::BorderStyles::default(),
+            border_radius: wgpu_html_layout::CornerRadii::zero(),
+            kind: wgpu_html_layout::BoxKind::Text,
+            text_run: Some(wgpu_html_text::ShapedRun {
+                glyphs: vec![
+                    wgpu_html_text::PositionedGlyph {
+                        x: 0.0,
+                        y: 4.0,
+                        w: 8.0,
+                        h: 14.0,
+                        uv_min: [0.0, 0.0],
+                        uv_max: [1.0, 1.0],
+                        color: [0.1, 0.2, 0.3, 1.0],
+                    },
+                    wgpu_html_text::PositionedGlyph {
+                        x: 8.0,
+                        y: 4.0,
+                        w: 8.0,
+                        h: 14.0,
+                        uv_min: [0.0, 0.0],
+                        uv_max: [1.0, 1.0],
+                        color: [0.2, 0.3, 0.4, 1.0],
+                    },
+                    wgpu_html_text::PositionedGlyph {
+                        x: 16.0,
+                        y: 4.0,
+                        w: 8.0,
+                        h: 14.0,
+                        uv_min: [0.0, 0.0],
+                        uv_max: [1.0, 1.0],
+                        color: [0.3, 0.4, 0.5, 1.0],
+                    },
+                ],
+                lines: vec![wgpu_html_text::ShapedLine {
+                    top: 0.0,
+                    height: 22.0,
+                    glyph_range: (0, 3),
+                }],
+                text: "abc".to_string(),
+                byte_boundaries: wgpu_html_text::utf8_boundaries("abc"),
+                width: 24.0,
+                height: 22.0,
+                ascent: 10.0,
+            }),
+            text_color: Some([0.0, 0.0, 0.0, 1.0]),
+            text_decorations: Vec::new(),
+            overflow: wgpu_html_layout::OverflowAxes::visible(),
+            image: None,
+            background_image: None,
+            children: Vec::new(),
+        }
+    }
 
     #[test]
     fn paints_single_styled_box() {
@@ -1223,5 +1429,36 @@ mod tests {
             let nonzero = q.stroke.iter().filter(|s| **s > 0.0).count();
             assert_eq!(nonzero, 1);
         }
+    }
+
+    #[test]
+    fn selection_paints_background_and_overrides_glyph_color() {
+        let root = synthetic_text_layout();
+        let mut list = DisplayList::new();
+        let selection = TextSelection {
+            anchor: TextCursor {
+                path: vec![],
+                glyph_index: 1,
+            },
+            focus: TextCursor {
+                path: vec![],
+                glyph_index: 3,
+            },
+        };
+        let colors = SelectionColors {
+            background: [0.9, 0.8, 0.1, 0.4],
+            foreground: [1.0, 1.0, 1.0, 1.0],
+        };
+        paint_layout_with_selection(&root, &mut list, Some(&selection), colors);
+        list.finalize();
+
+        assert_eq!(list.quads.len(), 1, "single line emits one merged highlight span");
+        assert_eq!(list.quads[0].color, colors.background);
+        assert_eq!(list.quads[0].rect.y, 20.0, "selection starts at line top");
+        assert_eq!(list.quads[0].rect.h, 22.0, "selection uses line height, not glyph height");
+        assert_eq!(list.glyphs.len(), 3);
+        assert_eq!(list.glyphs[0].color, [0.1, 0.2, 0.3, 1.0]);
+        assert_eq!(list.glyphs[1].color, colors.foreground);
+        assert_eq!(list.glyphs[2].color, colors.foreground);
     }
 }

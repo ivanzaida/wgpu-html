@@ -1,0 +1,87 @@
+<style>
+  body {
+    font-size: 60px;
+    margin: 0;
+    padding: 24px;
+    background-color: #252525;
+    color: #1f2937;
+    font-family: DemoSans, Arial, sans-serif;
+    line-height: 1.45;
+  }
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: 52px;
+  }
+
+  .hint {
+    margin-bottom: 18px;
+    color: #4b5563;
+    font-size: 30px;
+  }
+
+  #panel {
+    width: 760px;
+    padding: 14px;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    background-color: #ffffff;
+  }
+
+  p {
+    margin: 0 0 12px;
+  }
+
+  .chip {
+    margin-right: 8px;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background-color: red;
+    color: #3730a3;
+  }
+
+  mark {
+    background-color: #fef08a;
+    color: #111827;
+    padding: 0 2px;
+  }
+
+  #btn {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid #94a3b8;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+</style>
+
+<h1>Text Selection Demo</h1>
+<div class="hint">
+  Drag with the left mouse button over text to test selection highlight and selected text color.
+</div>
+
+<div id="panel">
+  <div>
+    <span class="chip">selection</span>
+    <span class="chip">multi-line</span>
+    <span class="chip">inline styles</span>
+  </div>
+
+  <p>
+    This line includes <strong>bold text</strong>, <em>italic text</em>, and
+    <mark>highlighted text</mark> so you can check visual contrast while selecting.
+  </p>
+
+  <p>
+    Try dragging from the middle of this paragraph into the next one to verify that
+    selection continues across line breaks and mixed inline content.
+  </p>
+
+  <p style="color: #0f766e;">
+    This paragraph has a different text color. Selected foreground should still use
+    the configured selection foreground color.
+  </p>
+
+  <button id="btn">Click target (still should click when no drag-select)</button>
+</div>

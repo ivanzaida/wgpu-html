@@ -44,15 +44,51 @@ pub struct PositionedGlyph {
     pub color: [f32; 4],
 }
 
+/// One line inside a [`ShapedRun`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ShapedLine {
+    pub top: f32,
+    pub height: f32,
+    /// Half-open glyph slice `[start, end)` in `ShapedRun::glyphs`.
+    pub glyph_range: (usize, usize),
+}
+
 /// Output of `shape_and_pack`. Holds the line metrics callers need to
 /// place the run vertically inside a block (height + ascent), the
 /// total advance width, and the glyph quads.
 #[derive(Debug, Clone, Default)]
 pub struct ShapedRun {
     pub glyphs: Vec<PositionedGlyph>,
+    pub lines: Vec<ShapedLine>,
+    /// Visible text that produced this run after whitespace collapse /
+    /// text-transform / rich-text flattening.
+    pub text: String,
+    /// UTF-8 byte offsets for every character boundary in `text`.
+    /// Length is `text.chars().count() + 1`; index 0 is the start and
+    /// the last entry is `text.len()`.
+    pub byte_boundaries: Vec<usize>,
     pub width: f32,
     pub height: f32,
     pub ascent: f32,
+}
+
+impl ShapedRun {
+    pub fn byte_offset_for_boundary(&self, glyph_index: usize) -> usize {
+        if self.byte_boundaries.is_empty() {
+            return 0;
+        }
+        let idx = glyph_index.min(self.byte_boundaries.len().saturating_sub(1));
+        self.byte_boundaries[idx]
+    }
+}
+
+pub fn utf8_boundaries(text: &str) -> Vec<usize> {
+    let mut out = Vec::with_capacity(text.chars().count() + 1);
+    out.push(0);
+    for (idx, ch) in text.char_indices() {
+        out.push(idx + ch.len_utf8());
+    }
+    out
 }
 
 /// One span in a rich-text paragraph: a run of source text with
@@ -281,9 +317,10 @@ impl TextContext {
         // glyph loop below can borrow `&mut self.font_db` /
         // `&mut self.swash` without colliding with the `Buffer`'s
         // outstanding `&mut FontSystem`.
-        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32)>, f32, f32)> = buffer
+        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32)>, f32, f32, f32)> = buffer
             .layout_runs()
             .map(|run| {
+                let line_top = run.line_top;
                 let line_y = run.line_y;
                 let line_h = run.line_height;
                 let glyphs: Vec<_> = run
@@ -291,20 +328,25 @@ impl TextContext {
                     .iter()
                     .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w))
                     .collect();
-                (glyphs, line_y, line_h)
+                (glyphs, line_top, line_y, line_h)
             })
             .collect();
 
         let first_line = layout_lines.first()?;
-        let ascent_px = first_line.1;
-        let total_height: f32 = layout_lines.iter().map(|(_, _, h)| *h).sum();
+        let ascent_px = first_line.2;
+        let total_height: f32 = layout_lines
+            .iter()
+            .map(|(_, top, _, h)| top + h)
+            .fold(0.0, f32::max);
 
-        let glyph_capacity: usize = layout_lines.iter().map(|(g, _, _)| g.len()).sum();
+        let glyph_capacity: usize = layout_lines.iter().map(|(g, _, _, _)| g.len()).sum();
         let mut glyphs: Vec<PositionedGlyph> = Vec::with_capacity(glyph_capacity);
+        let mut lines: Vec<ShapedLine> = Vec::with_capacity(layout_lines.len());
         let mut max_x: f32 = 0.0;
         let (atlas_w, atlas_h) = self.atlas.dimensions();
 
-        for (line_glyphs, line_y, _line_h) in &layout_lines {
+        for (line_glyphs, line_top, line_y, line_h) in &layout_lines {
+            let line_glyph_start = glyphs.len();
             let baseline_y = *line_y;
             for (glyph_index, (physical, layout_x, layout_w)) in line_glyphs.iter().enumerate() {
                 // Cumulative `letter-spacing` offset for this glyph (zero
@@ -393,10 +435,18 @@ impl TextContext {
                     max_x = advance_right;
                 }
             }
+            lines.push(ShapedLine {
+                top: *line_top,
+                height: *line_h,
+                glyph_range: (line_glyph_start, glyphs.len()),
+            });
         }
 
         Some(ShapedRun {
             glyphs,
+            lines,
+            text: text.to_owned(),
+            byte_boundaries: utf8_boundaries(text),
             width: max_x,
             height: total_height,
             ascent: ascent_px,

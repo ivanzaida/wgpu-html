@@ -21,7 +21,8 @@ mod shape;
 pub use atlas::{Atlas, AtlasEntry, AtlasRect};
 pub use font_db::FontDb;
 pub use shape::{
-    LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, PositionedGlyph, ShapedRun,
+    LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, PositionedGlyph, ShapedLine,
+    ShapedRun, utf8_boundaries,
     TextContext,
 };
 

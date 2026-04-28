@@ -1122,6 +1122,87 @@ fn find_elements_outside_is_empty() {
     );
 }
 
+fn synthetic_text_layout() -> LayoutBox {
+    let r = Rect::new(10.0, 20.0, 100.0, 24.0);
+    LayoutBox {
+        margin_rect: r,
+        border_rect: r,
+        content_rect: r,
+        background: None,
+        background_rect: r,
+        background_radii: CornerRadii::zero(),
+        border: Insets::zero(),
+        border_colors: BorderColors::default(),
+        border_styles: BorderStyles::default(),
+        border_radius: CornerRadii::zero(),
+        kind: BoxKind::Text,
+        text_run: Some(ShapedRun {
+            glyphs: vec![
+                PositionedGlyph {
+                    x: 0.0,
+                    y: 0.0,
+                    w: 10.0,
+                    h: 20.0,
+                    uv_min: [0.0, 0.0],
+                    uv_max: [1.0, 1.0],
+                    color: [0.0, 0.0, 0.0, 1.0],
+                },
+                PositionedGlyph {
+                    x: 10.0,
+                    y: 0.0,
+                    w: 10.0,
+                    h: 20.0,
+                    uv_min: [0.0, 0.0],
+                    uv_max: [1.0, 1.0],
+                    color: [0.0, 0.0, 0.0, 1.0],
+                },
+                PositionedGlyph {
+                    x: 20.0,
+                    y: 0.0,
+                    w: 10.0,
+                    h: 20.0,
+                    uv_min: [0.0, 0.0],
+                    uv_max: [1.0, 1.0],
+                    color: [0.0, 0.0, 0.0, 1.0],
+                },
+            ],
+            lines: vec![wgpu_html_text::ShapedLine {
+                top: 0.0,
+                height: 20.0,
+                glyph_range: (0, 3),
+            }],
+            text: "abc".to_string(),
+            byte_boundaries: wgpu_html_text::utf8_boundaries("abc"),
+            width: 30.0,
+            height: 20.0,
+            ascent: 15.0,
+        }),
+        text_color: Some([0.0, 0.0, 0.0, 1.0]),
+        text_decorations: Vec::new(),
+        overflow: OverflowAxes::visible(),
+        image: None,
+        background_image: None,
+        children: Vec::new(),
+    }
+}
+
+#[test]
+fn hit_text_cursor_maps_point_to_glyph_boundary() {
+    let lay = synthetic_text_layout();
+    let c0 = lay.hit_text_cursor((11.0, 24.0)).expect("cursor");
+    let c1 = lay.hit_text_cursor((26.0, 24.0)).expect("cursor");
+    let c2 = lay.hit_text_cursor((39.0, 24.0)).expect("cursor");
+    assert_eq!(c0.glyph_index, 0);
+    assert_eq!(c1.glyph_index, 2);
+    assert_eq!(c2.glyph_index, 3);
+}
+
+#[test]
+fn hit_text_cursor_outside_returns_none() {
+    let lay = synthetic_text_layout();
+    assert!(lay.hit_text_cursor((200.0, 24.0)).is_none());
+}
+
 // ---------------------------------------------------------------------------
 // overflow propagation
 // ---------------------------------------------------------------------------

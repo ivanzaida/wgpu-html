@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
 
+use arboard::Clipboard;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{
@@ -22,7 +23,7 @@ use wgpu_html::renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Ren
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{FontFace, FontStyleAxis, Modifiers, MouseButton, Tree};
 
-const DOC: &str = include_str!("../html/gif.html");
+const DOC: &str = include_str!("../html/text-selection.html");
 
 /// One font family's worth of system-font paths: regular, bold,
 /// italic, bold-italic. An empty path means "this variant isn't on
@@ -159,6 +160,8 @@ struct App {
     /// Counter incremented from the click callback. Demonstrates that
     /// closures capture state correctly.
     click_count: Arc<AtomicUsize>,
+    /// Live keyboard modifier state used for shortcut dispatch.
+    modifiers: Modifiers,
 }
 
 impl Default for App {
@@ -176,6 +179,7 @@ impl Default for App {
             scroll_y: 0.0,
             scrollbar_drag: None,
             click_count: Arc::new(AtomicUsize::new(0)),
+            modifiers: Modifiers::default(),
         }
     }
 }
@@ -232,6 +236,39 @@ impl App {
         }
         tree_slot.as_mut().unwrap()
     }
+
+    fn update_modifier_key(&mut self, key: KeyCode, state: ElementState) {
+        let down = state == ElementState::Pressed;
+        match key {
+            KeyCode::ControlLeft | KeyCode::ControlRight => self.modifiers.ctrl = down,
+            KeyCode::ShiftLeft | KeyCode::ShiftRight => self.modifiers.shift = down,
+            KeyCode::AltLeft | KeyCode::AltRight => self.modifiers.alt = down,
+            KeyCode::SuperLeft | KeyCode::SuperRight => self.modifiers.meta = down,
+            _ => {}
+        }
+    }
+
+    fn copy_selection_to_clipboard(&self) {
+        let (Some(tree), Some(layout)) = (self.tree.as_ref(), self.last_layout.as_ref()) else {
+            return;
+        };
+        let Some(text) = wgpu_html::selected_text(tree, layout) else {
+            return;
+        };
+        if text.is_empty() {
+            return;
+        }
+        match Clipboard::new() {
+            Ok(mut clipboard) => {
+                if let Err(err) = clipboard.set_text(text.clone()) {
+                    eprintln!("demo: failed to copy selection to clipboard: {err}");
+                } else {
+                    eprintln!("demo: copied {} chars", text.chars().count());
+                }
+            }
+            Err(err) => eprintln!("demo: clipboard unavailable: {err}"),
+        }
+    }
 }
 
 fn translate_button(b: WinitMouseButton) -> MouseButton {
@@ -271,13 +308,13 @@ impl ApplicationHandler for App {
         let Some(window) = self.window.clone() else {
             return;
         };
-        let Some(renderer) = self.renderer.as_mut() else {
-            return;
-        };
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
+                let Some(renderer) = self.renderer.as_mut() else {
+                    return;
+                };
                 renderer.resize(size.width, size.height);
                 if let Some(layout) = self.last_layout.as_ref() {
                     self.scroll_y = clamp_scroll_y(self.scroll_y, layout, size.height as f32);
@@ -288,21 +325,57 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
-                        state: ElementState::Pressed,
+                        state,
                         physical_key: PhysicalKey::Code(key),
-                        repeat: false,
+                        repeat,
                         ..
                     },
                 ..
-            } => match key {
-                KeyCode::F12 => {
-                    let path: PathBuf = format!("screenshot-{}.png", timestamp()).into();
-                    renderer.capture_next_frame_to(path);
-                    window.request_redraw();
+            } => {
+                self.update_modifier_key(key, state);
+                if state == ElementState::Pressed && !repeat {
+                    if self.modifiers.ctrl {
+                        match key {
+                            KeyCode::KeyA => {
+                                if let (Some(tree), Some(layout)) =
+                                    (self.tree.as_mut(), self.last_layout.as_ref())
+                                {
+                                    if wgpu_html::select_all_text(tree, layout) {
+                                        window.request_redraw();
+                                    }
+                                }
+                            }
+                            KeyCode::KeyC => self.copy_selection_to_clipboard(),
+                            _ => match key {
+                                KeyCode::F12 => {
+                                    let Some(renderer) = self.renderer.as_mut() else {
+                                        return;
+                                    };
+                                    let path: PathBuf =
+                                        format!("screenshot-{}.png", timestamp()).into();
+                                    renderer.capture_next_frame_to(path);
+                                    window.request_redraw();
+                                }
+                                KeyCode::Escape => event_loop.exit(),
+                                _ => {}
+                            },
+                        }
+                    } else {
+                        match key {
+                            KeyCode::F12 => {
+                                let Some(renderer) = self.renderer.as_mut() else {
+                                    return;
+                                };
+                                let path: PathBuf = format!("screenshot-{}.png", timestamp()).into();
+                                renderer.capture_next_frame_to(path);
+                                window.request_redraw();
+                            }
+                            KeyCode::Escape => event_loop.exit(),
+                            _ => {}
+                        }
+                    }
                 }
-                KeyCode::Escape => event_loop.exit(),
-                _ => {}
-            },
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
                 self.cursor_pos = Some(pos);
@@ -321,13 +394,13 @@ impl ApplicationHandler for App {
                 let doc_pos = viewport_to_document(pos, self.scroll_y);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
-                    interactivity::pointer_move(tree, layout, doc_pos, Modifiers::default());
+                    interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
                 }
             }
             WindowEvent::CursorLeft { .. } => {
                 self.cursor_pos = None;
                 if let Some(tree) = self.tree.as_mut() {
-                    interactivity::pointer_leave(tree, Modifiers::default());
+                    interactivity::pointer_leave(tree, self.modifiers);
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -359,7 +432,7 @@ impl ApplicationHandler for App {
                                 layout,
                                 doc_pos,
                                 btn,
-                                Modifiers::default(),
+                                self.modifiers,
                             );
                         }
                         ElementState::Released => {
@@ -368,7 +441,7 @@ impl ApplicationHandler for App {
                                 layout,
                                 doc_pos,
                                 btn,
-                                Modifiers::default(),
+                                self.modifiers,
                             );
                         }
                     }
@@ -383,12 +456,15 @@ impl ApplicationHandler for App {
                         (self.tree.as_mut(), self.cursor_pos, self.last_layout.as_ref())
                     {
                         let doc_pos = viewport_to_document(pos, self.scroll_y);
-                        interactivity::pointer_move(tree, layout, doc_pos, Modifiers::default());
+                        interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
                     }
                     window.request_redraw();
                 }
             }
             WindowEvent::RedrawRequested => {
+                let Some(renderer) = self.renderer.as_mut() else {
+                    return;
+                };
                 let size = window.inner_size();
 
                 // Build the tree on first frame; subsequent frames

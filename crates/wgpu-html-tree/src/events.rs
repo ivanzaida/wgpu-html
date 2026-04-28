@@ -7,6 +7,47 @@
 
 use std::sync::Arc;
 
+/// A caret/selection endpoint in shaped text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextCursor {
+    /// Path to the text `LayoutBox` in the layout/tree mirror.
+    pub path: Vec<usize>,
+    /// Grapheme-agnostic boundary index in that text run.
+    ///
+    /// `0` is before the first glyph, `glyph_count` is after the last.
+    pub glyph_index: usize,
+}
+
+/// Active text selection range (anchor + focus).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextSelection {
+    pub anchor: TextCursor,
+    pub focus: TextCursor,
+}
+
+impl TextSelection {
+    pub fn is_collapsed(&self) -> bool {
+        self.anchor == self.focus
+    }
+}
+
+/// Host-configurable text selection paint colors.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SelectionColors {
+    pub background: [f32; 4],
+    pub foreground: [f32; 4],
+}
+
+impl Default for SelectionColors {
+    fn default() -> Self {
+        // Browser-like defaults (blue highlight, white selected text).
+        Self {
+            background: [0.23, 0.51, 0.96, 0.45],
+            foreground: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
+
 /// Three named buttons + a numeric escape hatch for everything else
 /// (winit's "additional" buttons, e.g. side-mouse keys).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,4 +98,10 @@ pub struct InteractionState {
     pub active_path: Option<Vec<usize>>,
     /// Last known pointer position in physical pixels.
     pub pointer_pos: Option<(f32, f32)>,
+    /// Current text selection, if any.
+    pub selection: Option<TextSelection>,
+    /// Whether a primary-button drag currently owns text selection.
+    pub selecting_text: bool,
+    /// Colors used to paint selected text/background.
+    pub selection_colors: SelectionColors,
 }
