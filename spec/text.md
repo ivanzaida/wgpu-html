@@ -1,154 +1,99 @@
 # wgpu-html — Text Rendering Spec
 
-The plan for moving from "text nodes contribute zero height" to a real
-inline formatting context with shaped glyphs on the GPU.
+How text leaves shape, lay out, and paint. Companion to
+`roadmap.md` (M5/M6) and `status.md`.
 
-Status as of T7 (mostly done): single-line and multi-line shaped
-text rendered end-to-end against host-registered fonts, with
-cascade inheritance, UA defaults (block + inline), CSS-wide
-keywords + `!important`, IFC with rich-text paragraph wrapping
-(word-boundary breaks across `<strong>` / `<em>` / `<a>` / `<mark>`
-boundaries), per-line backgrounds and decorations, gamma-correct
-text rendering. Remaining T7 odds and ends called out at the end
-of §11.
-
-Companion to `roadmap.md` (engine milestones — this fleshes out M5/M6
-and pulls some inheritance work forward) and `status.md` (current
-gaps).
+Status: shipped. Cascaded text shapes through cosmic-text against
+host-registered fonts; single-line and multi-line paragraphs flow
+through an inline formatting context with rich-text spans, word-
+boundary breaks across `<strong>` / `<em>` / `<a>` / `<mark>`,
+per-line backgrounds and decorations, and per-glyph colour for
+mixed-attribute runs. The renderer paints in two passes for
+gamma-correct blending. Fonts live on the document `Tree` — no
+process-global state, no `@font-face` fetcher.
 
 ---
 
 ## 1. Goals
 
-- Render text from `Element::Text(_)` leaves with shaped glyphs,
-  honouring `font-family / font-size / font-weight / font-style /
-  color / line-height / letter-spacing / text-align / white-space`.
-- **Host-supplied external fonts.** The host loads font bytes from
-  wherever it likes (disk, `include_bytes!`, network) and registers
-  them on the document.
-- Single-line and multi-line layout with word-aware line breaking.
-- Mixed inline runs (`<span>`, `<strong>`, `<em>`, …) flowing through
-  the same line boxes with their own per-run cascaded style.
-- DPI-correct: physical pixels everywhere, scale factor flows from
-  winit through layout into the atlas.
+- Render `Element::Text` leaves with shaped glyphs, honouring
+  `font-family / font-size / font-weight / font-style / color /
+  line-height / letter-spacing / text-align / white-space /
+  text-transform / text-decoration`.
+- **Host-supplied fonts.** The host loads bytes (disk,
+  `include_bytes!`, network) and registers them on the `Tree`;
+  cascade and layout consult the per-document registry.
+- Multi-line paragraph layout with word-aware breaks across
+  inline-element boundaries.
+- DPI-correct: physical pixels everywhere, scale factor flows
+  from winit through layout into the atlas.
+- Gamma-correct blending: the GPU treats text as alpha coverage
+  in display space, not as sRGB pre-multiplied colour.
 
-## 2. Non-goals (M5/M6 scope)
+## 2. Supported CSS
 
-- No web fonts via URL fetch — the host is responsible for bytes.
-- No `@font-face` parsing in the first pass. CSS only refers to
-  fonts by family / weight / style; the binding is driven by the
-  Tree's font registry.
-- No bidi, no shaping for complex scripts beyond what
-  HarfBuzz-via-rustybuzz gives us out of the box.
-- No vertical writing modes.
-- No `font-stretch`, no `font-variant`, no font features
-  (`font-feature-settings`, `font-variant-ligatures`).
-- No `text-shadow`, no emoji color fonts, no `letter-spacing` in
-  the middle of a kern (we treat it as a flat post-shape advance
-  fixup).
-- No subpixel antialiasing — straight alpha mask first, SDF later
-  if needed.
+Resolved end-to-end (`crates/wgpu-html-style` cascade →
+`crates/wgpu-html-text` shape → `crates/wgpu-html-layout` IFC →
+paint):
 
-## 3. Hard constraint: fonts live in the Tree
+| Property              | Coverage                                                                  |
+|-----------------------|---------------------------------------------------------------------------|
+| `color`               | Per-glyph foreground; resolved via `resolve_color`                        |
+| `font-family`         | Comma list, walked left-to-right; quoted names trimmed                    |
+| `font-weight`         | `100..900`, `normal/bold/bolder/lighter` (no parent-context shift yet)    |
+| `font-style`          | `normal/italic/oblique` → `FontStyleAxis`                                 |
+| `font-size`           | `Px / Em / Rem / Vw / Vh / Vmin / Vmax / %` plus `calc()`/`min`/`max`     |
+| `line-height`         | Same length set; defaults to `1.25 × font-size`; bare numbers TBD          |
+| `letter-spacing`      | Lengths; applied as a post-shape per-glyph offset                         |
+| `text-transform`      | `uppercase / lowercase / capitalize` applied pre-shape                    |
+| `text-align`          | `left / right / center / start / end` (`justify` falls through to left)   |
+| `text-decoration`     | `underline / line-through / overline` (whitespace list; `none` resets)    |
+| `background-color`    | Inline-element wrapper backgrounds expand per-line (`<mark>`)             |
+| `white-space: normal` | Whitespace runs collapse to a single ASCII space pre-shape                |
 
-> **External fonts are registered as part of the document tree, not
-> as a process-global resource.** Each `Tree` carries its own
-> `FontRegistry`; cascade and layout consult that registry alone.
+**Inheritance.** `wgpu-html-style::cascade` runs an
+`inherit_into(child, parent)` pass that fills the standard
+inheriting properties (`color`, `font-*`, `line-height`,
+`letter-spacing`, `text-align`, `text-transform`, `white-space`,
+`text-decoration`, `visibility`, `cursor`) for any property a
+node didn't set explicitly. `inherit / initial / unset` keywords
+are honoured before the implicit pass.
 
-Rationale:
+**UA stylesheet** (`crates/wgpu-html-style/src/ua.rs`,
+prepended so author rules win on source-order ties):
 
-- **No global mutable state.** Two `Tree`s in the same process can
-  carry different font sets without contention.
-- **Same lifecycle as the rest of the document.** Bytes are dropped
-  when the tree is dropped; nothing dangles.
-- **Mirrors how the engine already treats CSS.** Inline `<style>`
-  blocks are owned by the tree, not by a global stylesheet store —
-  fonts follow the same rule.
-- **Host stays in charge of provenance.** No fetcher, no
-  `@font-face` magic. The host explicitly hands over `Vec<u8>`s
-  with metadata.
-- **Trivial to test.** A test just builds a tree, registers an
-  embedded font, parses + renders, and asserts.
+- `head, style, script, meta, link, title, noscript, template,
+  source, track, base, param, col, colgroup → display: none`
+- `body → margin: 8px`; `p / blockquote / pre / ul / ol / dl /
+  address → margin: 16px 0`; per-heading margins (21/20/19/21/22/
+  26 px) + bold + descending sizes
+- `ul, ol → padding-left: 40px`; `dd → margin-left: 40px`;
+  `blockquote → margin: 16px 40px`; `hr → 1px solid gray`
+- `b, strong → bold`; `i, em → italic`; `u, ins → underline`;
+  `s, del, strike → line-through`; `code, kbd, samp, pre →
+  monospace`; `a → blue + underline`; `mark → yellow + black`
+- `small / sub / sup → 13px`; `sub/sup` parse `vertical-align` but
+  the baseline shift isn't applied yet (font-size only)
 
-Landed API in `wgpu-html-tree` (`src/fonts.rs`, `src/lib.rs`):
-
-```rust
-pub struct Tree {
-    pub root:  Option<Node>,
-    pub fonts: FontRegistry,
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct FontRegistry { /* faces: Vec<FontFace> */ }
-
-#[derive(Debug, Clone)]
-pub struct FontFace {
-    pub family: String,                  // CSS-side family name
-    pub weight: u16,                     // 100..900, 400 default
-    pub style:  FontStyleAxis,           // Normal / Italic / Oblique
-    pub data:   std::sync::Arc<[u8]>,    // shared & cheap to clone
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FontStyleAxis { Normal, Italic, Oblique }
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct FontHandle(pub usize);
-
-impl Tree {
-    pub fn register_font(&mut self, face: FontFace) -> FontHandle;
-}
-
-impl FontRegistry {
-    pub fn register(&mut self, face: FontFace) -> FontHandle;
-    pub fn find(&self, family: &str, weight: u16, style: FontStyleAxis)
-        -> Option<FontHandle>;
-    pub fn find_first(&self, families: &[&str], weight: u16,
-        style: FontStyleAxis) -> Option<FontHandle>;
-    // get / iter / len / is_empty
-}
-```
-
-`FontFace::regular(family, data)` is a 400-weight / Normal-style
-shorthand. `FontHandle` is `Ord` so the text crate can pick the
-"first registered" handle deterministically.
-
-Typical host wiring (today's demo):
-
-```rust
-let mut tree = wgpu_html_parser::parse(html);
-let bytes = std::sync::Arc::<[u8]>::from(font_bytes_vec.into_boxed_slice());
-tree.register_font(FontFace {
-    family: "DemoSans".into(),
-    weight: 400,
-    style:  FontStyleAxis::Normal,
-    data:   bytes,
-});
-```
-
-`FontRegistry` is plain data — no fancy traits, no async, no
-`dyn`. `wgpu-html-text` consumes `&FontRegistry` and converts it
-into its shaper-side database on demand.
-
-## 4. Pipeline
+## 3. Pipeline
 
 ```
-Tree (with fonts)
+Tree (root + fonts + interaction)
    │
-   ▼  cascade  (now also runs an inheritance pass)
-CascadedTree                (Style.color + font_* per node, inherited)
+   ▼  cascade               (UA + author + inline + inheritance)
+CascadedTree                 (Style fully resolved per node)
    │
-   ▼  layout_with_text       (text leaves shape via &mut TextContext)
-LayoutBox tree               (text_run: Option<ShapedRun> on text leaves)
+   ▼  layout_with_text       (IFC routes through TextContext)
+LayoutBox tree               (text leaves carry ShapedRun + colour)
    │
-   ▼  paint                  (glyph quads with atlas UVs)
-DisplayList { quads, glyphs }
+   ▼  paint                  (one GlyphQuad per shaped glyph)
+DisplayList { quads, glyphs, images }
    │
-   ▼  renderer               (quad pipeline + glyph pipeline, one pass)
+   ▼  renderer               (quad → glyph passes, gamma-correct)
 Frame
 ```
 
-Landed signatures:
+Public entry points:
 
 ```rust
 // wgpu-html-layout
@@ -159,148 +104,221 @@ pub fn layout_with_text(
     viewport_h: f32,
     scale:      f32,             // CSS px → physical px
 ) -> Option<LayoutBox>;
-
-// Back-compat wrapper for callers that don't render text. Builds a
-// throwaway empty TextContext at scale 1.0; existing layout tests
-// keep using this.
-pub fn layout(
-    tree: &CascadedTree, viewport_w: f32, viewport_h: f32,
-) -> Option<LayoutBox>;
+pub fn layout(tree, vw, vh) -> Option<LayoutBox>; // no-text wrapper
 
 // wgpu-html (facade)
 pub fn paint_tree_with_text(
-    tree:       &Tree,
-    text_ctx:   &mut TextContext,
-    viewport_w: f32,
-    viewport_h: f32,
-    scale:      f32,
+    tree, text_ctx, viewport_w, viewport_h, scale,
 ) -> DisplayList;
-pub fn paint_tree(tree: &Tree, vw: f32, vh: f32) -> DisplayList; // back-compat
+pub fn paint_tree(tree, vw, vh) -> DisplayList; // no-text wrapper
+pub fn compute_layout(tree, text_ctx, vw, vh, scale) -> Option<LayoutBox>;
+pub fn paint_tree_returning_layout(tree, text_ctx, vw, vh, scale)
+    -> (DisplayList, Option<LayoutBox>);
 ```
 
-Note the deviation from the original plan:
+`paint` does **not** take fonts — all shaping happens during
+layout, glyph rasters and atlas UVs are baked into the `LayoutBox`
+tree. Paint just walks `b.text_run.glyphs` and emits quads.
 
-- **`paint` does not take fonts.** All shaping happens during layout;
-  glyph UVs and rasters are already packed into the atlas by the time
-  `paint_box` runs. Paint just walks `b.text_run.glyphs` and emits
-  one `GlyphQuad` per glyph at `content_rect + (glyph.x, glyph.y)`.
-- **The signature is `&mut TextContext`, not `&FontRegistry, &mut Atlas`.**
-  `TextContext` bundles the cosmic-text bridge, the CPU atlas, and a
-  `SwashCache` so the API surface stays compact.
+## 4. Fonts on the Tree
 
-Renderer changes (`wgpu-html-renderer`):
+> **External fonts are owned by the document, not by a process-
+> global resource.** Each `Tree` carries its own `FontRegistry`;
+> cascade + shaping consult the registry alone.
 
-- Two pipelines now: the existing `QuadPipeline` plus a new
-  `GlyphPipeline` (instanced textured quads). Both run in the same
-  render pass, quads first then glyphs, so text sits over backgrounds
-  and borders without sorting.
-- One bind group per pipeline: globals uniform, plus the glyph
-  pipeline adds an `R8Unorm` texture and a linear sampler.
-- New `pub const GLYPH_ATLAS_SIZE: u32 = 2048` — the host's CPU
-  atlas in `wgpu-html-text` must be created at the same size for
-  uploads to land 1:1.
-- `Renderer::glyph_atlas_texture() -> &wgpu::Texture` lets the host
-  call `Atlas::upload(&queue, &texture)` to flush dirty rasters
-  before each draw.
+This is a hard architectural constraint:
 
-## 5. Library choice
+- **No global mutable state** — two `Tree`s can carry different
+  font sets without contention.
+- **Same lifecycle as the rest of the document** — bytes drop
+  when the tree drops.
+- **Mirrors how CSS is handled** — inline `<style>` blocks belong
+  to the tree; fonts follow the same rule.
+- **Trivial to test** — register an embedded font, parse, render,
+  assert.
 
-Use **cosmic-text 0.12** as the shaper / line-breaker:
+API (`wgpu-html-tree`):
 
-- Ships a `FontSystem` + `fontdb::Database` we can populate from
-  `FontRegistry` via `load_font_source(Source::Binary(Arc<dyn AsRef<[u8]>>))`.
-- Wraps rustybuzz for shaping and unicode-bidi / unicode-linebreak
-  for break opportunities.
-- Used in production (egui, iced, …); active upstream.
+```rust
+pub struct Tree {
+    pub root:  Option<Node>,
+    pub fonts: FontRegistry,
+    /* asset_cache_ttl, preload_queue, interaction, … */
+}
 
-Why not raw rustybuzz / swash:
+pub struct FontFace {
+    pub family: String,
+    pub weight: u16,                  // 100..900, default 400
+    pub style:  FontStyleAxis,        // Normal / Italic / Oblique
+    pub data:   std::sync::Arc<[u8]>, // shared, cheap to clone
+}
 
-- We'd reimplement line-breaking (UAX 14), white-space collapsing,
-  and word boundaries.
-- The win is "more control"; the cost is several months of
-  re-inventing shaping ergonomics. Not worth it pre-1.0.
+impl Tree {
+    pub fn register_font(&mut self, face: FontFace) -> FontHandle;
+}
+```
 
-The bridge layer (`wgpu-html-text::FontDb`, `src/font_db.rs`) caches
-a `cosmic_text::FontSystem` keyed by the underlying `Arc<[u8]>`
-identity (`Arc::as_ptr` cast to `*const u8`). Re-syncing against the
-same registry is a true no-op; a face whose `Arc` was swapped in
-place gets re-loaded; a face that disappeared from the registry is
-removed from `fontdb` too. The `FontSystem` is constructed with
-`new_with_locale_and_db("en-US", Database::new())` — **no system
-fonts** — so the registry is the single source of truth.
+`FontHandle` is `Ord` so the text crate can pick the
+"first registered" handle deterministically when scoring fails.
+`FontFace::regular(family, data)` is a 400-weight / Normal-style
+shorthand. Re-registering with a fresh `Arc<[u8]>` triggers a
+font-db reload at the bridge layer.
 
-Glyph cache: `cosmic_text::SwashCache` lives inside `TextContext`;
-the GPU atlas is owned separately by the renderer (T2 design).
+The bridge (`wgpu-html-text::FontDb`) lazily caches a
+`cosmic_text::FontSystem` keyed by `Arc::as_ptr` identity. Same
+registry → no-op resync; replaced `Arc` → reload; removed face →
+removed from `fontdb` too. The `FontSystem` is constructed
+**without** system fonts (`new_with_locale_and_db("en-US",
+Database::new())`) so the registry is the single source of
+truth.
 
-## 6. Font matching
+## 5. Font matching
 
-Implemented today (`FontRegistry::find`, `find_first`):
+`FontRegistry::find_first` walks the comma-separated `font-family`
+list left-to-right; for each name, it picks the registered face
+that minimises a CSS-Fonts-3-style score:
 
-1. Walk the comma-separated `font-family` list left-to-right
-   (`find_first`).
-2. Within each family name (case-insensitive ASCII compare), pick
-   the face whose `(weight, style)` minimises a score:
-   - **Style band** (× 1,000,000): exact (0) > italic↔oblique
-     interchange (1) > italic-or-oblique target falling to Normal
-     (2). Ties on the band defer to the weight distance.
-   - **Weight distance**: absolute `|candidate − target|`, plus a
-     +10,000 wrong-direction penalty when the target prefers heavier
-     (`> 500`) but the candidate is lighter, or prefers lighter
-     (`< 400`) but the candidate is heavier. `[400, 500]` is
-     bidirectional. The 10,000 floor keeps any right-direction match
-     strictly better than any wrong-direction match (max raw weight
-     gap is 800).
-3. Ties on score break toward the **later-registered** face, so a
-   host can override an earlier registration by re-registering.
-4. If the whole `find_first` walk misses, the layout text path falls
-   back to `FontDb::first_handle` (lowest-numbered loaded handle).
+- **Style band** (× 1,000,000): exact match (0) > italic↔oblique
+  interchange (1) > italic-or-oblique target falling to `Normal`
+  (2). Ties on the band defer to weight distance.
+- **Weight distance**: `|candidate − target|`, plus a `+10,000`
+  wrong-direction penalty when a heavier target (`> 500`) gets
+  a lighter candidate or vice versa. `[400, 500]` is
+  bidirectional. The 10,000 floor keeps any right-direction
+  match strictly better than any wrong-direction match.
 
-Generic family names (`serif`, `sans-serif`, `monospace`) get no
-special treatment yet — a host that wants `sans-serif: Inter` must
-register `Inter` under that family explicitly. Mappings are a
-`Tree::set_generic_family(...)` follow-up.
+Ties on the final score break toward the **later-registered**
+face — re-registering overrides earlier registrations. If the
+whole walk misses, layout falls back to `FontDb::first_handle`
+(lowest-numbered loaded handle). An empty registry → text leaves
+shape to zero size.
 
-If `FontRegistry` is empty, text leaves shape to zero size, same as
-the pre-T3 behaviour.
+Generic family names (`serif`, `sans-serif`, `monospace`, …) get
+no special treatment. Hosts that want `sans-serif: Inter` register
+`Inter` under that exact family.
 
-## 7. Glyph atlas & textured pipeline
+## 6. Inline formatting context
 
-Atlas (`wgpu-html-text::Atlas`, `src/atlas.rs`):
+A block whose direct children are all inline-level (text or
+default-inline elements like `<span> / <strong> / <em> / <i> /
+<b> / <u> / <s> / <a> / <code> / <kbd> / <samp> / <var> / <abbr>
+/ <cite> / <dfn> / <sub> / <sup> / <time> / <small> / <mark> /
+<br> / <wbr> / <bdi> / <bdo> / <ins> / <del> / <label> / <output>
+/ <data> / <ruby> / <rt> / <rp>` — or anything with `display:
+inline / inline-block / inline-flex`) routes through
+`layout_inline_paragraph`.
 
-- Single `R8Unorm` CPU buffer, default 2048×2048, fixed size in T2/T3
-  (no doubling yet — overflow returns `None`; T7 brings LRU).
-- Shelf packer: glyphs go onto horizontal shelves stacked top-to-
-  bottom; each shelf locks its height to its first glyph; a glyph
-  that doesn't fit horizontally or vertically opens a new shelf.
-- Dirty-rect list: every `insert` appends a rect; `flush_dirty(sink)`
-  drains them into a generic closure `(rect, &[u8])`.
-- `upload(&Queue, &Texture)` is the wgpu-flavoured wrapper around
-  `flush_dirty` using `queue.write_texture` with the modern
-  `TexelCopyTextureInfo` / `TexelCopyBufferLayout` names.
-- `clear()` zeros the buffer, resets the packer, and queues a full-
-  atlas dirty rect so the next flush re-uploads everything (T7's
-  scale-factor-changed path).
-- `AtlasEntry::uv_min/uv_max(atlas_w, atlas_h)` for normalised UVs.
+Pipeline for a multi-span paragraph:
 
-Pipeline (`wgpu-html-renderer::glyph_pipeline`, `shaders/glyph.wgsl`):
+1. **`collect_paragraph_spans(node, plan, ctx)`** walks the
+   inline subtree depth-first. Each `Element::Text` becomes a
+   `ParagraphSpan` with cascade-resolved family / weight / style /
+   size / line-height / colour. Each inline-element wrapper that
+   contributed any spans **and** has a `background-color` or
+   `text-decoration` is recorded as an `InlineBlockSpan` keeping
+   the half-open `[leaf_start, leaf_end)` span-index range and
+   the element's resolved colour.
+2. **`TextContext::shape_paragraph(spans, container_w)`** builds
+   a cosmic-text `Buffer`, calls `set_rich_text` with one
+   `Attrs` per span (family / weight / style / metrics / colour
+   / metadata = `leaf_id`), shapes it, then walks every
+   `layout_run` and packs each glyph into the atlas.
+3. **`ParagraphLayout`** is the result:
+   - `glyphs: Vec<PositionedGlyph>` — flat, with per-glyph colour
+     and y in paragraph-relative coords.
+   - `lines: Vec<ParagraphLine>` — `top / baseline / height /
+     line_width / glyph_range`. The `glyph_range` is the
+     half-open slice into `glyphs` for that line.
+   - `leaf_segments: HashMap<u32, Vec<LeafSegment>>` — for each
+     `leaf_id`, the contiguous advance ranges that span occupies
+     on each line (a wrapped span yields multiple segments).
+4. **`layout_inline_paragraph` re-expands** the result:
+   - Per-line `text-align` dx via `horizontal_align_offset`.
+   - For each `InlineBlockSpan` with a background: one anonymous
+     `BoxKind::Block` per `(line × span)` segment, sized to the
+     segment's x range and the line's height. `<mark>`'s yellow
+     stretches across every line it touches.
+   - For each `InlineBlockSpan` with `text_decoration`s: per-line
+     decoration quads at `baseline + thickness` (underline),
+     `baseline − 0.30 × ascent` (line-through), or `line.top`
+     (overline). `<a>`'s underline follows the link across line
+     breaks.
+   - One single `BoxKind::Text` containing every glyph, with
+     each line's `text-align` dx baked in and `g.color` already
+     set per-glyph.
 
-- WGSL: instanced textured quads. The fragment samples the R8 atlas
-  and multiplies the coverage by the per-instance color (RGB + α).
-  Premultiplied-alpha blending via `wgpu::BlendState::ALPHA_BLENDING`.
+**Single-text-leaf fast path.** When the IFC has exactly one
+child and it's an `Element::Text`, layout calls
+`shape_and_pack(text, font, size, line_h, ls, weight, style,
+container_w, color)` directly — same wrapping behaviour, smaller
+call graph.
+
+**Block-flow text leaves** (a text node whose parent is laid out
+by the non-IFC vertical stacker — rare in practice) shape with
+the parent's content width as the wrap budget.
+
+**Mixed inline + block children** fall back to the vertical
+block-flow stacker. Anonymous block boxes around runs of inline
+content alongside block siblings are not yet generated — see
+[caveats](#9-caveats-and-known-gaps).
+
+## 7. Glyph atlas + GPU pipeline
+
+**Atlas** (`crates/wgpu-html-text/src/atlas.rs`):
+
+- Single `R8Unorm` CPU buffer, default 2048×2048 (`pub const
+  GLYPH_ATLAS_SIZE`); the renderer creates its GPU texture at the
+  same size for 1:1 uploads.
+- Shelf packer: glyphs land on horizontal shelves stacked top-to-
+  bottom; each shelf locks its height to its first glyph; a
+  glyph that doesn't fit horizontally or vertically opens a new
+  shelf.
+- Dirty-rect list: every `insert` appends a rect;
+  `flush_dirty(sink)` drains them into a generic
+  `(rect, &[u8])` closure.
+- `upload(&Queue, &Texture)` is the wgpu-flavoured wrapper that
+  calls `queue.write_texture` for every dirty rect.
+- `clear()` zeros the buffer, resets the packer, and queues a
+  full-atlas dirty rect so the next flush re-uploads everything.
+- Overflow returns `None` from `insert` — no LRU eviction yet,
+  no atlas grow / double.
+
+**Glyph cache** (`TextContext::glyph_cache: HashMap<CacheKey,
+AtlasGlyph>`): keyed by `(font_handle, glyph_id, size_px,
+subpixel_x_bin)`. Misses raster through `cosmic_text::SwashCache`,
+pack into the atlas, and store the resulting UVs.
+
+**Pipeline** (`crates/wgpu-html-renderer/src/glyph_pipeline.rs`,
+`shaders/glyph.wgsl`):
+
+- Instanced textured quads. The fragment samples the R8 atlas
+  and multiplies coverage by the per-instance RGBA colour.
+  Premultiplied-alpha blending via
+  `wgpu::BlendState::ALPHA_BLENDING`.
 - Bind group: globals uniform (binding 0), atlas texture (1),
-  filtering sampler (2). Bind group layout dropped after pipeline +
-  bind group construction; the sampler is held on the pipeline
-  struct purely to keep the underlying GPU object alive.
-- Instance: `{ pos: vec2, size: vec2, color: vec4, uv_min: vec2,
-  uv_max: vec2 }`. Same unit-quad geometry as the quad pipeline.
-- Drawn after the quad pass in the same render pass.
+  filtering sampler (2).
+- Instance: `{ pos, size, color, uv_min, uv_max }`. Same unit-quad
+  geometry as the quad pipeline.
 
-Display list (`wgpu-html-renderer/src/paint.rs`):
+**Two-pass render** (`Renderer::render`):
+
+1. **Quad pipeline** through the surface's sRGB view,
+   `LoadOp::Clear`. Backgrounds, borders, fills are stored as
+   sRGB-encoded bytes (the GPU does the linear → sRGB encode on
+   write).
+2. **Glyph pipeline** (and image pipeline) through a non-sRGB
+   `Unorm` view of the same texture, `LoadOp::Load`. The GPU
+   treats dst bytes as raw, the alpha blend runs in display
+   space, and the shader pre-encodes its own colour to sRGB
+   before output. Net result: gamma-correct text blending
+   without empirical coverage curves.
+
+Display list:
 
 ```rust
 pub struct GlyphQuad {
-    pub rect: Rect,
-    pub color: Color,
+    pub rect:   Rect,
+    pub color:  Color,
     pub uv_min: [f32; 2],
     pub uv_max: [f32; 2],
 }
@@ -308,589 +326,138 @@ pub struct GlyphQuad {
 pub struct DisplayList {
     pub quads:  Vec<Quad>,
     pub glyphs: Vec<GlyphQuad>,
+    pub images: Vec<ImageQuad>,
+    pub clips:  Vec<ClipRange>,
 }
 ```
 
-The original `DisplayItem::GlyphRun` aggregate didn't materialise —
-each glyph is its own one-quad entry. Simpler; T7 might revisit if
-there's a measurable batching win.
+Each shaped glyph becomes its own `GlyphQuad` (no run-level
+aggregation). Per-glyph colour is filled from the source span's
+`Attrs.color_opt` for rich-text paragraphs, or from
+`style.color` for the single-leaf fast path.
 
-`paint_box` walks `b.text_run.glyphs` and pushes one `GlyphQuad`
-per shaped glyph at `(content_rect.x + glyph.x, content_rect.y +
-glyph.y)` with **per-glyph colour** (`g.color`). The per-glyph field
-exists so a single mixed-attribute paragraph (red `<strong>` next
-to default-coloured text) can paint each glyph in its source span's
-foreground without splitting the run into multiple `BoxKind::Text`
-boxes. The single-leaf path also fills it from `style.color`.
+## 8. Public API
 
-Two-pass rendering (`Renderer::render`):
-- **Pass 1** — quad pipeline through the surface's sRGB view,
-  `LoadOp::Clear`. Backgrounds, borders, fills are stored as
-  sRGB-encoded bytes (the GPU does the linear → sRGB encode on
-  write).
-- **Pass 2** — glyph pipeline through a *non-sRGB* unorm view of
-  the same surface texture, `LoadOp::Load`. The GPU treats the dst
-  bytes as raw, the alpha blend runs in display space, and the
-  shader pre-encodes its own colour to sRGB before output. Net
-  result: gamma-correct text blending without empirical coverage
-  curves.
+```rust
+// wgpu-html-tree
+pub struct FontFace { family, weight, style, data };
+pub enum   FontStyleAxis { Normal, Italic, Oblique };
+pub struct FontHandle(pub usize);
+pub struct FontRegistry { /* faces: Vec<FontFace> */ };
+impl Tree {
+    pub fn register_font(&mut self, FontFace) -> FontHandle;
+}
+impl FontRegistry {
+    pub fn register(&mut self, FontFace) -> FontHandle;
+    pub fn find(&self, family, weight, style) -> Option<FontHandle>;
+    pub fn find_first(&self, families, weight, style) -> Option<FontHandle>;
+}
 
-## 8. Inline formatting context
+// wgpu-html-text
+pub struct TextContext { /* font_db, fonts, atlas, swash, glyph_cache */ };
+pub struct ShapedRun { glyphs, width, height, ascent };
+pub struct PositionedGlyph { x, y, w, h, uv_min, uv_max, color };
+pub struct ParagraphSpan { text, family, weight, style, size_px,
+                            line_height_px, color, leaf_id };
+pub struct ParagraphLayout { glyphs, lines, width, height,
+                             first_line_ascent, leaf_segments };
+pub struct ParagraphLine { top, baseline, height, line_width, glyph_range };
+pub struct LeafSegment { line_index, x_start, x_end };
+impl TextContext {
+    pub fn new(atlas_size: u32) -> Self;
+    pub fn sync_fonts(&mut self, &FontRegistry);
+    pub fn pick_font(&self, families, weight, style) -> Option<FontHandle>;
+    pub fn shape_and_pack(text, font, size, line_h, ls, weight, style,
+                          max_width, color) -> Option<ShapedRun>;
+    pub fn shape_paragraph(spans, max_width) -> Option<ParagraphLayout>;
+}
 
-**Status: rich-text paragraph shaping landed (T7 partial).**
+// wgpu-html-renderer
+pub const GLYPH_ATLAS_SIZE: u32 = 2048;
+impl Renderer {
+    pub fn glyph_atlas_texture(&self) -> &wgpu::Texture;
+}
 
-A block whose direct children are *all* inline-level routes through
-`layout_inline_paragraph`, which uses cosmic-text's `set_rich_text`
-to shape the entire paragraph as one Buffer. Word-boundary breaks
-land *between* spans without losing per-span attributes, so a
-sentence that crosses a `<strong>` boundary breaks correctly.
+// wgpu-html-layout
+pub fn layout_with_text(tree, &mut TextContext, vw, vh, scale)
+    -> Option<LayoutBox>;
+pub fn layout(tree, vw, vh) -> Option<LayoutBox>;
 
-Pipeline:
-
-1. **`collect_paragraph_spans(node, plan, ctx)`** walks the inline
-   subtree depth-first. Each `Element::Text` becomes a `SpanData`
-   with cascade-resolved family / weight / style / size /
-   line-height / colour. Each inline-element wrapper that
-   contributed any spans and has a `background-color` or
-   `text-decoration` is recorded as an `InlineBlockSpan` keeping
-   the half-open `[leaf_start, leaf_end)` span-index range and the
-   element's resolved colour.
-2. **`TextContext::shape_paragraph(spans, Some(container_w))`**
-   builds a `Buffer` with `set_size(width, None)`, calls
-   `set_rich_text` with one `Attrs` per span (family / weight /
-   style / metrics / colour / metadata = `leaf_id`), shapes
-   it, then walks every `layout_run` (no longer just `.next()`)
-   and packs each glyph into the atlas.
-3. **`ParagraphLayout`** is the result:
-   - `glyphs: Vec<PositionedGlyph>` — flat, with per-glyph colour
-     (lifted from the source span's `Attrs.color_opt`) and y in
-     paragraph-relative coords (line offsets baked in).
-   - `lines: Vec<ParagraphLine>` — `top / baseline / height /
-     line_width / glyph_range`. The `glyph_range` is the half-open
-     slice into `glyphs` for that line, so the caller can apply a
-     per-line `text-align` dx without re-deriving line membership.
-   - `leaf_segments: HashMap<u32, Vec<LeafSegment>>` — for each
-     `leaf_id`, the contiguous advance ranges that span occupies on
-     each line. A span that wraps yields multiple segments.
-4. **`layout_inline_paragraph` re-expands** the result:
-   - Per-line `text-align` dx via `horizontal_align_offset`.
-   - For each `InlineBlockSpan` with a `background`: one anonymous
-     `BoxKind::Block` per `(line × span)` segment, sized to the
-     segment's x range and the line's full height. `<mark>`'s
-     yellow stretches across every line it touches.
-   - For each `InlineBlockSpan` with `text_decoration`s: per-line
-     decoration quads at `baseline + thickness` (underline),
-     `baseline − 0.30 × ascent` (line-through), or `line.top`
-     (overline) using the inline element's resolved colour. `<a>`'s
-     underline follows the link across line breaks.
-   - One single `BoxKind::Text` containing every glyph, with each
-     line's `text-align` dx baked in and `g.color` already set.
-
-Single-text-leaf fast path: when the IFC has exactly one child and
-it's an `Element::Text`, layout still goes through `make_text_leaf`
-+ `shape_and_pack` with `Some(container_w)` for the wrap budget.
-Same wrapping behaviour, smaller call graph.
-
-Block-flow text leaves (a text node whose parent is laid out by the
-non-IFC vertical stacker — rare in practice) shape with their
-container's content width as the wrap budget too.
-
-Mixed inline + block children fall back to the vertical block-flow
-stacker (no anonymous block boxes around the inline runs yet —
-that's the remaining T7 piece).
-
-## 9. CSS coverage today (post-T6)
-
-**Honoured end-to-end:**
-
-- `color` — text leaf's cascaded `style.color`, resolved via
-  `resolve_color`. Defaults to opaque black if no ancestor sets one.
-- `font-family` — comma-separated list, parsed and stripped of
-  surrounding quotes. Layout's `pick_font` walks the list with
-  CSS-Fonts-3 scoring (style band first, then weight) and falls
-  back to the first registered face.
-- `font-weight` — `normal / bold / bolder / lighter / 100…900`.
-  Mapped to a numeric weight for matching: `bolder → 700`,
-  `lighter → 300` (no parent-context shift yet).
-- `font-style` — `normal / italic / oblique` → registry
-  `FontStyleAxis`.
-- `font-size` — `Px`, `Em` (×16px), `Rem` (×16px).
-- `line-height` — `Px`, `Em` / `Rem` (× font-size). Defaults to
-  `1.25 × font_size` when unset; `normal` keyword falls into the
-  default. Number-without-unit values aren't parsed yet.
-- `letter-spacing` — `Px`, `Em` / `Rem`. Applied as a per-glyph
-  cumulative offset post-shape (cosmic-text 0.12's `Attrs` doesn't
-  expose the field directly).
-- `text-transform` — `uppercase / lowercase / capitalize`. Applied
-  to the source string before shaping.
-- `text-align` — `left / right / center / start / end`. start/end
-  collapse to left/right pre-bidi. `justify` falls through to left.
-- `text-decoration` — `underline / line-through / overline`
-  (whitespace-separated; `none` resets). Painted as solid quads at
-  baseline+thickness / mid-cap / run-top using the foreground colour.
-- `background-color` on inline elements — `<mark>`'s yellow comes
-  out via the inline-element wrapper box.
-
-**UA stylesheet (`crates/wgpu-html-style/src/ua.rs`)**
-
-Browser defaults are pre-cascade rules with tag-only selectors,
-prepended to the user's stylesheet so author rules win on source-
-order ties. Today:
-
-```
-/* Document machinery — never rendered, no IFC contribution. */
-head, style, script, meta, link, title, noscript,
-template, source, track, base, param, col, colgroup
-                       → display: none
-
-/* Body inset (browsers ship 8px). */
-body                   → margin: 8px
-
-/* Block-level vertical rhythm + indents. */
-p, blockquote, pre, ul, ol, dl, address
-                       → margin: 16px 0
-h1                     → margin: 21px 0; bold; 32px
-h2                     → margin: 20px 0; bold; 24px
-h3                     → margin: 19px 0; bold; 19px
-h4                     → margin: 21px 0; bold
-h5                     → margin: 22px 0; bold; 13px
-h6                     → margin: 26px 0; bold; 11px
-hr                     → margin: 8px 0; border-top: 1px solid gray
-ul, ol                 → padding-left: 40px
-dd                     → margin-left: 40px
-blockquote             → margin: 16px 40px
-
-/* Inline emphasis. */
-b, strong              → font-weight: bold
-i, em                  → font-style: italic
-u, ins                 → text-decoration: underline
-s, del, strike         → text-decoration: line-through
-code, kbd, samp, pre   → font-family: monospace
-a                      → color: blue + text-decoration: underline
-mark                   → background-color: yellow + color: black
-small                  → font-size: 13px
-sub, sup               → font-size: 13px + vertical-align: sub|super
+// wgpu-html (facade)
+pub fn paint_tree_with_text(tree, &mut TextContext, vw, vh, scale)
+    -> DisplayList;
+pub fn paint_tree(tree, vw, vh) -> DisplayList;
+pub fn compute_layout(tree, &mut TextContext, vw, vh, scale)
+    -> Option<LayoutBox>;
+pub fn paint_tree_returning_layout(tree, &mut TextContext, vw, vh, scale)
+    -> (DisplayList, Option<LayoutBox>);
 ```
 
-`<sub>` / `<sup>`'s `vertical-align` parses but the layout doesn't
-yet apply the baseline shift — only the smaller font-size is
-visible (T7 follow-up). Layout tests inject `body { margin: 0 }`
-via fixture HTML so they keep their original positioning
-expectations alongside the new UA defaults.
+## 9. Caveats and known gaps
 
-**Cascade inheritance.** `wgpu-html-style::cascade` runs a per-node
-`inherit_into(child, parent, keywords)` that fills in unset values
-for the standard inheriting set:
-
-```
-color, font_family, font_size, font_weight, font_style,
-line_height, letter_spacing, text_align, text_transform,
-white_space, text_decoration, visibility, cursor
-```
-
-Inheritance runs after rule-merge + inline-style merge + CSS-wide
-keyword resolution, and skips properties already touched by an
-explicit `inherit / initial / unset` keyword in this layer. An
-explicit child value still wins.
-
-`direction` and `text_decoration_color` aren't in the list because
-they aren't modelled in `wgpu-html-models` yet. Add when the model
-gains the fields.
-
-**Inline formatting context.** A block whose direct children are
-all inline-level (text or default-inline elements like
-`<span> / <strong> / <em> / <i> / <b> / <u> / <s> / <a> / <code> /
-<kbd> / <samp> / <var> / <abbr> / <cite> / <dfn> / <sub> / <sup> /
-<time> / <small> / <mark> / <br> / <wbr> / <bdi> / <bdo> / <ins> /
-<del> / <label> / <output> / <data> / <ruby> / <rt> / <rp>` —
-or anything with `display: inline / inline-block / inline-flex`)
-runs through `layout_inline_paragraph`, the rich-text path
-described in §8. Word-boundary breaks happen across span
-boundaries; per-line backgrounds and decorations expand correctly
-across line breaks; per-glyph colour is preserved. The single-leaf
-fast path still uses cosmic-text's wrap on the leaf directly.
-
-**Multi-line.** `shape_paragraph` (rich-text) and `shape_and_pack`
-(single-leaf) both consume cosmic-text's break opportunities. The
-default behaviour is `white-space: normal` — runs of whitespace
-collapse to single spaces (`collapse_whitespace`), the buffer is
-shaped at `set_size(Some(width), None)`, and we iterate every
-`layout_run` rather than `.next()`.
-
-**Still deferred:**
-
-- `<br>` forced line break — emit a synthetic newline span at the
-  `<br>` position and re-shape; small change now that the
-  multi-line plumbing exists.
-- `white-space: pre / pre-wrap / pre-line / nowrap` — switches on
-  `collapse_whitespace` (skip for `pre*`) and the
-  `Buffer::set_size(width, _)` argument (`None` for `nowrap`).
-- `vertical-align: super / sub` baseline shift. UA `<sub>/<sup>`
-  parses with the keyword and currently only changes font-size;
-  the baseline raise / lower is the next T7 follow-up.
-- Anonymous block boxes around runs of inline content inside a
-  block whose siblings include block-level boxes (mixed
-  inline + block parents fall back to vertical stacking).
-- `font-stretch`, `font-variant`, `font-feature-settings`.
-- `text-shadow`, gradients, filters.
-- `text-decoration-color / -thickness / -style` — decorations
+- **`<br>` forced line break.** Not yet emitted as a synthetic
+  newline span in the rich-text pass. Easy fix once we touch the
+  `collect_paragraph_spans` walker.
+- **`white-space` longhands.** Only `normal` is honoured (whitespace
+  collapses pre-shape). `pre / pre-wrap / pre-line / nowrap` would
+  flip `collapse_whitespace` and the `Buffer::set_size(width, _)`
+  argument (`None` for `nowrap`).
+- **`vertical-align: super / sub`.** UA `<sub>/<sup>` parse the
+  keyword and apply the smaller font-size, but the baseline raise
+  / lower isn't applied. Needs a per-run y-offset on the inline
+  pass.
+- **Mixed inline + block parents** fall back to vertical stacking.
+  Anonymous block boxes around the runs of inline content are not
+  generated yet, so a `<div>` with `<p>` siblings interspersed
+  with text nodes won't shape those bare text nodes as their own
+  IFC.
+- **Atlas eviction / grow.** Overflow returns `None` and the glyph
+  vanishes. No LRU, no doubling. `Atlas::clear` exists for the
+  scale-factor-changed path, but that hook isn't wired in
+  (`TextContext::glyph_cache` still holds stale `AtlasEntry`s
+  after a clear — needs invalidation alongside the atlas reset).
+- **Letter-spacing in the rich-text path.** Single-leaf shaping
+  applies it post-shape; the rich-text path skips it because
+  cosmic-text 0.12's `Attrs` doesn't expose the field. Same
+  per-glyph cumulative offset would work here too.
+- **`text-decoration-color / -thickness / -style`.** Decorations
   always paint in the inline element's `color`, solid, with
   thickness scaled to the line ascent.
-- `direction`, bidi.
+- **`font-stretch`, `font-variant`, `font-feature-settings`,
+  `text-shadow`.** Not parsed, not resolved.
+- **Bidi / vertical writing modes.** Not modelled.
+- **Subpixel antialiasing.** Straight alpha mask only — sufficient
+  for typical 16 px body text on Retina-class displays.
+- **Generic family fallback** (`sans-serif`, `serif`, `monospace`,
+  `system-ui`, `cursive`, `fantasy`). No mapping; hosts that want
+  one register their preferred face under the generic name
+  explicitly. A future `Tree::set_generic_family` would canonicalise
+  this.
+- **`@font-face` from CSS.** Out of scope. The natural extension
+  would parse `src: url(...)` into a synthetic `register_font`
+  call against a host-supplied resolver — not wired up.
+- **Hot font swaps.** Re-registering with a new `Arc<[u8]>` flips
+  the bridge identity check and reloads the face into fontdb, but
+  cosmic-text's internal shape cache still holds stale shapes
+  for that face.
+- **Number-only `line-height`** (e.g. `line-height: 1.5`). Not
+  parsed yet — `Px / Em / Rem` only.
 
-## 10. Public API surface
+## 10. Tests
 
-```
-wgpu-html-tree
-  + FontFace, FontRegistry, FontHandle, FontStyleAxis            (T1, done)
-  + Tree::register_font, Tree::fonts                             (T1, done)
-
-wgpu-html-text  (new crate)
-  + Atlas (CPU shelf packer, dirty rects, upload)                (T2, done)
-  + FontDb (cosmic-text bridge over a FontRegistry)              (T2, done)
-  + TextContext { font_db, fonts, atlas, swash, glyph_cache }    (T3, done)
-  + TextContext::shape_and_pack(text, font, size, line_h, ls,
-                                weight, style, max_width, color) (T3+T6+T7, done)
-  + TextContext::shape_paragraph(spans, max_width)               (T7, done)
-  + TextContext::pick_font(families, weight, style)              (T5, done)
-  + TextContext::resolve_family(families, weight, style)         (T7, done)
-  + TextContext::sync_fonts(&FontRegistry)                       (T3, done)
-  + ShapedRun { glyphs, width, height, ascent }                  (T3, done)
-  + PositionedGlyph { x, y, w, h, uv_min, uv_max, color }        (T3+T7, done)
-  + ParagraphSpan { text, family, weight, style, size_px,
-                    line_height_px, color, leaf_id }             (T7, done)
-  + ParagraphLayout { glyphs, lines, width, height,
-                      first_line_ascent, leaf_segments }         (T7, done)
-  + ParagraphLine { top, baseline, height, line_width,
-                    glyph_range }                                (T7, done)
-  + LeafSegment { line_index, x_start, x_end }                   (T7, done)
-
-wgpu-html-style
-  + cascade inheritance pass for the standard set                (T3, done)
-  + UA stylesheet (display:none for machinery, block defaults
-    for body/h1-h6/p/ul/ol/blockquote/pre/hr/dd, inline
-    emphasis for b/strong/em/i/u/s/ins/del/strike/code/kbd/
-    samp/a/mark/small/sub/sup)                                   (T4+T7, done)
-
-wgpu-html-layout
-  ! layout_with_text(tree, &mut TextContext, vw, vh, scale)      (T3, done)
-  ! layout(...) is now a back-compat wrapper                     (T3, done)
-  + LayoutBox.text_run + text_color                              (T3, done)
-  + LayoutBox.text_decorations                                   (T6, done)
-  + TextDecorationLine enum                                      (T6, done)
-  + horizontal_align_offset for text-align                       (T5, done)
-  + display:none short-circuit (zero-area `empty_box`)            (T7, done)
-  + collect_paragraph_spans + ParagraphPlan                      (T7, done)
-  + layout_inline_paragraph (rich-text IFC, multi-line, per-line
-    bg / decoration via leaf_segments)                           (T7, done)
-
-wgpu-html-renderer
-  + GlyphPipeline (textured)                                     (T3, done)
-  + R8 atlas texture + linear sampler + bind group               (T3, done)
-  + GLYPH_ATLAS_SIZE constant; glyph_atlas_texture() accessor    (T3, done)
-  + DisplayList.glyphs + push_glyph + GlyphQuad                  (T3, done)
-  + Two-pass render: quads via sRGB view, glyphs via unorm view  (T6, done)
-  + Shader-side sRGB encode for gamma-correct text blending      (T6, done)
-
-wgpu-html
-  + paint_tree_with_text(tree, ctx, vw, vh, scale)               (T3, done)
-  + paint::paint_box emits glyph quads from text_run             (T3, done)
-  + paint reads g.color per glyph (mixed-attribute paragraphs)   (T7, done)
-  + paint emits decoration quads (under/through/over)            (T6, done)
-```
-
-`wgpu-html-text` ends up as the heaviest new dep (cosmic-text +
-its tree). Everything else stays light.
-
-## 11. Phases
-
-Each phase ends in something runnable in `wgpu-html-demo`.
-
-### T1 — Font registry on the Tree (no rendering) ✅ DONE
-
-- Added `FontFace, FontRegistry, FontHandle, FontStyleAxis,
-  Tree::register_font` to `wgpu-html-tree`.
-- `register_font` returns a `FontHandle` indexing into the
-  registry; duplicates allowed (later registration wins on tie via
-  the strict `>` in `find`).
-- 11 unit tests in `wgpu-html-tree` covering register / lookup /
-  case-insensitive family / weight bias / style swap / multi-family
-  fallback / empty registry.
-- No engine changes, no library deps yet — just `std::sync::Arc`.
-
-### T2 — `wgpu-html-text` crate skeleton + atlas ✅ DONE
-
-- New crate `wgpu-html-text` with `wgpu` + `wgpu-html-tree` +
-  `cosmic-text 0.12 (default-features=false, std + swash +
-  shape-run-cache)` deps.
-- `Atlas` (CPU side, `src/atlas.rs`): shelf packer + dirty rect list.
-  `flush_dirty(sink)` for testable drain; `upload(&Queue, &Texture)`
-  for wgpu callers.
-- `FontDb` (`src/font_db.rs`): wraps `cosmic_text::FontSystem` built
-  with an empty `fontdb::Database` (no system fonts). Keyed by
-  `Arc::as_ptr` so re-syncing against the same registry is a no-op,
-  swapped `Arc`s re-load, dropped registry entries are removed from
-  fontdb too.
-- 11 atlas tests + 5 font_db tests.
-- No GPU pipeline yet; renderer untouched.
-
-### T3 — Single-line shaped text ✅ DONE
-
-- `wgpu-html-text::TextContext` bundles `FontDb + Atlas +
-  cosmic_text::SwashCache + glyph_cache: HashMap<CacheKey,
-  AtlasGlyph>`. `shape_and_pack(text, font, size_px, line_height)
-  -> Option<ShapedRun>` shapes via cosmic-text `Buffer` (unbounded
-  width, single layout run), rasters each glyph through SwashCache,
-  packs into the atlas, and emits `PositionedGlyph` quads with
-  pre-computed UVs.
-- `wgpu-html-renderer` gained the textured `GlyphPipeline` next to
-  the existing `QuadPipeline`; both run in one render pass, quads
-  first then glyphs. New `R8Unorm` atlas texture + linear sampler
-  + 3-binding bind group. `DisplayList { quads, glyphs }`,
-  `push_glyph(rect, color, uv_min, uv_max)`. Public
-  `GLYPH_ATLAS_SIZE = 2048` plus `Renderer::glyph_atlas_texture()`.
-- `wgpu-html-layout::layout_with_text(tree, &mut TextContext, vw,
-  vh, scale)` is the new entry point; `layout(...)` keeps the old
-  three-arg shape and creates a throwaway empty `TextContext`
-  internally so the existing 52 layout tests didn't have to change.
-  `LayoutBox` gained `text_run: Option<ShapedRun>` and
-  `text_color: Option<Color>`. The text branch in `layout_block`
-  shapes via `shape_text_run` (T3 default: first registered handle,
-  16px, 20px line-height) and reads the resolved `color` from the
-  cascaded text node's style.
-- `wgpu-html::paint_tree_with_text(tree, &mut TextContext, vw, vh,
-  scale)` is the new high-level entry; it `text_ctx.sync_fonts(&
-  tree.fonts)` first so freshly-registered faces are loaded before
-  shaping. `paint_box` walks `text_run.glyphs` and emits one
-  `GlyphQuad` per shaped glyph.
-- **Cascade inheritance pulled forward** (originally T4) because
-  text-related properties are useless without it. See §9.
-- Demo (`crates/wgpu-html-demo`): `hello-text.html` (`<p>` with a
-  cream background and gold border around `Hello, world.`).
-  `App` holds a `TextContext::new(GLYPH_ATLAS_SIZE)`. Each frame:
-  parse → register the demo font (a `OnceLock<Arc<[u8]>>` with
-  bytes loaded from the first available system-font path so the
-  bridge's `Arc::as_ptr` cache stays valid across frames) → call
-  `paint_tree_with_text` → `text_ctx.atlas.upload(&renderer.queue,
-  renderer.glyph_atlas_texture())` → render.
-
-Deviations from the original T3 plan worth noting:
-
-- Layout API: `&mut TextContext` instead of separate `&FontRegistry`
-  and `scale` plus a hidden atlas. Folds three params into one.
-- Paint signature: doesn't take fonts. All shaping and atlas
-  packing happens during layout; paint just emits the prepared
-  quads.
-- `LayoutBox` kept `BoxKind::Text` and added `Option`-typed
-  `text_run` / `text_color` instead of growing a `BoxKind::Inline`
-  variant. Less rippling through existing call sites.
-- Demo doesn't ship a font asset; it walks a candidate list of
-  common system-font paths. Hosts that ship their own asset can
-  swap in `include_bytes!`.
-
-### T4 — UA defaults + cascade-aware shaping ✅ DONE
-
-- New `crates/wgpu-html-style/src/ua.rs` lazily-parses a UA
-  stylesheet (`b/strong → bold`, `i/em → italic`, `u/ins →
-  underline`, `s/del/strike → line-through`, `code/kbd/samp →
-  monospace`, `a → blue + underline`, `mark → yellow + black`,
-  `small/sub/sup → 13px`, `h1`–`h6` → bold + descending sizes).
-  Prepended in `cascade()` so author tag rules win on source-order
-  ties.
-- `TextContext` gained a `pub fonts: FontRegistry` mirror
-  (populated by `sync_fonts`) and `pick_font(families, weight,
-  style)`. Layout's `shape_text_run` now reads `font-family /
-  weight / style / size / line-height` from the cascaded style
-  (already filled in by inheritance) and feeds them through
-  `pick_font` + `shape_and_pack`.
-- Line breaking and `white-space: pre / nowrap` plumbing remain
-  deferred — the inline pass still keeps growing past the
-  container width if its contents overflow. Multi-line is M6's
-  first job.
-
-### T5 — Mixed inline runs ✅ DONE
-
-- New helpers in `wgpu-html-layout/src/lib.rs`: `is_inline_level`,
-  `all_children_inline_level`, `layout_inline_subtree`,
-  `layout_inline_block_children`, plus `translate_box_y_in_place`
-  for baseline alignment and `translate_box_x_in_place` for
-  text-align shifts.
-- Inline subtrees flow through `<span> / <a> / <strong> / <b> /
-  <em> / <i> / <u> / <s> / <small> / <mark> / <code> / <kbd> /
-  <samp> / <var> / <abbr> / <cite> / <dfn> / <sub> / <sup> /
-  <time> / <br> / <wbr> / <bdi> / <bdo> / <ins> / <del> / <label> /
-  <output> / <data> / <ruby> / <rt> / <rp>` (default-inline
-  elements) plus anything with `display: inline / inline-block /
-  inline-flex`.
-- Each text leaf shapes with its own cascaded style — so a
-  `<strong>` inside Inter 400 picks Inter 700 if registered. No
-  fake-bold synthesis when the matching face is missing; falls
-  back through the registry's normal scoring.
-- Inline-element wrapper boxes carry their own
-  `background-color`, which is what makes `<mark>` paint yellow.
-- `text-align: left / right / center / start / end` shifts the
-  whole line by `(container_w − line_w) × {0, 1, 0.5, …}`. Justify
-  falls through to left.
-- Mixed inline + block children still fall back to vertical block
-  flow; anonymous block boxes around runs of inline content are a
-  T7 follow-up.
-
-### T6 — Decorations + letter-spacing + text-transform ✅ DONE
-
-- `LayoutBox.text_decorations: Vec<TextDecorationLine>` populated
-  from a parser of `text-decoration` (whitespace-separated tokens;
-  `none` resets). Inheritance carries the value to text leaves.
-- Paint emits one solid quad per decoration line: underline at
-  `baseline + thickness`, line-through at `baseline − 0.30 ×
-  ascent`, overline at run top. Thickness scales with ascent
-  (`ascent / 12`, clamped ≥ 1px).
-- `letter-spacing` (`Px / Em / Rem`) — `shape_and_pack` gained a
-  `letter_spacing_px` parameter. cosmic-text 0.12 doesn't expose
-  the field on `Attrs`, so we apply the offset post-shape: glyph
-  *i* shifts by `i × spacing` and the run width grows by
-  `(n − 1) × spacing`.
-- `text-transform: uppercase / lowercase / capitalize` applied to
-  the source string before shaping (small `capitalize_words`
-  helper for the third).
-- Renderer text path is now properly gamma-correct: a non-sRGB
-  view of the surface texture, glyph pass with `LoadOp::Load`,
-  shader-side sRGB-encode of the foreground colour. Empirical
-  coverage curves are gone.
-- `vertical-align: super / sub` baseline shift is *not* done —
-  UA defaults give `<sub>/<sup>` only the smaller font-size for
-  now. Bake-in is a tiny follow-up once the inline pass tracks
-  per-run y-offsets.
-
-### T7 — Multi-line + block UA defaults + paragraph wrapping ✅ MOSTLY DONE
-
-Done:
-
-- **Multi-line shaping.** `shape_and_pack` and the new
-  `shape_paragraph` both pass a finite width to
-  `Buffer::set_size` and iterate every `layout_run`. Single-leaf
-  paragraphs wrap inside one shaped run; multi-child IFCs go
-  through the rich-text path so word-boundary breaks land
-  *between* spans (a sentence that crosses a `<strong>` boundary
-  breaks correctly).
-- **Rich-text paragraph IFC.** New `ParagraphSpan` /
-  `ParagraphLayout` / `ParagraphLine` / `LeafSegment` types in
-  `wgpu-html-text`; `set_rich_text` with one `Attrs` per span
-  carries family / weight / style / metrics / colour / metadata
-  (`leaf_id`) into the shaper. `PositionedGlyph` gained a
-  `color` field (lifted from `Attrs.color_opt`) so a
-  mixed-attribute paragraph paints per-glyph foregrounds without
-  splitting the run.
-- **Per-line backgrounds + decorations.** `layout_inline_paragraph`
-  walks `plan.inline_blocks` (the inline elements that contributed
-  any spans and have `background-color` or `text-decoration`),
-  looks up each `leaf_id`'s segments via `para.leaf_segments`, and
-  emits one anonymous `BoxKind::Block` per `(line × span)` for the
-  background bar plus one per `(line × decoration)` for the
-  decoration quad. `<mark>`'s yellow stretches across every line it
-  touches; `<a>`'s underline follows the link across breaks.
-- **Whitespace collapsing.** `collapse_whitespace` runs the
-  `white-space: normal` rule (every run of ASCII / Unicode
-  whitespace becomes a single ASCII space) before shaping, so
-  source-code newlines and indentation between inline elements
-  don't appear as zero-width-wedge or vertical character columns.
-- **Block-level UA defaults.** `body { margin: 8px }`,
-  `p / blockquote / pre / ul / ol / dl / address { margin: 16px 0 }`,
-  per-heading margins (21 / 20 / 19 / 21 / 22 / 26 px),
-  `ul, ol { padding-left: 40px }`, `dd { margin-left: 40px }`,
-  `blockquote { margin: 16px 40px }`, `hr { margin: 8px 0;
-  border-top: 1px solid gray }`, `pre { font-family: monospace }`.
-  Plus the existing inline emphasis defaults.
-- **`display: none`** for `<head> / <style> / <script> / <meta> /
-  <link> / <title> / <noscript> / <template> / <source> / <track>
-  / <base> / <param> / <col> / <colgroup>`. Layout short-circuits
-  with a zero-area `empty_box` so the contents of `<style>` no
-  longer flow through the IFC as visible text.
-- **Border shorthand with function values.** `parse_border_pieces`
-  switched from `split_whitespace` to a paren-aware
-  `split_top_level_whitespace`, so `border: 2px solid rgb(212,
-  175, 55)` keeps the `rgb(...)` chunk intact instead of
-  fracturing it across three garbage tokens.
-
-Still pending:
-
-- `<br>` forced line break — emit a synthetic `\n` span at the
-  `<br>` position and re-shape; small change now that the
-  multi-line plumbing exists.
-- `white-space: pre / pre-wrap / pre-line / nowrap` — switch on
-  `collapse_whitespace` (skip for `pre*`) and the
-  `Buffer::set_size(width, _)` argument (`None` for `nowrap`).
-- `vertical-align: super / sub` baseline offsets. UA `<sub>/<sup>`
-  parses with the keyword today; the layout doesn't apply the
-  raise / lower yet.
-- Anonymous block boxes around runs of inline content inside a
-  block whose siblings include block-level boxes (mixed
-  inline + block parents fall back to vertical stacking).
-- Hook `winit::scale_factor_changed` into atlas re-raster
-  (`Atlas::clear` already queues the full-atlas dirty rect — the
-  missing piece is invalidating `TextContext::glyph_cache`).
-- LRU-style atlas eviction instead of "blow the cache".
-- Atlas grow / double when full.
-- `letter-spacing` in the rich-text path (today only the
-  single-leaf path applies it; cosmic-text 0.12's `Attrs` doesn't
-  expose the field directly so the rich-text path would need a
-  similar post-shape adjustment).
-
-## 12. Open questions
-
-- **Generic families** (`sans-serif`, `serif`, `monospace`,
-  `system-ui`, `cursive`, `fantasy`). Push to T5+: a host-side
-  mapping like `Tree::set_generic_family("sans-serif", "Inter")`.
-- **`@font-face` from CSS.** Still out of M5/M6 scope, but the
-  natural extension would parse it into a synthetic
-  `tree.register_font` call with `data` resolved through a
-  host-supplied `FontResolver` callback (since we don't fetch).
-- **Subpixel antialiasing.** Skipped initially; revisit if 16px
-  body text looks rough on standard-DPI displays.
-- **Emoji / color fonts.** Out of scope; the path would be a
-  separate `R8` → `Rgba8` atlas + COLR/CPAL or CBDT support in
-  cosmic-text.
-- **Bidi.** RTL is a multi-quarter project; ignored entirely until
-  a host needs it.
-- **Hot font swaps.** Re-registering a face with a different
-  `Arc<[u8]>` flips the bridge's identity check and re-loads the
-  face into fontdb. Confirmed by the `font_db::tests::
-  sync_replaces_when_arc_identity_changes` test in T2; the
-  knock-on cascade-cache invalidation (cosmic-text shape cache
-  still has stale shapes) is left for a follow-up.
-- **`include_bytes!` vs system-font lookup in the demo.** Today
-  the demo uses a small candidate-paths table; that's fine for
-  development but not a great default for shipping. T4+ might
-  switch to a checked-in OFL-licensed font.
-
----
-
-## Summary
-
-T1 landed the structural commitment first: fonts belong to the
-`Tree`. T2–T3 stood the renderer up to draw shaped glyphs from a
-single registered face, and pulled cascade inheritance forward
-because none of the text-related properties make sense without it.
-T4 added a UA stylesheet for the inline-emphasis defaults and made
-`shape_text_run` read every font knob from the cascaded style.
-T5 turned `<p>Hello <strong>World</strong> <em>!</em></p>` into a
-flowing single-line IFC with baseline alignment, per-run font
-matching, and `text-align`. T6 finished off `text-decoration`,
-`letter-spacing`, `text-transform`, and switched the renderer to a
-two-pass gamma-correct text path. T7 brought real paragraph
-wrapping: cosmic-text's `set_rich_text` shapes the whole inline
-subtree as one Buffer with per-span `Attrs`; word-boundary breaks
-land between spans without losing per-span attributes; `<mark>`
-backgrounds and `<a>` / `<u>` / `<s>` decorations expand into
-per-line bars; per-glyph colour means a mixed-attribute paragraph
-paints correctly; block-level UA defaults bring browser-style
-spacing for headings, paragraphs, lists, blockquote, hr;
-`display: none` removes the contents of `<style>` and friends from
-the rendered output.
-
-What's left after T7: `<br>`, full `white-space` plumbing,
-`vertical-align` baseline shifts, anonymous block boxes for mixed
-inline+block parents, DPI / atlas eviction. All small now that
-the rich-text shape exists.
-
-The whole thing still hangs off the constraint in §3 — fonts
-owned by the `Tree`, no globals, no fetcher, no `@font-face` magic.
+- `wgpu-html-tree::fonts::tests` — 11 unit tests covering
+  register / lookup / case-insensitive family matching / weight
+  bias / italic↔oblique swap / multi-family fallback / empty
+  registry.
+- `wgpu-html-text::atlas::tests` (11) and
+  `wgpu-html-text::font_db::tests` (5) cover the shelf packer +
+  the cosmic-text bridge identity check.
+- `wgpu-html-layout::tests` (89) covers layout including text
+  leaves; the no-font compatibility wrapper (`layout(...)`) keeps
+  the older fixtures green.
+- `wgpu-html::paint::tests` (23) covers the painter end-to-end
+  for shaped text in single-leaf and rich-text paths.
+- The demo (`crates/wgpu-html-demo`) is the visual end-to-end
+  test: `hello-text.html`, `flex-grow.html`, `overflow.html`,
+  `gif.html`, etc., rebuilt every frame against a candidate-paths
+  table of system fonts.
