@@ -13,10 +13,10 @@
 //!   come in later milestones.
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
+use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
     BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow,
 };
-use wgpu_html_models::Style;
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedRun, TextContext};
 use wgpu_html_tree::{Element, Node, Tree};
@@ -26,14 +26,14 @@ mod flex;
 mod grid;
 mod length;
 
-pub use color::{resolve_color, Color};
+pub use color::{Color, resolve_color};
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -473,11 +473,7 @@ fn parse_cache_control_max_age(header: Option<&str>) -> Option<Duration> {
             }
         }
     }
-    if zero {
-        Some(Duration::ZERO)
-    } else {
-        max_age
-    }
+    if zero { Some(Duration::ZERO) } else { max_age }
 }
 
 /// Compute a max-age duration from `Date` + `Expires` HTTP headers.
@@ -677,8 +673,8 @@ fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
 /// Single-frame WebPs collapse to `Still` so the animation machinery
 /// stays dormant for the common case.
 fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
-    use image::codecs::webp::WebPDecoder;
     use image::AnimationDecoder;
+    use image::codecs::webp::WebPDecoder;
 
     let decoder = WebPDecoder::new(std::io::Cursor::new(bytes)).ok()?;
     let frames = decoder.into_frames().collect_frames().ok()?;
@@ -726,8 +722,8 @@ fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
 /// fully-composited canvas (the decoder applies disposal/transparency
 /// internally), so we just copy its RGBA buffer.
 fn decode_animated_gif(bytes: &[u8]) -> Option<DecodedAsset> {
-    use image::codecs::gif::GifDecoder;
     use image::AnimationDecoder;
+    use image::codecs::gif::GifDecoder;
 
     let decoder = GifDecoder::new(std::io::Cursor::new(bytes)).ok()?;
     let frames = decoder.into_frames().collect_frames().ok()?;
@@ -1628,15 +1624,11 @@ pub struct LayoutBox {
     /// the `text-decoration` shorthand). Painted as solid quads at
     /// the appropriate vertical offset for text leaves.
     pub text_decorations: Vec<TextDecorationLine>,
-    /// Effective `overflow` value (after `overflow-x` / `overflow-y`
-    /// resolution). `Visible` is the no-op default; anything else
-    /// asks the paint pass to clip descendants to this box's
-    /// padding-box rect.
-    ///
-    /// v1 collapses the two axes: when either axis is non-`Visible`,
-    /// both axes clip together. Independent per-axis clipping is a
-    /// follow-up.
-    pub overflow: Overflow,
+    /// Effective `overflow-x` / `overflow-y` values after shorthand,
+    /// longhand, and cross-axis computed-value resolution. `Visible`
+    /// is the no-op default; clipping values ask the paint pass and
+    /// hit testing to constrain descendants on the matching axis.
+    pub overflow: OverflowAxes,
     /// Decoded image data for `<img>` elements. `None` for non-image
     /// boxes. The `Arc` allows cheap cloning through the display list.
     pub image: Option<ImageData>,
@@ -1646,6 +1638,37 @@ pub struct LayoutBox {
     /// for `repeat` modes). The painter just iterates the tiles.
     pub background_image: Option<BackgroundImagePaint>,
     pub children: Vec<LayoutBox>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OverflowAxes {
+    pub x: Overflow,
+    pub y: Overflow,
+}
+
+impl OverflowAxes {
+    pub const fn visible() -> Self {
+        Self {
+            x: Overflow::Visible,
+            y: Overflow::Visible,
+        }
+    }
+
+    pub const fn clips_x(self) -> bool {
+        !matches!(self.x, Overflow::Visible)
+    }
+
+    pub const fn clips_y(self) -> bool {
+        !matches!(self.y, Overflow::Visible)
+    }
+
+    pub const fn clips_both(self) -> bool {
+        self.clips_x() && self.clips_y()
+    }
+
+    pub const fn clips_any(self) -> bool {
+        self.clips_x() || self.clips_y()
+    }
 }
 
 /// Decoded RGBA image ready for GPU upload. For animated sources
@@ -1730,18 +1753,14 @@ impl LayoutBox {
     /// corresponding element.
     pub fn hit_path(&self, point: (f32, f32)) -> Option<Vec<usize>> {
         let (x, y) = point;
-        if !self.border_rect.contains(x, y) {
-            return None;
-        }
-        let mut path: Vec<usize> = Vec::new();
-        collect_hit_path(self, x, y, &mut path);
-        Some(path)
+        collect_hit_path(self, x, y, None)
     }
 
     /// Hit-test the layout at `point` and return a mutable reference
     /// to the matching element node in `tree`. Use this to read or
     /// modify the source element (style, text, attributes, etc.).
-    /// Returns `None` if the point is outside `self` or the tree has
+    /// Returns `None` if the point is outside the hit-tested rendered
+    /// area or the tree has
     /// no root.
     ///
     /// `tree` must be the same tree this layout was produced from; we
@@ -1783,14 +1802,63 @@ impl LayoutBox {
     }
 }
 
-fn collect_hit_path(b: &LayoutBox, x: f32, y: f32, path: &mut Vec<usize>) {
+fn collect_hit_path(
+    b: &LayoutBox,
+    x: f32,
+    y: f32,
+    active_clip: Option<Rect>,
+) -> Option<Vec<usize>> {
+    if active_clip.is_some_and(|clip| !clip.contains(x, y)) {
+        return None;
+    }
+
+    let next_clip = overflow_hit_clip(b, active_clip);
     for (i, child) in b.children.iter().enumerate().rev() {
-        if child.border_rect.contains(x, y) {
-            path.push(i);
-            collect_hit_path(child, x, y, path);
-            return;
+        if let Some(mut path) = collect_hit_path(child, x, y, next_clip) {
+            path.insert(0, i);
+            return Some(path);
         }
     }
+
+    b.border_rect.contains(x, y).then(Vec::new)
+}
+
+fn overflow_hit_clip(b: &LayoutBox, parent_clip: Option<Rect>) -> Option<Rect> {
+    if !b.overflow.clips_any() {
+        return parent_clip;
+    }
+
+    let pad = padding_box_rect(b);
+    let local = match (b.overflow.clips_x(), b.overflow.clips_y(), parent_clip) {
+        (true, true, _) => pad,
+        (true, false, Some(parent)) => Rect::new(pad.x, parent.y, pad.w, parent.h),
+        (false, true, Some(parent)) => Rect::new(parent.x, pad.y, parent.w, pad.h),
+        (true, false, None) => Rect::new(pad.x, f32::MIN / 4.0, pad.w, f32::MAX / 2.0),
+        (false, true, None) => Rect::new(f32::MIN / 4.0, pad.y, f32::MAX / 2.0, pad.h),
+        (false, false, _) => return parent_clip,
+    };
+
+    Some(match parent_clip {
+        Some(parent) => intersect_rects_for_hit(parent, local),
+        None => local,
+    })
+}
+
+fn intersect_rects_for_hit(a: Rect, b: Rect) -> Rect {
+    let x1 = a.x.max(b.x);
+    let y1 = a.y.max(b.y);
+    let x2 = (a.x + a.w).min(b.x + b.w);
+    let y2 = (a.y + a.h).min(b.y + b.h);
+    Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0))
+}
+
+fn padding_box_rect(b: &LayoutBox) -> Rect {
+    Rect::new(
+        b.border_rect.x + b.border.left,
+        b.border_rect.y + b.border.top,
+        (b.border_rect.w - b.border.horizontal()).max(0.0),
+        (b.border_rect.h - b.border.vertical()).max(0.0),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -2222,22 +2290,36 @@ fn layout_block(
     }
 }
 
-/// Collapse `overflow` / `overflow-x` / `overflow-y` to a single
-/// effective value. v1 doesn't honour per-axis hidden / visible
-/// mismatch — when either axis is non-`Visible`, both axes clip.
-fn effective_overflow(style: &Style) -> Overflow {
-    let pick = style
-        .overflow_x
-        .as_ref()
-        .filter(|v| !matches!(v, Overflow::Visible))
-        .or_else(|| {
-            style
-                .overflow_y
-                .as_ref()
-                .filter(|v| !matches!(v, Overflow::Visible))
-        })
-        .or(style.overflow.as_ref());
-    pick.cloned().unwrap_or(Overflow::Visible)
+/// Resolve `overflow` / `overflow-x` / `overflow-y` to computed axes.
+///
+/// CSS computes `visible` to `auto` and `clip` to `hidden` when the
+/// opposite axis is scrollable (`hidden`, `scroll`, or `auto`). That
+/// avoids one visible axis leaking out of an actual scroll container.
+fn effective_overflow(style: &Style) -> OverflowAxes {
+    let base = style.overflow.unwrap_or(Overflow::Visible);
+    let mut x = style.overflow_x.unwrap_or(base);
+    let mut y = style.overflow_y.unwrap_or(base);
+
+    if overflow_forces_cross_axis(x) {
+        y = coerce_cross_axis_overflow(y);
+    }
+    if overflow_forces_cross_axis(y) {
+        x = coerce_cross_axis_overflow(x);
+    }
+
+    OverflowAxes { x, y }
+}
+
+fn overflow_forces_cross_axis(value: Overflow) -> bool {
+    matches!(value, Overflow::Hidden | Overflow::Scroll | Overflow::Auto)
+}
+
+fn coerce_cross_axis_overflow(value: Overflow) -> Overflow {
+    match value {
+        Overflow::Visible => Overflow::Auto,
+        Overflow::Clip => Overflow::Hidden,
+        other => other,
+    }
 }
 
 /// Shape a text-node string against the current `TextContext`. Reads
@@ -2413,7 +2495,7 @@ fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         text_run: None,
         text_color: None,
         text_decorations: Vec::new(),
-        overflow: Overflow::Visible,
+        overflow: OverflowAxes::visible(),
         image: None,
         background_image: None,
         children: Vec::new(),
@@ -2454,7 +2536,7 @@ fn make_text_leaf(
         text_run: run,
         text_color: Some(text_color),
         text_decorations: decorations,
-        overflow: Overflow::Visible,
+        overflow: OverflowAxes::visible(),
         image: None,
         background_image: None,
         children: Vec::new(),
@@ -2675,7 +2757,7 @@ fn layout_inline_subtree(
         // already propagated `text-decoration` down to every text
         // descendant). The inline wrapper itself draws nothing.
         text_decorations: Vec::new(),
-        overflow: Overflow::Visible,
+        overflow: OverflowAxes::visible(),
         image: None,
         background_image: None,
         children: final_children,
@@ -2880,7 +2962,7 @@ fn make_anon_bg_box(rect: Rect, color: Color) -> LayoutBox {
         text_run: None,
         text_color: None,
         text_decorations: Vec::new(),
-        overflow: Overflow::Visible,
+        overflow: OverflowAxes::visible(),
         image: None,
         background_image: None,
         children: Vec::new(),
@@ -3048,7 +3130,7 @@ fn layout_inline_paragraph(
         text_run: Some(run),
         text_color: None,
         text_decorations: Vec::new(),
-        overflow: Overflow::Visible,
+        overflow: OverflowAxes::visible(),
         image: None,
         background_image: None,
         children: Vec::new(),

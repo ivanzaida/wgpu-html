@@ -8,6 +8,8 @@ use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::Tree;
 
+const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
+
 /// Convenience: cascade `tree` against any embedded `<style>` blocks,
 /// lay it out at `(viewport_w × viewport_h)`, and paint the result into
 /// a fresh display list. No text rendering — text leaves contribute
@@ -38,13 +40,9 @@ pub fn paint_tree_with_text(
     }
     let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
-    if let Some(root) = wgpu_html_layout::layout_with_text(
-        &cascaded,
-        text_ctx,
-        viewport_w,
-        viewport_h,
-        scale,
-    ) {
+    if let Some(root) =
+        wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale)
+    {
         let mut clip_stack: Vec<ClipFrame> = Vec::new();
         paint_box_in_clip(&root, &mut list, &mut clip_stack);
     }
@@ -129,11 +127,7 @@ fn intersect_rects(a: Rect, b: Rect) -> Rect {
     Rect::new(x0, y0, (x1 - x0).max(0.0), (y1 - y0).max(0.0))
 }
 
-fn paint_box_in_clip(
-    b: &LayoutBox,
-    out: &mut DisplayList,
-    clip_stack: &mut Vec<ClipFrame>,
-) {
+fn paint_box_in_clip(b: &LayoutBox, out: &mut DisplayList, clip_stack: &mut Vec<ClipFrame>) {
     let rect = to_renderer_rect(b.border_rect);
     let (rh, rv) = corner_radii(b);
     let rounded = has_any_radius(&rh) || has_any_radius(&rv);
@@ -244,10 +238,7 @@ fn paint_box_in_clip(
                     }
                     wgpu_html_layout::TextDecorationLine::Overline => origin.y,
                 };
-                out.push_quad(
-                    Rect::new(origin.x, y, run.width, thickness),
-                    color,
-                );
+                out.push_quad(Rect::new(origin.x, y, run.width, thickness), color);
             }
         }
 
@@ -265,9 +256,10 @@ fn paint_box_in_clip(
         }
     }
 
-    // `overflow != Visible` clips children to the box's padding-box
-    // rect (CSS-2.2 §11.1.1) plus the rounded inner-padding edge if
-    // the box carries a `border-radius`. The decoration quads
+    // Non-visible overflow clips children to the box's padding-box
+    // rect on the resolved axis. When both axes clip, rounded
+    // overflow uses the rounded inner-padding edge if the box carries
+    // a `border-radius`. The decoration quads
     // emitted above (background + borders) stay outside the clip —
     // they belong to the box itself, not to its children.
     //
@@ -278,16 +270,14 @@ fn paint_box_in_clip(
     //   radii. We don't try to compose multiple rounded shapes;
     //   browsers don't either when nesting `overflow: hidden`
     //   containers with rounded corners.
-    let clips_children = !matches!(
-        b.overflow,
-        wgpu_html_models::common::css_enums::Overflow::Visible,
-    );
+    let clips_children = b.overflow.clips_any();
     let pushed = if clips_children {
         let pad = padding_box(b);
-        let (inner_h, inner_v) = padding_box_radii(b);
-        let effective_rect = match clip_stack.last() {
-            Some(parent) => intersect_rects(parent.rect, pad),
-            None => pad,
+        let effective_rect = overflow_clip_rect(b, pad, clip_stack.last().copied());
+        let (inner_h, inner_v) = if b.overflow.clips_both() {
+            padding_box_radii(b)
+        } else {
+            ([0.0; 4], [0.0; 4])
         };
         let frame = ClipFrame {
             rect: effective_rect,
@@ -313,6 +303,32 @@ fn paint_box_in_clip(
             parent.map(|f| f.radii_h).unwrap_or([0.0; 4]),
             parent.map(|f| f.radii_v).unwrap_or([0.0; 4]),
         );
+    }
+}
+
+fn overflow_clip_rect(b: &LayoutBox, pad: Rect, parent: Option<ClipFrame>) -> Rect {
+    let local = match (b.overflow.clips_x(), b.overflow.clips_y(), parent) {
+        (true, true, _) => pad,
+        (true, false, Some(parent)) => Rect::new(pad.x, parent.rect.y, pad.w, parent.rect.h),
+        (false, true, Some(parent)) => Rect::new(parent.rect.x, pad.y, parent.rect.w, pad.h),
+        (true, false, None) => Rect::new(
+            pad.x,
+            -OVERFLOW_VISIBLE_EXTENT,
+            pad.w,
+            OVERFLOW_VISIBLE_EXTENT * 2.0,
+        ),
+        (false, true, None) => Rect::new(
+            -OVERFLOW_VISIBLE_EXTENT,
+            pad.y,
+            OVERFLOW_VISIBLE_EXTENT * 2.0,
+            pad.h,
+        ),
+        (false, false, _) => pad,
+    };
+
+    match parent {
+        Some(parent) => intersect_rects(parent.rect, local),
+        None => local,
     }
 }
 
@@ -383,7 +399,12 @@ fn paint_rounded_per_side_borders(
     let bc = b.border_colors;
     let bs = &b.border_styles;
 
-    let sides: [(Side, f32, Option<wgpu_html_renderer::Color>, &Option<BorderStyle>); 4] = [
+    let sides: [(
+        Side,
+        f32,
+        Option<wgpu_html_renderer::Color>,
+        &Option<BorderStyle>,
+    ); 4] = [
         (Side::Top, bd.top, bc.top, &bs.top),
         (Side::Right, bd.right, bc.right, &bs.right),
         (Side::Bottom, bd.bottom, bc.bottom, &bs.bottom),
@@ -532,12 +553,7 @@ impl Side {
 /// (h == v) radius; `None` otherwise. The dashed-along-curve shader
 /// path only handles the uniform-circular case for now.
 fn uniform_circular_radius(r: &wgpu_html_layout::CornerRadii) -> Option<f32> {
-    let corners = [
-        r.top_left,
-        r.top_right,
-        r.bottom_right,
-        r.bottom_left,
-    ];
+    let corners = [r.top_left, r.top_right, r.bottom_right, r.bottom_left];
     let target = corners[0].h;
     for c in corners {
         if (c.h - target).abs() > 1e-3 || (c.v - target).abs() > 1e-3 {
@@ -1005,6 +1021,52 @@ mod tests {
         assert_eq!(r.y, 5.0);
         assert_eq!(r.w, 100.0);
         assert_eq!(r.h, 100.0);
+    }
+
+    #[test]
+    fn overflow_x_clip_leaves_vertical_axis_unclipped() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 80px; height: 80px; padding: 10px;
+                             overflow: clip visible; background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clip = list
+            .clips
+            .iter()
+            .find(|c| c.rect.is_some())
+            .expect("an overflow-x clip range");
+        let r = clip.rect.unwrap();
+        assert_eq!(r.x, 0.0);
+        assert_eq!(r.w, 100.0);
+        assert!(r.y < -999_000.0);
+        assert!(r.h > 1_999_000.0);
+    }
+
+    #[test]
+    fn one_axis_overflow_clip_does_not_emit_rounded_clip() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <div style="width: 100px; height: 100px;
+                             overflow: clip visible;
+                             border-radius: 16px;
+                             background-color: red;">
+                    <div style="width: 200px; height: 200px;
+                                 background-color: blue;"></div>
+                </div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let clip = list
+            .clips
+            .iter()
+            .find(|c| c.rect.is_some())
+            .expect("an overflow-x clip range");
+        assert!(!clip.is_rounded());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use wgpu_html_models::common::css_enums::*;
 use wgpu_html_models::Style;
+use wgpu_html_models::common::css_enums::*;
 
 use crate::style_props::clear_value_for;
 
@@ -360,7 +360,7 @@ fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "text-decoration" => style.text_decoration = Some(value.to_string()),
         "text-transform" => style.text_transform = parse_text_transform(value),
         "white-space" => style.white_space = parse_white_space(value),
-        "overflow" => style.overflow = parse_overflow(value),
+        "overflow" => apply_overflow_shorthand(value, style),
         "overflow-x" => style.overflow_x = parse_overflow(value),
         "overflow-y" => style.overflow_y = parse_overflow(value),
         "opacity" => style.opacity = value.parse().ok(),
@@ -933,11 +933,7 @@ fn parse_css_math_expr(input: &str) -> Option<CssMathExpr> {
     let mut parser = MathParser::new(input);
     let expr = parser.parse_sum()?;
     parser.skip_ws();
-    if parser.is_eof() {
-        Some(expr)
-    } else {
-        None
-    }
+    if parser.is_eof() { Some(expr) } else { None }
 }
 
 struct MathParser<'a> {
@@ -1472,6 +1468,27 @@ fn parse_overflow(value: &str) -> Option<Overflow> {
         "auto" => Some(Overflow::Auto),
         _ => None,
     }
+}
+
+fn apply_overflow_shorthand(value: &str, style: &mut Style) {
+    let mut parts = value.split_whitespace();
+    let Some(first) = parts.next().and_then(parse_overflow) else {
+        return;
+    };
+    let second = match parts.next() {
+        Some(value) => match parse_overflow(value) {
+            Some(parsed) => parsed,
+            None => return,
+        },
+        None => first,
+    };
+    if parts.next().is_some() {
+        return;
+    }
+
+    style.overflow = Some(first);
+    style.overflow_x = Some(first);
+    style.overflow_y = Some(second);
 }
 
 fn parse_visibility(value: &str) -> Option<Visibility> {

@@ -1,11 +1,11 @@
 //! parse_inline_style: per-property / per-value-type coverage.
 
+use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
     AlignItems, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssImage, CssLength, Cursor,
     Display, FlexDirection, FlexWrap, FontStyle, FontWeight, JustifyContent, Overflow,
     PointerEvents, Position, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
 };
-use wgpu_html_models::Style;
 use wgpu_html_parser::parse_inline_style;
 
 fn s(css: &str) -> Style {
@@ -539,10 +539,11 @@ fn line_height_length() {
 
 #[test]
 fn overflow_keywords() {
-    assert!(matches!(
-        s("overflow: hidden;").overflow,
-        Some(Overflow::Hidden)
-    ));
+    let hidden = s("overflow: hidden;");
+    assert!(matches!(hidden.overflow, Some(Overflow::Hidden)));
+    assert!(matches!(hidden.overflow_x, Some(Overflow::Hidden)));
+    assert!(matches!(hidden.overflow_y, Some(Overflow::Hidden)));
+
     assert!(matches!(
         s("overflow: auto;").overflow,
         Some(Overflow::Auto)
@@ -551,6 +552,13 @@ fn overflow_keywords() {
         s("overflow: scroll;").overflow,
         Some(Overflow::Scroll)
     ));
+}
+
+#[test]
+fn overflow_shorthand_accepts_two_axes() {
+    let style = s("overflow: hidden visible;");
+    assert!(matches!(style.overflow_x, Some(Overflow::Hidden)));
+    assert!(matches!(style.overflow_y, Some(Overflow::Visible)));
 }
 
 #[test]

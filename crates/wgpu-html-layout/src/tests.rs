@@ -1021,9 +1021,10 @@ fn hit_path_drills_to_inner_div() {
 #[test]
 fn find_element_outside_returns_none() {
     let (mut tree, lay) = hit_setup();
-    assert!(lay
-        .find_element_from_point(&mut tree, (10_000.0, 10_000.0))
-        .is_none());
+    assert!(
+        lay.find_element_from_point(&mut tree, (10_000.0, 10_000.0))
+            .is_none()
+    );
 }
 
 #[test]
@@ -1083,9 +1084,10 @@ fn find_elements_orders_child_to_parent() {
 #[test]
 fn find_elements_outside_is_empty() {
     let (mut tree, lay) = hit_setup();
-    assert!(lay
-        .find_elements_from_point(&mut tree, (-1.0, -1.0))
-        .is_empty());
+    assert!(
+        lay.find_elements_from_point(&mut tree, (-1.0, -1.0))
+            .is_empty()
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1097,7 +1099,8 @@ fn overflow_field_propagates_from_style() {
     let tree = make(r#"<body style="overflow: hidden; width: 100px; height: 50px;"></body>"#);
     let body = layout(&tree, 800.0, 600.0).unwrap();
     use wgpu_html_models::common::css_enums::Overflow;
-    assert!(matches!(body.overflow, Overflow::Hidden));
+    assert_eq!(body.overflow.x, Overflow::Hidden);
+    assert_eq!(body.overflow.y, Overflow::Hidden);
 }
 
 #[test]
@@ -1105,17 +1108,64 @@ fn overflow_visible_is_default() {
     let tree = make(r#"<body style="width: 100px; height: 50px;"></body>"#);
     let body = layout(&tree, 800.0, 600.0).unwrap();
     use wgpu_html_models::common::css_enums::Overflow;
-    assert!(matches!(body.overflow, Overflow::Visible));
+    assert_eq!(body.overflow.x, Overflow::Visible);
+    assert_eq!(body.overflow.y, Overflow::Visible);
 }
 
 #[test]
 fn overflow_axis_longhand_wins_over_shorthand() {
-    // `overflow-y: hidden` collapses to the effective overflow
-    // (v1 collapses both axes on any non-Visible).
-    let tree = make(r#"<body style="overflow-y: hidden; width: 100px; height: 50px;"></body>"#);
+    let tree = make(
+        r#"<body style="overflow: scroll; overflow-y: clip; width: 100px; height: 50px;"></body>"#,
+    );
     let body = layout(&tree, 800.0, 600.0).unwrap();
     use wgpu_html_models::common::css_enums::Overflow;
-    assert!(matches!(body.overflow, Overflow::Hidden));
+    assert_eq!(body.overflow.x, Overflow::Scroll);
+    assert_eq!(body.overflow.y, Overflow::Hidden);
+}
+
+#[test]
+fn overflow_shorthand_two_values_sets_axes() {
+    let tree = make(r#"<body style="overflow: clip visible; width: 100px; height: 50px;"></body>"#);
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    use wgpu_html_models::common::css_enums::Overflow;
+    assert_eq!(body.overflow.x, Overflow::Clip);
+    assert_eq!(body.overflow.y, Overflow::Visible);
+}
+
+#[test]
+fn overflow_visible_computes_to_auto_against_scrollable_axis() {
+    let tree =
+        make(r#"<body style="overflow: hidden visible; width: 100px; height: 50px;"></body>"#);
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    use wgpu_html_models::common::css_enums::Overflow;
+    assert_eq!(body.overflow.x, Overflow::Hidden);
+    assert_eq!(body.overflow.y, Overflow::Auto);
+}
+
+#[test]
+fn overflow_hidden_blocks_child_hit_outside_padding_box() {
+    let tree = make(
+        r#"<body style="margin: 0; width: 300px; height: 300px;">
+            <div style="width: 100px; height: 100px; overflow: hidden;">
+                <div style="width: 200px; height: 200px;"></div>
+            </div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.hit_path((120.0, 20.0)).unwrap(), Vec::<usize>::new());
+}
+
+#[test]
+fn overflow_visible_allows_child_hit_outside_parent() {
+    let tree = make(
+        r#"<body style="margin: 0; width: 300px; height: 300px;">
+            <div style="width: 100px; height: 100px; overflow: visible;">
+                <div style="width: 200px; height: 200px;"></div>
+            </div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.hit_path((120.0, 20.0)).unwrap(), vec![0, 0]);
 }
 
 // ---------------------------------------------------------------------------
