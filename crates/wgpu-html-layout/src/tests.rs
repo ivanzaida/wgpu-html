@@ -677,6 +677,38 @@ fn flex_wrap_breaks_to_new_line() {
 }
 
 #[test]
+fn flex_column_wrap_with_indefinite_height_stays_single_line() {
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-direction: column; flex-wrap: wrap; width: 120px;">
+            <div style="width: 20px; height: 30px; flex-shrink: 0;"></div>
+            <div style="width: 20px; height: 30px; flex-shrink: 0;"></div>
+            <div style="width: 20px; height: 30px; flex-shrink: 0;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].margin_rect.y, 0.0);
+    assert_eq!(body.children[1].margin_rect.y, 30.0);
+    assert_eq!(body.children[2].margin_rect.y, 60.0);
+    assert_eq!(body.children[0].margin_rect.x, 0.0);
+    assert_eq!(body.children[1].margin_rect.x, 0.0);
+    assert_eq!(body.children[2].margin_rect.x, 0.0);
+    assert_eq!(body.content_rect.h, 90.0);
+}
+
+#[test]
+fn flex_percent_cross_size_with_indefinite_cross_does_not_disable_stretch() {
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; align-items: stretch; width: 200px;">
+            <div style="width: 20px; height: 50%;"></div>
+            <div style="width: 20px; height: 40px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    assert_eq!(body.children[0].border_rect.h, 40.0);
+    assert_eq!(body.children[1].border_rect.h, 40.0);
+}
+
+#[test]
 fn flex_align_self_overrides_align_items() {
     // align-items: center; one item overrides with align-self: flex-end.
     let tree = make(

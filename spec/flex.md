@@ -4,8 +4,9 @@ The plan and current state of `display: flex`, as implemented in
 `crates/wgpu-html-layout/src/flex.rs`. Companion to `roadmap.md`
 (M9 — flexbox) and `status.md`.
 
-Status: shipped. All 16 dedicated flex unit tests pass plus the 52
-pre-existing block-layout tests. The implementation follows
+Status: shipped. All 20 dedicated flex unit tests pass plus 82 other
+layout tests in `crates/wgpu-html-layout/src/tests.rs`. The
+implementation follows
 [CSS-Flexbox-1] §9 ("Flex Layout Algorithm") at a level of fidelity
 adequate for the demo pages and most everyday UI flex patterns; the
 known gaps are spelled out in §6.
@@ -47,8 +48,10 @@ known gaps are spelled out in §6.
 - No `min-content` / `max-content` / `fit-content` length keywords.
   The `CssLength` enum doesn't have those variants; values using
   them parse as `Raw(_)` and resolve to `auto` (i.e. ignored).
-- `display: inline-flex` is currently treated as `display: flex`.
-  There's no inline-level wrapping context for flex containers.
+- `display: inline-flex` is still treated like `display: flex` when the
+  element itself establishes formatting context in block flow; the
+  inline formatting context does not yet preserve true flex baselines /
+  shrink-to-fit inline-flex sizing.
 - No anonymous flex item wrapping for stray text nodes between
   element children. The parser already collapses
   whitespace-only siblings out of element-only parents, so this
@@ -92,7 +95,10 @@ The flex layer is a 9-phase pipeline (`flex.rs`):
 2. **Line breaking.** `flex-wrap: nowrap` produces a single line.
    `wrap` / `wrap-reverse` greedy-fill by hypothetical outer
    main + gap, breaking when the next item would push the running
-   total past the container's main extent.
+   total past the container's main extent. When the container's
+   main size is indefinite (notably `flex-direction: column` with no
+   explicit height), wrapping is disabled and items stay on one line,
+   matching browser behavior.
 
 3. **Flex factor resolution per line** (CSS-Flex-1 §9.7). The
    iterative freeze loop:
@@ -213,13 +219,14 @@ The block walker also:
 | `flex-grow` | ✅ | Iterative freeze loop. |
 | `flex-shrink` | ✅ | Scaled by `flex-shrink × base_size`. |
 | `flex-basis: <length>` | ✅ | Including percentages against a definite container main. |
-| `flex-basis: auto` | ✅ | Falls back to the main-axis size property (`width` / `height`). |
+| `flex-basis: auto` | ✅ | Falls back to the main-axis size property (`width` / `height`) or replaced intrinsic size for `<img>`. |
 | `flex-basis: content` | ❌ | Treated as `auto` with no main size → `0`. |
 | `min-width` / `max-width` | ✅ | Clamped during freeze loop and on plain blocks. |
 | `min-height` / `max-height` | ✅ | Same. |
 | `margin: auto` (main axis) | ✅ | Absorbs free space, split equally across all auto sides. |
 | `margin: auto` (cross axis) | ✅ | Consumes leftover line cross space. |
 | `box-sizing: border-box` | ✅ | Honoured for `width`, `height`, `flex-basis`, `min-*`, `max-*`. |
+| Percent cross-size against indefinite cross size | ✅ | Left unresolved (`auto`) so `stretch` still applies instead of collapsing to `0`. |
 | `aspect-ratio` | ❌ | Not modelled. |
 | `visibility: collapse` | ❌ | Treated as `visible`. |
 | `position: absolute` flex child | ❌ | Engine has no `position` support. |
@@ -228,26 +235,25 @@ The block walker also:
 
 In rough priority order if we ever come back to flex:
 
-1. **Baseline alignment.** Needs per-block first-line baseline
+1. **True `inline-flex` sizing/alignment.** The engine now handles
+   indefinite main sizes and keeps inline flex containers atomic in the
+   inline formatting path, but it still lacks browser-accurate
+   shrink-to-fit sizing and baseline participation for `inline-flex`
+   containers embedded in text runs.
+2. **Baseline alignment.** Needs per-block first-line baseline
    tracking — non-trivial because the inline formatting context
    currently owns ascent/descent state. A clean fix would surface
    `Option<{ascent, descent}>` from `layout_block` for blocks
    whose first descendant is text-bearing.
-2. **Intrinsic content basis.** A measurement pre-pass that lays
+3. **Intrinsic content basis.** A measurement pre-pass that lays
    each item out at zero main constraint, observes its
    max-content size, and uses that as the base. Bounded extra
    cost: O(items) per flex container.
-3. **`min-content` / `max-content` / `fit-content` keywords.**
+4. **`min-content` / `max-content` / `fit-content` keywords.**
    Add the variants to `CssLength`, plumb them through `length::resolve`
    (returning `None` for "needs intrinsic measurement" so the caller
    can dispatch), then teach the flex base-size and clamp paths
    to call into the same intrinsic-measurement pre-pass as #2.
-4. **`inline-flex` distinction.** Currently identical to `flex`.
-   To be correct, the parent's box would need to advertise itself
-   as inline-level (so it sits on a line box rather than starting
-   a new block) and inherit ascent/descent for inline alignment.
-   Mostly a matter of routing through the inline formatting
-   context once #1 is done.
 5. **Anonymous flex items.** When a flex container has mixed
    element + text children, each contiguous text run should be
    wrapped in an anonymous block-level flex item. The HTML parser
@@ -268,9 +274,8 @@ In rough priority order if we ever come back to flex:
 
 ## 7. Tests
 
-`crates/wgpu-html-layout/src/tests.rs` ships 16 dedicated flex /
-sizing assertions on top of the 52 pre-existing block-layout
-tests. New coverage:
+`crates/wgpu-html-layout/src/tests.rs` ships 20 dedicated flex
+assertions on top of 82 non-flex layout assertions. Coverage:
 
 - `flex_grow_splits_remaining_main_equally`
 - `flex_grow_weighted_by_factor`
@@ -280,14 +285,18 @@ tests. New coverage:
 - `flex_min_width_floors_shrunk_item`
 - `flex_max_width_caps_grown_item`
 - `flex_wrap_breaks_to_new_line`
+- `flex_column_wrap_with_indefinite_height_stays_single_line`
+- `flex_percent_cross_size_with_indefinite_cross_does_not_disable_stretch`
 - `flex_align_self_overrides_align_items`
 - `flex_align_content_center_with_two_lines`
 - `flex_auto_margin_main_axis_pushes_to_end`
 - `flex_order_reorders_visual_layout`
 - `flex_row_gap_and_column_gap_independent`
-- `min_width_clamps_block_size` (block-level)
-- `max_height_clamps_auto_height` (block-level)
-- `auto_horizontal_margins_center_block` (block-level)
+- `flex_wrap_single_line_ignores_align_content_per_spec`
+- `flex_wrap_single_line_align_items_center_does_center`
+- `flex_wrap_actually_wraps_when_container_too_narrow`
+- `flex_align_self_center_overrides_default_alignment_on_single_line`
+- `flex_wrap_no_height_does_not_apply_align_content`
 
 Plus the parser-side `apply_flex_shorthand` is exercised
 through the existing CSS declaration test suite.

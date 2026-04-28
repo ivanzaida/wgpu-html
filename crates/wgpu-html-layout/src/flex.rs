@@ -85,9 +85,9 @@ pub(crate) fn layout_flex_children(
     // cross size disables `align-content` distribution and falls back
     // to a sum of line cross sizes.
     let main_axis_size = if is_row {
-        inner_width
+        Some(inner_width)
     } else {
-        inner_height_explicit.unwrap_or(0.0)
+        inner_height_explicit
     };
     let cross_axis_size: Option<f32> = if is_row {
         inner_height_explicit
@@ -132,7 +132,7 @@ pub(crate) fn layout_flex_children(
         ) {
             continue;
         }
-        let item = build_item(child, idx, is_row, inner_width, cross_axis_size, ctx);
+        let item = build_item(child, idx, is_row, main_axis_size, cross_axis_size, ctx);
         items.push(item);
     }
     if items.is_empty() {
@@ -148,9 +148,10 @@ pub(crate) fn layout_flex_children(
     // *next* item would push the running total past `main_axis_size`.
     // ----------------------------------------------------------------
     let mut lines: Vec<Vec<usize>> = Vec::new();
-    if matches!(wrap, FlexWrap::Nowrap) {
+    if matches!(wrap, FlexWrap::Nowrap) || main_axis_size.is_none() {
         lines.push((0..items.len()).collect());
     } else {
+        let main_axis_size = main_axis_size.unwrap_or(0.0);
         let mut current: Vec<usize> = Vec::new();
         let mut running = 0.0_f32;
         for (i, item) in items.iter().enumerate() {
@@ -181,8 +182,10 @@ pub(crate) fn layout_flex_children(
     // size after grow / shrink and clamping). Items with no flex
     // factors keep their hypothetical main size.
     // ----------------------------------------------------------------
-    for line in &lines {
-        resolve_flexible_lengths(&mut items, line, main_axis_size, gap_main);
+    if let Some(main_axis_size) = main_axis_size {
+        for line in &lines {
+            resolve_flexible_lengths(&mut items, line, main_axis_size, gap_main);
+        }
     }
 
     // ----------------------------------------------------------------
@@ -319,7 +322,7 @@ pub(crate) fn layout_flex_children(
         // Items' total outer main + gaps used on this line.
         let total_main: f32 = line.iter().map(|&i| items[i].outer_main()).sum::<f32>()
             + gap_main * (line.len() as f32 - 1.0).max(0.0);
-        let mut free_main = (main_axis_size - total_main).max(0.0);
+        let mut free_main = main_axis_size.map(|m| (m - total_main).max(0.0)).unwrap_or(0.0);
 
         // Auto main-axis margins absorb free space first; whatever
         // is left flows into `justify-content`.
@@ -440,7 +443,8 @@ pub(crate) fn layout_flex_children(
     // Phase 8: handle row-reverse / column-reverse by mirroring main
     // positions inside the container's main extent.
     // ----------------------------------------------------------------
-    if is_dir_reverse && main_axis_size > 0.0 {
+    if is_dir_reverse && main_axis_size.is_some_and(|m| m > 0.0) {
+        let main_axis_size = main_axis_size.unwrap_or(0.0);
         for (_, b) in final_boxes.iter_mut() {
             let main_size_box = if is_row {
                 b.margin_rect.w
@@ -593,7 +597,7 @@ fn build_item<'a>(
     node: &'a CascadedNode,
     source_index: usize,
     is_row: bool,
-    parent_inner_main: f32,
+    parent_inner_main: Option<f32>,
     parent_inner_cross: Option<f32>,
     ctx: &mut Ctx,
 ) -> FlexItem<'a> {
@@ -618,13 +622,13 @@ fn build_item<'a>(
     let auto_left = is_auto_margin(&style.margin_left, &style.margin);
 
     let border_top =
-        length::resolve(style.border_top_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+        resolve_axis_length(style.border_top_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
     let border_right =
-        length::resolve(style.border_right_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+        resolve_axis_length(style.border_right_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
     let border_bottom =
-        length::resolve(style.border_bottom_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+        resolve_axis_length(style.border_bottom_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
     let border_left =
-        length::resolve(style.border_left_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+        resolve_axis_length(style.border_left_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
 
     let pad_top = side_pad(&style.padding_top, &style.padding, parent_inner_main, ctx);
     let pad_right = side_pad(&style.padding_right, &style.padding, parent_inner_main, ctx);
@@ -672,9 +676,9 @@ fn build_item<'a>(
     let intrinsic_main = replaced_intrinsic_main(node, is_row);
     let basis_specified = match style.flex_basis.as_ref() {
         Some(CssLength::Auto) | None => {
-            length::resolve(main_size_prop, parent_inner_main, ctx).or(intrinsic_main)
+            resolve_axis_length(main_size_prop, parent_inner_main, ctx).or(intrinsic_main)
         }
-        other => length::resolve(other, parent_inner_main, ctx),
+        other => resolve_axis_length(other, parent_inner_main, ctx),
     };
     // Convert from border-box → content-box if needed.
     let mut base_size = match basis_specified {
@@ -691,13 +695,13 @@ fn build_item<'a>(
     } else {
         (style.min_height.as_ref(), style.max_height.as_ref())
     };
-    let main_min = length::resolve(min_prop, parent_inner_main, ctx)
+    let main_min = resolve_axis_length(min_prop, parent_inner_main, ctx)
         .map(|v| match box_sizing {
             BoxSizing::ContentBox => v,
             BoxSizing::BorderBox => (v - frame_main).max(0.0),
         })
         .unwrap_or(0.0);
-    let main_max = length::resolve(max_prop, parent_inner_main, ctx)
+    let main_max = resolve_axis_length(max_prop, parent_inner_main, ctx)
         .map(|v| match box_sizing {
             BoxSizing::ContentBox => v,
             BoxSizing::BorderBox => (v - frame_main).max(0.0),
@@ -712,9 +716,8 @@ fn build_item<'a>(
     } else {
         style.width.as_ref()
     };
-    let parent_cross_for_pct = parent_inner_cross.unwrap_or(0.0);
     let has_explicit_cross_size =
-        length::resolve(cross_size_prop, parent_cross_for_pct, ctx).is_some();
+        resolve_axis_length(cross_size_prop, parent_inner_cross, ctx).is_some();
 
     FlexItem {
         node,
@@ -770,23 +773,31 @@ fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool) -> Option<f32> {
 fn side_margin(
     specific: &Option<CssLength>,
     shorthand: &Option<CssLength>,
-    container: f32,
+    container: Option<f32>,
     ctx: &mut Ctx,
 ) -> f32 {
-    length::resolve(specific.as_ref(), container, ctx)
-        .or_else(|| length::resolve(shorthand.as_ref(), container, ctx))
+    resolve_axis_length(specific.as_ref(), container, ctx)
+        .or_else(|| resolve_axis_length(shorthand.as_ref(), container, ctx))
         .unwrap_or(0.0)
 }
 
 fn side_pad(
     specific: &Option<CssLength>,
     shorthand: &Option<CssLength>,
-    container: f32,
+    container: Option<f32>,
     ctx: &mut Ctx,
 ) -> f32 {
-    length::resolve(specific.as_ref(), container, ctx)
-        .or_else(|| length::resolve(shorthand.as_ref(), container, ctx))
+    resolve_axis_length(specific.as_ref(), container, ctx)
+        .or_else(|| resolve_axis_length(shorthand.as_ref(), container, ctx))
         .unwrap_or(0.0)
+}
+
+fn resolve_axis_length(len: Option<&CssLength>, container: Option<f32>, ctx: &mut Ctx) -> Option<f32> {
+    let len = len?;
+    match len {
+        CssLength::Percent(_) if container.is_none() => None,
+        _ => length::resolve(Some(len), container.unwrap_or(0.0), ctx),
+    }
 }
 
 // ---------------------------------------------------------------------------
