@@ -2877,6 +2877,7 @@ dependencies = [
  "wgpu-html",
  "wgpu-html-text",
  "wgpu-html-tree",
+ "wgpu-html-winit",
  "winit",
 ]
 
@@ -2944,6 +2945,17 @@ version = "0.1.0"
 dependencies = [
  "wgpu-html-events",
  "wgpu-html-models",
+]
+
+[[package]]
+name = "wgpu-html-winit"
+version = "0.1.0"
+dependencies = [
+ "pollster",
+ "wgpu-html",
+ "wgpu-html-text",
+ "wgpu-html-tree",
+ "winit",
 ]
 
 [[package]]

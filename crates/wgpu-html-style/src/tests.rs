@@ -1032,3 +1032,68 @@ fn hover_specificity_beats_plain_class() {
     // div:hover (tag + pseudo = 1 tag + 1 class) beats plain div (1 tag).
     assert!(matches!(bg, CssColor::Named(s) if s == "red"));
 }
+
+#[test]
+fn focus_rule_applies_only_to_focused_element() {
+    // `:focus` matches only the exact focused element, not its
+    // ancestors (unlike `:hover`).
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            #outer { background-color: white; }
+            #outer:focus { background-color: yellow; }
+            #inner { background-color: white; }
+            #inner:focus { background-color: red; }
+        </style>
+        <div id="outer"><span id="inner">hi</span></div>
+        "#,
+    );
+    // Path: <body> → [0]=<style>, [1]=<div id=outer>, [1, 0]=<span>.
+    // Focus the inner span only.
+    tree.interaction.focus_path = Some(vec![1, 0]);
+    let cascaded = cascade(&tree);
+
+    // Inner is focused → its :focus rule applies.
+    let inner_style = find_style(&cascaded.root.as_ref().unwrap(), &|el| {
+        element_id(el) == Some("inner")
+    })
+    .expect("found");
+    let inner_bg = inner_style.background_color.expect("set");
+    assert!(
+        matches!(inner_bg.clone(), CssColor::Named(s) if s == "red"),
+        "inner background expected red, got {inner_bg:?}"
+    );
+
+    // Outer is NOT focused (only its descendant is). Plain rule wins.
+    let outer_style = find_style(&cascaded.root.as_ref().unwrap(), &|el| {
+        element_id(el) == Some("outer")
+    })
+    .expect("found");
+    let outer_bg = outer_style.background_color.expect("set");
+    assert!(
+        matches!(outer_bg.clone(), CssColor::Named(s) if s == "white"),
+        "outer background expected white (focus does not propagate), got {outer_bg:?}"
+    );
+}
+
+#[test]
+fn focus_rule_does_not_apply_when_focus_path_is_none() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            input { background-color: white; }
+            input:focus { background-color: yellow; }
+        </style>
+        <input id="x">
+        "#,
+    );
+    // No focus set.
+    assert!(tree.interaction.focus_path.is_none());
+    let cascaded = cascade(&tree);
+    let style = find_style(&cascaded.root.unwrap(), &|el| {
+        element_id(el) == Some("x")
+    })
+    .expect("found");
+    let bg = style.background_color.expect("set");
+    assert!(matches!(bg, CssColor::Named(s) if s == "white"));
+}

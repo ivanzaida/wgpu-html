@@ -9,12 +9,22 @@
 use std::time::Duration;
 use wgpu_html_models as m;
 
+mod dispatch;
 mod events;
+mod focus;
 mod fonts;
 
+pub use dispatch::{
+    blur, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move,
+    focus, focus_next, key_down, key_up,
+};
 pub use events::{
-    EventCallback, HtmlEvent, HtmlEventType, InteractionState, Modifiers, MouseButton,
+    EventCallback, HtmlEvent, HtmlEventType, InteractionState, Modifier, Modifiers, MouseButton,
     MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
+};
+pub use focus::{
+    focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths,
+    next_in_order, prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 
@@ -25,8 +35,10 @@ pub struct Tree {
     /// layout / paint; consulted by the cascade and the text crate.
     /// See `docs/text.md` §3.
     pub fonts: FontRegistry,
-    /// Live interaction state (hover / active / pointer position).
-    /// Mutated by the dispatcher in `wgpu_html::interactivity`; the
+    /// Live interaction state (hover / active / focus / pointer
+    /// position / text selection / scroll offsets). Mutated by the
+    /// dispatchers in `crate::dispatch` (re-exported as `tree.focus(…)`,
+    /// `tree.key_down(…)`, `tree.dispatch_mouse_down(…)`, etc.); the
     /// cascade and paint passes read it but never write.
     pub interaction: InteractionState,
     /// How long to keep decoded images in memory after their last use
@@ -546,6 +558,20 @@ impl Element {
                 match self {
                     Element::Text(_) => None,
                     $(Element::$v(e) => e.id.as_deref(),)*
+                }
+            };
+        }
+        all_element_variants!(arms)
+    }
+
+    /// `tabindex` HTML attribute on this element, if set. `Text`
+    /// returns `None`.
+    pub fn tabindex(&self) -> Option<i32> {
+        macro_rules! arms {
+            ($($v:ident),* $(,)?) => {
+                match self {
+                    Element::Text(_) => None,
+                    $(Element::$v(e) => e.tabindex,)*
                 }
             };
         }

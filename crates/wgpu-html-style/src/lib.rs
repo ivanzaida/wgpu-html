@@ -42,7 +42,10 @@ impl MatchContext {
         Self {
             is_hover: path_is_prefix(path, state.hover_path.as_deref()),
             is_active: path_is_prefix(path, state.active_path.as_deref()),
-            is_focus: false,
+            // `:focus` matches only the focused element itself, not
+            // its ancestors. (`:focus-within` would propagate, but
+            // we don't model it yet.)
+            is_focus: state.focus_path.as_deref() == Some(path),
         }
     }
 }

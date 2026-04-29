@@ -13,7 +13,7 @@ use arboard::Clipboard;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{
-    ElementState, KeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
+    ElementState, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
 };
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -23,7 +23,7 @@ use wgpu_html::interactivity;
 use wgpu_html::layout::LayoutBox;
 use wgpu_html::renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Renderer};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::{FontFace, FontStyleAxis, Modifiers, MouseButton, Tree};
+use wgpu_html_tree::{FontFace, FontStyleAxis, Tree};
 
 const DEFAULT_DOC: &str = include_str!("../html/flex-browser-like.html");
 const DEFAULT_DOC_PATH: &str = "crates/wgpu-html-demo/html/flex-browser-like.html";
@@ -406,8 +406,6 @@ struct App {
     /// Counter incremented from the click callback. Demonstrates that
     /// closures capture state correctly.
     click_count: Arc<AtomicUsize>,
-    /// Live keyboard modifier state used for shortcut dispatch.
-    modifiers: Modifiers,
     /// Whether a hover-state change arrived that hasn't been rendered yet.
     hover_pending: bool,
     /// Timestamp of the last hover-driven `RedrawRequested` delivery.
@@ -438,7 +436,6 @@ impl App {
             scroll_y: 0.0,
             scrollbar_drag: None,
             click_count: Arc::new(AtomicUsize::new(0)),
-            modifiers: Modifiers::default(),
             hover_pending: false,
             // Initialise to "long ago" so the very first hover fires immediately.
             last_hover_redraw: Instant::now() - Duration::from_secs(1),
@@ -494,17 +491,6 @@ impl App {
         tree_slot.as_mut().unwrap()
     }
 
-    fn update_modifier_key(&mut self, key: KeyCode, state: ElementState) {
-        let down = state == ElementState::Pressed;
-        match key {
-            KeyCode::ControlLeft | KeyCode::ControlRight => self.modifiers.ctrl = down,
-            KeyCode::ShiftLeft | KeyCode::ShiftRight => self.modifiers.shift = down,
-            KeyCode::AltLeft | KeyCode::AltRight => self.modifiers.alt = down,
-            KeyCode::SuperLeft | KeyCode::SuperRight => self.modifiers.meta = down,
-            _ => {}
-        }
-    }
-
     fn copy_selection_to_clipboard(&self) {
         let (Some(tree), Some(layout)) = (self.tree.as_ref(), self.last_layout.as_ref()) else {
             return;
@@ -539,17 +525,6 @@ impl App {
                 "disabled"
             }
         );
-    }
-}
-
-fn translate_button(b: WinitMouseButton) -> MouseButton {
-    match b {
-        WinitMouseButton::Left => MouseButton::Primary,
-        WinitMouseButton::Right => MouseButton::Secondary,
-        WinitMouseButton::Middle => MouseButton::Middle,
-        WinitMouseButton::Back => MouseButton::Other(3),
-        WinitMouseButton::Forward => MouseButton::Other(4),
-        WinitMouseButton::Other(n) => MouseButton::Other(n.min(255) as u8),
     }
 }
 
@@ -596,23 +571,36 @@ impl ApplicationHandler for App {
                 self.scrollbar_drag = None;
                 window.request_redraw();
             }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state,
-                        physical_key: PhysicalKey::Code(key),
-                        repeat,
-                        ..
-                    },
-                ..
-            } => {
-                self.update_modifier_key(key, state);
+            WindowEvent::KeyboardInput { event, .. } => {
+                // Update modifiers + forward keydown/keyup to the
+                // tree in one call. Tab navigation is built into
+                // tree.key_down. Host shortcuts below still run —
+                // they don't yet honour `preventDefault`.
+                if let Some(tree) = self.tree.as_mut() {
+                    wgpu_html_winit::handle_keyboard(tree, &event);
+                }
+                let PhysicalKey::Code(key) = event.physical_key else {
+                    return;
+                };
+                let state = event.state;
+                let repeat = event.repeat;
+                // Focus / Tab can change which element matches
+                // `:focus`, so request a redraw whenever a key is
+                // pressed.
+                if state == ElementState::Pressed {
+                    window.request_redraw();
+                }
                 if state == ElementState::Pressed && !repeat {
                     if key == KeyCode::F9 {
                         self.toggle_profiling();
                         return;
                     }
-                    if self.modifiers.ctrl {
+                    let ctrl = self
+                        .tree
+                        .as_ref()
+                        .map(|t| t.modifiers().ctrl)
+                        .unwrap_or(false);
+                    if ctrl {
                         match key {
                             KeyCode::KeyA => {
                                 if let (Some(tree), Some(layout)) =
@@ -690,7 +678,7 @@ impl ApplicationHandler for App {
                 {
                     let hover_t0 = self.profiling_enabled.then(Instant::now);
                     let changed =
-                        interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                        interactivity::pointer_move(tree, layout, doc_pos);
                     if let Some(t0) = hover_t0 {
                         self.profile_window
                             .add_hover_move(t0.elapsed().as_secs_f64() * 1000.0, changed);
@@ -724,7 +712,7 @@ impl ApplicationHandler for App {
             WindowEvent::CursorLeft { .. } => {
                 self.cursor_pos = None;
                 if let Some(tree) = self.tree.as_mut() {
-                    interactivity::pointer_leave(tree, self.modifiers);
+                    tree.pointer_leave();
                     window.request_redraw();
                 }
             }
@@ -747,16 +735,16 @@ impl ApplicationHandler for App {
                     }
                 }
                 let doc_pos = viewport_to_document(pos, self.scroll_y);
-                let btn = translate_button(button);
+                let btn = wgpu_html_winit::mouse_button(button);
                 if let (Some(tree), Some(layout)) = (self.tree.as_mut(), self.last_layout.as_ref())
                 {
                     match state {
                         ElementState::Pressed => {
-                            interactivity::mouse_down(tree, layout, doc_pos, btn, self.modifiers);
+                            interactivity::mouse_down(tree, layout, doc_pos, btn);
                             window.request_redraw();
                         }
                         ElementState::Released => {
-                            interactivity::mouse_up(tree, layout, doc_pos, btn, self.modifiers);
+                            interactivity::mouse_up(tree, layout, doc_pos, btn);
                             window.request_redraw();
                         }
                     }
@@ -768,7 +756,7 @@ impl ApplicationHandler for App {
                     if let (Some(tree), Some(pos)) = (self.tree.as_mut(), self.cursor_pos) {
                         let doc_pos = viewport_to_document(pos, self.scroll_y);
                         if scroll_element_at(tree, layout, doc_pos, dy) {
-                            interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                            interactivity::pointer_move(tree, layout, doc_pos);
                             window.request_redraw();
                             return;
                         }
@@ -784,7 +772,7 @@ impl ApplicationHandler for App {
                         self.last_layout.as_ref(),
                     ) {
                         let doc_pos = viewport_to_document(pos, self.scroll_y);
-                        interactivity::pointer_move(tree, layout, doc_pos, self.modifiers);
+                        interactivity::pointer_move(tree, layout, doc_pos);
                     }
                     window.request_redraw();
                 }

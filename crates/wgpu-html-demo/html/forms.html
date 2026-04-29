@@ -1,0 +1,169 @@
+<style>
+    body {
+        margin: 0;
+        padding: 32px;
+        background: #0e0e10;
+        color: #ddd;
+        font-family: sans-serif;
+        font-size: 14px;
+    }
+
+    h1 {
+        font-size: 22px;
+        color: #fff;
+        margin: 0 0 4px 0;
+    }
+
+    .subtitle {
+        color: #888;
+        font-size: 12px;
+        margin: 0 0 24px 0;
+    }
+
+    h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #555;
+        margin: 28px 0 10px 0;
+        border-bottom: 1px solid #222;
+        padding-bottom: 4px;
+    }
+
+    /* ── Layout ─────────────────────────────────────── */
+    .row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+        align-items: center;
+    }
+
+    label {
+        display: inline-block;
+        min-width: 110px;
+        color: #aaa;
+        font-size: 13px;
+    }
+
+    /* ── Form controls (all of these can take focus) ── */
+    input, textarea, button, select {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-family: sans-serif;
+    }
+
+    input {
+        min-width: 220px;
+    }
+
+    textarea {
+        min-width: 320px;
+        height: 64px;
+    }
+
+    button {
+        background: #2a2a32;
+        cursor: pointer;
+        padding: 8px 16px;
+    }
+
+    /* ── Focus ring (the foundation slice's day-one win) ─ */
+    input:focus,
+    textarea:focus,
+    button:focus,
+    select:focus {
+        border-color: #4c8eff;
+        background: #1a2030;
+    }
+
+    /* ── Hover lights up everything ─────────────────── */
+    button:hover {
+        background: #34343c;
+        border-color: #4c8eff;
+    }
+
+    /* Active overrides hover. */
+    button:active {
+        background: #1c2a4a;
+    }
+
+    /* A custom-focusable div via tabindex. */
+    .tabbable {
+        display: inline-block;
+        padding: 8px 14px;
+        border: 1px dashed #444;
+        border-radius: 4px;
+        color: #aaa;
+        cursor: default;
+    }
+    .tabbable:focus {
+        border-color: #4c8eff;
+        color: #fff;
+        background: #1a2030;
+    }
+
+    .help {
+        margin-top: 24px;
+        padding: 12px 16px;
+        background: #16161a;
+        border-left: 3px solid #4c8eff;
+        font-size: 12px;
+        color: #888;
+        line-height: 1.6;
+    }
+    .help b { color: #ccc; }
+</style>
+
+<h1>Forms — focus + keyboard foundations</h1>
+<p class="subtitle">Click any control to focus it. Press Tab / Shift+Tab to walk the focus chain.</p>
+
+<h2>Text controls</h2>
+<div class="row">
+    <label>Name</label>
+    <input type="text" placeholder="Type a name…">
+</div>
+<div class="row">
+    <label>Email</label>
+    <input type="email" placeholder="you@example.com">
+</div>
+<div class="row">
+    <label>Password</label>
+    <input type="password" placeholder="••••••••">
+</div>
+<div class="row">
+    <label>Bio</label>
+    <textarea placeholder="A few words about yourself…"></textarea>
+</div>
+
+<h2>Buttons</h2>
+<div class="row">
+    <button type="submit">Submit</button>
+    <button type="reset">Reset</button>
+    <button type="button" disabled>Disabled (skipped by Tab)</button>
+</div>
+
+<h2>tabindex on a non-form element</h2>
+<div class="row">
+    <div class="tabbable" tabindex="0">A focusable &lt;div&gt; (tabindex=0)</div>
+    <div class="tabbable" tabindex="-1">Not in tab order (tabindex=-1)</div>
+</div>
+
+<h2>Anchor (href required to focus)</h2>
+<div class="row">
+    <a href="#" style="color: #4c8eff;">Home</a>
+    <a style="color: #555;">No href, not focusable</a>
+</div>
+
+<div class="help">
+    <b>What works:</b><br>
+    • Click any focusable control to focus it (visible :focus ring)<br>
+    • <b>Tab</b> / <b>Shift+Tab</b> cycles through focusable elements in document order<br>
+    • Disabled buttons and tabindex=-1 elements are skipped<br>
+    • <b>:hover</b> and <b>:active</b> still react on the same controls<br>
+    <br>
+    <b>Coming next:</b> typing into text inputs, checkbox/radio toggle, form submit.
+</div>

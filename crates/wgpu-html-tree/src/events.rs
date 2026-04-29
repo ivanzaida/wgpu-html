@@ -72,6 +72,33 @@ pub struct Modifiers {
     pub meta: bool,
 }
 
+/// One of the four modifier keys tracked by [`Modifiers`].
+///
+/// Used with [`Modifiers::set`] / [`crate::Tree::set_modifier`] to
+/// flip a single bit without naming the field directly. Lets host
+/// code write a generic mapping from its native key code to a
+/// modifier change without the engine caring how the host names
+/// its keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Modifier {
+    Shift,
+    Ctrl,
+    Alt,
+    Meta,
+}
+
+impl Modifiers {
+    /// Set one modifier bit. The other three are unchanged.
+    pub fn set(&mut self, modifier: Modifier, down: bool) {
+        match modifier {
+            Modifier::Shift => self.shift = down,
+            Modifier::Ctrl => self.ctrl = down,
+            Modifier::Alt => self.alt = down,
+            Modifier::Meta => self.meta = down,
+        }
+    }
+}
+
 /// Payload handed to every mouse-related callback.
 ///
 /// `target_path` is the deepest element that was hit; `current_path`
@@ -109,6 +136,15 @@ pub struct InteractionState {
     /// Path to the element that received the most recent primary
     /// press and has not yet seen its release.
     pub active_path: Option<Vec<usize>>,
+    /// Path to the element that currently has keyboard focus, or
+    /// `None` if no element is focused. The dispatcher in
+    /// `wgpu_html::interactivity` is the only writer; the cascade
+    /// reads it via `MatchContext::for_path` to resolve `:focus`.
+    ///
+    /// `:focus` matches only the exact path stored here; it does
+    /// not propagate to ancestors (unlike `:hover`). `:focus-within`
+    /// is not implemented.
+    pub focus_path: Option<Vec<usize>>,
     /// Last known pointer position in physical pixels.
     pub pointer_pos: Option<(f32, f32)>,
     /// Current text selection, if any.
@@ -128,6 +164,12 @@ pub struct InteractionState {
     /// Bit 0 = primary, bit 1 = secondary, bit 2 = middle,
     /// bit 3/4 = back/forward (matches the W3C `MouseEvent.buttons` spec).
     pub buttons_down: u16,
+    /// Currently-held modifier keys. Hosts update this through
+    /// [`crate::Tree::set_modifier`] (or by writing the field
+    /// directly); dispatchers read it when they fire events, so
+    /// callers no longer have to thread `Modifiers` through every
+    /// call.
+    pub modifiers: Modifiers,
 }
 
 impl Default for InteractionState {
@@ -135,6 +177,7 @@ impl Default for InteractionState {
         Self {
             hover_path: None,
             active_path: None,
+            focus_path: None,
             pointer_pos: None,
             selection: None,
             selecting_text: false,
@@ -142,6 +185,7 @@ impl Default for InteractionState {
             scroll_offsets_y: BTreeMap::new(),
             time_origin: Instant::now(),
             buttons_down: 0,
+            modifiers: Modifiers::default(),
         }
     }
 }
