@@ -158,6 +158,10 @@ pub struct Devtools {
     /// Shared sink for click callbacks to communicate selected paths
     /// back from the devtools UI tree.
     click_sink: Arc<Mutex<Option<Vec<usize>>>>,
+    /// Generation of the inspected tree used in the last rebuild.
+    /// Compared on each `update_inspected_tree` call to skip
+    /// redundant rebuilds when the inspected DOM hasn't changed.
+    last_inspected_gen: Option<u64>,
 }
 
 impl Devtools {
@@ -169,6 +173,7 @@ impl Devtools {
             fonts: Vec::new(),
             selected_path: None,
             click_sink: Arc::new(Mutex::new(None)),
+            last_inspected_gen: None,
         }
     }
 
@@ -212,13 +217,17 @@ impl Devtools {
         let tree = self.new_empty_tree();
 
         window.request_redraw();
+        let mut cache = PipelineCache::new();
+        // The devtools CSS only uses :hover for background-color
+        // (paint-only), so partial-cascade never needs re-layout.
+        cache.paint_only_pseudo_rules = true;
         self.window_state = Some(WindowState {
             window,
             renderer,
             text_ctx,
             image_cache: wgpu_html::layout::ImageCache::new(),
             tree,
-            cache: PipelineCache::new(),
+            cache,
             cursor_pos: (0.0, 0.0),
             profiler: DevtoolsProfiler::new(),
         });
@@ -233,9 +242,25 @@ impl Devtools {
         };
 
         // Check for pending selection from a click event.
-        if let Some(path) = self.click_sink.lock().unwrap().take() {
-            self.selected_path = Some(path);
+        let selection_changed = self
+            .click_sink
+            .lock()
+            .unwrap()
+            .take()
+            .map(|path| {
+                self.selected_path = Some(path);
+            })
+            .is_some();
+
+        // Skip a full rebuild when neither the inspected DOM nor the
+        // selected path changed — the cached cascade + layout stay
+        // valid and hover/scroll are handled by PartialCascade /
+        // RepaintOnly.
+        let inspected_gen = inspected.generation;
+        if !selection_changed && self.last_inspected_gen == Some(inspected_gen) {
+            return;
         }
+        self.last_inspected_gen = Some(inspected_gen);
 
         let t0 = Instant::now();
         let mut tree = html_gen::build(

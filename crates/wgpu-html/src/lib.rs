@@ -173,6 +173,13 @@ pub struct PipelineCache {
     layout: Option<LayoutBox>,
     /// Cached cascade result for incremental re-cascade.
     cascaded: Option<wgpu_html_style::CascadedTree>,
+    /// When `true`, a `PartialCascade` (hover / active / focus change)
+    /// re-cascades the affected nodes but **skips re-layout**.  This is
+    /// safe when the stylesheet's pseudo-class rules only set paint
+    /// properties (`background-color`, `color`, `opacity`, …) that
+    /// don't affect box dimensions.  The updated cascade is still
+    /// repainted, so the visual change appears immediately.
+    pub paint_only_pseudo_rules: bool,
 }
 
 impl PipelineCache {
@@ -189,6 +196,7 @@ impl PipelineCache {
             tree_generation: u64::MAX,
             layout: None,
             cascaded: None,
+            paint_only_pseudo_rules: false,
         }
     }
 
@@ -297,8 +305,11 @@ pub fn paint_tree_cached<'c>(
             };
             timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
-            // Re-layout if cascade changed any styles.
-            if changed {
+            // Re-layout if cascade changed any styles — unless the
+            // caller has declared that pseudo-class rules are
+            // paint-only (background-color, etc.) and can't affect
+            // box dimensions.
+            if changed && !cache.paint_only_pseudo_rules {
                 let layout_t0 = Instant::now();
                 if let Some(cascaded) = &cache.cascaded {
                     cache.layout = wgpu_html_layout::layout_with_text(
