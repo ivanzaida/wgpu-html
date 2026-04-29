@@ -2951,6 +2951,7 @@ dependencies = [
 name = "wgpu-html-winit"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "pollster",
  "wgpu-html",
  "wgpu-html-text",

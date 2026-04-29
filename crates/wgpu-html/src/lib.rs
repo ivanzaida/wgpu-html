@@ -16,6 +16,7 @@ pub use wgpu_html_text as text;
 
 pub mod interactivity;
 pub mod paint;
+pub mod scroll;
 pub use paint::{paint_tree, paint_tree_with_text};
 
 use wgpu_html_layout::LayoutBox;

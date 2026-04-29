@@ -124,6 +124,15 @@ impl FontRegistry {
     /// family that has any registered face (then picking the best
     /// `(weight, style)` within it). This is the entry point a layout
     /// engine should call.
+    ///
+    /// Generic-family fallback: if no name in the list matches a
+    /// registered family but the list contains a CSS generic
+    /// keyword (`sans-serif`, `serif`, `monospace`, `cursive`,
+    /// `fantasy`, `system-ui`, `ui-*`, `-apple-system`, …), the
+    /// best `(weight, style)`-scoring face from the entire
+    /// registry is returned. This makes plain `font-family:
+    /// sans-serif` resolve even when the host registered fonts
+    /// under a specific name like `"Inter"`.
     pub fn find_first(
         &self,
         families: &[&str],
@@ -135,8 +144,44 @@ impl FontRegistry {
                 return Some(h);
             }
         }
-        None
+        if !families.iter().any(|f| is_generic_family(f)) {
+            return None;
+        }
+        let mut best: Option<(u32, FontHandle)> = None;
+        for (h, face) in self.iter() {
+            let score = match_score(face, weight, style);
+            match best {
+                Some((b, _)) if score > b => {}
+                _ => best = Some((score, h)),
+            }
+        }
+        best.map(|(_, h)| h)
     }
+}
+
+/// Whether `name` is one of the CSS generic font-family keywords
+/// (CSS-Fonts-4 §3.1.1). Used as the trigger for `find_first`'s
+/// "any registered face" fallback.
+fn is_generic_family(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    matches!(
+        n.as_str(),
+        "sans-serif"
+            | "serif"
+            | "monospace"
+            | "cursive"
+            | "fantasy"
+            | "system-ui"
+            | "ui-sans-serif"
+            | "ui-serif"
+            | "ui-monospace"
+            | "ui-rounded"
+            | "math"
+            | "emoji"
+            | "fangsong"
+            | "-apple-system"
+            | "blinkmacsystemfont"
+    )
 }
 
 /// Case-insensitive ASCII comparison of family names. CSS treats family
@@ -320,10 +365,51 @@ mod tests {
             ),
             Some(inter)
         );
-        // No families match → None.
+        // No families match and no generic in the list → None.
         assert!(
             r.find_first(&["Garamond"], 400, FontStyleAxis::Normal)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn find_first_falls_back_on_generic_family() {
+        // Author CSS uses `font-family: sans-serif` but the host
+        // only registered fonts under a specific family name.
+        // Generic fallback should still resolve.
+        let mut r = FontRegistry::new();
+        let inter = r.register(face("Inter", 400, FontStyleAxis::Normal, 1));
+        let _bold = r.register(face("Inter", 700, FontStyleAxis::Normal, 2));
+
+        // Plain `sans-serif` → falls back to best-matching face.
+        assert_eq!(
+            r.find_first(&["sans-serif"], 400, FontStyleAxis::Normal),
+            Some(inter)
+        );
+        // CSS family list with a custom name + generic → still
+        // resolves via the generic fallback.
+        assert_eq!(
+            r.find_first(&["Garamond", "sans-serif"], 400, FontStyleAxis::Normal),
+            Some(inter)
+        );
+        // No generic in the list → still returns None as before.
+        assert!(
+            r.find_first(&["Garamond"], 400, FontStyleAxis::Normal)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn find_first_generic_fallback_respects_weight() {
+        // Generic fallback should still pick the best (weight,
+        // style) face — it walks the entire registry but uses the
+        // same scoring as `find`.
+        let mut r = FontRegistry::new();
+        let _regular = r.register(face("Inter", 400, FontStyleAxis::Normal, 1));
+        let bold = r.register(face("Inter", 700, FontStyleAxis::Normal, 2));
+        assert_eq!(
+            r.find_first(&["sans-serif"], 700, FontStyleAxis::Normal),
+            Some(bold)
         );
     }
 

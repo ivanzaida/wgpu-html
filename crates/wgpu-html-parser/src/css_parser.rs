@@ -1753,6 +1753,27 @@ fn is_supported_named_color(value: &str) -> bool {
             | "purple"
             | "orange"
             | "pink"
+            // CSS Color Module Level 4 system colors. Used by the UA
+            // stylesheet for form controls (`buttonface`, `field`, …).
+            | "canvas"
+            | "canvastext"
+            | "linktext"
+            | "visitedtext"
+            | "activetext"
+            | "buttonface"
+            | "buttontext"
+            | "buttonborder"
+            | "field"
+            | "fieldtext"
+            | "highlight"
+            | "highlighttext"
+            | "selecteditem"
+            | "selecteditemtext"
+            | "mark"
+            | "marktext"
+            | "graytext"
+            | "accentcolor"
+            | "accentcolortext"
     )
 }
 

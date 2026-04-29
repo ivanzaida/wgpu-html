@@ -101,6 +101,31 @@ fn named_color(name: &str) -> Option<[f32; 4]> {
         "orange" => (255, 165, 0),
         "pink" => (255, 192, 203),
         "transparent" => return Some([0.0, 0.0, 0.0, 0.0]),
+        // CSS Color Module Level 4 system colors. Values follow the
+        // CSS-Color-4 §17 light-mode defaults; we don't track
+        // `prefers-color-scheme` yet, so dark-mode UAs would just
+        // pick different RGB. Author CSS routinely overrides these,
+        // so the exact values matter less than not failing the
+        // cascade.
+        "canvas" => (255, 255, 255),
+        "canvastext" => (0, 0, 0),
+        "linktext" => (0, 0, 238),
+        "visitedtext" => (85, 26, 139),
+        "activetext" => (255, 0, 0),
+        "buttonface" => (221, 221, 221),
+        "buttontext" => (0, 0, 0),
+        "buttonborder" => (111, 111, 111),
+        "field" => (255, 255, 255),
+        "fieldtext" => (0, 0, 0),
+        "highlight" => (51, 136, 255),
+        "highlighttext" => (255, 255, 255),
+        "selecteditem" => (51, 136, 255),
+        "selecteditemtext" => (255, 255, 255),
+        "mark" => (255, 255, 0),
+        "marktext" => (0, 0, 0),
+        "graytext" => (128, 128, 128),
+        "accentcolor" => (51, 136, 255),
+        "accentcolortext" => (255, 255, 255),
         _ => return None,
     };
     Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])

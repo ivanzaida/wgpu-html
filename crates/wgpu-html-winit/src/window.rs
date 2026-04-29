@@ -1,22 +1,102 @@
 //! Batteries-included winit harness.
 //!
 //! See [`WgpuHtmlWindow`] for the public surface and
-//! [`create_window`] for the entry point.
+//! [`create_window`] for the entry point. The harness handles:
+//!
+//! - Window + renderer setup, resize, redraw lifecycle
+//! - Mouse + keyboard forwarding into [`Tree`] dispatch
+//! - Focus + Tab navigation (via tree dispatchers)
+//! - Viewport scroll (mouse wheel, scrollbar drag)
+//! - Per-element scroll (`overflow:scroll` containers)
+//! - Clipboard (Ctrl+A select-all, Ctrl+C copy) via `arboard`
+//! - Screenshot (default F12) via `Renderer::capture_next_frame_to`
+//!
+//! Apps customise behaviour by implementing [`AppHook`] and
+//! attaching it via [`WgpuHtmlWindow::with_hook`].
 
 use std::sync::Arc;
+use std::time::Instant;
 
+use arboard::Clipboard;
 use wgpu_html::interactivity;
 use wgpu_html::layout::LayoutBox;
 use wgpu_html::renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
+use wgpu_html::scroll::{
+    clamp_scroll_y, deepest_element_scrollbar_at, paint_viewport_scrollbar, rect_contains,
+    scroll_element_at, scroll_element_thumb_to, scroll_y_from_thumb_top, scrollbar_geometry,
+    translate_display_list_y, viewport_to_document,
+};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::Tree;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::event::{ElementState, WindowEvent};
 use winit::error::EventLoopError;
+use winit::event::{ElementState, KeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
+
+// ── Hook trait ──────────────────────────────────────────────────────────────
+
+/// Extension hook invoked at well-known points in the harness's
+/// event loop. Implementors override the methods they care about;
+/// the default impls are no-ops.
+///
+/// To install a hook, call [`WgpuHtmlWindow::with_hook`]. Hooks
+/// take precedence over the harness's built-in shortcuts when
+/// [`AppHook::on_key`] returns [`EventResponse::Stop`].
+pub trait AppHook {
+    /// Called before the harness's default keyboard handling
+    /// (Esc-to-exit, screenshot key, Ctrl+A, Ctrl+C). Return
+    /// [`EventResponse::Stop`] to skip those defaults.
+    fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+        let _ = (ctx, event);
+        EventResponse::Continue
+    }
+
+    /// Called once per rendered frame, after the GPU submission
+    /// has been issued. `timings` is the per-stage breakdown.
+    fn on_frame(&mut self, ctx: HookContext<'_>, timings: &FrameTimings) {
+        let _ = (ctx, timings);
+    }
+
+    /// Called after each pointer-move dispatch. `pointer_move_ms`
+    /// is the wall-clock elapsed time of the dispatch itself
+    /// (useful for hover-driven profiling); `changed` is `true`
+    /// iff the hover path changed.
+    fn on_pointer_move(&mut self, ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
+        let _ = (ctx, pointer_move_ms, changed);
+    }
+}
+
+/// Borrows handed to [`AppHook`] callbacks.
+pub struct HookContext<'a> {
+    pub tree: &'a mut Tree,
+    pub renderer: &'a mut Renderer,
+    pub window: &'a Window,
+    pub event_loop: &'a ActiveEventLoop,
+}
+
+/// Returned from [`AppHook::on_key`] to either let the harness
+/// run its default behaviour or to short-circuit it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventResponse {
+    Continue,
+    Stop,
+}
+
+/// Per-frame timing breakdown. Zeros if profiling info isn't
+/// available (the harness always populates these from
+/// [`wgpu_html::paint_tree_returning_layout_profiled`]).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FrameTimings {
+    pub cascade_ms: f64,
+    pub layout_ms: f64,
+    pub paint_ms: f64,
+    pub render_ms: f64,
+}
+
+// ── Builder ─────────────────────────────────────────────────────────────────
 
 /// Convenience constructor: equivalent to [`WgpuHtmlWindow::new`].
 ///
@@ -32,41 +112,55 @@ pub fn create_window(tree: &mut Tree) -> WgpuHtmlWindow<'_> {
 }
 
 /// A self-contained winit harness wrapped around a borrowed
-/// [`Tree`]. Drives the cascade → layout → paint → render loop
-/// and forwards mouse / keyboard input into the tree's dispatch
-/// API.
-///
-/// Builder methods configure window attributes; [`Self::run`]
-/// blocks until the user closes the window (or [`WindowEvent::CloseRequested`]
-/// is emitted).
+/// [`Tree`].
 pub struct WgpuHtmlWindow<'tree> {
     tree: &'tree mut Tree,
     title: String,
     initial_size: (u32, u32),
     exit_on_escape: bool,
+    enable_clipboard: bool,
+    screenshot_key: Option<KeyCode>,
+    hook: Option<Box<dyn AppHook>>,
     state: Option<RuntimeState>,
 }
 
-/// Live runtime state, populated in `resumed` once winit hands us
-/// an `ActiveEventLoop` to create a window from.
 struct RuntimeState {
     window: Arc<Window>,
     renderer: Renderer,
     text_ctx: TextContext,
     last_layout: Option<LayoutBox>,
     cursor_pos: Option<(f32, f32)>,
+    scroll_y: f32,
+    scrollbar_drag: Option<ScrollbarDrag>,
+    /// Lazy clipboard handle. `arboard` connects on first use.
+    clipboard: Option<Clipboard>,
+}
+
+#[derive(Debug, Clone)]
+struct ScrollbarDrag {
+    target: ScrollTarget,
+    grab_offset_y: f32,
+}
+
+#[derive(Debug, Clone)]
+enum ScrollTarget {
+    Viewport,
+    Element(Vec<usize>),
 }
 
 impl<'tree> WgpuHtmlWindow<'tree> {
-    /// Build a new harness around `tree`. The borrow lasts for the
-    /// duration of [`Self::run`]; after `run` returns, the tree is
-    /// usable again.
+    /// Build a new harness around `tree`. The borrow lasts for
+    /// the duration of [`Self::run`]; after `run` returns, the
+    /// tree is usable again.
     pub fn new(tree: &'tree mut Tree) -> Self {
         Self {
             tree,
             title: String::from("wgpu-html"),
             initial_size: (1280, 720),
             exit_on_escape: true,
+            enable_clipboard: true,
+            screenshot_key: Some(KeyCode::F12),
+            hook: None,
             state: None,
         }
     }
@@ -90,50 +184,60 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         self
     }
 
+    /// Whether Ctrl+A / Ctrl+C trigger select-all + copy via
+    /// `arboard`. Default `true`.
+    pub fn with_clipboard_enabled(mut self, enabled: bool) -> Self {
+        self.enable_clipboard = enabled;
+        self
+    }
+
+    /// Key that captures a PNG screenshot to
+    /// `screenshot-<timestamp>.png` in the current directory.
+    /// Default `Some(F12)`. Pass `None` to disable.
+    pub fn with_screenshot_key(mut self, key: Option<KeyCode>) -> Self {
+        self.screenshot_key = key;
+        self
+    }
+
+    /// Install an [`AppHook`] that intercepts key events, frame
+    /// timings, and pointer-move dispatches.
+    pub fn with_hook(mut self, hook: impl AppHook + 'static) -> Self {
+        self.hook = Some(Box::new(hook));
+        self
+    }
+
     /// Block on the winit event loop until the window closes.
-    ///
-    /// Returns any `EventLoopError` that winit produces; the
-    /// happy path returns `Ok(())` on a clean exit.
     pub fn run(mut self) -> Result<(), EventLoopError> {
         let event_loop = EventLoop::new()?;
         event_loop.set_control_flow(ControlFlow::Wait);
         event_loop.run_app(&mut self)
     }
+}
 
-    /// Run the cascade → layout → paint → render pipeline once.
-    /// Called from `RedrawRequested`.
-    fn render_frame(&mut self) {
-        let Some(state) = self.state.as_mut() else {
-            return;
-        };
-        let size = state.window.inner_size();
-        let (list, layout) = wgpu_html::paint_tree_returning_layout(
-            self.tree,
-            &mut state.text_ctx,
-            size.width as f32,
-            size.height as f32,
-            // Fixed 1.0 scale; HiDPI handling is intentionally out of
-            // scope for the minimal harness — apps that need it can
-            // copy the demo's scale-factor handling.
-            1.0,
-        );
-        state.last_layout = layout;
+// ── Internal helpers ────────────────────────────────────────────────────────
 
-        // Push any newly-rasterised glyph rasters into the GPU atlas
-        // before the draw. Cheap when nothing is dirty.
-        state
-            .text_ctx
-            .atlas
-            .upload(&state.renderer.queue, state.renderer.glyph_atlas_texture());
+fn physical_to_pos(p: PhysicalPosition<f64>) -> (f32, f32) {
+    (p.x as f32, p.y as f32)
+}
 
-        match state.renderer.render(&list) {
-            FrameOutcome::Presented | FrameOutcome::Skipped => {}
-            FrameOutcome::Reconfigure => {
-                state.renderer.resize(size.width, size.height);
-            }
-        }
+/// Convert winit's wheel delta into vertical pixels. Positive =
+/// content moves up (i.e. user scrolled down).
+fn scroll_delta_to_pixels(delta: MouseScrollDelta) -> f32 {
+    match delta {
+        MouseScrollDelta::LineDelta(_, y) => -y * 48.0,
+        MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
     }
 }
+
+/// Seconds since UNIX epoch, used for screenshot filenames.
+fn timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+// ── Application handler ─────────────────────────────────────────────────────
 
 impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -162,6 +266,9 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             text_ctx,
             last_layout: None,
             cursor_pos: None,
+            scroll_y: 0.0,
+            scrollbar_drag: None,
+            clipboard: None,
         });
     }
 
@@ -171,8 +278,6 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         _id: WindowId,
         event: WindowEvent,
     ) {
-        // A clone of the window handle so we can `request_redraw`
-        // without holding the `&mut state` borrow open.
         let Some(window) = self.state.as_ref().map(|s| s.window.clone()) else {
             return;
         };
@@ -183,21 +288,18 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             WindowEvent::Resized(size) => {
                 if let Some(state) = self.state.as_mut() {
                     state.renderer.resize(size.width, size.height);
+                    if let Some(layout) = state.last_layout.as_ref() {
+                        state.scroll_y =
+                            clamp_scroll_y(state.scroll_y, layout, size.height as f32);
+                    }
+                    state.scrollbar_drag = None;
                 }
                 window.request_redraw();
             }
 
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = physical_to_pos(position);
-                if let Some(state) = self.state.as_mut() {
-                    state.cursor_pos = Some(pos);
-                    if let Some(layout) = state.last_layout.as_ref() {
-                        let changed = interactivity::pointer_move(self.tree, layout, pos);
-                        if changed || self.tree.interaction.selecting_text {
-                            window.request_redraw();
-                        }
-                    }
-                }
+                self.handle_cursor_moved(event_loop, pos, &window);
             }
 
             WindowEvent::CursorLeft { .. } => {
@@ -208,46 +310,25 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
                 window.request_redraw();
             }
 
-            WindowEvent::MouseInput { state: btn_state, button, .. } => {
-                let Some(state) = self.state.as_ref() else {
-                    return;
-                };
-                let Some(pos) = state.cursor_pos else { return };
-                // Layout might still be building on the first
-                // frame; if we have nothing to hit-test, skip.
-                let Some(layout) = state.last_layout.as_ref() else {
-                    return;
-                };
-                let btn = crate::mouse_button(button);
-                match btn_state {
-                    ElementState::Pressed => {
-                        interactivity::mouse_down(self.tree, layout, pos, btn);
-                    }
-                    ElementState::Released => {
-                        interactivity::mouse_up(self.tree, layout, pos, btn);
-                    }
-                }
-                window.request_redraw();
+            WindowEvent::MouseInput {
+                state: btn_state,
+                button,
+                ..
+            } => {
+                self.handle_mouse_input(btn_state, button, &window);
+            }
+
+            WindowEvent::MouseWheel { delta, .. } => {
+                let dy = scroll_delta_to_pixels(delta);
+                self.handle_wheel(dy, &window);
             }
 
             WindowEvent::KeyboardInput { event, .. } => {
-                crate::handle_keyboard(self.tree, &event);
-                if let PhysicalKey::Code(key) = event.physical_key {
-                    if self.exit_on_escape
-                        && key == KeyCode::Escape
-                        && event.state == ElementState::Pressed
-                    {
-                        event_loop.exit();
-                        return;
-                    }
-                }
-                if event.state == ElementState::Pressed {
-                    window.request_redraw();
-                }
+                self.handle_keyboard(event_loop, &window, event);
             }
 
             WindowEvent::RedrawRequested => {
-                self.render_frame();
+                self.render_frame(event_loop);
             }
 
             _ => {}
@@ -255,6 +336,386 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
     }
 }
 
-fn physical_to_pos(p: PhysicalPosition<f64>) -> (f32, f32) {
-    (p.x as f32, p.y as f32)
+// ── Event handlers (broken out for borrow-checker friendliness) ─────────────
+
+impl<'tree> WgpuHtmlWindow<'tree> {
+    fn handle_cursor_moved(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        pos: (f32, f32),
+        window: &Window,
+    ) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        state.cursor_pos = Some(pos);
+
+        // Continue an active scrollbar drag.
+        if let Some(drag) = state.scrollbar_drag.clone() {
+            if let Some(layout) = state.last_layout.as_ref() {
+                let size = state.window.inner_size();
+                match drag.target {
+                    ScrollTarget::Viewport => {
+                        state.scroll_y = scroll_y_from_thumb_top(
+                            pos.1 - drag.grab_offset_y,
+                            layout,
+                            size.width as f32,
+                            size.height as f32,
+                        );
+                    }
+                    ScrollTarget::Element(path) => {
+                        let doc_pos = viewport_to_document(pos, state.scroll_y);
+                        scroll_element_thumb_to(
+                            self.tree,
+                            layout,
+                            path,
+                            doc_pos.1 - drag.grab_offset_y,
+                        );
+                    }
+                }
+                window.request_redraw();
+            }
+        }
+
+        // Pointer-move dispatch.
+        let scroll_y = state.scroll_y;
+        let Some(layout) = state.last_layout.as_ref() else {
+            return;
+        };
+        let doc_pos = viewport_to_document(pos, scroll_y);
+        let t0 = Instant::now();
+        let changed = interactivity::pointer_move(self.tree, layout, doc_pos);
+        let pointer_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        if changed || self.tree.interaction.selecting_text {
+            window.request_redraw();
+        }
+        // Fire on_pointer_move hook.
+        let mut hook = self.hook.take();
+        if let Some(h) = hook.as_mut() {
+            if let Some(state) = self.state.as_mut() {
+                let ctx = HookContext {
+                    tree: &mut *self.tree,
+                    renderer: &mut state.renderer,
+                    window: &state.window,
+                    event_loop,
+                };
+                h.on_pointer_move(ctx, pointer_ms, changed);
+            }
+        }
+        self.hook = hook;
+    }
+
+    fn handle_mouse_input(
+        &mut self,
+        btn_state: ElementState,
+        button: WinitMouseButton,
+        window: &Window,
+    ) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        let Some(pos) = state.cursor_pos else { return };
+
+        // Scrollbar drag start / end on the primary button.
+        if button == WinitMouseButton::Left {
+            match btn_state {
+                ElementState::Pressed => {
+                    if start_scrollbar_drag(state, self.tree, pos) {
+                        window.request_redraw();
+                        return;
+                    }
+                }
+                ElementState::Released => {
+                    if state.scrollbar_drag.take().is_some() {
+                        window.request_redraw();
+                        return;
+                    }
+                }
+            }
+        }
+
+        let doc_pos = viewport_to_document(pos, state.scroll_y);
+        let btn = crate::mouse_button(button);
+        let Some(layout) = state.last_layout.as_ref() else {
+            return;
+        };
+        match btn_state {
+            ElementState::Pressed => {
+                interactivity::mouse_down(self.tree, layout, doc_pos, btn);
+            }
+            ElementState::Released => {
+                interactivity::mouse_up(self.tree, layout, doc_pos, btn);
+            }
+        }
+        window.request_redraw();
+    }
+
+    fn handle_wheel(&mut self, dy: f32, window: &Window) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        let Some(layout) = state.last_layout.as_ref() else {
+            return;
+        };
+        let Some(pos) = state.cursor_pos else { return };
+
+        let doc_pos = viewport_to_document(pos, state.scroll_y);
+        // Element-level scroll first (overflow:scroll containers).
+        if scroll_element_at(self.tree, layout, doc_pos, dy) {
+            interactivity::pointer_move(self.tree, layout, doc_pos);
+            window.request_redraw();
+            return;
+        }
+
+        // Fall through to viewport scroll.
+        let size = state.window.inner_size();
+        state.scroll_y =
+            clamp_scroll_y(state.scroll_y + dy, layout, size.height as f32);
+        let new_doc_pos = viewport_to_document(pos, state.scroll_y);
+        // Re-borrow layout because `state` was previously borrowed
+        // mutably (clamp_scroll_y was given &state.last_layout,
+        // but state.scroll_y assignment happened in between).
+        if let Some(layout) = state.last_layout.as_ref() {
+            interactivity::pointer_move(self.tree, layout, new_doc_pos);
+        }
+        window.request_redraw();
+    }
+
+    fn handle_keyboard(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window: &Window,
+        event: KeyEvent,
+    ) {
+        // 1. User hook gets first dibs.
+        let mut hook = self.hook.take();
+        let response = if let Some(h) = hook.as_mut() {
+            let Some(state) = self.state.as_mut() else {
+                self.hook = hook;
+                return;
+            };
+            let ctx = HookContext {
+                tree: &mut *self.tree,
+                renderer: &mut state.renderer,
+                window: &state.window,
+                event_loop,
+            };
+            h.on_key(ctx, &event)
+        } else {
+            EventResponse::Continue
+        };
+        self.hook = hook;
+        if response == EventResponse::Stop {
+            return;
+        }
+
+        // 2. Forward to the tree (modifier sync + keydown/keyup +
+        //    Tab navigation).
+        crate::handle_keyboard(self.tree, &event);
+
+        // 3. Built-in shortcuts (Esc, screenshot, clipboard).
+        if event.state == ElementState::Pressed {
+            window.request_redraw();
+        }
+        let PhysicalKey::Code(key) = event.physical_key else {
+            return;
+        };
+        if event.state == ElementState::Pressed && !event.repeat {
+            if self.exit_on_escape && key == KeyCode::Escape {
+                event_loop.exit();
+                return;
+            }
+            if self.screenshot_key == Some(key) {
+                if let Some(state) = self.state.as_mut() {
+                    let path: std::path::PathBuf =
+                        format!("screenshot-{}.png", timestamp()).into();
+                    state.renderer.capture_next_frame_to(path);
+                    window.request_redraw();
+                }
+                return;
+            }
+            if self.enable_clipboard && self.tree.modifiers().ctrl {
+                match key {
+                    KeyCode::KeyA => self.run_select_all(window),
+                    KeyCode::KeyC => self.run_copy_selection(),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn run_select_all(&mut self, window: &Window) {
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let Some(layout) = state.last_layout.as_ref() else {
+            return;
+        };
+        if wgpu_html::select_all_text(self.tree, layout) {
+            window.request_redraw();
+        }
+    }
+
+    fn run_copy_selection(&mut self) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        let Some(layout) = state.last_layout.as_ref() else {
+            return;
+        };
+        let Some(text) = wgpu_html::selected_text(self.tree, layout) else {
+            return;
+        };
+        if text.is_empty() {
+            return;
+        }
+        let cb = state
+            .clipboard
+            .get_or_insert_with(|| Clipboard::new().expect("arboard: failed to open clipboard"));
+        let _ = cb.set_text(text);
+    }
+
+    fn render_frame(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        let size = state.window.inner_size();
+
+        let (mut list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
+            self.tree,
+            &mut state.text_ctx,
+            size.width as f32,
+            size.height as f32,
+            1.0,
+        );
+
+        if let Some(layout) = layout.as_ref() {
+            state.scroll_y = clamp_scroll_y(state.scroll_y, layout, size.height as f32);
+            translate_display_list_y(&mut list, -state.scroll_y);
+            paint_viewport_scrollbar(
+                &mut list,
+                layout,
+                size.width as f32,
+                size.height as f32,
+                state.scroll_y,
+            );
+        } else {
+            state.scroll_y = 0.0;
+        }
+        state.last_layout = layout;
+
+        // Push freshly-rasterised glyph rasters into the GPU atlas.
+        state
+            .text_ctx
+            .atlas
+            .upload(&state.renderer.queue, state.renderer.glyph_atlas_texture());
+
+        let render_t0 = Instant::now();
+        match state.renderer.render(&list) {
+            FrameOutcome::Presented | FrameOutcome::Skipped => {}
+            FrameOutcome::Reconfigure => {
+                state.renderer.resize(size.width, size.height);
+            }
+        }
+        let render_ms = render_t0.elapsed().as_secs_f64() * 1000.0;
+
+        // Hook callback with frame timings.
+        let frame_timings = FrameTimings {
+            cascade_ms: timings.cascade_ms,
+            layout_ms: timings.layout_ms,
+            paint_ms: timings.paint_ms,
+            render_ms,
+        };
+        let mut hook = self.hook.take();
+        if let Some(h) = hook.as_mut() {
+            if let Some(state) = self.state.as_mut() {
+                let ctx = HookContext {
+                    tree: &mut *self.tree,
+                    renderer: &mut state.renderer,
+                    window: &state.window,
+                    event_loop,
+                };
+                h.on_frame(ctx, &frame_timings);
+            }
+        }
+        self.hook = hook;
+    }
 }
+
+/// Hit-test scrollbars (element first, then viewport) and start a
+/// drag if the press is on a thumb or track.
+fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f32)) -> bool {
+    let Some(layout) = state.last_layout.as_ref() else {
+        return false;
+    };
+    let size = state.window.inner_size();
+    let doc_pos = viewport_to_document(pos, state.scroll_y);
+
+    // Element-level scrollbars first.
+    if let Some((path, geom)) = deepest_element_scrollbar_at(
+        layout,
+        doc_pos,
+        &tree.interaction.scroll_offsets_y,
+        &mut Vec::new(),
+    ) {
+        if rect_contains(geom.thumb, doc_pos) {
+            state.scrollbar_drag = Some(ScrollbarDrag {
+                target: ScrollTarget::Element(path),
+                grab_offset_y: doc_pos.1 - geom.thumb.y,
+            });
+            return true;
+        }
+        if rect_contains(geom.track, doc_pos) {
+            let thumb_top = doc_pos.1 - geom.thumb.h * 0.5;
+            scroll_element_thumb_to(tree, layout, path.clone(), thumb_top);
+            // Recompute the geometry now that scroll has moved.
+            if let Some(box_) = layout.box_at_path(&path) {
+                let new_scroll = tree
+                    .interaction
+                    .scroll_offsets_y
+                    .get(&path)
+                    .copied()
+                    .unwrap_or(0.0);
+                if let Some(updated) =
+                    wgpu_html::scroll::element_scrollbar_geometry(box_, new_scroll)
+                {
+                    state.scrollbar_drag = Some(ScrollbarDrag {
+                        target: ScrollTarget::Element(path),
+                        grab_offset_y: doc_pos.1 - updated.thumb.y,
+                    });
+                }
+            }
+            return true;
+        }
+    }
+
+    // Viewport scrollbar.
+    let Some(geom) =
+        scrollbar_geometry(layout, size.width as f32, size.height as f32, state.scroll_y)
+    else {
+        return false;
+    };
+    if rect_contains(geom.thumb, pos) {
+        state.scrollbar_drag = Some(ScrollbarDrag {
+            target: ScrollTarget::Viewport,
+            grab_offset_y: pos.1 - geom.thumb.y,
+        });
+        return true;
+    }
+    if rect_contains(geom.track, pos) {
+        let thumb_top = pos.1 - geom.thumb.h * 0.5;
+        state.scroll_y =
+            scroll_y_from_thumb_top(thumb_top, layout, size.width as f32, size.height as f32);
+        if let Some(updated) =
+            scrollbar_geometry(layout, size.width as f32, size.height as f32, state.scroll_y)
+        {
+            state.scrollbar_drag = Some(ScrollbarDrag {
+                target: ScrollTarget::Viewport,
+                grab_offset_y: pos.1 - updated.thumb.y,
+            });
+        }
+        return true;
+    }
+    false
+}
+
