@@ -44,7 +44,7 @@ pub use window::{
 
 use wgpu_html_tree::{Modifier, MouseButton, Tree};
 use winit::event::{ElementState, KeyEvent, MouseButton as WinitMouseButton};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
 // ── Type translators ────────────────────────────────────────────────────────
 
@@ -72,11 +72,59 @@ pub fn keycode_to_modifier(key: KeyCode) -> Option<Modifier> {
     })
 }
 
+/// Map a winit `NamedKey` to its DOM `KeyboardEvent.key` string.
+/// Printable characters don't come through here — they arrive as
+/// `Key::Character(ch)` and are used directly.
+fn named_key_to_dom(key: &NamedKey) -> &'static str {
+    match key {
+        NamedKey::Alt => "Alt",
+        NamedKey::ArrowDown => "ArrowDown",
+        NamedKey::ArrowLeft => "ArrowLeft",
+        NamedKey::ArrowRight => "ArrowRight",
+        NamedKey::ArrowUp => "ArrowUp",
+        NamedKey::Backspace => "Backspace",
+        NamedKey::CapsLock => "CapsLock",
+        NamedKey::Control => "Control",
+        NamedKey::Delete => "Delete",
+        NamedKey::End => "End",
+        NamedKey::Enter => "Enter",
+        NamedKey::Escape => "Escape",
+        NamedKey::F1 => "F1",
+        NamedKey::F2 => "F2",
+        NamedKey::F3 => "F3",
+        NamedKey::F4 => "F4",
+        NamedKey::F5 => "F5",
+        NamedKey::F6 => "F6",
+        NamedKey::F7 => "F7",
+        NamedKey::F8 => "F8",
+        NamedKey::F9 => "F9",
+        NamedKey::F10 => "F10",
+        NamedKey::F11 => "F11",
+        NamedKey::F12 => "F12",
+        NamedKey::Home => "Home",
+        NamedKey::Insert => "Insert",
+        NamedKey::Meta => "Meta",
+        NamedKey::NumLock => "NumLock",
+        NamedKey::PageDown => "PageDown",
+        NamedKey::PageUp => "PageUp",
+        NamedKey::Pause => "Pause",
+        NamedKey::PrintScreen => "PrintScreen",
+        NamedKey::ScrollLock => "ScrollLock",
+        NamedKey::Shift => "Shift",
+        NamedKey::Space => " ",
+        NamedKey::Tab => "Tab",
+        _ => "Unidentified",
+    }
+}
+
 /// Map a winit physical `KeyCode` to a DOM `KeyboardEvent.key`
 /// string, choosing between the unshifted and shifted character
-/// where applicable. Coverage is best-effort: well-known named
-/// keys plus the printable ASCII set; everything else falls back
-/// to `"Unidentified"`.
+/// where applicable.
+///
+/// **Deprecated**: prefer `event.logical_key` (via `named_key_to_dom`
+/// + `Key::Character`) which respects the user's actual keyboard
+/// layout. This function assumes US-QWERTY and is kept only for
+/// callers that lack a `KeyEvent`.
 pub fn key_to_dom_key(key: KeyCode, shift: bool) -> &'static str {
     use KeyCode::*;
     match key {
@@ -577,12 +625,38 @@ pub fn forward_keyboard(tree: &mut Tree, event: &KeyEvent) -> bool {
     let PhysicalKey::Code(key) = event.physical_key else {
         return false;
     };
-    let shift = tree.modifiers().shift;
-    let key_str = key_to_dom_key(key, shift);
     let code_str = keycode_to_dom_code(key);
+    // Derive the DOM `key` string from winit's `logical_key`, which
+    // respects the user's actual keyboard layout. This replaces the
+    // old US-QWERTY `key_to_dom_key` physical-key map.
+    let logical_key_string: String;
+    let key_str: &str = match &event.logical_key {
+        Key::Named(named) => named_key_to_dom(named),
+        Key::Character(ch) => {
+            logical_key_string = ch.to_string();
+            &logical_key_string
+        }
+        Key::Unidentified(_) | Key::Dead(_) => "Unidentified",
+    };
     match event.state {
         ElementState::Pressed => {
             tree.key_down(key_str, code_str, event.repeat);
+            // Feed typed text into the focused form control.
+            // `KeyEvent.text` gives the correctly composed character
+            // for the user's keyboard layout (winit 0.30).
+            // Skip when Ctrl or Meta is held — those are shortcuts
+            // (Ctrl+C, Ctrl+V, etc.), not text insertion.
+            if !tree.modifiers().ctrl && !tree.modifiers().meta {
+                if let Some(ref text) = event.text {
+                    let s = text.as_str();
+                    // Filter out control characters — Backspace, Delete,
+                    // Enter, etc. are handled by `handle_edit_key` inside
+                    // `key_down`. Only printable text passes through.
+                    if !s.is_empty() && s.chars().all(|c| !c.is_control()) {
+                        wgpu_html_tree::text_input(tree, s);
+                    }
+                }
+            }
         }
         ElementState::Released => {
             tree.key_up(key_str, code_str);

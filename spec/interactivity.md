@@ -31,21 +31,23 @@ exist for any of it to behave like a browser.
   `keyboard_focusable_paths`, `next_in_order`, `prev_in_order`,
   plus `Element::tabindex()`. Demo wires winit `KeyboardInput`
   through `wgpu_html_winit::handle_keyboard`.
-- **Form fields ⚠️ partial.** `<input>` and `<textarea>` empty-field
-  placeholder rendering: `compute_placeholder_run` shapes the
-  `placeholder` attribute and attaches it as the box's text run.
-  Color = cascaded `color × alpha 0.5`. Single-line inputs
-  vertically centre and clip overflow to `content_rect.w`;
-  textareas soft-wrap inside content-box width and stay top-
-  aligned. Suppressed for `type="hidden"`, non-empty `value`, or
-  non-empty textarea content. Wired into both `layout_block` and
-  `layout_atomic_inline_subtree`. **Fixed:** textarea's
-  UA `overflow: auto` no longer suppresses glyphs in following
-  siblings — `DisplayList::finalize` now remaps
-  `DisplayCommand::clip_index` when `retain` drops empty clip
-  ranges (see AGENTS.md § "Known-fixed bugs"). Typing into an
-  input, checkbox/radio toggle, `<select>` menu, and `<form>`
-  submit are still ❌.
+- **Form fields ⚠️ partial → text editing ✅ shipped.**
+  Placeholder rendering via `compute_placeholder_run` (color × 0.5
+  alpha, single-line clip + centre, textarea soft-wrap).
+  **Text editing shipped:** `EditCursor` on `InteractionState`,
+  `text_edit` module (insert/delete/arrows/home/end/select-all),
+  `text_input` + `handle_edit_key` dispatchers, `compute_value_run`
+  for value rendering, password masking (U+2022), blinking caret
+  quad, edit selection highlight, click-to-position caret,
+  clipboard (Ctrl+C/V/X), textarea multi-line (Enter, ArrowUp/Down).
+  DOM `key` now derived from `event.logical_key` (layout-aware).
+  See `spec/input.md` for full status.
+  **Fixed:** textarea's UA `overflow: auto` no longer suppresses
+  glyphs in following siblings — `DisplayList::finalize` remaps
+  `DisplayCommand::clip_index` on retain (AGENTS.md).
+  Still ❌: `InputEvent` dispatch, `maxlength`, word-level ops,
+  horizontal scroll in overflowing input, undo/redo, IME,
+  checkbox/radio toggle, `<select>` menu, `<form>` submit.
 - **M-INTER-3 ⚠️ partial.** `TextCursor`/`TextSelection` on
   `InteractionState`, drag-to-select, `select_all_text` /
   `selected_text`, `Ctrl+A`/`Ctrl+C` + `arboard` (now built into

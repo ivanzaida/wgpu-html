@@ -22,6 +22,10 @@ pub struct Textarea {
     // html attr: data-* (suffix → value)
     pub data_attrs: HashMap<String, String>,
     pub name: Option<String>,
+    /// The current text content set by editing. When `None`, layout
+    /// falls back to RAWTEXT children (the HTML-parsed content).
+    /// Mirrors `Input::value`.
+    pub value: Option<String>,
     pub placeholder: Option<String>,
     pub required: Option<bool>,
     pub disabled: Option<bool>,

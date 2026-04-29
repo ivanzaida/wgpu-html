@@ -112,12 +112,29 @@ pub fn paint_tree_returning_layout_profiled(
     let mut list = DisplayList::new();
     let paint_t0 = Instant::now();
     if let Some(root) = layout.as_ref() {
-        paint::paint_layout_with_interaction(
+        // Build caret info from the interaction state.
+        let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
+            let fp = tree.interaction.focus_path.as_deref()?;
+            let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
+            let sel = if ec.has_selection() {
+                Some(ec.selection_range())
+            } else {
+                None
+            };
+            Some(paint::EditCaretInfo {
+                focus_path: fp,
+                cursor_byte: ec.cursor,
+                selection_bytes: sel,
+                caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+            })
+        });
+        paint::paint_layout_full(
             root,
             &mut list,
             tree.interaction.selection.as_ref(),
             tree.interaction.selection_colors,
             &tree.interaction.scroll_offsets_y,
+            edit_caret_info.as_ref(),
         );
         list.finalize();
     } else {

@@ -67,6 +67,7 @@ pub fn paint_tree_with_text(
             &tree.interaction.scroll_offsets_y,
             0.0,
             1.0,
+            None,
         );
     }
     list.finalize();
@@ -111,6 +112,7 @@ pub fn paint_layout_with_selection(
         &scroll_offsets_y,
         0.0,
         1.0,
+        None,
     );
 }
 
@@ -122,6 +124,18 @@ pub fn paint_layout_with_interaction(
     selection: Option<&TextSelection>,
     selection_colors: SelectionColors,
     scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+) {
+    paint_layout_full(root, list, selection, selection_colors, scroll_offsets_y, None);
+}
+
+/// Paint with full interaction state including the text editing caret.
+pub fn paint_layout_full(
+    root: &LayoutBox,
+    list: &mut DisplayList,
+    selection: Option<&TextSelection>,
+    selection_colors: SelectionColors,
+    scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+    edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
     let mut clip_stack: Vec<ClipFrame> = Vec::new();
     let mut path = Vec::new();
@@ -135,7 +149,21 @@ pub fn paint_layout_with_interaction(
         scroll_offsets_y,
         0.0,
         1.0,
+        edit_caret,
     );
+}
+
+/// Paint state for a text editing caret inside a focused form control.
+pub struct EditCaretInfo<'a> {
+    /// The layout path of the focused form control.
+    pub focus_path: &'a [usize],
+    /// Byte offset of the caret in the value string.
+    pub cursor_byte: usize,
+    /// Selection range `(start_byte, end_byte)` when a selection
+    /// exists, or `None` for a collapsed caret.
+    pub selection_bytes: Option<(usize, usize)>,
+    /// Whether the caret should be visible this frame (blink phase).
+    pub caret_visible: bool,
 }
 
 /// Compute the padding-box rect of a layout box. CSS-2.2 §11.1.1
@@ -207,6 +235,7 @@ fn paint_box_in_clip(
     scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
     paint_offset_y: f32,
     parent_opacity: f32,
+    edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
     let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
     let rect = to_renderer_rect_y(b.border_rect, paint_offset_y);
@@ -346,6 +375,17 @@ fn paint_box_in_clip(
             );
         }
 
+        // Edit-selection glyph range (form-control-internal selection).
+        let edit_sel_glyph_range: Option<(usize, usize)> = edit_caret
+            .and_then(|c| c.selection_bytes)
+            .filter(|_| edit_caret.is_some_and(|c| path.as_slice() == c.focus_path))
+            .map(|(sb, eb)| {
+                (
+                    byte_offset_to_glyph_index(run, sb),
+                    byte_offset_to_glyph_index(run, eb),
+                )
+            });
+
         for (idx, g) in run.glyphs.iter().enumerate() {
             // Per-glyph color: each glyph carries its source span's
             // resolved foreground (set at shape time). The per-leaf
@@ -353,6 +393,8 @@ fn paint_box_in_clip(
             // decorations / fallbacks but glyphs paint at `g.color`.
             let glyph_color =
                 if selected_range.is_some_and(|(start, end)| idx >= start && idx < end) {
+                    selection_colors.foreground
+                } else if edit_sel_glyph_range.is_some_and(|(s, e)| idx >= s && idx < e) {
                     selection_colors.foreground
                 } else {
                     g.color
@@ -363,6 +405,55 @@ fn paint_box_in_clip(
                 g.uv_min,
                 g.uv_max,
             );
+        }
+
+        // Edit selection highlight + caret rendering for the
+        // focused form control's text run.
+        if let Some(caret) = edit_caret {
+            // Selection highlight: paint background behind selected range.
+            if let Some((sel_start, sel_end)) = caret.selection_bytes {
+                if path.as_slice() == caret.focus_path {
+                    let start_g = byte_offset_to_glyph_index(run, sel_start);
+                    let end_g = byte_offset_to_glyph_index(run, sel_end);
+                    if start_g < end_g {
+                        paint_selection_background(
+                            run,
+                            origin,
+                            start_g,
+                            end_g,
+                            apply_opacity(selection_colors.background, opacity),
+                            out,
+                        );
+                    }
+                }
+            }
+            // Caret: thin vertical bar at cursor byte offset.
+            if caret.caret_visible && path.as_slice() == caret.focus_path {
+                let caret_glyph_idx = byte_offset_to_glyph_index(run, caret.cursor_byte);
+                let caret_x = if caret_glyph_idx == 0 {
+                    0.0
+                } else if caret_glyph_idx <= run.glyphs.len() {
+                    let g = &run.glyphs[caret_glyph_idx - 1];
+                    g.x + g.w
+                } else {
+                    run.width
+                };
+                let (caret_y, caret_h) = run
+                    .lines
+                    .iter()
+                    .find(|l| {
+                        caret_glyph_idx >= l.glyph_range.0
+                            && caret_glyph_idx <= l.glyph_range.1
+                    })
+                    .map(|l| (l.top, l.height))
+                    .or_else(|| run.lines.last().map(|l| (l.top, l.height)))
+                    .unwrap_or((0.0, run.height.max(16.0)));
+                let caret_color = apply_opacity(color, opacity);
+                out.push_quad(
+                    Rect::new(origin.x + caret_x, origin.y + caret_y, 1.5, caret_h),
+                    caret_color,
+                );
+            }
         }
     }
 
@@ -415,6 +506,7 @@ fn paint_box_in_clip(
             scroll_offsets_y,
             child_offset_y,
             opacity,
+            edit_caret,
         );
         path.pop();
     }
@@ -1021,6 +1113,21 @@ fn paint_edge(
             paint_segments(rect, axis, dot, gap, color, out);
         }
     }
+}
+
+/// Convert a byte offset in a value string to a glyph index in the
+/// shaped run. Uses the run's `byte_boundaries` to map byte positions
+/// to glyph positions.
+fn byte_offset_to_glyph_index(run: &wgpu_html_text::ShapedRun, byte_offset: usize) -> usize {
+    if run.byte_boundaries.is_empty() {
+        return 0;
+    }
+    // byte_boundaries[i] is the byte offset of glyph i. Find the
+    // first boundary >= byte_offset.
+    run.byte_boundaries
+        .iter()
+        .position(|&b| b >= byte_offset)
+        .unwrap_or(run.glyphs.len())
 }
 
 /// Emit a sequence of `on`-length segments with `off`-length gaps along

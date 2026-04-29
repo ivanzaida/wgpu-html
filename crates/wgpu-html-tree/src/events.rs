@@ -36,6 +36,42 @@ impl TextSelection {
     }
 }
 
+/// Caret / selection state inside a focused `<input>` or `<textarea>`.
+///
+/// Byte offsets are into the field's logical value string. They must
+/// always sit on a `char` boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditCursor {
+    /// Byte offset of the insertion caret.
+    pub cursor: usize,
+    /// Byte offset of the selection anchor, or `None` for a collapsed
+    /// (no-selection) caret. When `Some(a)`, the selected range is
+    /// `min(a, cursor)..max(a, cursor)`.
+    pub selection_anchor: Option<usize>,
+}
+
+impl EditCursor {
+    /// A collapsed caret at `pos` with no selection.
+    pub fn collapsed(pos: usize) -> Self {
+        Self {
+            cursor: pos,
+            selection_anchor: None,
+        }
+    }
+
+    /// Whether a non-empty selection exists.
+    pub fn has_selection(&self) -> bool {
+        self.selection_anchor.is_some_and(|a| a != self.cursor)
+    }
+
+    /// `(start_byte, end_byte)` of the selected range, or
+    /// `(cursor, cursor)` when collapsed.
+    pub fn selection_range(&self) -> (usize, usize) {
+        let anchor = self.selection_anchor.unwrap_or(self.cursor);
+        (anchor.min(self.cursor), anchor.max(self.cursor))
+    }
+}
+
 /// Host-configurable text selection paint colors.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SelectionColors {
@@ -170,6 +206,15 @@ pub struct InteractionState {
     /// callers no longer have to thread `Modifiers` through every
     /// call.
     pub modifiers: Modifiers,
+    /// Caret/selection state inside the currently focused `<input>` or
+    /// `<textarea>`. `None` when focus is not on a text-editable control.
+    /// Written by the text-edit dispatcher; read by layout (for scroll-
+    /// into-view) and paint (for caret + selection highlight).
+    pub edit_cursor: Option<EditCursor>,
+    /// Instant of last cursor movement or value edit. Paint uses this
+    /// to animate caret blink (500 ms on, 500 ms off, restarting on
+    /// every mutation so the caret stays visible while typing).
+    pub caret_blink_epoch: Instant,
 }
 
 impl Default for InteractionState {
@@ -186,6 +231,8 @@ impl Default for InteractionState {
             time_origin: Instant::now(),
             buttons_down: 0,
             modifiers: Modifiers::default(),
+            edit_cursor: None,
+            caret_blink_epoch: Instant::now(),
         }
     }
 }

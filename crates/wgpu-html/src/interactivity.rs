@@ -54,7 +54,64 @@ pub fn mouse_down(
 ) -> bool {
     let target = layout.hit_path(pos);
     let cursor = layout.hit_text_cursor(pos);
-    tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor)
+    let result = tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor);
+
+    // After focus is set on a form control, position the edit caret
+    // at the clicked glyph. Walk the layout tree to find the form
+    // control's text run and convert glyph_index → byte_offset.
+    if button == MouseButton::Primary {
+        if let Some(focus_path) = tree.interaction.focus_path.as_deref() {
+            if tree.interaction.edit_cursor.is_some() {
+                if let Some(text_box) = crate::layout_at_path(layout, focus_path) {
+                    if let Some(run) = &text_box.text_run {
+                        // Find the glyph closest to the click x-position
+                        // relative to the text box's content origin.
+                        let click_x = pos.0 - text_box.content_rect.x;
+                        let glyph_idx = run
+                            .glyphs
+                            .iter()
+                            .position(|g| g.x + g.w * 0.5 > click_x)
+                            .unwrap_or(run.glyphs.len());
+                        // Convert glyph index to byte offset.
+                        let byte_offset = if glyph_idx < run.byte_boundaries.len() {
+                            run.byte_boundaries[glyph_idx]
+                        } else if let Some(&last) = run.byte_boundaries.last() {
+                            // Past the last glyph → end of value.
+                            // byte_boundaries has one entry per glyph;
+                            // the "end" byte is the value length.
+                            // Approximate by scanning to the next char
+                            // boundary after the last boundary.
+                            let mut end = last;
+                            if let Some(node) = tree
+                                .root
+                                .as_ref()
+                                .and_then(|r| r.at_path(focus_path))
+                            {
+                                let val_len = match &node.element {
+                                    wgpu_html_tree::Element::Input(inp) => {
+                                        inp.value.as_deref().unwrap_or("").len()
+                                    }
+                                    wgpu_html_tree::Element::Textarea(ta) => {
+                                        ta.value.as_deref().unwrap_or("").len()
+                                    }
+                                    _ => end,
+                                };
+                                end = val_len;
+                            }
+                            end
+                        } else {
+                            0
+                        };
+                        tree.interaction.edit_cursor =
+                            Some(wgpu_html_tree::EditCursor::collapsed(byte_offset));
+                        tree.interaction.caret_blink_epoch = std::time::Instant::now();
+                    }
+                }
+            }
+        }
+    }
+
+    result
 }
 
 /// Mouse-up at `pos`. Fires `on_mouse_up`; then, if `button` is

@@ -539,10 +539,29 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 return;
             }
             if self.enable_clipboard && self.tree.modifiers().ctrl {
-                match key {
-                    KeyCode::KeyA => self.run_select_all(window),
-                    KeyCode::KeyC => self.run_copy_selection(),
-                    _ => {}
+                if self.tree.interaction.edit_cursor.is_some() {
+                    // Form-control-level clipboard shortcuts.
+                    match key {
+                        // Ctrl+A is handled by handle_edit_key (select_all).
+                        KeyCode::KeyA => window.request_redraw(),
+                        KeyCode::KeyC => {
+                            self.run_edit_copy();
+                        }
+                        KeyCode::KeyX => {
+                            self.run_edit_cut(window);
+                        }
+                        KeyCode::KeyV => {
+                            self.run_edit_paste(window);
+                        }
+                        _ => {}
+                    }
+                } else {
+                    // Document-level clipboard shortcuts.
+                    match key {
+                        KeyCode::KeyA => self.run_select_all(window),
+                        KeyCode::KeyC => self.run_copy_selection(),
+                        _ => {}
+                    }
                 }
             }
         }
@@ -556,6 +575,77 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             return;
         };
         if wgpu_html::select_all_text(self.tree, layout) {
+            window.request_redraw();
+        }
+    }
+
+    /// Copy the selected text from a focused form control to clipboard.
+    fn run_edit_copy(&mut self) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        let Some(ec) = &self.tree.interaction.edit_cursor else {
+            return;
+        };
+        if !ec.has_selection() {
+            return;
+        }
+        let Some(focus_path) = self.tree.interaction.focus_path.as_deref() else {
+            return;
+        };
+        let value = match self
+            .tree
+            .root
+            .as_ref()
+            .and_then(|r| r.at_path(focus_path))
+            .map(|n| &n.element)
+        {
+            Some(wgpu_html_tree::Element::Input(inp)) => {
+                inp.value.clone().unwrap_or_default()
+            }
+            Some(wgpu_html_tree::Element::Textarea(ta)) => {
+                ta.value.clone().unwrap_or_default()
+            }
+            _ => return,
+        };
+        let (start, end) = ec.selection_range();
+        let start = start.min(value.len());
+        let end = end.min(value.len());
+        if start >= end {
+            return;
+        }
+        let selected = &value[start..end];
+        let cb = state
+            .clipboard
+            .get_or_insert_with(|| Clipboard::new().expect("arboard: clipboard"));
+        let _ = cb.set_text(selected);
+    }
+
+    /// Cut: copy selection to clipboard then delete it.
+    fn run_edit_cut(&mut self, window: &Window) {
+        self.run_edit_copy();
+        // Delete the selection via a zero-length insert.
+        if let Some(ec) = &self.tree.interaction.edit_cursor {
+            if ec.has_selection() {
+                wgpu_html_tree::text_input(self.tree, "");
+                window.request_redraw();
+            }
+        }
+    }
+
+    /// Paste clipboard text into the focused form control.
+    fn run_edit_paste(&mut self, window: &Window) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        let cb = state
+            .clipboard
+            .get_or_insert_with(|| Clipboard::new().expect("arboard: clipboard"));
+        let Ok(text) = cb.get_text() else {
+            return;
+        };
+        if !text.is_empty() {
+            wgpu_html_tree::text_input(self.tree, &text);
             window.request_redraw();
         }
     }
@@ -645,6 +735,14 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             }
         }
         self.hook = hook;
+
+        // Keep redrawing while a form control has focus so the
+        // caret blink animation cycles continuously.
+        if self.tree.interaction.edit_cursor.is_some() {
+            if let Some(state) = self.state.as_ref() {
+                state.window.request_redraw();
+            }
+        }
     }
 }
 

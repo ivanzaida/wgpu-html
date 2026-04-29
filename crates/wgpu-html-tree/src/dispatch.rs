@@ -22,10 +22,11 @@
 //! ergonomic call-site syntax (`tree.focus(...)`, etc.).
 
 use crate::{
-    InteractionState, Modifier, Modifiers, MouseButton, MouseEvent, TextCursor, TextSelection,
-    Tree, keyboard_focusable_paths, next_in_order, prev_in_order,
+    Element, InteractionState, Modifier, Modifiers, MouseButton, MouseEvent, Node, TextCursor,
+    TextSelection, Tree, keyboard_focusable_paths, next_in_order, prev_in_order,
 };
 use wgpu_html_events as ev;
+use wgpu_html_models as m;
 
 // ── Mouse-event helpers ──────────────────────────────────────────────────────
 
@@ -587,6 +588,32 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
 
     tree.interaction.focus_path = new_path.clone();
 
+    // Initialize or clear the edit cursor for the new focus target.
+    tree.interaction.edit_cursor = new_path
+        .as_deref()
+        .and_then(|path| {
+            let node = tree.root.as_ref()?.at_path(path)?;
+            match &node.element {
+                Element::Input(inp) => {
+                    use wgpu_html_models::common::html_enums::InputType;
+                    if matches!(
+                        inp.r#type,
+                        Some(InputType::Hidden | InputType::Checkbox | InputType::Radio)
+                    ) {
+                        return None;
+                    }
+                    let len = inp.value.as_deref().unwrap_or("").len();
+                    Some(crate::EditCursor::collapsed(len))
+                }
+                Element::Textarea(ta) => {
+                    let len = textarea_value(ta, &node.children).len();
+                    Some(crate::EditCursor::collapsed(len))
+                }
+                _ => None,
+            }
+        });
+    tree.interaction.caret_blink_epoch = std::time::Instant::now();
+
     if let Some(new) = new_path.as_deref() {
         fire_focus_event(
             tree,
@@ -802,6 +829,9 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
     let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
     bubble_keyboard(tree, &target, ev::HtmlEventType::KEYDOWN, key, code, repeat);
 
+    // Handle editing keys on focused form controls before Tab.
+    handle_edit_key(tree, key);
+
     if key == "Tab" {
         let reverse = tree.interaction.modifiers.shift;
         focus_next(tree, reverse);
@@ -822,6 +852,179 @@ pub fn key_up(tree: &mut Tree, key: &str, code: &str) -> bool {
         /*repeat*/ false,
     );
     true
+}
+
+// ── Text editing ─────────────────────────────────────────────────────────────
+
+/// Collect RAWTEXT children of a textarea into a single string.
+fn textarea_value(ta: &m::Textarea, children: &[Node]) -> String {
+    if let Some(v) = ta.value.as_deref() {
+        return v.to_string();
+    }
+    let mut s = String::new();
+    for child in children {
+        if let Element::Text(t) = &child.element {
+            s.push_str(t);
+        }
+    }
+    s
+}
+
+/// Read the current editable value from the focused form control.
+/// Returns `(value, is_textarea, is_readonly)`.
+fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
+    use wgpu_html_models::common::html_enums::InputType;
+    match &node.element {
+        Element::Input(inp) => {
+            if matches!(
+                inp.r#type,
+                Some(InputType::Hidden | InputType::Checkbox | InputType::Radio)
+            ) {
+                return None;
+            }
+            let val = inp.value.clone().unwrap_or_default();
+            let ro = inp.readonly.unwrap_or(false);
+            Some((val, false, ro))
+        }
+        Element::Textarea(ta) => {
+            let val = textarea_value(ta, &node.children);
+            let ro = ta.readonly.unwrap_or(false);
+            Some((val, true, ro))
+        }
+        _ => None,
+    }
+}
+
+/// Write a new value back to the focused form control.
+fn write_value(node: &mut Node, value: String) {
+    match &mut node.element {
+        Element::Input(inp) => inp.value = Some(value),
+        Element::Textarea(ta) => ta.value = Some(value),
+        _ => {}
+    }
+}
+
+/// Process typed text on the currently focused `<input>` or `<textarea>`.
+///
+/// Inserts `text` at the cursor (replacing any selection), updates
+/// `edit_cursor`, and fires `InputEvent`. Returns `true` if the
+/// value was mutated.
+pub fn text_input(tree: &mut Tree, text: &str) -> bool {
+    let Some(focus_path) = tree.interaction.focus_path.clone() else {
+        return false;
+    };
+    let Some(root) = tree.root.as_ref() else {
+        return false;
+    };
+    let Some(node) = root.at_path(&focus_path) else {
+        return false;
+    };
+    let Some((old_value, is_textarea, is_readonly)) = read_editable_value(node) else {
+        return false;
+    };
+    if is_readonly {
+        return false;
+    }
+
+    // Single-line inputs reject newlines.
+    if !is_textarea && text.contains('\n') {
+        return false;
+    }
+
+    let cursor = tree
+        .interaction
+        .edit_cursor
+        .clone()
+        .unwrap_or_else(|| crate::EditCursor::collapsed(old_value.len()));
+
+    let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
+
+    // Write back.
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
+        write_value(node, new_value);
+    }
+    tree.interaction.edit_cursor = Some(new_cursor);
+    tree.interaction.caret_blink_epoch = std::time::Instant::now();
+
+    true
+}
+
+/// Handle editing keys (Backspace, Delete, arrows, Home/End, Enter)
+/// when focus is on a form control. Called from `key_down`.
+/// Returns `true` if the key was consumed.
+fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
+    let Some(focus_path) = tree.interaction.focus_path.clone() else {
+        return false;
+    };
+    let Some(root) = tree.root.as_ref() else {
+        return false;
+    };
+    let Some(node) = root.at_path(&focus_path) else {
+        return false;
+    };
+    let Some((old_value, is_textarea, is_readonly)) = read_editable_value(node) else {
+        return false;
+    };
+
+    let cursor = tree
+        .interaction
+        .edit_cursor
+        .clone()
+        .unwrap_or_else(|| crate::EditCursor::collapsed(old_value.len()));
+
+    let shift = tree.interaction.modifiers.shift;
+    let ctrl = tree.interaction.modifiers.ctrl;
+
+    // Navigation keys (always allowed, even on readonly).
+    let nav_cursor = match key {
+        "ArrowLeft" => Some(crate::text_edit::move_left(&old_value, &cursor, shift)),
+        "ArrowRight" => Some(crate::text_edit::move_right(&old_value, &cursor, shift)),
+        "Home" => Some(crate::text_edit::move_home(&old_value, &cursor, shift)),
+        "End" => Some(crate::text_edit::move_end(&old_value, &cursor, shift)),
+        "ArrowUp" if is_textarea => {
+            Some(crate::text_edit::move_up(&old_value, &cursor, shift))
+        }
+        "ArrowDown" if is_textarea => {
+            Some(crate::text_edit::move_down(&old_value, &cursor, shift))
+        }
+        _ if ctrl && matches!(key, "a" | "A") => Some(crate::text_edit::select_all(&old_value)),
+        _ => None,
+    };
+
+    if let Some(new_cursor) = nav_cursor {
+        tree.interaction.edit_cursor = Some(new_cursor);
+        tree.interaction.caret_blink_epoch = std::time::Instant::now();
+        return true;
+    }
+
+    // Mutation keys (blocked by readonly).
+    if is_readonly {
+        return false;
+    }
+
+    let mutation: Option<(String, crate::EditCursor)> = match key {
+        "Backspace" => Some(crate::text_edit::delete_backward(&old_value, &cursor)),
+        "Delete" => Some(crate::text_edit::delete_forward(&old_value, &cursor)),
+        "Enter" if is_textarea => {
+            Some(crate::text_edit::insert_line_break(&old_value, &cursor))
+        }
+        _ => None,
+    };
+
+    if let Some((new_value, new_cursor)) = mutation {
+        if new_value != old_value {
+            if let Some(node) =
+                tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path))
+            {
+                write_value(node, new_value);
+            }
+        }
+        tree.interaction.edit_cursor = Some(new_cursor);
+        tree.interaction.caret_blink_epoch = std::time::Instant::now();
+        return true;
+    }
+
+    false
 }
 
 // ── Tree inherent methods ────────────────────────────────────────────────────

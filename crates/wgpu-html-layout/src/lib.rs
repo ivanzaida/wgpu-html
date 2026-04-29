@@ -2440,7 +2440,14 @@ fn layout_block(
     // input shows the hint text (HTML's `:placeholder-shown`
     // behaviour). Painted with `color` reduced to ~50% opacity, the
     // browser default `::placeholder` styling.
-    let (placeholder_run, placeholder_color) = compute_placeholder_run(node, content_rect, ctx);
+    // Value takes priority: if the field has a non-empty value, shape
+    // that instead of the placeholder.
+    let (value_run, value_color) = compute_value_run(node, content_rect, ctx);
+    let (placeholder_run, placeholder_color) = if value_run.is_some() {
+        (value_run, value_color)
+    } else {
+        compute_placeholder_run(node, content_rect, ctx)
+    };
 
     LayoutBox {
         margin_rect,
@@ -2463,6 +2470,110 @@ fn layout_block(
         background_image,
         children,
     }
+}
+
+/// Shape the current `value` of an `<input>` or `<textarea>` so the
+/// field renders the user-entered text. Returns `(None, None)` for
+/// non-form-control elements, hidden inputs, or fields with an empty
+/// / absent value.
+///
+/// For `<input type="password">`, every character is replaced with
+/// U+2022 BULLET before shaping so the underlying value stays clear
+/// but the display shows dots.
+fn compute_value_run(
+    node: &CascadedNode,
+    content_rect: Rect,
+    ctx: &mut Ctx,
+) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
+    use wgpu_html_models::common::html_enums::InputType;
+
+    let (value, is_password, wraps_multiline) = match &node.element {
+        Element::Input(inp) => {
+            if matches!(inp.r#type, Some(InputType::Hidden)) {
+                return (None, None);
+            }
+            let val = inp.value.as_deref().unwrap_or("");
+            if val.is_empty() {
+                return (None, None);
+            }
+            let is_pw = matches!(inp.r#type, Some(InputType::Password));
+            (val.to_string(), is_pw, false)
+        }
+        Element::Textarea(ta) => {
+            // `value` field (set by editing) takes priority over RAWTEXT children.
+            let val = ta.value.as_deref().map(|v| v.to_string()).or_else(|| {
+                let mut s = String::new();
+                for child in &node.children {
+                    if let Element::Text(t) = &child.element {
+                        s.push_str(t);
+                    }
+                }
+                if s.is_empty() { None } else { Some(s) }
+            });
+            let Some(val) = val else {
+                return (None, None);
+            };
+            (val, false, true)
+        }
+        _ => return (None, None),
+    };
+
+    // Password masking: replace every char with bullet.
+    let display_text = if is_password {
+        "\u{2022}".repeat(value.chars().count())
+    } else {
+        value
+    };
+
+    let max_width = if wraps_multiline {
+        Some(content_rect.w)
+    } else {
+        None
+    };
+
+    let (mut run, _w, _h, _ascent) =
+        shape_text_run(&display_text, &node.style, max_width, false, ctx);
+
+    // Single-line inputs: horizontal clip + vertical centering
+    // (same logic as compute_placeholder_run).
+    if !wraps_multiline {
+        if let Some(run) = run.as_mut() {
+            let max_x = content_rect.w;
+            if max_x > 0.0 {
+                let cutoff = run
+                    .glyphs
+                    .iter()
+                    .position(|g| g.x + g.w > max_x)
+                    .unwrap_or(run.glyphs.len());
+                if cutoff < run.glyphs.len() {
+                    run.glyphs.truncate(cutoff);
+                    for line in run.lines.iter_mut() {
+                        let (start, end) = line.glyph_range;
+                        line.glyph_range = (start, end.min(cutoff).max(start));
+                    }
+                    run.width = run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
+                }
+            }
+            let dy = ((content_rect.h - run.height) * 0.5).max(0.0);
+            if dy > 0.0 {
+                for g in run.glyphs.iter_mut() {
+                    g.y += dy;
+                }
+                for line in run.lines.iter_mut() {
+                    line.top += dy;
+                }
+            }
+        }
+    }
+
+    let color = node
+        .style
+        .color
+        .as_ref()
+        .and_then(resolve_color)
+        .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+
+    (run, Some(color))
 }
 
 /// Shape the `placeholder` attribute on an empty `<input>` /
@@ -2498,6 +2609,10 @@ fn compute_placeholder_run(
             (inp.placeholder.as_deref(), false)
         }
         Element::Textarea(ta) => {
+            // `value` field (set by editing) suppresses placeholder.
+            if ta.value.as_deref().is_some_and(|v| !v.is_empty()) {
+                return (None, None);
+            }
             // RAWTEXT children of a `<textarea>` are its content;
             // if any are present, suppress the placeholder.
             if !node.children.is_empty() {
@@ -3564,12 +3679,14 @@ fn layout_atomic_inline_subtree(
     let inline_ascent = margin.top + border.top + max_ascent.max(0.0);
     let inline_descent = (margin_rect.h - inline_ascent).max(0.0);
 
-    // For form controls (`<input>`, `<textarea>`) without a value /
-    // content, attach the `placeholder` attribute as the box's text
-    // run. Same logic as `layout_block`'s placeholder path; the
-    // inline-block code path is independent and needs its own
-    // hookup. See `compute_placeholder_run`.
-    let (placeholder_run, placeholder_color) = compute_placeholder_run(node, content_rect, ctx);
+    // For form controls (`<input>`, `<textarea>`), attach the value
+    // text or the placeholder attribute as the box's text run.
+    let (value_run, value_color) = compute_value_run(node, content_rect, ctx);
+    let (placeholder_run, placeholder_color) = if value_run.is_some() {
+        (value_run, value_color)
+    } else {
+        compute_placeholder_run(node, content_rect, ctx)
+    };
 
     InlineLayout {
         box_: LayoutBox {
