@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use wgpu_html::layout::{LayoutBox, Rect};
-use wgpu_html::paint_tree_returning_layout;
+use wgpu_html::paint_tree_returning_layout_profiled;
 use wgpu_html_renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Tree};
@@ -14,6 +14,106 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
 use crate::html_gen;
+
+// ── Profiler ─────────────────────────────────────────────────────
+
+#[derive(Default, Clone, Copy)]
+struct Stage {
+    sum_ms: f64,
+    max_ms: f64,
+}
+
+impl Stage {
+    fn add(&mut self, ms: f64) {
+        self.sum_ms += ms;
+        self.max_ms = self.max_ms.max(ms);
+    }
+    fn avg(&self, n: u64) -> f64 {
+        if n == 0 { 0.0 } else { self.sum_ms / n as f64 }
+    }
+}
+
+/// One-second rolling profile window for the devtools pipeline.
+struct DevtoolsProfiler {
+    started_at: Instant,
+    frames: u64,
+    build: Stage,
+    cascade: Stage,
+    layout: Stage,
+    paint: Stage,
+    upload: Stage,
+    render: Stage,
+    hover_moves: u64,
+    hover_changed: u64,
+    pointer_move: Stage,
+}
+
+impl DevtoolsProfiler {
+    fn new() -> Self {
+        Self {
+            started_at: Instant::now(),
+            frames: 0,
+            build: Stage::default(),
+            cascade: Stage::default(),
+            layout: Stage::default(),
+            paint: Stage::default(),
+            upload: Stage::default(),
+            render: Stage::default(),
+            hover_moves: 0,
+            hover_changed: 0,
+            pointer_move: Stage::default(),
+        }
+    }
+
+    fn add_pointer_move(&mut self, ms: f64, changed: bool) {
+        self.hover_moves += 1;
+        if changed {
+            self.hover_changed += 1;
+        }
+        self.pointer_move.add(ms);
+    }
+
+    fn take_summary_if_due(&mut self) -> Option<String> {
+        if self.started_at.elapsed() < Duration::from_secs(1) {
+            return None;
+        }
+        if self.frames == 0 && self.hover_moves == 0 {
+            self.reset();
+            return None;
+        }
+        let secs = self.started_at.elapsed().as_secs_f64().max(f64::EPSILON);
+        let fps = self.frames as f64 / secs;
+        let n = self.frames;
+        let line = format!(
+            "devtools: {secs:.2}s frames={n} fps={fps:.1}  \
+             build={:.2}/{:.2}  cascade={:.2}/{:.2}  layout={:.2}/{:.2}  \
+             paint={:.2}/{:.2}  upload={:.2}/{:.2}  render={:.2}/{:.2}  \
+             hover[moves={} changed={} ptr={:.3}/{:.3}ms]",
+            self.build.avg(n),
+            self.build.max_ms,
+            self.cascade.avg(n),
+            self.cascade.max_ms,
+            self.layout.avg(n),
+            self.layout.max_ms,
+            self.paint.avg(n),
+            self.paint.max_ms,
+            self.upload.avg(n),
+            self.upload.max_ms,
+            self.render.avg(n),
+            self.render.max_ms,
+            self.hover_moves,
+            self.hover_changed,
+            self.pointer_move.avg(self.hover_moves),
+            self.pointer_move.max_ms,
+        );
+        self.reset();
+        Some(line)
+    }
+
+    fn reset(&mut self) {
+        *self = Self::new();
+    }
+}
 
 /// Runtime state for the devtools window.
 struct WindowState {
@@ -26,6 +126,7 @@ struct WindowState {
     layout: Option<LayoutBox>,
     /// Last known cursor position in viewport space.
     cursor_pos: (f32, f32),
+    profiler: DevtoolsProfiler,
 }
 
 /// Browser-style inspector for wgpu-html.
@@ -118,6 +219,7 @@ impl Devtools {
             tree,
             layout: None,
             cursor_pos: (0.0, 0.0),
+            profiler: DevtoolsProfiler::new(),
         });
     }
 
@@ -140,23 +242,17 @@ impl Devtools {
             self.selected_path.as_deref(),
             &self.click_sink,
         );
-        let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
-
-        let t1 = Instant::now();
         for face in &self.fonts {
             tree.register_font(face.clone());
         }
-        let fonts_ms = t1.elapsed().as_secs_f64() * 1000.0;
+        let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        state.profiler.build.add(build_ms);
 
         // Preserve interaction state (hover, scroll offsets, etc.)
         // across tree rebuilds so scrolling and hover don't reset.
         std::mem::swap(&mut tree.interaction, &mut state.tree.interaction);
         state.tree = tree;
         state.window.request_redraw();
-        eprintln!(
-            "devtools: update  build={build_ms:.2}ms  fonts={fonts_ms:.2}ms  total={:.2}ms",
-            t0.elapsed().as_secs_f64() * 1000.0
-        );
     }
 
     /// Schedule the devtools window for destruction. The actual
@@ -221,6 +317,7 @@ impl Devtools {
                 let state = self.window_state.as_mut().unwrap();
                 state.cursor_pos = (position.x as f32, position.y as f32);
                 if let Some(layout) = &state.layout {
+                    let t0 = Instant::now();
                     let target = hit_path_scrolled(
                         layout,
                         state.cursor_pos,
@@ -231,6 +328,8 @@ impl Devtools {
                         state.cursor_pos,
                         None,
                     );
+                    let ms = t0.elapsed().as_secs_f64() * 1000.0;
+                    state.profiler.add_pointer_move(ms, changed);
                     if changed {
                         state.window.request_redraw();
                     }
@@ -328,9 +427,8 @@ impl Devtools {
 
     /// Render the devtools UI into its window.
     fn render_frame(state: &mut WindowState) {
-        let t0 = Instant::now();
         let size = state.window.inner_size();
-        let (list, layout) = paint_tree_returning_layout(
+        let (list, layout, timings) = paint_tree_returning_layout_profiled(
             &state.tree,
             &mut state.text_ctx,
             &mut state.image_cache,
@@ -340,7 +438,6 @@ impl Devtools {
         );
         // Retain the layout for hit-testing between frames.
         state.layout = layout;
-        let paint_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         // Upload freshly-rasterised glyphs into the GPU atlas.
         let t1 = Instant::now();
@@ -359,10 +456,17 @@ impl Devtools {
         }
         let render_ms = t2.elapsed().as_secs_f64() * 1000.0;
 
-        eprintln!(
-            "devtools: render  paint={paint_ms:.2}ms  upload={upload_ms:.2}ms  gpu={render_ms:.2}ms  total={:.2}ms",
-            t0.elapsed().as_secs_f64() * 1000.0
-        );
+        // Accumulate into the rolling profiler.
+        state.profiler.frames += 1;
+        state.profiler.cascade.add(timings.cascade_ms);
+        state.profiler.layout.add(timings.layout_ms);
+        state.profiler.paint.add(timings.paint_ms);
+        state.profiler.upload.add(upload_ms);
+        state.profiler.render.add(render_ms);
+
+        if let Some(line) = state.profiler.take_summary_if_due() {
+            eprintln!("{line}");
+        }
     }
 }
 
