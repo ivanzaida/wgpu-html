@@ -877,12 +877,18 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         }
         self.hook = hook;
 
-        // Caret blink: schedule the next toggle ~500ms from the last
-        // mutation. Store the deadline so `about_to_wait` can request
-        // a redraw only after it actually passes (not on every
-        // iteration).
+        // Schedule the next wake-up. Priority order:
+        // 1. Pending async images → poll every 100ms until loaded
+        // 2. Active caret blink → wake at next 500ms toggle
+        // 3. Nothing pending → sleep until an OS event
         if let Some(state) = self.state.as_mut() {
-            if self.tree.interaction.edit_cursor.is_some() {
+            if wgpu_html::layout::has_pending_images() {
+                // Images still loading — poll frequently so they
+                // appear without waiting for user input.
+                let deadline = Instant::now() + Duration::from_millis(100);
+                state.caret_blink_deadline = Some(deadline);
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            } else if self.tree.interaction.edit_cursor.is_some() {
                 let elapsed_ms =
                     self.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
                 let next_toggle_ms = 500u64.saturating_sub(elapsed_ms % 500).max(16);

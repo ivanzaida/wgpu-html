@@ -211,6 +211,11 @@ pub fn classify_frame(
     if cache.layout.is_none() || cache.cascaded.is_none() {
         return PipelineAction::FullPipeline;
     }
+    // Async images still loading — must re-layout so newly-decoded
+    // images appear in the next frame.
+    if wgpu_html_layout::has_pending_images() {
+        return PipelineAction::FullPipeline;
+    }
     if (cache.viewport.0 - viewport_w).abs() > 0.5
         || (cache.viewport.1 - viewport_h).abs() > 0.5
         || (cache.scale - scale).abs() > 0.001

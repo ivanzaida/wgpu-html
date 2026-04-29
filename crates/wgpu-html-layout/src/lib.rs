@@ -172,6 +172,18 @@ pub fn set_image_cache_ttl(ttl: Duration) {
     CACHE_TTL_SECS.store(ttl.as_secs(), Ordering::Release);
 }
 
+/// Returns `true` if any image URL is currently being fetched or
+/// decoded in the background. Callers can use this to schedule a
+/// short timer-based redraw so the newly-loaded image appears
+/// without waiting for user input.
+pub fn has_pending_images() -> bool {
+    if let Ok(cache) = raw_cache().lock() {
+        cache.values().any(|e| matches!(e.value, RawState::Pending))
+    } else {
+        false
+    }
+}
+
 /// Drop every cached image regardless of age. Pending fetches are
 /// preserved (the in-flight worker still has a reference to the URL
 /// and will try to insert its result on completion).
