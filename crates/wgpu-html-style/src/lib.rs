@@ -659,12 +659,16 @@ fn ua_prepared_stylesheet() -> &'static PreparedStylesheet {
 fn collect_stylesheet_source(tree: &Tree) -> String {
     let mut css = String::new();
     if let Some(root) = &tree.root {
-        gather(root, &mut css);
+        gather(root, &mut css, false);
     }
     css
 }
 
-fn gather(node: &Node, out: &mut String) {
+fn gather(node: &Node, out: &mut String, inside_template: bool) {
+    let inside_template = inside_template || matches!(&node.element, Element::Template(_));
+    if inside_template {
+        return;
+    }
     if matches!(&node.element, Element::StyleElement(_)) {
         for child in &node.children {
             if let Element::Text(t) = &child.element {
@@ -674,7 +678,7 @@ fn gather(node: &Node, out: &mut String) {
         out.push('\n');
     }
     for child in &node.children {
-        gather(child, out);
+        gather(child, out, inside_template);
     }
 }
 
