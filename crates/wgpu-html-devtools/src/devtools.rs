@@ -1,12 +1,15 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
 
+use wgpu_html::layout::{LayoutBox, Rect};
 use wgpu_html::paint_tree_returning_layout;
 use wgpu_html_renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::{MouseButton, Tree};
 use winit::dpi::PhysicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
@@ -17,7 +20,12 @@ struct WindowState {
     window: Arc<Window>,
     renderer: Renderer,
     text_ctx: TextContext,
+    image_cache: wgpu_html::layout::ImageCache,
     tree: Tree,
+    /// Layout from the last paint — used for hit-testing between frames.
+    layout: Option<LayoutBox>,
+    /// Last known cursor position in viewport space.
+    cursor_pos: (f32, f32),
 }
 
 /// Browser-style inspector for wgpu-html.
@@ -43,6 +51,11 @@ pub struct Devtools {
     /// Font faces to register on the devtools UI tree. Collected
     /// via [`register_font`] before or after `enable()`.
     fonts: Vec<wgpu_html_tree::FontFace>,
+    /// Path into the inspected tree of the currently selected node.
+    selected_path: Option<Vec<usize>>,
+    /// Shared sink for click callbacks to communicate selected paths
+    /// back from the devtools UI tree.
+    click_sink: Arc<Mutex<Option<Vec<usize>>>>,
 }
 
 impl Devtools {
@@ -52,6 +65,8 @@ impl Devtools {
             window_state: None,
             pending_drop: None,
             fonts: Vec::new(),
+            selected_path: None,
+            click_sink: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -99,7 +114,10 @@ impl Devtools {
             window,
             renderer,
             text_ctx,
+            image_cache: wgpu_html::layout::ImageCache::new(),
             tree,
+            layout: None,
+            cursor_pos: (0.0, 0.0),
         });
     }
 
@@ -110,8 +128,18 @@ impl Devtools {
         let Some(state) = self.window_state.as_mut() else {
             return;
         };
+
+        // Check for pending selection from a click event.
+        if let Some(path) = self.click_sink.lock().unwrap().take() {
+            self.selected_path = Some(path);
+        }
+
         let t0 = Instant::now();
-        let mut tree = html_gen::build(inspected);
+        let mut tree = html_gen::build(
+            inspected,
+            self.selected_path.as_deref(),
+            &self.click_sink,
+        );
         let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         let t1 = Instant::now();
@@ -120,6 +148,9 @@ impl Devtools {
         }
         let fonts_ms = t1.elapsed().as_secs_f64() * 1000.0;
 
+        // Preserve interaction state (hover, scroll offsets, etc.)
+        // across tree rebuilds so scrolling and hover don't reset.
+        std::mem::swap(&mut tree.interaction, &mut state.tree.interaction);
         state.tree = tree;
         state.window.request_redraw();
         eprintln!(
@@ -170,9 +201,6 @@ impl Devtools {
         if self.window_state.is_none() {
             return;
         }
-        let Some(state) = self.window_state.as_mut() else {
-            return;
-        };
         match event {
             WindowEvent::CloseRequested => {
                 // Defer the actual drop to flush() which runs in
@@ -181,11 +209,95 @@ impl Devtools {
                 self.pending_drop = self.window_state.take();
             }
             WindowEvent::Resized(size) => {
+                let state = self.window_state.as_mut().unwrap();
                 state.renderer.resize(size.width, size.height);
                 state.window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
+                let state = self.window_state.as_mut().unwrap();
                 Self::render_frame(state);
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let state = self.window_state.as_mut().unwrap();
+                state.cursor_pos = (position.x as f32, position.y as f32);
+                if let Some(layout) = &state.layout {
+                    let target = hit_path_scrolled(
+                        layout,
+                        state.cursor_pos,
+                        &state.tree.interaction.scroll_offsets_y,
+                    );
+                    let changed = state.tree.dispatch_pointer_move(
+                        target.as_deref(),
+                        state.cursor_pos,
+                        None,
+                    );
+                    if changed {
+                        state.window.request_redraw();
+                    }
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                let state = self.window_state.as_mut().unwrap();
+                state.tree.pointer_leave();
+                state.window.request_redraw();
+            }
+            WindowEvent::MouseInput {
+                state: button_state,
+                button,
+                ..
+            } => {
+                let Some(mb) = to_mouse_button(*button) else {
+                    return;
+                };
+                let ws = self.window_state.as_mut().unwrap();
+                if let Some(layout) = &ws.layout {
+                    let target = hit_path_scrolled(
+                        layout,
+                        ws.cursor_pos,
+                        &ws.tree.interaction.scroll_offsets_y,
+                    );
+                    match button_state {
+                        ElementState::Pressed => {
+                            ws.tree.dispatch_mouse_down(
+                                target.as_deref(),
+                                ws.cursor_pos,
+                                mb,
+                                None,
+                            );
+                        }
+                        ElementState::Released => {
+                            ws.tree.dispatch_mouse_up(
+                                target.as_deref(),
+                                ws.cursor_pos,
+                                mb,
+                                None,
+                            );
+                        }
+                    }
+                    ws.window.request_redraw();
+                }
+                // Check if a tree row was clicked (callback fires
+                // synchronously during dispatch_mouse_up).
+                if let Some(path) = self.click_sink.lock().unwrap().take() {
+                    self.selected_path = Some(path);
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let dy = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => -*y * 40.0,
+                    MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
+                };
+                let ws = self.window_state.as_mut().unwrap();
+                if let Some(layout) = &ws.layout {
+                    if wgpu_html::scroll::scroll_element_at(
+                        &mut ws.tree,
+                        layout,
+                        ws.cursor_pos,
+                        dy,
+                    ) {
+                        ws.window.request_redraw();
+                    }
+                }
             }
             _ => {}
         }
@@ -218,13 +330,16 @@ impl Devtools {
     fn render_frame(state: &mut WindowState) {
         let t0 = Instant::now();
         let size = state.window.inner_size();
-        let (list, _layout) = paint_tree_returning_layout(
+        let (list, layout) = paint_tree_returning_layout(
             &state.tree,
             &mut state.text_ctx,
+            &mut state.image_cache,
             size.width as f32,
             size.height as f32,
             1.0,
         );
+        // Retain the layout for hit-testing between frames.
+        state.layout = layout;
         let paint_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         // Upload freshly-rasterised glyphs into the GPU atlas.
@@ -249,4 +364,102 @@ impl Devtools {
             t0.elapsed().as_secs_f64() * 1000.0
         );
     }
+}
+
+// ── Winit button conversion ──────────────────────────────────────
+
+fn to_mouse_button(b: winit::event::MouseButton) -> Option<MouseButton> {
+    match b {
+        winit::event::MouseButton::Left => Some(MouseButton::Primary),
+        winit::event::MouseButton::Right => Some(MouseButton::Secondary),
+        winit::event::MouseButton::Middle => Some(MouseButton::Middle),
+        _ => None,
+    }
+}
+
+// ── Scroll-aware hit-testing ─────────────────────────────────────
+//
+// The standard `LayoutBox::hit_path` does not compensate for
+// per-element scroll offsets stored in `InteractionState`. These
+// helpers adjust the test point as they descend through scrollable
+// containers so that rows scrolled into view are properly hit.
+
+fn hit_path_scrolled(
+    root: &LayoutBox,
+    point: (f32, f32),
+    scroll_offsets: &BTreeMap<Vec<usize>, f32>,
+) -> Option<Vec<usize>> {
+    let mut path = Vec::new();
+    collect_hit_scrolled(root, point.0, point.1, scroll_offsets, &mut path, None)
+}
+
+fn collect_hit_scrolled(
+    b: &LayoutBox,
+    x: f32,
+    y: f32,
+    scroll_offsets: &BTreeMap<Vec<usize>, f32>,
+    path: &mut Vec<usize>,
+    clip: Option<Rect>,
+) -> Option<Vec<usize>> {
+    // Respect parent clip.
+    if let Some(c) = clip {
+        if !c.contains(x, y) {
+            return None;
+        }
+    }
+
+    // Compute the clip region this element imposes on its children.
+    let next_clip = if b.overflow.clips_any() {
+        let pad = padding_box(b);
+        Some(match clip {
+            Some(c) => intersect_rects(c, pad),
+            None => pad,
+        })
+    } else {
+        clip
+    };
+
+    // Compensate for this element's scroll offset so children are
+    // tested at their true layout positions.
+    let own_scroll = scroll_offsets
+        .get(path.as_slice())
+        .copied()
+        .unwrap_or(0.0);
+    let child_y = y + own_scroll;
+
+    // Walk children last-to-first (topmost painted wins).
+    for (i, child) in b.children.iter().enumerate().rev() {
+        path.push(i);
+        if let Some(result) =
+            collect_hit_scrolled(child, x, child_y, scroll_offsets, path, next_clip)
+        {
+            path.pop();
+            return Some(result);
+        }
+        path.pop();
+    }
+
+    // Self.
+    if b.border_rect.contains(x, y) {
+        Some(path.clone())
+    } else {
+        None
+    }
+}
+
+fn padding_box(b: &LayoutBox) -> Rect {
+    Rect::new(
+        b.border_rect.x + b.border.left,
+        b.border_rect.y + b.border.top,
+        (b.border_rect.w - b.border.horizontal()).max(0.0),
+        (b.border_rect.h - b.border.vertical()).max(0.0),
+    )
+}
+
+fn intersect_rects(a: Rect, b: Rect) -> Rect {
+    let x1 = a.x.max(b.x);
+    let y1 = a.y.max(b.y);
+    let x2 = (a.x + a.w).min(b.x + b.w);
+    let y2 = (a.y + a.h).min(b.y + b.h);
+    Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0))
 }

@@ -77,6 +77,16 @@ body {
   display: flex; align-items: center;
   gap: 4px; height: 18px;
   flex-shrink: 0;
+  padding-right: 8px;
+}
+.tree-row:hover {
+  background-color: var(--bg-hover);
+}
+.tree-row-selected {
+  background-color: var(--bg-selected);
+}
+.tree-row-selected:hover {
+  background-color: var(--bg-selected);
 }
 
 .chevron { color: var(--text-secondary); font-size: 10px; width: 12px; }
