@@ -879,13 +879,18 @@ impl<'tree> WgpuHtmlWindow<'tree> {
 
         // Schedule the next wake-up. Priority order:
         // 1. Pending async images → poll every 100ms until loaded
-        // 2. Active caret blink → wake at next 500ms toggle
-        // 3. Nothing pending → sleep until an OS event
+        // 2. Active GIF/WebP animations → poll every 50ms for frame advance
+        // 3. Active caret blink → wake at next 500ms toggle
+        // 4. Nothing pending → sleep until an OS event
         if let Some(state) = self.state.as_mut() {
             if wgpu_html::layout::has_pending_images() {
-                // Images still loading — poll frequently so they
-                // appear without waiting for user input.
                 let deadline = Instant::now() + Duration::from_millis(100);
+                state.caret_blink_deadline = Some(deadline);
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            } else if wgpu_html::layout::has_animated_images() {
+                // Animated images need continuous redraws to advance
+                // frames. 50ms ≈ 20fps, matching typical GIF rates.
+                let deadline = Instant::now() + Duration::from_millis(50);
                 state.caret_blink_deadline = Some(deadline);
                 event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
             } else if self.tree.interaction.edit_cursor.is_some() {

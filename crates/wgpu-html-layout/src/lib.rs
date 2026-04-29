@@ -184,6 +184,22 @@ pub fn has_pending_images() -> bool {
     }
 }
 
+/// Returns `true` if any loaded image is animated (multi-frame GIF
+/// or WebP). When active, the harness should schedule periodic
+/// redraws so frames advance.
+pub fn has_animated_images() -> bool {
+    if let Ok(cache) = raw_cache().lock() {
+        cache.values().any(|e| {
+            matches!(
+                e.value,
+                RawState::Ready(DecodedAsset::Animated { .. })
+            )
+        })
+    } else {
+        false
+    }
+}
+
 /// Drop every cached image regardless of age. Pending fetches are
 /// preserved (the in-flight worker still has a reference to the URL
 /// and will try to insert its result on completion).
