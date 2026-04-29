@@ -181,6 +181,10 @@ struct RuntimeState {
     /// Pipeline cache — lets `render_frame` skip cascade + layout
     /// when inputs haven't changed since the previous frame.
     pipeline_cache: wgpu_html::PipelineCache,
+    /// Deadline for the next caret blink redraw. `about_to_wait`
+    /// only calls `request_redraw` after this instant passes, so
+    /// the loop doesn't spin between blink toggles.
+    caret_blink_deadline: Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -306,6 +310,19 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         if let Some(h) = self.hook.as_mut() {
             h.on_idle();
         }
+        // Caret blink: request a redraw only after the deadline has
+        // actually passed. This avoids a tight loop — render_frame
+        // sets WaitUntil(deadline), about_to_wait fires immediately
+        // after, but Instant::now() < deadline so we don't redraw.
+        // When the timer finally expires, winit wakes the loop,
+        // about_to_wait runs again, and this time now >= deadline.
+        if let Some(state) = self.state.as_ref() {
+            if let Some(deadline) = state.caret_blink_deadline {
+                if Instant::now() >= deadline {
+                    state.window.request_redraw();
+                }
+            }
+        }
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -337,6 +354,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             last_render_at: None,
             frame_index: 0,
             pipeline_cache: wgpu_html::PipelineCache::new(),
+            caret_blink_deadline: None,
         });
     }
 
@@ -859,16 +877,21 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         }
         self.hook = hook;
 
-        // Caret blink: when a text control is focused, schedule a
-        // redraw ~500 ms from now so the caret toggles. With
-        // ControlFlow::Wait the event loop sleeps until an OS event
-        // arrives, so without this the caret would freeze after the
-        // last keystroke.
-        if self.tree.interaction.edit_cursor.is_some() {
-            if let Some(state) = self.state.as_ref() {
-                let next_blink = Instant::now() + Duration::from_millis(500);
-                event_loop.set_control_flow(ControlFlow::WaitUntil(next_blink));
-                state.window.request_redraw();
+        // Caret blink: schedule the next toggle ~500ms from the last
+        // mutation. Store the deadline so `about_to_wait` can request
+        // a redraw only after it actually passes (not on every
+        // iteration).
+        if let Some(state) = self.state.as_mut() {
+            if self.tree.interaction.edit_cursor.is_some() {
+                let elapsed_ms =
+                    self.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
+                let next_toggle_ms = 500u64.saturating_sub(elapsed_ms % 500).max(16);
+                let deadline = Instant::now() + Duration::from_millis(next_toggle_ms);
+                state.caret_blink_deadline = Some(deadline);
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            } else {
+                state.caret_blink_deadline = None;
+                event_loop.set_control_flow(ControlFlow::Wait);
             }
         }
     }

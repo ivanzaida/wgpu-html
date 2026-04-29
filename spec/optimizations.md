@@ -263,21 +263,66 @@ Vec and sorts by X on every pointer_move when hovering text.
 
 ---
 
+## O11 — Cascade performance
+
+**Stage:** cascade
+**Impact:** high — cascade is 40 ms on a modest page (icons-demo.html),
+dominating the frame budget. Every hover / click triggers a full
+re-cascade because `:hover` / `:active` / `:focus` pseudo-classes
+must be re-evaluated.
+**Complexity:** medium-high
+
+### Root cause
+
+`wgpu_html_style::cascade()` walks the entire tree on every call,
+re-matching selectors for every element. When the only thing that
+changed is `hover_path` (one element entered, one left), the cascade
+still recomputes all ~200 elements.
+
+### Plan
+
+1. **Profile cascade internals**: instrument `cascade_node`,
+   selector matching, inheritance. Find whether time is in
+   selector matching, property cloning, or something else.
+2. **Partial re-cascade for pseudo-class changes**: when only
+   `hover_path` / `active_path` / `focus_path` changed, identify
+   the old and new paths, re-cascade only those elements + their
+   ancestors (whose computed style may inherit differently).
+3. **Cache the CascadedTree**: store the previous cascade result.
+   On a pseudo-class-only change, clone the cached tree and patch
+   only the affected nodes.
+
+---
+
+## Status
+
+| Item | Status |
+|------|--------|
+| O1 — Pipeline cache (skip cascade+layout on idle) | **done** |
+| O2 — Text measurement cache | **done** |
+| O9 — Font sync short-circuit | **done** |
+| O11 — Cascade performance | **next** |
+| O3 — Display list caching | pending |
+| O7 — Cow<str> text processing | pending |
+| O6 — GPU buffer reuse | pending |
+| O4 — Cascade COW/Arc | pending |
+| O5 — Hit-test spatial index | pending |
+| O10 — Pre-sorted glyph index | pending |
+| O8 — Atlas eviction/growth | pending |
+
 ## Priority order
 
 | Priority | Item | Impact | Complexity |
 |----------|------|--------|------------|
-| 1 | O1 — Incremental layout | high | high |
-| 2 | O2 — Text measurement cache | high | medium |
-| 3 | O3 — Display list caching | medium-high | medium |
-| 4 | O9 — Font sync short-circuit | low | low |
-| 5 | O7 — Cow<str> text processing | low-medium | low |
-| 6 | O6 — GPU buffer reuse | low-medium | low |
-| 7 | O4 — Cascade COW/Arc | medium | medium |
-| 8 | O5 — Hit-test spatial index | medium | medium |
-| 9 | O10 — Pre-sorted glyph index | low | low |
-| 10 | O8 — Atlas eviction/growth | low | medium |
+| 1 | O11 — Cascade performance | **high** | medium-high |
+| 2 | O3 — Display list caching | medium-high | medium |
+| 3 | O7 — Cow<str> text processing | low-medium | low |
+| 4 | O6 — GPU buffer reuse | low-medium | low |
+| 5 | O4 — Cascade COW/Arc | medium | medium |
+| 6 | O5 — Hit-test spatial index | medium | medium |
+| 7 | O10 — Pre-sorted glyph index | low | low |
+| 8 | O8 — Atlas eviction/growth | low | medium |
 
-Low-hanging fruit first (O9, O7, O6) gives quick wins. O1 + O2
-together eliminate the bulk of per-frame work for static or mostly-
-static documents.
+Cascade (40 ms) is the dominant bottleneck. Every mouse move /
+click forces a full re-cascade for pseudo-class rules. Fixing this
+is the single highest-impact remaining optimization.
