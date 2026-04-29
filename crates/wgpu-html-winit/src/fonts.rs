@@ -18,7 +18,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use wgpu_html_tree::{FontFace, FontHandle, FontStyleAxis, Tree};
+use wgpu_html_tree::{FontFace, FontStyleAxis, Tree};
 
 /// One font family's worth of system-font paths: regular, bold,
 /// italic, bold-italic. Empty path = "this variant isn't on disk
@@ -145,30 +145,4 @@ pub fn register_system_fonts(tree: &mut Tree, family: &str) -> usize {
         });
     }
     variants.len()
-}
-
-// ── Icon fonts ──────────────────────────────────────────────────────────────
-
-/// The Lucide icon font, embedded at compile time (ISC license).
-///
-/// Glyphs are mapped to Unicode Private Use Area codepoints
-/// (U+E000 and up). Use HTML numeric character references like
-/// `&#xe151;` (search) or Rust `'\u{e151}'` to reference them.
-/// See <https://lucide.dev/icons> for the full icon catalogue and
-/// codepoint assignments.
-pub static LUCIDE_FONT_DATA: &[u8] = include_bytes!("../fonts/lucide.ttf");
-
-/// Register the embedded Lucide icon font on `tree` under the
-/// given `family` name. The font contains a single 400-weight
-/// normal-style face. Returns the [`FontHandle`].
-///
-/// Usage in HTML after registering with `family = "lucide"`:
-///
-/// ```html
-/// <span style="font-family: lucide; font-size: 24px;">&#xe151;</span>
-/// ```
-///
-/// The `color` CSS property tints icons just like regular text.
-pub fn register_lucide_icons(tree: &mut Tree, family: &str) -> FontHandle {
-    tree.register_font(FontFace::regular(family, Arc::from(LUCIDE_FONT_DATA)))
 }

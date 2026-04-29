@@ -37,10 +37,7 @@
 mod fonts;
 mod window;
 
-pub use fonts::{
-    SystemFontVariant, LUCIDE_FONT_DATA, register_lucide_icons, register_system_fonts,
-    system_font_variants,
-};
+pub use fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use window::{
     AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
 };

@@ -25,11 +25,16 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 use wgpu_html_devtools::Devtools;
-use wgpu_html_tree::{Tree};
+use wgpu_html_tree::{FontFace, Tree};
 use wgpu_html_winit::{
     AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
-    register_lucide_icons, register_system_fonts, system_font_variants,
+    register_system_fonts, system_font_variants,
 };
+
+/// The Lucide icon font, embedded at compile time (ISC license).
+/// Glyphs are mapped to PUA codepoints (U+E000+); use `&#xe151;`
+/// in HTML to reference them.
+static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
 
 // ── Demo wiring ─────────────────────────────────────────────────────────────
 
@@ -289,9 +294,9 @@ impl DemoHook {
             });
         }
         // Register the Lucide icon font for devtools as well.
-        devtools.register_font(wgpu_html_tree::FontFace::regular(
+        devtools.register_font(FontFace::regular(
             "lucide",
-            std::sync::Arc::from(wgpu_html_winit::LUCIDE_FONT_DATA),
+            Arc::from(LUCIDE_FONT),
         ));
         Self {
             enabled: profiling_enabled,
@@ -681,7 +686,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     let click_count = Arc::new(AtomicUsize::new(0));
     let mut tree = wgpu_html::parser::parse(&doc_html);
     register_system_fonts(&mut tree, "DemoSans");
-    register_lucide_icons(&mut tree, "lucide");
+    tree.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
     install_demo_callbacks(&mut tree, &click_count);
 
     let hook = DemoHook::new(profiling_enabled);
