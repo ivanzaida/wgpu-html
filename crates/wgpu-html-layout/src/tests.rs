@@ -1968,6 +1968,38 @@ fn flex_align_self_center_overrides_default_alignment_on_single_line() {
 }
 
 #[test]
+fn textarea_in_flex_row_does_not_inflate_height() {
+    // Regression guard for the "no text after textarea" symptom.
+    // A flex row containing `<label>` + `<textarea height: 64px>`
+    // should advance the body's block flow by ~64-72px (textarea
+    // content + UA padding/border), not by hundreds of pixels —
+    // which would push following siblings off-screen.
+    let tree = make(
+        r#"<body style="margin: 0; padding: 0;">
+            <h2 style="font-size: 11px; margin: 0;">First</h2>
+            <div style="display: flex; gap: 0;">
+                <label>Bio</label>
+                <textarea style="min-width: 320px; height: 64px;"></textarea>
+            </div>
+            <h2 style="font-size: 11px; margin: 0;">Second</h2>
+        </body>"#,
+    );
+    let body = layout(&tree, 1280.0, 720.0).unwrap();
+    let kids = &body.children;
+    assert_eq!(kids.len(), 3, "body kids: {}", kids.len());
+    let row = &kids[1];
+    let after = &kids[2];
+    assert!(
+        after.margin_rect.y < row.margin_rect.y + 200.0,
+        "h2 after textarea row sits at y={}, row starts at y={} (delta {} > 200) — \
+         textarea row is sized way larger than its 64px height",
+        after.margin_rect.y,
+        row.margin_rect.y,
+        after.margin_rect.y - row.margin_rect.y
+    );
+}
+
+#[test]
 fn flex_wrap_no_height_does_not_apply_align_content() {
     // Multi-line container with *no* explicit cross size: `align-content`
     // has nothing to distribute. Lines pack to start regardless of

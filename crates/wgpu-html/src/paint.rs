@@ -1372,6 +1372,92 @@ mod tests {
     // --- overflow / clipping --------------------------------------
 
     #[test]
+    fn real_textarea_in_flex_row_does_not_clip_following_block_quad() {
+        // Same regression guard as the next test, but uses a real
+        // `<textarea>` element so the UA stylesheet's actual
+        // `overflow: auto`, `border: 2px inset`, `padding: 2px`,
+        // etc. kick in. The blue sibling background that follows
+        // the row must not be inside any non-None clip range.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0; padding: 0;">
+                <div style="display: flex;">
+                    <textarea style="min-width: 320px; height: 64px;"></textarea>
+                </div>
+                <div style="margin-top: 30px; height: 30px; background-color: blue;"></div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        let blue_idx = list
+            .quads
+            .iter()
+            .position(|q| q.color == [0.0, 0.0, 1.0, 1.0])
+            .expect("blue sibling background quad emitted");
+        let blue = blue_idx as u32;
+        for clip in &list.clips {
+            if clip.rect.is_some() && blue >= clip.quad_range.0 && blue < clip.quad_range.1 {
+                let r = clip.rect.unwrap();
+                let blue_quad = &list.quads[blue_idx];
+                let outside_x = blue_quad.rect.x + blue_quad.rect.w <= r.x
+                    || blue_quad.rect.x >= r.x + r.w;
+                let outside_y = blue_quad.rect.y + blue_quad.rect.h <= r.y
+                    || blue_quad.rect.y >= r.y + r.h;
+                assert!(
+                    !(outside_x || outside_y),
+                    "blue sibling at {:?} sits inside textarea-row clip range {:?} \
+                     (outside_x={} outside_y={})",
+                    blue_quad.rect, r, outside_x, outside_y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn overflow_auto_in_flex_row_does_not_clip_block_sibling_below() {
+        // Repro for the "no text after textarea" report. A flex item
+        // with `overflow: auto` (textarea's UA default) emits a
+        // clip range. We need to confirm a *block* sibling that
+        // follows the flex container doesn't get clipped to the
+        // flex item's bounds.
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0; padding: 0;">
+                <div style="display: flex; height: 64px;">
+                    <div style="overflow: auto; width: 320px; height: 64px;
+                                background-color: red;"></div>
+                </div>
+                <div style="margin-top: 50px; height: 30px; background-color: blue;"></div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        // The blue quad must exist (background of the post-flex sibling).
+        let blue_idx = list
+            .quads
+            .iter()
+            .position(|q| q.color == [0.0, 0.0, 1.0, 1.0])
+            .expect("blue sibling background quad emitted");
+        let blue = blue_idx as u32;
+        // For each clip range with a non-None rect, the blue quad
+        // must NOT fall inside its quad_range — that would mean the
+        // flex item's `overflow:auto` clip is leaking onto the
+        // following block sibling.
+        for clip in &list.clips {
+            if clip.rect.is_some() && blue >= clip.quad_range.0 && blue < clip.quad_range.1 {
+                let r = clip.rect.unwrap();
+                let blue_quad = &list.quads[blue_idx];
+                let outside_x = blue_quad.rect.x + blue_quad.rect.w <= r.x
+                    || blue_quad.rect.x >= r.x + r.w;
+                let outside_y = blue_quad.rect.y + blue_quad.rect.h <= r.y
+                    || blue_quad.rect.y >= r.y + r.h;
+                assert!(
+                    !(outside_x || outside_y),
+                    "blue sibling at {:?} sits inside a clip range {:?} that would visually \
+                     suppress it (outside_x={} outside_y={})",
+                    blue_quad.rect, r, outside_x, outside_y
+                );
+            }
+        }
+    }
+
+    #[test]
     fn overflow_visible_emits_single_clip_range() {
         // The display list carries one all-encompassing range with
         // `rect: None` whenever no `overflow: hidden` is in play.
