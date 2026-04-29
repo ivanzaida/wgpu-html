@@ -4016,12 +4016,26 @@ dependencies = [
  "egui",
  "pollster",
  "wgpu-html",
+ "wgpu-html-devtools",
  "wgpu-html-egui",
  "wgpu-html-models",
  "wgpu-html-style",
  "wgpu-html-text",
  "wgpu-html-tree",
  "wgpu-html-winit",
+ "winit",
+]
+
+[[package]]
+name = "wgpu-html-devtools"
+version = "0.1.0"
+dependencies = [
+ "pollster",
+ "wgpu-html",
+ "wgpu-html-models",
+ "wgpu-html-renderer",
+ "wgpu-html-text",
+ "wgpu-html-tree",
  "winit",
 ]
 

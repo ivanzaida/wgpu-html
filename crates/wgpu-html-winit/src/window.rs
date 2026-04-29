@@ -69,6 +69,30 @@ pub trait AppHook {
     fn on_pointer_move(&mut self, ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
         let _ = (ctx, pointer_move_ms, changed);
     }
+
+    /// Called once per event-loop iteration after all pending
+    /// window events have been dispatched, before the loop waits
+    /// for new events. This runs **outside** any window's WndProc
+    /// callback, making it the safe place to drop secondary
+    /// windows or other resources that can't be released from
+    /// inside a window event handler.
+    fn on_idle(&mut self) {}
+
+    /// Called for window events that target a secondary window
+    /// (i.e. not the main harness window). Return `true` if the
+    /// event was handled, `false` to ignore it.
+    ///
+    /// This enables hooks to manage additional OS windows (e.g. a
+    /// devtools panel) while sharing the same event loop.
+    fn on_window_event(
+        &mut self,
+        ctx: HookContext<'_>,
+        window_id: WindowId,
+        event: &WindowEvent,
+    ) -> bool {
+        let _ = (ctx, window_id, event);
+        false
+    }
 }
 
 /// Borrows handed to [`AppHook`] callbacks.
@@ -273,6 +297,14 @@ fn duration_from_ms(ms: f64) -> Duration {
 // ── Application handler ─────────────────────────────────────────────────────
 
 impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        // Called after all pending window events have been dispatched,
+        // outside any WndProc. Safe to drop secondary windows here.
+        if let Some(h) = self.hook.as_mut() {
+            h.on_idle();
+        }
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -304,10 +336,30 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         });
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         let Some(window) = self.state.as_ref().map(|s| s.window.clone()) else {
             return;
         };
+
+        // Route events for secondary windows (e.g. devtools) to the hook.
+        if id != window.id() {
+            let mut hook = self.hook.take();
+            if let Some(h) = hook.as_mut() {
+                if let Some(state) = self.state.as_mut() {
+                    let ctx = HookContext {
+                        tree: &mut *self.tree,
+                        renderer: &mut state.renderer,
+                        text_ctx: &mut state.text_ctx,
+                        last_layout: state.last_layout.as_ref(),
+                        window: &state.window,
+                        event_loop,
+                    };
+                    h.on_window_event(ctx, id, &event);
+                }
+            }
+            self.hook = hook;
+            return;
+        }
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),

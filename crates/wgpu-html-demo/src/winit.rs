@@ -20,14 +20,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use winit::event::{ElementState, KeyEvent};
+use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::Window;
+use winit::window::{Window, WindowId};
 
-use wgpu_html_tree::{Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
+use wgpu_html_devtools::Devtools;
+use wgpu_html_tree::{Tree};
 use wgpu_html_winit::{
     AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
-    register_system_fonts, system_font_variants,
+    register_lucide_icons, register_system_fonts, system_font_variants,
 };
 
 // ── Demo wiring ─────────────────────────────────────────────────────────────
@@ -266,6 +267,7 @@ struct DemoHook {
     enabled: bool,
     profiler: Profiler,
     commands: CommandQueue,
+    devtools: Devtools,
     /// Set to `true` after the first `on_frame` has run, at which
     /// point we have an `Arc<Window>` and can spawn the stdin
     /// reader. Doing this lazily (rather than before `run_app`)
@@ -276,10 +278,26 @@ struct DemoHook {
 
 impl DemoHook {
     fn new(profiling_enabled: bool) -> Self {
+        let mut devtools = Devtools::new();
+        // Pre-register system fonts so the devtools UI can render text.
+        for v in system_font_variants() {
+            devtools.register_font(wgpu_html_tree::FontFace {
+                family: "DemoSans".to_owned(),
+                weight: v.weight,
+                style: v.style,
+                data: v.data.clone(),
+            });
+        }
+        // Register the Lucide icon font for devtools as well.
+        devtools.register_font(wgpu_html_tree::FontFace::regular(
+            "lucide",
+            std::sync::Arc::from(wgpu_html_winit::LUCIDE_FONT_DATA),
+        ));
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
             commands: Arc::new(Mutex::new(VecDeque::new())),
+            devtools,
             stdin_started: false,
         }
     }
@@ -545,20 +563,35 @@ fn json_str(s: &str) -> String {
 }
 
 impl AppHook for DemoHook {
-    fn on_key(&mut self, _ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+    fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
         if event.state == ElementState::Pressed && !event.repeat {
-            if let PhysicalKey::Code(KeyCode::F9) = event.physical_key {
-                self.enabled = !self.enabled;
-                println!(
-                    "demo: profiling {}",
-                    if self.enabled { "enabled" } else { "disabled" }
-                );
-                if !self.enabled {
-                    self.profiler.reset();
+            if let PhysicalKey::Code(code) = event.physical_key {
+                match code {
+                    KeyCode::F9 => {
+                        self.enabled = !self.enabled;
+                        println!(
+                            "demo: profiling {}",
+                            if self.enabled { "enabled" } else { "disabled" }
+                        );
+                        if !self.enabled {
+                            self.profiler.reset();
+                        }
+                        return EventResponse::Stop;
+                    }
+                    KeyCode::F11 => {
+                        self.devtools.toggle(ctx.event_loop);
+                        println!(
+                            "demo: devtools {}",
+                            if self.devtools.is_enabled() {
+                                "opened"
+                            } else {
+                                "closed"
+                            }
+                        );
+                        return EventResponse::Stop;
+                    }
+                    _ => {}
                 }
-                // We've fully handled F9; suppress the harness's
-                // (currently no-op) default for this key.
-                return EventResponse::Stop;
             }
         }
         EventResponse::Continue
@@ -577,6 +610,11 @@ impl AppHook for DemoHook {
         // against the just-painted layout in `ctx.last_layout`.
         self.drain_commands(&mut ctx);
 
+        // Feed the live DOM into the devtools panel.
+        if self.devtools.is_enabled() {
+            self.devtools.update_inspected_tree(ctx.tree);
+        }
+
         if !self.enabled {
             return;
         }
@@ -586,20 +624,28 @@ impl AppHook for DemoHook {
         }
     }
 
+    fn on_idle(&mut self) {
+        self.devtools.flush();
+    }
+
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
         if !self.enabled {
             return;
         }
         self.profiler.add_pointer_move(pointer_move_ms, changed);
     }
-}
 
-struct FrameHook;
-
-impl TreeHook for FrameHook {
-    fn on_render(&mut self, tree: &mut Tree, event: &TreeRenderEvent<'_>) -> TreeHookResponse {
-        println!("render event: {:?}", event);
-        TreeHookResponse::Continue
+    fn on_window_event(
+        &mut self,
+        _ctx: HookContext<'_>,
+        window_id: WindowId,
+        event: &WindowEvent,
+    ) -> bool {
+        if self.devtools.owns_window(window_id) {
+            self.devtools.handle_window_event(event);
+            return true;
+        }
+        false
     }
 }
 
@@ -610,6 +656,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     println!("  renderer  →  winit");
     println!("  F12  →  save current frame as screenshot-<unix>.png");
     println!("  F9   →  toggle frame profiling logs");
+    println!("  F11  →  toggle devtools window");
     println!("  Esc  →  quit");
     println!("  Ctrl+A / Ctrl+C  →  select all + copy");
     println!("  stdin →  `make_screenshot [selector]` (e.g. `make_screenshot #panel`)");
@@ -634,8 +681,8 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     let click_count = Arc::new(AtomicUsize::new(0));
     let mut tree = wgpu_html::parser::parse(&doc_html);
     register_system_fonts(&mut tree, "DemoSans");
+    register_lucide_icons(&mut tree, "lucide");
     install_demo_callbacks(&mut tree, &click_count);
-    tree.add_hook(FrameHook);
 
     let hook = DemoHook::new(profiling_enabled);
 

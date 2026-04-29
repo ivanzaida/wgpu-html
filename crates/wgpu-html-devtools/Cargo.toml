@@ -1,0 +1,13 @@
+[package]
+name = "wgpu-html-devtools"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu-html.workspace = true
+wgpu-html-models.workspace = true
+wgpu-html-tree.workspace = true
+wgpu-html-renderer.workspace = true
+wgpu-html-text.workspace = true
+winit.workspace = true
+pollster.workspace = true
