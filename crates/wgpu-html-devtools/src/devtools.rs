@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use wgpu_html::layout::{LayoutBox, Rect};
-use wgpu_html::paint_tree_returning_layout_profiled;
+use wgpu_html::PipelineCache;
 use wgpu_html_renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Tree};
@@ -122,8 +122,9 @@ struct WindowState {
     text_ctx: TextContext,
     image_cache: wgpu_html::layout::ImageCache,
     tree: Tree,
-    /// Layout from the last paint — used for hit-testing between frames.
-    layout: Option<LayoutBox>,
+    /// Cached cascade + layout; skips expensive stages when only
+    /// hover/scroll changed. Also holds the layout for hit-testing.
+    cache: PipelineCache,
     /// Last known cursor position in viewport space.
     cursor_pos: (f32, f32),
     profiler: DevtoolsProfiler,
@@ -217,7 +218,7 @@ impl Devtools {
             text_ctx,
             image_cache: wgpu_html::layout::ImageCache::new(),
             tree,
-            layout: None,
+            cache: PipelineCache::new(),
             cursor_pos: (0.0, 0.0),
             profiler: DevtoolsProfiler::new(),
         });
@@ -252,6 +253,8 @@ impl Devtools {
         // across tree rebuilds so scrolling and hover don't reset.
         std::mem::swap(&mut tree.interaction, &mut state.tree.interaction);
         state.tree = tree;
+        // Force a full cascade + layout on the next render.
+        state.cache.invalidate();
         state.window.request_redraw();
     }
 
@@ -316,7 +319,7 @@ impl Devtools {
             WindowEvent::CursorMoved { position, .. } => {
                 let state = self.window_state.as_mut().unwrap();
                 state.cursor_pos = (position.x as f32, position.y as f32);
-                if let Some(layout) = &state.layout {
+                if let Some(layout) = state.cache.layout() {
                     let t0 = Instant::now();
                     let target = hit_path_scrolled(
                         layout,
@@ -349,7 +352,7 @@ impl Devtools {
                     return;
                 };
                 let ws = self.window_state.as_mut().unwrap();
-                if let Some(layout) = &ws.layout {
+                if let Some(layout) = ws.cache.layout() {
                     let target = hit_path_scrolled(
                         layout,
                         ws.cursor_pos,
@@ -387,7 +390,7 @@ impl Devtools {
                     MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
                 };
                 let ws = self.window_state.as_mut().unwrap();
-                if let Some(layout) = &ws.layout {
+                if let Some(layout) = ws.cache.layout() {
                     if wgpu_html::scroll::scroll_element_at(
                         &mut ws.tree,
                         layout,
@@ -428,16 +431,17 @@ impl Devtools {
     /// Render the devtools UI into its window.
     fn render_frame(state: &mut WindowState) {
         let size = state.window.inner_size();
-        let (list, layout, timings) = paint_tree_returning_layout_profiled(
+        let (list, _layout, timings) = wgpu_html::paint_tree_cached(
             &state.tree,
             &mut state.text_ctx,
             &mut state.image_cache,
             size.width as f32,
             size.height as f32,
             1.0,
+            &mut state.cache,
         );
-        // Retain the layout for hit-testing between frames.
-        state.layout = layout;
+        // Layout is retained inside `state.cache` for hit-testing
+        // between frames (accessed via `state.cache.layout()`).
 
         // Upload freshly-rasterised glyphs into the GPU atlas.
         let t1 = Instant::now();
