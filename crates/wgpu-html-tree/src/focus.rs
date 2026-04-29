@@ -37,23 +37,15 @@ pub fn is_focusable(element: &Element) -> bool {
             !matches!(i.r#type, Some(m::common::html_enums::InputType::Hidden))
                 && !is_negative_tabindex(i.tabindex)
         }
-        Element::Textarea(t) => {
-            !t.disabled.unwrap_or(false) && !is_negative_tabindex(t.tabindex)
-        }
-        Element::Select(s) => {
-            !s.disabled.unwrap_or(false) && !is_negative_tabindex(s.tabindex)
-        }
-        Element::Button(b) => {
-            !b.disabled.unwrap_or(false) && !is_negative_tabindex(b.tabindex)
-        }
+        Element::Textarea(t) => !t.disabled.unwrap_or(false) && !is_negative_tabindex(t.tabindex),
+        Element::Select(s) => !s.disabled.unwrap_or(false) && !is_negative_tabindex(s.tabindex),
+        Element::Button(b) => !b.disabled.unwrap_or(false) && !is_negative_tabindex(b.tabindex),
         // Anchor: focusable iff it has an href.
         Element::A(a) => a.href.is_some() && !is_negative_tabindex(a.tabindex),
         // <summary>: always focusable (we don't track <details> open state).
         Element::Summary(s) => !is_negative_tabindex(s.tabindex),
         // Anything else: focusable only via tabindex >= 0.
-        _ => element_tabindex(element)
-            .map(|t| t >= 0)
-            .unwrap_or(false),
+        _ => element_tabindex(element).map(|t| t >= 0).unwrap_or(false),
     }
 }
 
@@ -103,12 +95,7 @@ pub fn keyboard_focusable_paths(tree: &Tree) -> Vec<Vec<usize>> {
     out
 }
 
-fn collect(
-    node: &Node,
-    path: &mut Vec<usize>,
-    out: &mut Vec<Vec<usize>>,
-    kbd_only: bool,
-) {
+fn collect(node: &Node, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>, kbd_only: bool) {
     let pickable = if kbd_only {
         is_keyboard_focusable(&node.element)
     } else {
@@ -240,9 +227,11 @@ mod tests {
     fn focusable_paths_collects_in_document_order() {
         // <body> <input> <button> <input type=hidden> <a href> </body>
         let mut body = Node::new(m::Body::default());
-        body.children.push(Node::new(input(m::common::html_enums::InputType::Text)));
+        body.children
+            .push(Node::new(input(m::common::html_enums::InputType::Text)));
         body.children.push(Node::new(m::Button::default()));
-        body.children.push(Node::new(input(m::common::html_enums::InputType::Hidden)));
+        body.children
+            .push(Node::new(input(m::common::html_enums::InputType::Hidden)));
         let mut a = m::A::default();
         a.href = Some("/".into());
         body.children.push(Node::new(a));

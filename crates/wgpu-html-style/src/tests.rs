@@ -1090,10 +1090,8 @@ fn focus_rule_does_not_apply_when_focus_path_is_none() {
     // No focus set.
     assert!(tree.interaction.focus_path.is_none());
     let cascaded = cascade(&tree);
-    let style = find_style(&cascaded.root.unwrap(), &|el| {
-        element_id(el) == Some("x")
-    })
-    .expect("found");
+    let style =
+        find_style(&cascaded.root.unwrap(), &|el| element_id(el) == Some("x")).expect("found");
     let bg = style.background_color.expect("set");
     assert!(matches!(bg, CssColor::Named(s) if s == "white"));
 }

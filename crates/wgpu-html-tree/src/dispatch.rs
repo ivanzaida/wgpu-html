@@ -250,12 +250,7 @@ fn update_hover(
     }
 }
 
-fn fire_root_hover_event(
-    tree: &mut Tree,
-    pos: (f32, f32),
-    target_path: &[usize],
-    slot: HoverSlot,
-) {
+fn fire_root_hover_event(tree: &mut Tree, pos: (f32, f32), target_path: &[usize], slot: HoverSlot) {
     let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
     let buttons_down = tree.interaction.buttons_down;
     let modifiers = tree.interaction.modifiers;
@@ -778,7 +773,14 @@ fn bubble_keyboard(
         let current_path = target_path[..depth.saturating_sub(i)].to_vec();
         if let Some(on_ev) = node.on_event.as_ref().cloned() {
             let html_ev = make_keyboard_html_event(
-                event_type, key, code, repeat, modifiers, target_path, current_path, time_stamp,
+                event_type,
+                key,
+                code,
+                repeat,
+                modifiers,
+                target_path,
+                current_path,
+                time_stamp,
             );
             on_ev(&html_ev);
         }
@@ -797,11 +799,7 @@ fn bubble_keyboard(
 /// (Shift held = reverse). Hosts that want to suppress tab
 /// navigation should not forward the `Tab` key.
 pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
-    let target = tree
-        .interaction
-        .focus_path
-        .clone()
-        .unwrap_or_else(Vec::new);
+    let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
     bubble_keyboard(tree, &target, ev::HtmlEventType::KEYDOWN, key, code, repeat);
 
     if key == "Tab" {
@@ -814,11 +812,7 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
 /// Dispatch `keyup` to the focused element (or document root if
 /// nothing is focused), bubbling target → root.
 pub fn key_up(tree: &mut Tree, key: &str, code: &str) -> bool {
-    let target = tree
-        .interaction
-        .focus_path
-        .clone()
-        .unwrap_or_else(Vec::new);
+    let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
     bubble_keyboard(
         tree,
         &target,
@@ -971,10 +965,16 @@ mod tests {
             }));
         }
         assert!(tree.focus(Some(&[0])));
-        assert_eq!(tree.interaction.focus_path.as_deref(), Some([0usize].as_slice()));
+        assert_eq!(
+            tree.interaction.focus_path.as_deref(),
+            Some([0usize].as_slice())
+        );
         let evs = received.lock().unwrap().clone();
         assert!(evs.contains(&"focus".into()), "expected focus in {evs:?}");
-        assert!(evs.contains(&"focusin".into()), "expected focusin in {evs:?}");
+        assert!(
+            evs.contains(&"focusin".into()),
+            "expected focusin in {evs:?}"
+        );
     }
 
     #[test]
@@ -985,10 +985,9 @@ mod tests {
         if let Some(n) = tree.root.as_mut().and_then(|r| r.children.get_mut(0)) {
             n.on_event = Some(Arc::new(move |ev| {
                 if let ev::HtmlEvent::Focus(fe) = ev {
-                    r.lock().unwrap().push((
-                        ev.event_type().to_string(),
-                        fe.related_target.clone(),
-                    ));
+                    r.lock()
+                        .unwrap()
+                        .push((ev.event_type().to_string(), fe.related_target.clone()));
                 }
             }));
         }
@@ -1030,7 +1029,10 @@ mod tests {
         root.children.push(btn_node);
         let mut tree = Tree::new(root);
         assert!(tree.focus(Some(&[0, 0])));
-        assert_eq!(tree.interaction.focus_path.as_deref(), Some([0usize].as_slice()));
+        assert_eq!(
+            tree.interaction.focus_path.as_deref(),
+            Some([0usize].as_slice())
+        );
     }
 
     #[test]
@@ -1058,7 +1060,9 @@ mod tests {
         if let Some(n) = tree.root.as_mut().and_then(|r| r.children.get_mut(0)) {
             n.on_event = Some(Arc::new(move |ev| {
                 if let ev::HtmlEvent::Keyboard(ke) = ev {
-                    r.lock().unwrap().push((ev.event_type().to_string(), ke.key.clone()));
+                    r.lock()
+                        .unwrap()
+                        .push((ev.event_type().to_string(), ke.key.clone()));
                 }
             }));
         }
@@ -1076,7 +1080,10 @@ mod tests {
         let mut tree = focus_test_tree();
         tree.focus(Some(&[0]));
         tree.key_down("Tab", "Tab", false);
-        assert_eq!(tree.interaction.focus_path.as_deref(), Some([2usize].as_slice()));
+        assert_eq!(
+            tree.interaction.focus_path.as_deref(),
+            Some([2usize].as_slice())
+        );
     }
 
     #[test]
@@ -1085,7 +1092,10 @@ mod tests {
         tree.focus(Some(&[2]));
         tree.set_modifier(Modifier::Shift, true);
         tree.key_down("Tab", "Tab", false);
-        assert_eq!(tree.interaction.focus_path.as_deref(), Some([0usize].as_slice()));
+        assert_eq!(
+            tree.interaction.focus_path.as_deref(),
+            Some([0usize].as_slice())
+        );
     }
 
     #[test]
@@ -1111,7 +1121,10 @@ mod tests {
         root.children.push(Node::new(m::Button::default()));
         let mut tree = Tree::new(root);
         tree.dispatch_mouse_down(Some(&[0]), (0.0, 0.0), MouseButton::Primary, None);
-        assert_eq!(tree.interaction.focus_path.as_deref(), Some([0usize].as_slice()));
+        assert_eq!(
+            tree.interaction.focus_path.as_deref(),
+            Some([0usize].as_slice())
+        );
     }
 
     #[test]

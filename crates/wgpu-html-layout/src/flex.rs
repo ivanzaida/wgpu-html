@@ -690,21 +690,24 @@ fn build_item<'a>(
     } else {
         style.height.as_ref()
     };
-    let intrinsic_main =
-        replaced_intrinsic_main(node, is_row).or_else(|| text_intrinsic_main(node, is_row, ctx));
-    let basis_specified = match style.flex_basis.as_ref() {
-        Some(CssLength::Auto) | None => {
-            resolve_axis_length(main_size_prop, parent_inner_main, ctx).or(intrinsic_main)
-        }
+    // Explicit basis: from `flex-basis` (when not `auto`) or the
+    // matching main-size property. This value comes from CSS and is
+    // interpreted via `box-sizing`.
+    let basis_explicit = match style.flex_basis.as_ref() {
+        Some(CssLength::Auto) | None => resolve_axis_length(main_size_prop, parent_inner_main, ctx),
         other => resolve_axis_length(other, parent_inner_main, ctx),
     };
-    // Convert from border-box → content-box if needed.
-    let mut base_size = match basis_specified {
+    // Intrinsic basis: max-content of the item's content. Already
+    // content-box (no padding/border), so it bypasses the box-sizing
+    // conversion and is used as-is when no explicit basis is set.
+    let intrinsic_main =
+        replaced_intrinsic_main(node, is_row).or_else(|| text_intrinsic_main(node, is_row, ctx));
+    let mut base_size = match basis_explicit {
         Some(v) => match box_sizing {
             BoxSizing::ContentBox => v,
             BoxSizing::BorderBox => (v - frame_main).max(0.0),
         },
-        None => 0.0,
+        None => intrinsic_main.unwrap_or(0.0).max(0.0),
     };
 
     // Min/max on main axis, resolved into content-box pixels.
@@ -787,12 +790,44 @@ fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool) -> Option<f32> {
     }
 }
 
+/// Approximate max-content main-axis size for a flex item by walking
+/// its text descendants.
+///
+/// CSS-Sizing-3 §5.2 defines max-content as the size required to lay
+/// out the box's content on a single line. For replaced items
+/// `replaced_intrinsic_main` covers `<img>`; this function covers the
+/// remaining "non-replaced wrapper around text" case
+/// (`<button>Submit</button>`, `<a>link text</a>`, `<span>foo</span>`,
+/// …) that would otherwise fall through to `base_size = 0` and
+/// collapse the item to padding-only width.
+///
+/// For row-direction containers it sums each text descendant's shaped
+/// one-line width (closest spec-correct max-content for inline-flowing
+/// content). For column-direction it returns the maximum descendant
+/// text height (a stacked-block approximation).
+///
+/// Padding / border on the item itself is *not* added here — the
+/// caller treats the result as content-box, and the flex layout adds
+/// the frame separately when it builds the item's box.
 fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Option<f32> {
-    let Element::Text(text) = &node.element else {
+    if let Element::Text(text) = &node.element {
+        let (w, h) = measure_text_leaf(text, &node.style, ctx);
+        return Some(if is_row { w } else { h });
+    }
+    let mut sum_main = 0.0_f32;
+    let mut max_main = 0.0_f32;
+    let mut found = false;
+    for child in &node.children {
+        if let Some(v) = text_intrinsic_main(child, is_row, ctx) {
+            sum_main += v;
+            max_main = max_main.max(v);
+            found = true;
+        }
+    }
+    if !found {
         return None;
-    };
-    let (w, h) = measure_text_leaf(text, &node.style, ctx);
-    Some(if is_row { w } else { h })
+    }
+    Some(if is_row { sum_main } else { max_main })
 }
 
 // ---------------------------------------------------------------------------

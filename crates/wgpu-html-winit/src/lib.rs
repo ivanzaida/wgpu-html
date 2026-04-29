@@ -81,56 +81,338 @@ pub fn key_to_dom_key(key: KeyCode, shift: bool) -> &'static str {
     use KeyCode::*;
     match key {
         // Letters: shift alters the case of the character.
-        KeyA => if shift { "A" } else { "a" },
-        KeyB => if shift { "B" } else { "b" },
-        KeyC => if shift { "C" } else { "c" },
-        KeyD => if shift { "D" } else { "d" },
-        KeyE => if shift { "E" } else { "e" },
-        KeyF => if shift { "F" } else { "f" },
-        KeyG => if shift { "G" } else { "g" },
-        KeyH => if shift { "H" } else { "h" },
-        KeyI => if shift { "I" } else { "i" },
-        KeyJ => if shift { "J" } else { "j" },
-        KeyK => if shift { "K" } else { "k" },
-        KeyL => if shift { "L" } else { "l" },
-        KeyM => if shift { "M" } else { "m" },
-        KeyN => if shift { "N" } else { "n" },
-        KeyO => if shift { "O" } else { "o" },
-        KeyP => if shift { "P" } else { "p" },
-        KeyQ => if shift { "Q" } else { "q" },
-        KeyR => if shift { "R" } else { "r" },
-        KeyS => if shift { "S" } else { "s" },
-        KeyT => if shift { "T" } else { "t" },
-        KeyU => if shift { "U" } else { "u" },
-        KeyV => if shift { "V" } else { "v" },
-        KeyW => if shift { "W" } else { "w" },
-        KeyX => if shift { "X" } else { "x" },
-        KeyY => if shift { "Y" } else { "y" },
-        KeyZ => if shift { "Z" } else { "z" },
+        KeyA => {
+            if shift {
+                "A"
+            } else {
+                "a"
+            }
+        }
+        KeyB => {
+            if shift {
+                "B"
+            } else {
+                "b"
+            }
+        }
+        KeyC => {
+            if shift {
+                "C"
+            } else {
+                "c"
+            }
+        }
+        KeyD => {
+            if shift {
+                "D"
+            } else {
+                "d"
+            }
+        }
+        KeyE => {
+            if shift {
+                "E"
+            } else {
+                "e"
+            }
+        }
+        KeyF => {
+            if shift {
+                "F"
+            } else {
+                "f"
+            }
+        }
+        KeyG => {
+            if shift {
+                "G"
+            } else {
+                "g"
+            }
+        }
+        KeyH => {
+            if shift {
+                "H"
+            } else {
+                "h"
+            }
+        }
+        KeyI => {
+            if shift {
+                "I"
+            } else {
+                "i"
+            }
+        }
+        KeyJ => {
+            if shift {
+                "J"
+            } else {
+                "j"
+            }
+        }
+        KeyK => {
+            if shift {
+                "K"
+            } else {
+                "k"
+            }
+        }
+        KeyL => {
+            if shift {
+                "L"
+            } else {
+                "l"
+            }
+        }
+        KeyM => {
+            if shift {
+                "M"
+            } else {
+                "m"
+            }
+        }
+        KeyN => {
+            if shift {
+                "N"
+            } else {
+                "n"
+            }
+        }
+        KeyO => {
+            if shift {
+                "O"
+            } else {
+                "o"
+            }
+        }
+        KeyP => {
+            if shift {
+                "P"
+            } else {
+                "p"
+            }
+        }
+        KeyQ => {
+            if shift {
+                "Q"
+            } else {
+                "q"
+            }
+        }
+        KeyR => {
+            if shift {
+                "R"
+            } else {
+                "r"
+            }
+        }
+        KeyS => {
+            if shift {
+                "S"
+            } else {
+                "s"
+            }
+        }
+        KeyT => {
+            if shift {
+                "T"
+            } else {
+                "t"
+            }
+        }
+        KeyU => {
+            if shift {
+                "U"
+            } else {
+                "u"
+            }
+        }
+        KeyV => {
+            if shift {
+                "V"
+            } else {
+                "v"
+            }
+        }
+        KeyW => {
+            if shift {
+                "W"
+            } else {
+                "w"
+            }
+        }
+        KeyX => {
+            if shift {
+                "X"
+            } else {
+                "x"
+            }
+        }
+        KeyY => {
+            if shift {
+                "Y"
+            } else {
+                "y"
+            }
+        }
+        KeyZ => {
+            if shift {
+                "Z"
+            } else {
+                "z"
+            }
+        }
         // Top-row digits (US layout).
-        Digit0 => if shift { ")" } else { "0" },
-        Digit1 => if shift { "!" } else { "1" },
-        Digit2 => if shift { "@" } else { "2" },
-        Digit3 => if shift { "#" } else { "3" },
-        Digit4 => if shift { "$" } else { "4" },
-        Digit5 => if shift { "%" } else { "5" },
-        Digit6 => if shift { "^" } else { "6" },
-        Digit7 => if shift { "&" } else { "7" },
-        Digit8 => if shift { "*" } else { "8" },
-        Digit9 => if shift { "(" } else { "9" },
+        Digit0 => {
+            if shift {
+                ")"
+            } else {
+                "0"
+            }
+        }
+        Digit1 => {
+            if shift {
+                "!"
+            } else {
+                "1"
+            }
+        }
+        Digit2 => {
+            if shift {
+                "@"
+            } else {
+                "2"
+            }
+        }
+        Digit3 => {
+            if shift {
+                "#"
+            } else {
+                "3"
+            }
+        }
+        Digit4 => {
+            if shift {
+                "$"
+            } else {
+                "4"
+            }
+        }
+        Digit5 => {
+            if shift {
+                "%"
+            } else {
+                "5"
+            }
+        }
+        Digit6 => {
+            if shift {
+                "^"
+            } else {
+                "6"
+            }
+        }
+        Digit7 => {
+            if shift {
+                "&"
+            } else {
+                "7"
+            }
+        }
+        Digit8 => {
+            if shift {
+                "*"
+            } else {
+                "8"
+            }
+        }
+        Digit9 => {
+            if shift {
+                "("
+            } else {
+                "9"
+            }
+        }
         // Punctuation (US layout).
         Space => " ",
-        Minus => if shift { "_" } else { "-" },
-        Equal => if shift { "+" } else { "=" },
-        BracketLeft => if shift { "{" } else { "[" },
-        BracketRight => if shift { "}" } else { "]" },
-        Backslash => if shift { "|" } else { "\\" },
-        Semicolon => if shift { ":" } else { ";" },
-        Quote => if shift { "\"" } else { "'" },
-        Comma => if shift { "<" } else { "," },
-        Period => if shift { ">" } else { "." },
-        Slash => if shift { "?" } else { "/" },
-        Backquote => if shift { "~" } else { "`" },
+        Minus => {
+            if shift {
+                "_"
+            } else {
+                "-"
+            }
+        }
+        Equal => {
+            if shift {
+                "+"
+            } else {
+                "="
+            }
+        }
+        BracketLeft => {
+            if shift {
+                "{"
+            } else {
+                "["
+            }
+        }
+        BracketRight => {
+            if shift {
+                "}"
+            } else {
+                "]"
+            }
+        }
+        Backslash => {
+            if shift {
+                "|"
+            } else {
+                "\\"
+            }
+        }
+        Semicolon => {
+            if shift {
+                ":"
+            } else {
+                ";"
+            }
+        }
+        Quote => {
+            if shift {
+                "\""
+            } else {
+                "'"
+            }
+        }
+        Comma => {
+            if shift {
+                "<"
+            } else {
+                ","
+            }
+        }
+        Period => {
+            if shift {
+                ">"
+            } else {
+                "."
+            }
+        }
+        Slash => {
+            if shift {
+                "?"
+            } else {
+                "/"
+            }
+        }
+        Backquote => {
+            if shift {
+                "~"
+            } else {
+                "`"
+            }
+        }
         // Editing / navigation.
         Enter | NumpadEnter => "Enter",
         Tab => "Tab",
@@ -153,9 +435,18 @@ pub fn key_to_dom_key(key: KeyCode, shift: bool) -> &'static str {
         SuperLeft | SuperRight => "Meta",
         CapsLock => "CapsLock",
         // Function keys.
-        F1 => "F1", F2 => "F2", F3 => "F3", F4 => "F4",
-        F5 => "F5", F6 => "F6", F7 => "F7", F8 => "F8",
-        F9 => "F9", F10 => "F10", F11 => "F11", F12 => "F12",
+        F1 => "F1",
+        F2 => "F2",
+        F3 => "F3",
+        F4 => "F4",
+        F5 => "F5",
+        F6 => "F6",
+        F7 => "F7",
+        F8 => "F8",
+        F9 => "F9",
+        F10 => "F10",
+        F11 => "F11",
+        F12 => "F12",
         _ => "Unidentified",
     }
 }
@@ -167,16 +458,41 @@ pub fn key_to_dom_key(key: KeyCode, shift: bool) -> &'static str {
 pub fn keycode_to_dom_code(key: KeyCode) -> &'static str {
     use KeyCode::*;
     match key {
-        KeyA => "KeyA", KeyB => "KeyB", KeyC => "KeyC", KeyD => "KeyD",
-        KeyE => "KeyE", KeyF => "KeyF", KeyG => "KeyG", KeyH => "KeyH",
-        KeyI => "KeyI", KeyJ => "KeyJ", KeyK => "KeyK", KeyL => "KeyL",
-        KeyM => "KeyM", KeyN => "KeyN", KeyO => "KeyO", KeyP => "KeyP",
-        KeyQ => "KeyQ", KeyR => "KeyR", KeyS => "KeyS", KeyT => "KeyT",
-        KeyU => "KeyU", KeyV => "KeyV", KeyW => "KeyW", KeyX => "KeyX",
-        KeyY => "KeyY", KeyZ => "KeyZ",
-        Digit0 => "Digit0", Digit1 => "Digit1", Digit2 => "Digit2",
-        Digit3 => "Digit3", Digit4 => "Digit4", Digit5 => "Digit5",
-        Digit6 => "Digit6", Digit7 => "Digit7", Digit8 => "Digit8",
+        KeyA => "KeyA",
+        KeyB => "KeyB",
+        KeyC => "KeyC",
+        KeyD => "KeyD",
+        KeyE => "KeyE",
+        KeyF => "KeyF",
+        KeyG => "KeyG",
+        KeyH => "KeyH",
+        KeyI => "KeyI",
+        KeyJ => "KeyJ",
+        KeyK => "KeyK",
+        KeyL => "KeyL",
+        KeyM => "KeyM",
+        KeyN => "KeyN",
+        KeyO => "KeyO",
+        KeyP => "KeyP",
+        KeyQ => "KeyQ",
+        KeyR => "KeyR",
+        KeyS => "KeyS",
+        KeyT => "KeyT",
+        KeyU => "KeyU",
+        KeyV => "KeyV",
+        KeyW => "KeyW",
+        KeyX => "KeyX",
+        KeyY => "KeyY",
+        KeyZ => "KeyZ",
+        Digit0 => "Digit0",
+        Digit1 => "Digit1",
+        Digit2 => "Digit2",
+        Digit3 => "Digit3",
+        Digit4 => "Digit4",
+        Digit5 => "Digit5",
+        Digit6 => "Digit6",
+        Digit7 => "Digit7",
+        Digit8 => "Digit8",
         Digit9 => "Digit9",
         Space => "Space",
         Minus => "Minus",
@@ -214,9 +530,18 @@ pub fn keycode_to_dom_code(key: KeyCode) -> &'static str {
         SuperLeft => "MetaLeft",
         SuperRight => "MetaRight",
         CapsLock => "CapsLock",
-        F1 => "F1", F2 => "F2", F3 => "F3", F4 => "F4",
-        F5 => "F5", F6 => "F6", F7 => "F7", F8 => "F8",
-        F9 => "F9", F10 => "F10", F11 => "F11", F12 => "F12",
+        F1 => "F1",
+        F2 => "F2",
+        F3 => "F3",
+        F4 => "F4",
+        F5 => "F5",
+        F6 => "F6",
+        F7 => "F7",
+        F8 => "F8",
+        F9 => "F9",
+        F10 => "F10",
+        F11 => "F11",
+        F12 => "F12",
         _ => "Unidentified",
     }
 }
@@ -287,20 +612,47 @@ mod tests {
 
     #[test]
     fn mouse_button_maps_known_buttons() {
-        assert!(matches!(mouse_button(WinitMouseButton::Left), MouseButton::Primary));
-        assert!(matches!(mouse_button(WinitMouseButton::Right), MouseButton::Secondary));
-        assert!(matches!(mouse_button(WinitMouseButton::Middle), MouseButton::Middle));
-        assert!(matches!(mouse_button(WinitMouseButton::Back), MouseButton::Other(3)));
-        assert!(matches!(mouse_button(WinitMouseButton::Forward), MouseButton::Other(4)));
-        assert!(matches!(mouse_button(WinitMouseButton::Other(7)), MouseButton::Other(7)));
+        assert!(matches!(
+            mouse_button(WinitMouseButton::Left),
+            MouseButton::Primary
+        ));
+        assert!(matches!(
+            mouse_button(WinitMouseButton::Right),
+            MouseButton::Secondary
+        ));
+        assert!(matches!(
+            mouse_button(WinitMouseButton::Middle),
+            MouseButton::Middle
+        ));
+        assert!(matches!(
+            mouse_button(WinitMouseButton::Back),
+            MouseButton::Other(3)
+        ));
+        assert!(matches!(
+            mouse_button(WinitMouseButton::Forward),
+            MouseButton::Other(4)
+        ));
+        assert!(matches!(
+            mouse_button(WinitMouseButton::Other(7)),
+            MouseButton::Other(7)
+        ));
     }
 
     #[test]
     fn keycode_to_modifier_recognises_modifier_keys() {
-        assert_eq!(keycode_to_modifier(KeyCode::ControlLeft), Some(Modifier::Ctrl));
-        assert_eq!(keycode_to_modifier(KeyCode::ShiftRight), Some(Modifier::Shift));
+        assert_eq!(
+            keycode_to_modifier(KeyCode::ControlLeft),
+            Some(Modifier::Ctrl)
+        );
+        assert_eq!(
+            keycode_to_modifier(KeyCode::ShiftRight),
+            Some(Modifier::Shift)
+        );
         assert_eq!(keycode_to_modifier(KeyCode::AltLeft), Some(Modifier::Alt));
-        assert_eq!(keycode_to_modifier(KeyCode::SuperRight), Some(Modifier::Meta));
+        assert_eq!(
+            keycode_to_modifier(KeyCode::SuperRight),
+            Some(Modifier::Meta)
+        );
         assert_eq!(keycode_to_modifier(KeyCode::KeyA), None);
         assert_eq!(keycode_to_modifier(KeyCode::Tab), None);
     }
@@ -328,12 +680,24 @@ mod tests {
     fn update_modifiers_flips_only_modifier_keys() {
         let mut tree = Tree::new(Node::new("text"));
         assert!(!tree.modifiers().shift);
-        assert!(update_modifiers(&mut tree, KeyCode::ShiftLeft, ElementState::Pressed));
+        assert!(update_modifiers(
+            &mut tree,
+            KeyCode::ShiftLeft,
+            ElementState::Pressed
+        ));
         assert!(tree.modifiers().shift);
-        assert!(update_modifiers(&mut tree, KeyCode::ShiftLeft, ElementState::Released));
+        assert!(update_modifiers(
+            &mut tree,
+            KeyCode::ShiftLeft,
+            ElementState::Released
+        ));
         assert!(!tree.modifiers().shift);
         // Non-modifier keys leave the bitmask alone.
-        assert!(!update_modifiers(&mut tree, KeyCode::KeyA, ElementState::Pressed));
+        assert!(!update_modifiers(
+            &mut tree,
+            KeyCode::KeyA,
+            ElementState::Pressed
+        ));
         assert_eq!(tree.modifiers(), Default::default());
     }
 }

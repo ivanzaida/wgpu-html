@@ -46,7 +46,12 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
 /// `on_mouse_down` bubbling target → root; on a primary press,
 /// also moves keyboard focus to the deepest focusable ancestor of
 /// the hit path (or clears focus if none).
-pub fn mouse_down(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool {
+pub fn mouse_down(
+    tree: &mut Tree,
+    layout: &LayoutBox,
+    pos: (f32, f32),
+    button: MouseButton,
+) -> bool {
     let target = layout.hit_path(pos);
     let cursor = layout.hit_text_cursor(pos);
     tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor)
@@ -71,8 +76,8 @@ mod tests {
 
     use super::*;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use wgpu_html_tree::{Node, SelectionColors};
     // `Modifiers` is no longer plumbed through the dispatch API —
     // these tests rely on the tree's default (all keys up) state.

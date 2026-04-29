@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/wgpu-html",
     "crates/wgpu-html-demo",
+    "crates/wgpu-html-egui",
     "crates/wgpu-html-events",
     "crates/wgpu-html-layout",
     "crates/wgpu-html-models",
@@ -16,6 +17,7 @@ members = [
 
 [workspace.dependencies]
 wgpu-html              = { path = "crates/wgpu-html" }
+wgpu-html-egui         = { path = "crates/wgpu-html-egui" }
 wgpu-html-events       = { path = "crates/wgpu-html-events" }
 wgpu-html-layout       = { path = "crates/wgpu-html-layout" }
 wgpu-html-models       = { path = "crates/wgpu-html-models" }
@@ -30,6 +32,7 @@ wgpu     = "29"
 winit    = "0.30"
 pollster = "0.4"
 arboard  = "3"
+egui     = "0.33.3"
 bytemuck = { version = "1", features = ["derive"] }
 image    = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 ureq     = { version = "2", default-features = false, features = ["tls"] }

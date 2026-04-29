@@ -67,11 +67,7 @@ impl Stage {
         self.max_ms = self.max_ms.max(ms);
     }
     fn avg(&self, n: u64) -> f64 {
-        if n == 0 {
-            0.0
-        } else {
-            self.sum_ms / n as f64
-        }
+        if n == 0 { 0.0 } else { self.sum_ms / n as f64 }
     }
 }
 
@@ -135,10 +131,14 @@ impl Profiler {
             secs,
             n,
             fps,
-            self.cascade.avg(n), self.cascade.max_ms,
-            self.layout.avg(n), self.layout.max_ms,
-            self.paint.avg(n), self.paint.max_ms,
-            self.render.avg(n), self.render.max_ms,
+            self.cascade.avg(n),
+            self.cascade.max_ms,
+            self.layout.avg(n),
+            self.layout.max_ms,
+            self.paint.avg(n),
+            self.paint.max_ms,
+            self.render.avg(n),
+            self.render.max_ms,
             self.hover_moves,
             self.hover_changed,
             self.pointer_move.avg(self.hover_moves),

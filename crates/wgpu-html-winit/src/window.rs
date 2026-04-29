@@ -31,7 +31,9 @@ use wgpu_html_tree::Tree;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::error::EventLoopError;
-use winit::event::{ElementState, KeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    ElementState, KeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
@@ -246,18 +248,14 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         }
         let attrs = Window::default_attributes()
             .with_title(self.title.clone())
-            .with_inner_size(PhysicalSize::new(
-                self.initial_size.0,
-                self.initial_size.1,
-            ));
+            .with_inner_size(PhysicalSize::new(self.initial_size.0, self.initial_size.1));
         let window = Arc::new(
             event_loop
                 .create_window(attrs)
                 .expect("wgpu-html-winit: failed to create window"),
         );
         let size = window.inner_size();
-        let renderer =
-            pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
+        let renderer = pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
         let text_ctx = TextContext::new(GLYPH_ATLAS_SIZE);
         window.request_redraw();
         self.state = Some(RuntimeState {
@@ -272,12 +270,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         });
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let Some(window) = self.state.as_ref().map(|s| s.window.clone()) else {
             return;
         };
@@ -289,8 +282,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
                 if let Some(state) = self.state.as_mut() {
                     state.renderer.resize(size.width, size.height);
                     if let Some(layout) = state.last_layout.as_ref() {
-                        state.scroll_y =
-                            clamp_scroll_y(state.scroll_y, layout, size.height as f32);
+                        state.scroll_y = clamp_scroll_y(state.scroll_y, layout, size.height as f32);
                     }
                     state.scrollbar_drag = None;
                 }
@@ -469,8 +461,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
 
         // Fall through to viewport scroll.
         let size = state.window.inner_size();
-        state.scroll_y =
-            clamp_scroll_y(state.scroll_y + dy, layout, size.height as f32);
+        state.scroll_y = clamp_scroll_y(state.scroll_y + dy, layout, size.height as f32);
         let new_doc_pos = viewport_to_document(pos, state.scroll_y);
         // Re-borrow layout because `state` was previously borrowed
         // mutably (clamp_scroll_y was given &state.last_layout,
@@ -481,12 +472,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         window.request_redraw();
     }
 
-    fn handle_keyboard(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window: &Window,
-        event: KeyEvent,
-    ) {
+    fn handle_keyboard(&mut self, event_loop: &ActiveEventLoop, window: &Window, event: KeyEvent) {
         // 1. User hook gets first dibs.
         let mut hook = self.hook.take();
         let response = if let Some(h) = hook.as_mut() {
@@ -527,8 +513,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             }
             if self.screenshot_key == Some(key) {
                 if let Some(state) = self.state.as_mut() {
-                    let path: std::path::PathBuf =
-                        format!("screenshot-{}.png", timestamp()).into();
+                    let path: std::path::PathBuf = format!("screenshot-{}.png", timestamp()).into();
                     state.renderer.capture_next_frame_to(path);
                     window.request_redraw();
                 }
@@ -690,9 +675,12 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
     }
 
     // Viewport scrollbar.
-    let Some(geom) =
-        scrollbar_geometry(layout, size.width as f32, size.height as f32, state.scroll_y)
-    else {
+    let Some(geom) = scrollbar_geometry(
+        layout,
+        size.width as f32,
+        size.height as f32,
+        state.scroll_y,
+    ) else {
         return false;
     };
     if rect_contains(geom.thumb, pos) {
@@ -706,9 +694,12 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
         let thumb_top = pos.1 - geom.thumb.h * 0.5;
         state.scroll_y =
             scroll_y_from_thumb_top(thumb_top, layout, size.width as f32, size.height as f32);
-        if let Some(updated) =
-            scrollbar_geometry(layout, size.width as f32, size.height as f32, state.scroll_y)
-        {
+        if let Some(updated) = scrollbar_geometry(
+            layout,
+            size.width as f32,
+            size.height as f32,
+            state.scroll_y,
+        ) {
             state.scrollbar_drag = Some(ScrollbarDrag {
                 target: ScrollTarget::Viewport,
                 grab_offset_y: pos.1 - updated.thumb.y,
@@ -718,4 +709,3 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
     }
     false
 }
-

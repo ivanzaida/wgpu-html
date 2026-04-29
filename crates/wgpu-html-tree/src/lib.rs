@@ -23,8 +23,8 @@ pub use events::{
     MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
 };
 pub use focus::{
-    focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths,
-    next_in_order, prev_in_order,
+    focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order,
+    prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 

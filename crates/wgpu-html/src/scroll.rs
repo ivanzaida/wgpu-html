@@ -88,7 +88,12 @@ pub fn scrollbar_geometry(
     let thumb_y = track.y + travel * (scroll_y / max_scroll.max(1.0));
     let thumb = Rect::new(track.x + 1.0, thumb_y, track.w - 2.0, thumb_h);
 
-    Some(ScrollbarGeometry { track, thumb, max_scroll, travel })
+    Some(ScrollbarGeometry {
+        track,
+        thumb,
+        max_scroll,
+        travel,
+    })
 }
 
 /// Inverse of the thumb position calculation: given a desired
@@ -216,7 +221,12 @@ pub fn element_scrollbar_geometry(b: &LayoutBox, scroll_y: f32) -> Option<Scroll
         (track.w - 4.0).max(1.0),
         (thumb_h - 4.0).max(1.0),
     );
-    Some(ScrollbarGeometry { track, thumb, max_scroll, travel })
+    Some(ScrollbarGeometry {
+        track,
+        thumb,
+        max_scroll,
+        travel,
+    })
 }
 
 /// Find the deepest `overflow:scroll` container under `pos` (in
