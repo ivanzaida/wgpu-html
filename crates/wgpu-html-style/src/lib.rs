@@ -808,36 +808,79 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, Cs
         (visibility, "visibility"),
         (cursor, "cursor"),
     );
-    for (prop, value) in &parent.deferred_longhands {
-        if child.deferred_longhands.contains_key(prop) || keywords.contains_key(prop) {
-            continue;
-        }
-        if child.reset_properties.contains(prop) {
-            continue;
-        }
-        if child.keyword_reset_properties.contains(prop) {
-            continue;
-        }
-        if wgpu_html_parser::is_inherited(prop) {
-            child.deferred_longhands.insert(prop.clone(), value.clone());
+    // Deferred longhands: bulk-clone when child has no overrides and
+    // no keyword/reset blocks apply. One HashMap::clone instead of N
+    // individual insert calls.
+    if !parent.deferred_longhands.is_empty() {
+        if child.deferred_longhands.is_empty()
+            && keywords.is_empty()
+            && child.reset_properties.is_empty()
+            && child.keyword_reset_properties.is_empty()
+        {
+            // Fast path: clone the entire map at once. We still need
+            // to filter to inherited properties, but if all of them
+            // are inherited (common case), a bulk clone is faster.
+            child.deferred_longhands = parent
+                .deferred_longhands
+                .iter()
+                .filter(|(prop, _)| wgpu_html_parser::is_inherited(prop))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+        } else {
+            for (prop, value) in &parent.deferred_longhands {
+                if child.deferred_longhands.contains_key(prop) || keywords.contains_key(prop) {
+                    continue;
+                }
+                if child.reset_properties.contains(prop)
+                    || child.keyword_reset_properties.contains(prop)
+                {
+                    continue;
+                }
+                if wgpu_html_parser::is_inherited(prop) {
+                    child.deferred_longhands.insert(prop.clone(), value.clone());
+                }
+            }
         }
     }
-    // Custom properties always inherit.
-    for (prop, value) in &parent.custom_properties {
-        if !child.custom_properties.contains_key(prop) && !keywords.contains_key(prop) {
-            child.custom_properties.insert(prop.clone(), value.clone());
+    // Custom properties always inherit. Bulk-clone when child is clean.
+    if !parent.custom_properties.is_empty() {
+        if child.custom_properties.is_empty() && keywords.is_empty() {
+            child.custom_properties = parent.custom_properties.clone();
+        } else {
+            for (prop, value) in &parent.custom_properties {
+                if !child.custom_properties.contains_key(prop) && !keywords.contains_key(prop) {
+                    child.custom_properties.insert(prop.clone(), value.clone());
+                }
+            }
         }
     }
     // Inherit var_properties for inherited CSS properties.
-    for (prop, value) in &parent.var_properties {
-        if child.var_properties.contains_key(prop) || keywords.contains_key(prop) {
-            continue;
-        }
-        if child.reset_properties.contains(prop) || child.keyword_reset_properties.contains(prop) {
-            continue;
-        }
-        if wgpu_html_parser::is_inherited(prop) {
-            child.var_properties.insert(prop.clone(), value.clone());
+    if !parent.var_properties.is_empty() {
+        if child.var_properties.is_empty()
+            && keywords.is_empty()
+            && child.reset_properties.is_empty()
+            && child.keyword_reset_properties.is_empty()
+        {
+            child.var_properties = parent
+                .var_properties
+                .iter()
+                .filter(|(prop, _)| wgpu_html_parser::is_inherited(prop))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+        } else {
+            for (prop, value) in &parent.var_properties {
+                if child.var_properties.contains_key(prop) || keywords.contains_key(prop) {
+                    continue;
+                }
+                if child.reset_properties.contains(prop)
+                    || child.keyword_reset_properties.contains(prop)
+                {
+                    continue;
+                }
+                if wgpu_html_parser::is_inherited(prop) {
+                    child.var_properties.insert(prop.clone(), value.clone());
+                }
+            }
         }
     }
 }
