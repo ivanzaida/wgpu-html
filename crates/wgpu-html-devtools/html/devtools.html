@@ -1,0 +1,490 @@
+<style>
+  :root {
+    --bg-primary: #202124;
+    --bg-secondary: #292A2D;
+    --bg-tertiary: #35363A;
+    --bg-hover: #3C4043;
+    --bg-selected: #073655;
+    --border: #3C4043;
+    --divider: #5F6368;
+    --text-primary: #E8EAED;
+    --text-secondary: #9AA0A6;
+    --text-muted: #5F6368;
+    --accent-blue: #8AB4F8;
+    --tag-color: #5DB0D7;
+    --attr-name: #9AA0A6;
+    --attr-value: #F28B82;
+    --selector: #D2E3FC;
+    --property: #9AA0A6;
+    --value: #FF8BCB;
+    --unit: #FDD663;
+  }
+
+  body {
+    margin: 0;
+    font-family: DemoSans, Inter, Arial, sans-serif;
+    font-size: 11px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .toolbar .pick-btn {
+    color: var(--accent-blue);
+    font-size: 14px;
+  }
+
+  .toolbar .divider {
+    width: 1px;
+    height: 16px;
+    background: var(--divider);
+  }
+
+  .toolbar .filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    width: 200px;
+  }
+
+  .toolbar .filter .filter-text {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 28px;
+    padding: 0 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tab-bar .tab {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .tab-bar .tab.active {
+    color: var(--text-primary);
+    font-weight: 600;
+    border-bottom: 2px solid var(--accent-blue);
+  }
+
+  /* ── Main area ── */
+  .main {
+    display: flex;
+    flex-grow: 1;
+    min-height: 0;
+  }
+
+  /* ── Tree panel ── */
+  .tree-panel {
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+    background: var(--bg-primary);
+    border-right: 1px solid var(--border);
+  }
+
+  .tree-rows {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    overflow: hidden;
+  }
+
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 18px;
+    padding: 0 12px;
+  }
+
+  .tree-row.selected {
+    background: var(--bg-selected);
+  }
+
+  .tree-row.hovered {
+    background: var(--bg-hover);
+  }
+
+  .indent-1 { padding-left: 28px; }
+  .indent-2 { padding-left: 44px; }
+  .indent-3 { padding-left: 60px; }
+  .indent-4 { padding-left: 76px; }
+  .indent-5 { padding-left: 92px; }
+  .indent-6 { padding-left: 108px; }
+
+  .chevron {
+    color: var(--text-secondary);
+    font-size: 10px;
+    width: 12px;
+  }
+
+  .tag { color: var(--tag-color); }
+  .bracket { color: var(--text-secondary); }
+  .attr-n { color: var(--attr-name); }
+  .attr-v { color: var(--attr-value); }
+  .comment { color: var(--text-muted); }
+  .selected-tag { color: var(--selector); }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 12px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .breadcrumb .bc-active {
+    color: var(--accent-blue);
+    font-weight: 600;
+  }
+
+  .bc-sep { color: var(--text-muted); }
+
+  /* ── Styles panel ── */
+  .styles-panel {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    background: var(--bg-primary);
+    min-width: 0;
+  }
+
+  .style-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .style-search .ss-label {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .style-search .ss-spacer {
+    flex-grow: 1;
+  }
+
+  .style-search .ss-btn {
+    padding: 0 6px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+
+  .style-search .ss-btn.active {
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+  }
+
+  .styles-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── CSS rule blocks ── */
+  .rule {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rule-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 12px;
+  }
+
+  .rule-header .selector-text { color: var(--selector); }
+  .rule-header .brace { color: var(--text-secondary); }
+  .rule-header .file-link {
+    color: var(--accent-blue);
+    font-size: 10px;
+    margin-left: auto;
+  }
+
+  .rule-header .ua-source {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-style: italic;
+    margin-left: auto;
+  }
+
+  .decl {
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 12px 0 28px;
+  }
+
+  .decl.hovered { background: var(--bg-hover); }
+
+  .decl .cb {
+    width: 10px;
+    height: 10px;
+    border: 1px solid var(--text-muted);
+    border-radius: 2px;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+
+  .prop { color: var(--property); }
+  .colon { color: var(--text-secondary); }
+  .val { color: var(--value); }
+  .css-unit { color: var(--unit); }
+  .semi { color: var(--text-secondary); }
+
+  .rule-end {
+    height: 18px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+  }
+</style>
+
+<body>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <span class="pick-btn">&#9654;</span>
+    <div class="divider"></div>
+    <div class="filter">
+      <span class="filter-text">Filter</span>
+    </div>
+  </div>
+
+  <!-- Main area -->
+  <div class="main">
+    <!-- Tree Panel -->
+    <div class="tree-panel">
+      <div class="tree-rows" id="tree-rows">
+        <div class="tree-row">
+          <span class="comment">&lt;!DOCTYPE html&gt;</span>
+        </div>
+        <div class="tree-row">
+          <span class="chevron">&#9660;</span>
+          <span class="bracket">&lt;</span><span class="tag">html</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-1">
+          <span class="chevron">&#9654;</span>
+          <span class="bracket">&lt;</span><span class="tag">head</span><span class="bracket">&gt;...&lt;/</span><span class="tag">head</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-1">
+          <span class="chevron">&#9660;</span>
+          <span class="bracket">&lt;</span><span class="tag">body</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-2">
+          <span class="chevron">&#9660;</span>
+          <span class="bracket">&lt;</span><span class="tag">div</span>
+          <span class="attr-n"> id</span><span class="bracket">=</span><span class="attr-v">"app"</span>
+          <span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-3">
+          <span class="chevron">&#9660;</span>
+          <span class="bracket">&lt;</span><span class="tag">header</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-4">
+          <span class="bracket">&lt;</span><span class="tag">h1</span>
+          <span class="attr-n"> class</span><span class="bracket">=</span><span class="attr-v">"logo"</span>
+          <span class="bracket">&gt;...&lt;/</span><span class="tag">h1</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-4">
+          <span class="bracket">&lt;</span><span class="tag">nav</span><span class="bracket">&gt;...&lt;/</span><span class="tag">nav</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-3">
+          <span class="bracket">&lt;/</span><span class="tag">header</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-3 selected">
+          <span class="chevron">&#9660;</span>
+          <span class="bracket" style="color: var(--text-primary);">&lt;</span><span class="selected-tag">main</span><span class="bracket" style="color: var(--text-primary);">&gt;</span>
+        </div>
+        <div class="tree-row indent-4 hovered">
+          <span class="chevron">&#9660;</span>
+          <span class="bracket">&lt;</span><span class="tag">section</span>
+          <span class="attr-n"> class</span><span class="bracket">=</span><span class="attr-v">"hero"</span>
+          <span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-5">
+          <span class="bracket">&lt;</span><span class="tag">h1</span><span class="bracket">&gt;...&lt;/</span><span class="tag">h1</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-5">
+          <span class="bracket">&lt;</span><span class="tag">p</span><span class="bracket">&gt;...&lt;/</span><span class="tag">p</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-5">
+          <span class="bracket">&lt;</span><span class="tag">button</span>
+          <span class="attr-n"> class</span><span class="bracket">=</span><span class="attr-v">"btn-primary"</span>
+          <span class="bracket">&gt;...&lt;/</span><span class="tag">button</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-4">
+          <span class="bracket">&lt;/</span><span class="tag">section</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-4">
+          <span class="chevron">&#9654;</span>
+          <span class="bracket">&lt;</span><span class="tag">section</span>
+          <span class="attr-n"> class</span><span class="bracket">=</span><span class="attr-v">"features"</span>
+          <span class="bracket">&gt;...&lt;/</span><span class="tag">section</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-3">
+          <span class="bracket">&lt;/</span><span class="tag">main</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-3">
+          <span class="bracket">&lt;</span><span class="tag">footer</span><span class="bracket">&gt;...&lt;/</span><span class="tag">footer</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-2">
+          <span class="bracket">&lt;/</span><span class="tag">div</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row indent-1">
+          <span class="bracket">&lt;/</span><span class="tag">body</span><span class="bracket">&gt;</span>
+        </div>
+        <div class="tree-row">
+          <span class="bracket">&lt;/</span><span class="tag">html</span><span class="bracket">&gt;</span>
+        </div>
+      </div>
+
+      <div class="breadcrumb">
+        <span>html</span>
+        <span class="bc-sep">&#9654;</span>
+        <span>body</span>
+        <span class="bc-sep">&#9654;</span>
+        <span>div#app</span>
+        <span class="bc-sep">&#9654;</span>
+        <span class="bc-active">main</span>
+      </div>
+    </div>
+
+    <!-- Styles Panel -->
+    <div class="styles-panel">
+      <div class="tab-bar">
+        <div class="tab active">Styles</div>
+        <div class="tab">Computed</div>
+        <div class="tab">Layout</div>
+        <div class="tab">Event Listeners</div>
+      </div>
+
+      <div class="style-search">
+        <span class="ss-label">Filter</span>
+        <div class="ss-spacer"></div>
+        <span class="ss-btn active">:hov</span>
+        <span class="ss-btn">.cls</span>
+        <span class="ss-btn">+</span>
+      </div>
+
+      <div class="styles-content">
+        <!-- element.style {} -->
+        <div class="rule">
+          <div class="rule-header">
+            <span class="selector-text">element.style</span>
+            <span class="brace">{</span>
+          </div>
+          <div class="rule-end">}</div>
+        </div>
+
+        <!-- main { ... } -->
+        <div class="rule">
+          <div class="rule-header">
+            <span class="selector-text">main</span>
+            <span class="brace">{</span>
+            <span class="file-link">styles.css:42</span>
+          </div>
+          <div class="decl">
+            <div class="cb"></div>
+            <span class="prop">display</span><span class="colon">: </span><span class="val">flex</span><span class="semi">;</span>
+          </div>
+          <div class="decl hovered">
+            <div class="cb"></div>
+            <span class="prop">flex-direction</span><span class="colon">: </span><span class="val">column</span><span class="semi">;</span>
+          </div>
+          <div class="decl">
+            <div class="cb"></div>
+            <span class="prop">gap</span><span class="colon">: </span><span class="val">24</span><span class="css-unit">px</span><span class="semi">;</span>
+          </div>
+          <div class="decl">
+            <div class="cb"></div>
+            <span class="prop">padding</span><span class="colon">: </span><span class="val">32</span><span class="css-unit">px </span><span class="val">16</span><span class="css-unit">px</span><span class="semi">;</span>
+          </div>
+          <div class="decl">
+            <div class="cb"></div>
+            <span class="prop">max-width</span><span class="colon">: </span><span class="val">1200</span><span class="css-unit">px</span><span class="semi">;</span>
+          </div>
+          <div class="rule-end">}</div>
+        </div>
+
+        <!-- *, *::before, *::after { ... } -->
+        <div class="rule">
+          <div class="rule-header">
+            <span class="selector-text">*, *::before, *::after</span>
+            <span class="brace">{</span>
+            <span class="file-link">styles.css:1</span>
+          </div>
+          <div class="decl">
+            <div class="cb"></div>
+            <span class="prop">box-sizing</span><span class="colon">: </span><span class="val">border-box</span><span class="semi">;</span>
+          </div>
+          <div class="rule-end">}</div>
+        </div>
+
+        <!-- user agent stylesheet -->
+        <div class="rule">
+          <div class="rule-header">
+            <span class="selector-text">main</span>
+            <span class="brace">{</span>
+            <span class="ua-source">user agent stylesheet</span>
+          </div>
+          <div class="decl">
+            <div class="cb"></div>
+            <span class="prop">display</span><span class="colon">: </span><span class="val">block</span><span class="semi">;</span>
+          </div>
+          <div class="rule-end">}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
