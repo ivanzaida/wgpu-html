@@ -294,6 +294,34 @@ still recomputes all ~200 elements.
 
 ---
 
+## O12 — Per-tree image cache
+
+**Stage:** layout / architecture
+**Impact:** high (correctness) — required for multi-tree apps
+(e.g. devtools inspecting a main document).
+**Complexity:** high
+
+The image cache system uses global statics (`OnceLock<Mutex<HashMap>>`)
+for raw decode cache, sized cache, TTL, budget, sweep timing,
+revision counter, and the worker pool. All trees share one cache.
+
+### Plan
+
+1. Create `ImageCache` struct holding `raw: HashMap`, `sized: HashMap`,
+   config fields, and a `completions: Arc<Mutex<Vec<...>>>` shared
+   queue for worker write-back.
+2. Convert free functions (`load_image`, `preload_image`, `has_pending`,
+   `has_animated`, `sweep`, `purge`) to methods on `ImageCache`.
+3. Add `ImageCache` to `TextContext` (already per-tree, threaded
+   through layout via `Ctx`).
+4. Workers write completed results to a global completion channel;
+   `ImageCache::drain_completions()` at layout start picks up results
+   for its own pending URLs.
+5. Keep the worker pool global (shared resource, safe to share).
+6. Remove old global statics.
+
+---
+
 ## Status
 
 | Item | Status |
@@ -301,7 +329,12 @@ still recomputes all ~200 elements.
 | O1 — Pipeline cache (skip cascade+layout on idle) | **done** |
 | O2 — Text measurement cache | **done** |
 | O9 — Font sync short-circuit | **done** |
-| O11 — Cascade performance | **next** |
+| O11 — Cascade performance | **done** |
+| O11a — Incremental cascade (dirty flags + cached CascadedTree) | **done** |
+| O11b — Pseudo-class invalidation sets | **done** |
+| O11c — Bulk HashMap inheritance | **done** |
+| O11d — O(n²) → O(1) in selector matching | **done** |
+| O12 — Per-tree image cache | **next** |
 | O3 — Display list caching | pending |
 | O7 — Cow<str> text processing | pending |
 | O6 — GPU buffer reuse | pending |
@@ -310,11 +343,23 @@ still recomputes all ~200 elements.
 | O10 — Pre-sorted glyph index | pending |
 | O8 — Atlas eviction/growth | pending |
 
+## Measured results (click-demo.html)
+
+Before optimizations:
+```
+cascade=40ms  layout=3.5ms  paint=0.2ms  render=6ms  → 10 fps
+```
+
+After O1+O2+O9+O11:
+```
+cascade=0-3ms  layout=0.08ms  paint=0.02ms  render=1ms  → 60 fps
+```
+
 ## Priority order
 
 | Priority | Item | Impact | Complexity |
 |----------|------|--------|------------|
-| 1 | O11 — Cascade performance | **high** | medium-high |
+| 1 | O12 — Per-tree image cache | **high** (correctness) | high |
 | 2 | O3 — Display list caching | medium-high | medium |
 | 3 | O7 — Cow<str> text processing | low-medium | low |
 | 4 | O6 — GPU buffer reuse | low-medium | low |
@@ -323,6 +368,6 @@ still recomputes all ~200 elements.
 | 7 | O10 — Pre-sorted glyph index | low | low |
 | 8 | O8 — Atlas eviction/growth | low | medium |
 
-Cascade (40 ms) is the dominant bottleneck. Every mouse move /
-click forces a full re-cascade for pseudo-class rules. Fixing this
-is the single highest-impact remaining optimization.
+O12 (per-tree image cache) is a correctness requirement for
+multi-tree apps, not just a performance optimization. All
+performance-critical items (O1, O2, O9, O11) are done.
