@@ -16,6 +16,7 @@ mod focus;
 mod fonts;
 mod query;
 pub mod text_edit;
+pub mod tree_hook;
 
 pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
 
@@ -32,6 +33,10 @@ pub use focus::{
     prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
+pub use tree_hook::{
+    TreeHook, TreeHookResponse, TreeHookHandle, TreeLifecycleEvent, TreeLifecyclePhase,
+    TreeLifecycleStage, TreeRenderEvent, TreeRenderViewport,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Tree {
@@ -62,6 +67,9 @@ pub struct Tree {
     /// once at startup via [`Tree::preload_asset`] and forget about
     /// it.
     pub preload_queue: Vec<String>,
+    /// Host hooks registered on this document. Integration crates emit through
+    /// `Tree::emit_*` methods so hook dispatch stays owned by this crate.
+    pub hooks: Vec<TreeHookHandle>,
 }
 
 impl Tree {
@@ -72,6 +80,7 @@ impl Tree {
             interaction: InteractionState::default(),
             asset_cache_ttl: None,
             preload_queue: Vec::new(),
+            hooks: Vec::new(),
         }
     }
 
@@ -114,6 +123,23 @@ impl Tree {
             return;
         }
         self.preload_queue.push(s);
+    }
+
+    /// Return an immutable reference to the currently focused element,
+    /// or `None` if nothing is focused or the focus path is stale.
+    ///
+    /// Useful for reading the focused form control's value without
+    /// walking the path manually.
+    pub fn active_element(&self) -> Option<&Node> {
+        let path = self.interaction.focus_path.as_deref()?;
+        self.root.as_ref()?.at_path(path)
+    }
+
+    /// Return a mutable reference to the currently focused element,
+    /// or `None` if nothing is focused or the focus path is stale.
+    pub fn active_element_mut(&mut self) -> Option<&mut Node> {
+        let path = self.interaction.focus_path.clone()?;
+        self.root.as_mut()?.at_path_mut(&path)
     }
 
     /// Find the first descendant whose `id` attribute equals `id`,

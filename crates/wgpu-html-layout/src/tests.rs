@@ -1496,6 +1496,7 @@ fn synthetic_text_layout() -> LayoutBox {
             ascent: 15.0,
         }),
         text_color: Some([0.0, 0.0, 0.0, 1.0]),
+        text_unselectable: false,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
         opacity: 1.0,

@@ -4017,6 +4017,8 @@ dependencies = [
  "pollster",
  "wgpu-html",
  "wgpu-html-egui",
+ "wgpu-html-models",
+ "wgpu-html-style",
  "wgpu-html-text",
  "wgpu-html-tree",
  "wgpu-html-winit",

@@ -155,45 +155,54 @@ fn bubble(
     let buttons_down = tree.interaction.buttons_down;
     let modifiers = tree.interaction.modifiers;
 
-    let Some(root) = tree.root.as_mut() else {
-        return;
-    };
-    let chain = root.ancestry_at_path_mut(target_path);
     let depth = target_path.len();
-    for (i, node) in chain.into_iter().enumerate() {
+    for i in 0..=depth {
         let current_path = target_path[..depth.saturating_sub(i)].to_vec();
 
-        let cb_slot = match slot {
-            Slot::MouseDown => &node.on_mouse_down,
-            Slot::MouseUp => &node.on_mouse_up,
-            Slot::Click => &node.on_click,
+        let (mouse_cb, event_cb) = tree
+            .root
+            .as_ref()
+            .and_then(|root| root.at_path(&current_path))
+            .map(|node| {
+                let mouse_cb = match slot {
+                    Slot::MouseDown => node.on_mouse_down.clone(),
+                    Slot::MouseUp => node.on_mouse_up.clone(),
+                    Slot::Click => node.on_click.clone(),
+                };
+                (mouse_cb, node.on_event.clone())
+            })
+            .unwrap_or((None, None));
+
+        let mut ev = MouseEvent {
+            pos,
+            button,
+            modifiers,
+            target_path: target_path.to_vec(),
+            current_path: current_path.clone(),
         };
-        if let Some(cb) = cb_slot.as_ref() {
-            let cb = cb.clone();
-            let ev = MouseEvent {
-                pos,
-                button,
-                modifiers,
-                target_path: target_path.to_vec(),
-                current_path: current_path.clone(),
-            };
+        if tree.emit_mouse_event(&mut ev).is_stop() {
+            return;
+        }
+        if let Some(cb) = mouse_cb {
             cb(&ev);
         }
 
-        if let Some(on_ev) = node.on_event.as_ref() {
-            let on_ev = on_ev.clone();
-            let html_ev = make_mouse_html_event(
-                slot.event_type_str(),
-                /*bubbles*/ true,
-                slot.detail(),
-                pos,
-                button,
-                buttons_down,
-                modifiers,
-                target_path,
-                current_path,
-                time_stamp,
-            );
+        let mut html_ev = make_mouse_html_event(
+            slot.event_type_str(),
+            /*bubbles*/ true,
+            slot.detail(),
+            pos,
+            button,
+            buttons_down,
+            modifiers,
+            target_path,
+            current_path,
+            time_stamp,
+        );
+        if tree.emit_event(&mut html_ev).is_stop() {
+            return;
+        }
+        if let Some(on_ev) = event_cb {
             on_ev(&html_ev);
         }
     }
@@ -255,38 +264,50 @@ fn fire_root_hover_event(tree: &mut Tree, pos: (f32, f32), target_path: &[usize]
     let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
     let buttons_down = tree.interaction.buttons_down;
     let modifiers = tree.interaction.modifiers;
-    let Some(root) = tree.root.as_mut() else {
-        return;
-    };
     let current_path: Vec<usize> = vec![];
 
-    let cb_slot = match slot {
-        HoverSlot::Enter => root.on_mouse_enter.as_ref(),
-        HoverSlot::Leave => root.on_mouse_leave.as_ref(),
+    let (mouse_cb, event_cb) = tree
+        .root
+        .as_ref()
+        .map(|root| {
+            let mouse_cb = match slot {
+                HoverSlot::Enter => root.on_mouse_enter.clone(),
+                HoverSlot::Leave => root.on_mouse_leave.clone(),
+            };
+            (mouse_cb, root.on_event.clone())
+        })
+        .unwrap_or((None, None));
+
+    let mut ev = MouseEvent {
+        pos,
+        button: None,
+        modifiers,
+        target_path: target_path.to_vec(),
+        current_path: current_path.clone(),
     };
-    if let Some(cb) = cb_slot.cloned() {
-        cb(&MouseEvent {
-            pos,
-            button: None,
-            modifiers,
-            target_path: target_path.to_vec(),
-            current_path: current_path.clone(),
-        });
+    if tree.emit_mouse_event(&mut ev).is_stop() {
+        return;
+    }
+    if let Some(cb) = mouse_cb {
+        cb(&ev);
     }
 
-    if let Some(on_ev) = root.on_event.as_ref().cloned() {
-        let html_ev = make_mouse_html_event(
-            slot.event_type_str(),
-            /*bubbles*/ false,
-            0,
-            pos,
-            None,
-            buttons_down,
-            modifiers,
-            target_path,
-            current_path,
-            time_stamp,
-        );
+    let mut html_ev = make_mouse_html_event(
+        slot.event_type_str(),
+        /*bubbles*/ false,
+        0,
+        pos,
+        None,
+        buttons_down,
+        modifiers,
+        target_path,
+        current_path,
+        time_stamp,
+    );
+    if tree.emit_event(&mut html_ev).is_stop() {
+        return;
+    }
+    if let Some(on_ev) = event_cb {
         on_ev(&html_ev);
     }
 }
@@ -310,18 +331,9 @@ fn fire_chain_segment(
     let buttons_down = tree.interaction.buttons_down;
     let modifiers = tree.interaction.modifiers;
 
-    let Some(root) = tree.root.as_mut() else {
-        return;
-    };
-    let prefix = &path[..end];
-    let mut chain = root.ancestry_at_path_mut(prefix);
-    chain.truncate(end - start);
-    if !deepest_first {
-        chain.reverse();
-    }
     let target = target_path.map(|p| p.to_vec()).unwrap_or_default();
-    let count = chain.len();
-    for (idx, node) in chain.into_iter().enumerate() {
+    let count = end - start;
+    for idx in 0..count {
         let plen = if deepest_first {
             end - idx
         } else {
@@ -329,36 +341,49 @@ fn fire_chain_segment(
         };
         let current_path = path[..plen].to_vec();
 
-        let cb_slot = match slot {
-            HoverSlot::Enter => &node.on_mouse_enter,
-            HoverSlot::Leave => &node.on_mouse_leave,
+        let (mouse_cb, event_cb) = tree
+            .root
+            .as_ref()
+            .and_then(|root| root.at_path(&current_path))
+            .map(|node| {
+                let mouse_cb = match slot {
+                    HoverSlot::Enter => node.on_mouse_enter.clone(),
+                    HoverSlot::Leave => node.on_mouse_leave.clone(),
+                };
+                (mouse_cb, node.on_event.clone())
+            })
+            .unwrap_or((None, None));
+
+        let mut ev = MouseEvent {
+            pos,
+            button: None,
+            modifiers,
+            target_path: target.clone(),
+            current_path: current_path.clone(),
         };
-        if let Some(cb) = cb_slot.as_ref() {
-            let cb = cb.clone();
-            let ev = MouseEvent {
-                pos,
-                button: None,
-                modifiers,
-                target_path: target.clone(),
-                current_path: current_path.clone(),
-            };
+        if tree.emit_mouse_event(&mut ev).is_stop() {
+            return;
+        }
+        if let Some(cb) = mouse_cb {
             cb(&ev);
         }
 
-        if let Some(on_ev) = node.on_event.as_ref() {
-            let on_ev = on_ev.clone();
-            let html_ev = make_mouse_html_event(
-                slot.event_type_str(),
-                /*bubbles*/ false,
-                0,
-                pos,
-                None,
-                buttons_down,
-                modifiers,
-                &target,
-                current_path,
-                time_stamp,
-            );
+        let mut html_ev = make_mouse_html_event(
+            slot.event_type_str(),
+            /*bubbles*/ false,
+            0,
+            pos,
+            None,
+            buttons_down,
+            modifiers,
+            &target,
+            current_path,
+            time_stamp,
+        );
+        if tree.emit_event(&mut html_ev).is_stop() {
+            return;
+        }
+        if let Some(on_ev) = event_cb {
             on_ev(&html_ev);
         }
     }
@@ -589,29 +614,38 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
     tree.interaction.focus_path = new_path.clone();
 
     // Initialize or clear the edit cursor for the new focus target.
-    tree.interaction.edit_cursor = new_path
-        .as_deref()
-        .and_then(|path| {
-            let node = tree.root.as_ref()?.at_path(path)?;
-            match &node.element {
-                Element::Input(inp) => {
-                    use wgpu_html_models::common::html_enums::InputType;
-                    if matches!(
-                        inp.r#type,
-                        Some(InputType::Hidden | InputType::Checkbox | InputType::Radio)
-                    ) {
-                        return None;
-                    }
-                    let len = inp.value.as_deref().unwrap_or("").len();
-                    Some(crate::EditCursor::collapsed(len))
+    tree.interaction.edit_cursor = new_path.as_deref().and_then(|path| {
+        let node = tree.root.as_ref()?.at_path(path)?;
+        match &node.element {
+            Element::Input(inp) => {
+                use wgpu_html_models::common::html_enums::InputType;
+                if matches!(
+                    inp.r#type,
+                    Some(
+                        InputType::Hidden
+                            | InputType::Checkbox
+                            | InputType::Radio
+                            | InputType::Button
+                            | InputType::Submit
+                            | InputType::Reset
+                            | InputType::File
+                            | InputType::Image
+                            | InputType::Color
+                            | InputType::Range
+                    )
+                ) {
+                    return None;
                 }
-                Element::Textarea(ta) => {
-                    let len = textarea_value(ta, &node.children).len();
-                    Some(crate::EditCursor::collapsed(len))
-                }
-                _ => None,
+                let len = inp.value.as_deref().unwrap_or("").len();
+                Some(crate::EditCursor::collapsed(len))
             }
-        });
+            Element::Textarea(ta) => {
+                let len = textarea_value(ta, &node.children).len();
+                Some(crate::EditCursor::collapsed(len))
+            }
+            _ => None,
+        }
+    });
     tree.interaction.caret_blink_epoch = std::time::Instant::now();
 
     if let Some(new) = new_path.as_deref() {
@@ -655,26 +689,24 @@ fn fire_focus_event(
     time_stamp: f64,
     kind: FocusBubbleKind,
 ) {
-    let Some(root) = tree.root.as_mut() else {
-        return;
-    };
-    let chain = root.ancestry_at_path_mut(target_path);
     let depth = target_path.len();
     let target = target_path.to_vec();
-    for (i, node) in chain.into_iter().enumerate() {
+    for i in 0..=depth {
         if matches!(kind, FocusBubbleKind::Target) && i != 0 {
             break;
         }
         let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-        let Some(on_ev) = node.on_event.as_ref().cloned() else {
-            continue;
-        };
+        let on_ev = tree
+            .root
+            .as_ref()
+            .and_then(|root| root.at_path(&current_path))
+            .and_then(|node| node.on_event.clone());
         let event_phase = if current_path == target {
             ev::EventPhase::AtTarget
         } else {
             ev::EventPhase::BubblingPhase
         };
-        let html_ev = ev::HtmlEvent::Focus(ev::events::FocusEvent {
+        let mut html_ev = ev::HtmlEvent::Focus(ev::events::FocusEvent {
             base: ev::events::UIEvent {
                 base: ev::events::Event {
                     event_type: ev::HtmlEventType::from(event_type),
@@ -692,7 +724,12 @@ fn fire_focus_event(
             },
             related_target: related.clone(),
         });
-        on_ev(&html_ev);
+        if tree.emit_event(&mut html_ev).is_stop() {
+            return;
+        }
+        if let Some(on_ev) = on_ev {
+            on_ev(&html_ev);
+        }
     }
 }
 
@@ -791,24 +828,28 @@ fn bubble_keyboard(
 ) {
     let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
     let modifiers = tree.interaction.modifiers;
-    let Some(root) = tree.root.as_mut() else {
-        return;
-    };
-    let chain = root.ancestry_at_path_mut(target_path);
     let depth = target_path.len();
-    for (i, node) in chain.into_iter().enumerate() {
+    for i in 0..=depth {
         let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-        if let Some(on_ev) = node.on_event.as_ref().cloned() {
-            let html_ev = make_keyboard_html_event(
-                event_type,
-                key,
-                code,
-                repeat,
-                modifiers,
-                target_path,
-                current_path,
-                time_stamp,
-            );
+        let on_ev = tree
+            .root
+            .as_ref()
+            .and_then(|root| root.at_path(&current_path))
+            .and_then(|node| node.on_event.clone());
+        let mut html_ev = make_keyboard_html_event(
+            event_type,
+            key,
+            code,
+            repeat,
+            modifiers,
+            target_path,
+            current_path,
+            time_stamp,
+        );
+        if tree.emit_event(&mut html_ev).is_stop() {
+            return;
+        }
+        if let Some(on_ev) = on_ev {
             on_ev(&html_ev);
         }
     }
@@ -878,7 +919,18 @@ fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
         Element::Input(inp) => {
             if matches!(
                 inp.r#type,
-                Some(InputType::Hidden | InputType::Checkbox | InputType::Radio)
+                Some(
+                    InputType::Hidden
+                        | InputType::Checkbox
+                        | InputType::Radio
+                        | InputType::Button
+                        | InputType::Submit
+                        | InputType::Reset
+                        | InputType::File
+                        | InputType::Image
+                        | InputType::Color
+                        | InputType::Range
+                )
             ) {
                 return None;
             }
@@ -981,12 +1033,8 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
         "ArrowRight" => Some(crate::text_edit::move_right(&old_value, &cursor, shift)),
         "Home" => Some(crate::text_edit::move_home(&old_value, &cursor, shift)),
         "End" => Some(crate::text_edit::move_end(&old_value, &cursor, shift)),
-        "ArrowUp" if is_textarea => {
-            Some(crate::text_edit::move_up(&old_value, &cursor, shift))
-        }
-        "ArrowDown" if is_textarea => {
-            Some(crate::text_edit::move_down(&old_value, &cursor, shift))
-        }
+        "ArrowUp" if is_textarea => Some(crate::text_edit::move_up(&old_value, &cursor, shift)),
+        "ArrowDown" if is_textarea => Some(crate::text_edit::move_down(&old_value, &cursor, shift)),
         _ if ctrl && matches!(key, "a" | "A") => Some(crate::text_edit::select_all(&old_value)),
         _ => None,
     };
@@ -1005,17 +1053,13 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
     let mutation: Option<(String, crate::EditCursor)> = match key {
         "Backspace" => Some(crate::text_edit::delete_backward(&old_value, &cursor)),
         "Delete" => Some(crate::text_edit::delete_forward(&old_value, &cursor)),
-        "Enter" if is_textarea => {
-            Some(crate::text_edit::insert_line_break(&old_value, &cursor))
-        }
+        "Enter" if is_textarea => Some(crate::text_edit::insert_line_break(&old_value, &cursor)),
         _ => None,
     };
 
     if let Some((new_value, new_cursor)) = mutation {
         if new_value != old_value {
-            if let Some(node) =
-                tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path))
-            {
+            if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
                 write_value(node, new_value);
             }
         }
@@ -1130,7 +1174,7 @@ impl Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Node;
+    use crate::{Node, TreeHook, TreeHookResponse};
     use std::sync::{Arc, Mutex};
     use wgpu_html_models as m;
 
@@ -1155,6 +1199,68 @@ mod tests {
         anchor.href = Some("#".into());
         root.children.push(Node::new(anchor));
         Tree::new(root)
+    }
+
+    struct RecordingHook {
+        events: Arc<Mutex<Vec<String>>>,
+        mouse_paths: Arc<Mutex<Vec<Vec<usize>>>>,
+    }
+
+    impl TreeHook for RecordingHook {
+        fn on_event(&mut self, _tree: &mut Tree, event: &mut ev::HtmlEvent) -> TreeHookResponse {
+            self.events
+                .lock()
+                .unwrap()
+                .push(event.event_type().to_string());
+            TreeHookResponse::Continue
+        }
+
+        fn on_mouse_event(&mut self, _tree: &mut Tree, event: &mut MouseEvent) -> TreeHookResponse {
+            self.mouse_paths
+                .lock()
+                .unwrap()
+                .push(event.current_path.clone());
+            TreeHookResponse::Continue
+        }
+    }
+
+    #[test]
+    fn tree_hook_receives_keyboard_event_without_node_callback() {
+        let events = Arc::new(Mutex::new(Vec::<String>::new()));
+        let mouse_paths = Arc::new(Mutex::new(Vec::<Vec<usize>>::new()));
+        let mut tree = focus_test_tree();
+        tree.add_hook(RecordingHook {
+            events: events.clone(),
+            mouse_paths,
+        });
+
+        tree.key_down("a", "KeyA", false);
+
+        let events = events.lock().unwrap().clone();
+        assert!(events.contains(&"keydown".to_owned()), "got {events:?}");
+    }
+
+    #[test]
+    fn tree_hook_receives_mouse_events_without_node_callback() {
+        let events = Arc::new(Mutex::new(Vec::<String>::new()));
+        let mouse_paths = Arc::new(Mutex::new(Vec::<Vec<usize>>::new()));
+        let mut root = Node::new(m::Body::default());
+        root.children.push(Node::new(m::Div::default()));
+        let mut tree = Tree::new(root);
+        tree.add_hook(RecordingHook {
+            events: events.clone(),
+            mouse_paths: mouse_paths.clone(),
+        });
+
+        tree.dispatch_mouse_down(Some(&[0]), (1.0, 1.0), MouseButton::Primary, None);
+
+        let events = events.lock().unwrap().clone();
+        let mouse_paths = mouse_paths.lock().unwrap().clone();
+        assert!(events.contains(&"mousedown".to_owned()), "got {events:?}");
+        assert!(
+            mouse_paths.iter().any(|p| p.as_slice() == [0usize]),
+            "got {mouse_paths:?}"
+        );
     }
 
     #[test]

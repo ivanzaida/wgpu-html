@@ -24,7 +24,7 @@ use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::{Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
 use wgpu_html_winit::{
     AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
     register_system_fonts, system_font_variants,
@@ -594,6 +594,15 @@ impl AppHook for DemoHook {
     }
 }
 
+struct FrameHook;
+
+impl TreeHook for FrameHook {
+    fn on_render(&mut self, tree: &mut Tree, event: &TreeRenderEvent<'_>) -> TreeHookResponse {
+        println!("render event: {:?}", event);
+        TreeHookResponse::Continue
+    }
+}
+
 // ── Runner ──────────────────────────────────────────────────────────────────
 
 pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool) -> ExitCode {
@@ -626,6 +635,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     let mut tree = wgpu_html::parser::parse(&doc_html);
     register_system_fonts(&mut tree, "DemoSans");
     install_demo_callbacks(&mut tree, &click_count);
+    tree.add_hook(FrameHook);
 
     let hook = DemoHook::new(profiling_enabled);
 

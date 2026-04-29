@@ -48,6 +48,45 @@ editing surface looks like today and where it's heading".
 | IME / composition (`WindowEvent::Ime`) | ❌ | Spec §2 non-goal for first pass |
 | `<input type="number/date/range/...">` | ❌ | Only text-like types supported |
 
+### Input type support
+
+All 22 HTML input types are parsed into `InputType` variants
+(`wgpu-html-models/src/common/html_enums.rs`). Rendering and
+editing support varies:
+
+| `type` | Parsed | Focusable | Editable | Renders as | Notes |
+|---|---|---|---|---|---|
+| `text` | ✅ | ✅ | ✅ | text field | Default type |
+| `password` | ✅ | ✅ | ✅ | bullet-masked field | U+2022 per char |
+| `email` | ✅ | ✅ | ✅ | text field | No validation UI |
+| `search` | ✅ | ✅ | ✅ | text field | No clear button |
+| `tel` | ✅ | ✅ | ✅ | text field | No format enforcement |
+| `url` | ✅ | ✅ | ✅ | text field | No validation UI |
+| `number` | ✅ | ✅ | ✅ | text field | No spin buttons; accepts any text |
+| `hidden` | ✅ | ❌ | ❌ | nothing | UA `display: none` |
+| `button` | ✅ | ✅ | ❌ | button-like box | Value shown as label; not editable |
+| `submit` | ✅ | ✅ | ❌ | button-like box | No form submission |
+| `reset` | ✅ | ✅ | ❌ | button-like box | No form reset |
+| `checkbox` | ✅ | ✅ | ❌ | empty box | No toggle; no check mark |
+| `radio` | ✅ | ✅ | ❌ | empty box | No toggle; no dot |
+| `file` | ✅ | ✅ | ❌ | empty box | No file picker; no "Choose File" label |
+| `image` | ✅ | ✅ | ❌ | empty box | No `src` image rendering |
+| `color` | ✅ | ✅ | ❌ | empty box | No color swatch or picker |
+| `range` | ✅ | ✅ | ❌ | empty box | No slider track or thumb |
+| `date` | ✅ | ✅ | ✅ | text field | No date picker; accepts any text |
+| `datetime-local` | ✅ | ✅ | ✅ | text field | No datetime picker |
+| `month` | ✅ | ✅ | ✅ | text field | No month picker |
+| `week` | ✅ | ✅ | ✅ | text field | No week picker |
+| `time` | ✅ | ✅ | ✅ | text field | No time picker |
+
+"Editable" means the text editing pipeline (`text_input` /
+`handle_edit_key`) accepts keystrokes for that type. Types
+marked ❌ in the Editable column are excluded by
+`read_editable_value` (dispatch.rs) which skips `Hidden`,
+`Checkbox`, and `Radio`. All other types fall through to the
+text-field path — they accept typed text but have no type-
+specific validation, formatting, or custom UI.
+
 ---
 
 ## 1. Goals

@@ -343,7 +343,13 @@ fn paint_box_in_clip(
         let color = apply_opacity(b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]), opacity);
         let mut origin = b.content_rect;
         origin.y += paint_offset_y;
-        let selected_range = selection_range_for_path(selection, path, run.glyphs.len());
+        // Form control text (placeholders + typed values) is excluded
+        // from document-level drag-to-select, matching browser behavior.
+        let selected_range = if b.text_unselectable {
+            None
+        } else {
+            selection_range_for_path(selection, path, run.glyphs.len())
+        };
 
         // Decorations sit relative to the run's baseline, behind the
         // glyphs (under-line / line-through draw under the strokes;
@@ -1231,6 +1237,7 @@ mod tests {
                 ascent: 10.0,
             }),
             text_color: Some([0.0, 0.0, 0.0, 1.0]),
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
@@ -1550,6 +1557,7 @@ mod tests {
             kind: BoxKind::Block,
             text_run: None,
             text_color: None,
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: OverflowAxes {
                 x: Overflow::Auto,
@@ -1595,6 +1603,7 @@ mod tests {
                 ascent: 10.0,
             }),
             text_color: Some([1.0, 1.0, 1.0, 1.0]),
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: OverflowAxes::visible(),
             opacity: 1.0,
@@ -1617,6 +1626,7 @@ mod tests {
             kind: BoxKind::Block,
             text_run: None,
             text_color: None,
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: OverflowAxes::visible(),
             opacity: 1.0,

@@ -282,12 +282,14 @@ fn first_text_cursor(layout: &LayoutBox) -> Option<TextCursor> {
 }
 
 fn first_text_cursor_inner(layout: &LayoutBox, path: &mut Vec<usize>) -> Option<TextCursor> {
-    if let Some(run) = &layout.text_run {
-        if !run.text.is_empty() || !run.glyphs.is_empty() {
-            return Some(TextCursor {
-                path: path.clone(),
-                glyph_index: 0,
-            });
+    if !layout.text_unselectable {
+        if let Some(run) = &layout.text_run {
+            if !run.text.is_empty() || !run.glyphs.is_empty() {
+                return Some(TextCursor {
+                    path: path.clone(),
+                    glyph_index: 0,
+                });
+            }
         }
     }
     for (i, child) in layout.children.iter().enumerate() {
@@ -315,6 +317,9 @@ fn last_text_cursor_inner(layout: &LayoutBox, path: &mut Vec<usize>) -> Option<T
             return hit;
         }
     }
+    if layout.text_unselectable {
+        return None;
+    }
     let run = layout.text_run.as_ref()?;
     (!run.text.is_empty() || !run.glyphs.is_empty()).then(|| TextCursor {
         path: path.clone(),
@@ -331,7 +336,7 @@ fn collect_selected_text(
     out: &mut String,
 ) {
     if let Some(run) = &layout.text_run {
-        if !path_less(path, &start.path) && !path_less(&end.path, path) {
+        if !layout.text_unselectable && !path_less(path, &start.path) && !path_less(&end.path, path) {
             let from = if path.as_slice() == start.path.as_slice() {
                 run.byte_offset_for_boundary(start.glyph_index)
             } else {
@@ -424,6 +429,7 @@ mod tests {
                 ascent: 14.0,
             }),
             text_color: Some([0.0, 0.0, 0.0, 1.0]),
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
@@ -449,6 +455,7 @@ mod tests {
             kind: wgpu_html_layout::BoxKind::Block,
             text_run: None,
             text_color: None,
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
@@ -494,6 +501,7 @@ mod tests {
             kind: wgpu_html_layout::BoxKind::Block,
             text_run: None,
             text_color: None,
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
@@ -526,6 +534,7 @@ mod tests {
             kind: wgpu_html_layout::BoxKind::Block,
             text_run: None,
             text_color: None,
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
@@ -547,6 +556,7 @@ mod tests {
             kind: wgpu_html_layout::BoxKind::Block,
             text_run: None,
             text_color: None,
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
@@ -571,4 +581,5 @@ mod tests {
             Some("Hello world\nSecond")
         );
     }
+
 }

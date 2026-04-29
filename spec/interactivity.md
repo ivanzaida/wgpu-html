@@ -52,8 +52,9 @@ exist for any of it to behave like a browser.
   `InteractionState`, drag-to-select, `select_all_text` /
   `selected_text`, `Ctrl+A`/`Ctrl+C` + `arboard` (now built into
   the `wgpu-html-winit` harness), selection highlight quads in
-  `paint.rs`. Caret overlay, word/line select, and `user-select`
-  property enforcement are still ❌.
+  `paint.rs`. Form-control edit selection and blinking caret are
+  shipped. Word/line select and `user-select` property enforcement
+  are still ❌.
 - **M-INTER-4 ⚠️ partial.** `scroll_offsets_y: BTreeMap` on
   `InteractionState`, viewport scroll + per-element scroll-container
   offset, scrollbar paint, drag-to-scroll, `MouseWheel`. Scroll +
@@ -81,12 +82,13 @@ exist for any of it to behave like a browser.
   `App` + `ApplicationHandler` are gone; profiling is now an
   `AppHook` impl. See §15 for the API surface.
 - **M-INTER-2, M-INTER-6 ❌ not yet done.** `pointer-events: none`
-  in hit-test, `overflow`-clip in hit-test, double-click,
+  in hit-test, double-click,
   `:focus-within`, `:focus-visible`, `:disabled`, re-cascade caching.
 
-Companion to `roadmap.md` (§M12 interactivity milestones), `status.md`
-§7 (interactivity), and `text.md` (text selection lands here, not in
-the text spec).
+Companion to `spec/events.md` (typed event structs and dispatch
+matrix), `roadmap.md` (§M12 interactivity milestones),
+`docs/full-status.md` §7 (interactivity), and `text.md` (text
+selection lands here, not in the text spec).
 
 ---
 
@@ -114,8 +116,8 @@ the text spec).
 - No drag-and-drop API (`dragstart / dragover / drop`). Reserved.
 - No touch / pen / multi-pointer. The model is single-pointer mouse
   with explicit primary / secondary / middle button distinction.
-- No IME / composition events; out of scope until `<input>` gets a
-  real text path.
+- No IME / composition events yet. Plain text input is wired for
+  `<input>` / `<textarea>`, but composition lifecycle events are not.
 - No `pointercapture` semantics beyond the implicit "press target
   keeps receiving moves until release" rule (§7).
 - No CSS `transform` interaction — hit-testing still walks
@@ -173,6 +175,11 @@ pub struct InteractionState {
     /// keyboard dispatchers when they fire DOM events. Hosts no
     /// longer thread `Modifiers` through every dispatch call.
     pub modifiers:        Modifiers,
+    /// Caret/selection state inside the currently focused `<input>` or
+    /// `<textarea>`.
+    pub edit_cursor:      Option<EditCursor>,
+    /// Blink epoch for the form-control caret.
+    pub caret_blink_epoch: Instant,
 }
 ```
 
@@ -194,10 +201,22 @@ Rationale:
 
 ## 5. Hit testing — contract & extensions
 
-The current hit test (`crates/wgpu-html-layout/src/lib.rs:225`)
+The current hit test (`crates/wgpu-html-layout/src/lib.rs`)
 returns the deepest descendant whose `border_rect` contains the
 point, walking children last-to-first so the topmost paint wins.
-That contract stays. Additions:
+That contract stays.
+
+**Shipped:**
+
+- **Overflow clipping.** Ancestor `overflow: hidden | scroll | auto`
+  now clips hit-testing to the effective padding-box clip. A child
+  painted outside a clipped ancestor no longer receives hits there.
+- **Inline / line-box hit testing.** `LayoutBox::hit_text_cursor`
+  returns a `TextCursor` for the deepest selectable text run under
+  the pointer. Form-control internal value / placeholder text is
+  excluded from document-level drag selection via `text_unselectable`.
+
+**Still missing / mocked:**
 
 - **`pointer-events: none`.** A box with `pointer_events == None`
   is invisible to hit-testing — both itself and (per CSS) its
@@ -205,24 +224,15 @@ That contract stays. Additions:
   `collect_hit_path` skips boxes whose cascaded style sets
   `pointer-events: none`, walks into descendants only when the
   parent is `auto` or the descendant explicitly re-enables.
-- **`overflow: hidden | scroll | auto` clipping.** A point outside
-  the parent's content (post-padding) rect inside an `overflow !=
-  visible` box must miss every descendant of that box, even if a
-  descendant's `border_rect` extends past it. Without this, a
-  scrolled-away child still receives clicks. Requires layout to
-  carry an `effective_clip_rect` per box, computed by intersecting
-  with each ancestor's clip.
 - **Scroll offset.** Once scrolling exists (§12), descendants of a
   scroll container are hit-tested against `point − scroll_offset`,
-  applied at the boundary. Until §12 lands the offset is always
-  zero.
-- **Inline / line-box hit testing.** A click inside a paragraph
-  resolves to the inline-element subtree, then the specific text
-  leaf (line box → glyph cluster → byte index in the source
-  string). Required for caret placement (§11). Extension to
-  `LayoutBox::hit_path`: the path is element indices; an additional
-  `text_hit: Option<TextHit>` (line index, glyph index, byte index,
-  is-after-last-glyph) is returned for text leaves.
+  applied at the boundary. The winit harness accounts for viewport
+  / element scroll in its own scrollbar paths, but `LayoutBox`
+  itself does not carry scroll offsets.
+- **Richer text hit payload.** `hit_text_cursor` returns path +
+  glyph index. The older planned `HitTest { text: TextHit { line,
+  byte_offset, trailing } }` shape below is still future API design,
+  not the current public return type.
 
 ```rust
 pub struct HitTest {
@@ -244,67 +254,23 @@ returns the richer payload.
 
 ## 6. Event types
 
-The host hands events to the engine via a thin API. Engine-internal
-types, not winit / web types:
+Event structs, event-name constants, bubbling behavior, and the
+current event support matrix live in `spec/events.md`.
 
-```rust
-pub enum InputEvent {
-    PointerMove   { pos: (f32, f32) },
-    PointerLeave,                                        // OS-level "left window"
-    MouseDown     { pos: (f32, f32), button: MouseButton, modifiers: Modifiers },
-    MouseUp       { pos: (f32, f32), button: MouseButton, modifiers: Modifiers },
-    Wheel         { pos: (f32, f32), delta: ScrollDelta, modifiers: Modifiers },
-    // Keyboard lives in §13; included here so the API has one front door.
-    KeyDown       { key: Key, modifiers: Modifiers, repeat: bool },
-    KeyUp         { key: Key, modifiers: Modifiers },
-    Text          { text: String },                      // pre-IME-resolved utf-8
-    Focus,                                               // window gained focus
-    Blur,                                                // window lost focus
-}
-
-pub enum MouseButton { Primary, Secondary, Middle, Other(u8) }
-
-pub enum ScrollDelta {
-    Lines  { x: f32, y: f32 },                           // typical mouse wheel
-    Pixels { x: f32, y: f32 },                           // trackpad, hi-dpi wheel
-}
-
-pub struct Modifiers { pub shift: bool, pub ctrl: bool, pub alt: bool, pub meta: bool }
-```
-
-Synthesised, derived events (the engine emits these as state
-transitions — the host doesn't send them):
-
-- **PointerEnter / PointerLeave per-element.** Whenever
-  `hover_path` changes, every element on the symmetric difference
-  of old vs new chain gets a leave (old-only) or enter (new-only).
-  Leave runs deepest-first, enter runs root-first, mirroring the
-  DOM semantics that an outer enter precedes any inner enter.
-- **Click.** A `MouseUp` whose `Primary` press landed on an element
-  that is still on the current `hover_path` (i.e., the press
-  target is an ancestor of, equal to, or descendant of the release
-  target — practically: same path-prefix). The dispatched click
-  target is the deepest common ancestor; matches browser behaviour.
-- **DoubleClick.** Two clicks within `DOUBLE_CLICK_INTERVAL`
-  (default 500 ms) and `DOUBLE_CLICK_RADIUS` (default 5 px), on
-  the same target, with the same button.
-- **ContextMenu.** Synthesised on `MouseDown { button: Secondary }`
-  release at the same target. Hosts that want OS-native context
-  menus suppress this and read `tree.interaction` directly.
-- **AuxClick.** Middle-button click; same rule as click.
-
-Click thresholds (intervals, radii) are constants today; tunable
-later if a host needs different defaults.
+The interactivity layer currently dispatches mouse down/up/click,
+mouseenter/mouseleave, focus/blur/focusin/focusout, and keydown/keyup
+through `Node::on_event`. Many additional event structs exist in
+`wgpu-html-events` for future parity, but are not emitted yet.
 
 ## 7. Press semantics & implicit pointer capture
 
 When `MouseDown { Primary }` fires:
 
-1. Resolve the hit path; ignore if it's `None` or
-   `pointer-events: none` is in effect.
+1. Resolve the hit path; ignore if it's `None`. `pointer-events:
+   none` is not honoured yet, so it does not filter the hit path.
 2. Set `interaction.active_path = Some(path)`.
 3. Set `interaction.focus_path = Some(focusable_ancestor(path))`
-   if any (§13). Set `focus_visible = false`.
+   if any (§13). `focus_visible` does not exist yet.
 4. Cascade re-runs (§8); `:active` and `:focus` now match.
 
 Until the matching `MouseUp { Primary }`:
@@ -366,17 +332,19 @@ hover move that changes the hover path triggers a deferred redraw
 
 ## 9. Cursor resolution
 
-Per frame, after cascade:
+**Not implemented yet.** `cursor` is parsed and stored on `Style`,
+but no host-facing resolver or OS cursor update is wired.
+
+Planned per-frame behavior after cascade:
 
 ```text
 cursor = first ancestor of hover_path whose cascaded `cursor` is set
        fall back to Cursor::Default
 ```
 
-Exposed as `tree.interaction.resolved_cursor()` (computed
-on demand from `hover_path` + the cascaded tree). The host maps
-this to the OS's cursor by setting winit's `Window::set_cursor`
-once per change.
+This would likely be exposed as a resolver over `hover_path` + the
+cascaded tree. The host would then map it to the OS cursor by setting
+winit's `Window::set_cursor` once per change.
 
 `Cursor::Auto` resolves to a contextual default: `Cursor::Text`
 inside a text leaf with `user-select != none`, otherwise
@@ -386,40 +354,39 @@ caret on text".
 ## 10. `pointer-events` and `user-select`
 
 Already modelled (`crates/wgpu-html-models/src/common/css_enums.rs:209`,
-`:215`); plumbing to add:
+`:215`) and parsed into `Style`, but not honoured downstream:
 
-- `pointer-events: none` — described in §5. Inherits.
+- `pointer-events: none` — described in §5. Should inherit once
+  implemented.
 - `user-select: none` — the text leaves under it are excluded
   from drag-selection (§11) and clicks on them never start a
-  selection. Inherits.
+  selection. Should inherit once implemented.
 - `user-select: text` (the default) — selectable.
 - `user-select: all` — a single click anywhere inside the subtree
   selects the whole subtree. Useful for code blocks.
 - `user-select: auto` — same as `text` for text leaves, `none`
   for non-text. CSS quirk preserved.
 
-Both properties join the cascade-inheriting set in `text.md` §9
-(`color, font_*, …, cursor`). `cursor` is already in the list;
-add `pointer_events` and `user_select` once they are honoured.
+The cascade does not currently inherit either property; `cursor` is
+the only interaction-adjacent property in the typed inheriting set.
+Add `pointer-events` / `user-select` inheritance only when their
+behavior is actually enforced.
 
 ## 11. Text selection
 
-Selection is one contiguous range of (path, byte-offset) pairs
-across the document order:
+Document text selection is shipped as one contiguous range of
+`TextCursor { path, glyph_index }` endpoints across document order:
 
 ```rust
-pub struct Selection {
-    pub anchor: Caret,                 // where the press started
-    pub focus:  Caret,                 // where the pointer is now / shift-extended to
+pub struct TextSelection {
+    pub anchor: TextCursor,
+    pub focus:  TextCursor,
 }
 
-pub struct Caret {
-    pub path:        Vec<usize>,       // path to the text leaf
-    pub byte_offset: usize,            // into the leaf's source string (post-text-transform)
-    pub affinity:    Affinity,         // upstream / downstream — matters at line wraps
+pub struct TextCursor {
+    pub path:        Vec<usize>,
+    pub glyph_index: usize,
 }
-
-pub enum Affinity { Upstream, Downstream }
 ```
 
 Selection lifecycle:
@@ -432,43 +399,50 @@ Selection lifecycle:
   document-order interval `[min(anchor, focus), max(...))`.
 - **MouseUp**: selection persists until the next bare-area press
   or programmatic clear (`tree.clear_selection()`).
-- **Double-click** on a word: anchor / focus snap to the word
-  boundaries (Unicode word break, via cosmic-text's segmenter).
-- **Triple-click**: snap to the line box.
-- **Shift+MouseDown**: extend instead of replace (move `focus`,
-  keep `anchor`).
 
-Painting the selection (separate from this spec's behaviour but
-worth noting): emit one quad per line-segment of the selection
-range, positioned in the inline pass; emit one thin caret quad
-when `selection.is_caret()` and `focus_path == path`. Caret blink
-is host-driven (a flag on `interaction`, toggled on a timer).
+Painting emits one highlight quad per line segment of the selection
+range. Form-control internal value / placeholder text is marked
+`text_unselectable`, so document-level drag selection skips it.
 
-`user-select: all` short-circuits the press: anchor = first byte
-of the subtree, focus = last byte, on a single click.
+**Still missing:** word select (double-click), line select
+(triple-click), Shift+click extension, and `user-select` enforcement
+(`none`, `text`, `all`, `auto`).
 
-Copy: the host reads `tree.interaction.selected_text(&tree)` →
-`Option<String>`, walks the document tree between anchor and
-focus, concatenates source strings (post-`text-transform`),
-inserts `\n` at block boundaries, and writes to the OS clipboard.
-The engine never touches the clipboard itself.
+Copy: `wgpu-html` exposes `select_all_text` / `selected_text`; the
+winit harness wires document-level `Ctrl+A` / `Ctrl+C` through
+`arboard`. Clipboard access still belongs to the host crate, not the
+core tree/layout crates.
+
+Form-control editing has a separate caret path:
+`InteractionState::edit_cursor: Option<EditCursor>`, with byte
+offsets into the focused `<input>` / `<textarea>` value. Paint emits
+edit selection highlights and a blinking caret for this internal
+control state.
 
 ## 12. Scrolling
 
-Out of scope for the first phase; sketched here so the API doesn't
-paint itself into a corner.
+**Partial / shipped in the harness.**
 
-When `overflow: scroll | auto` lands:
+- `InteractionState::scroll_offsets_y: BTreeMap<Vec<usize>, f32>`
+  stores per-element vertical scroll state by path.
+- The public `wgpu_html::scroll` module exposes viewport and
+  element scrollbar geometry, scrollbar paint, scroll clamping,
+  hit-tests, and element scroll helpers.
+- The `wgpu-html-winit` harness handles `MouseWheel`, viewport
+  scroll, per-element scroll containers, and scrollbar dragging.
+- Paint clips scroll containers and translates descendants by the
+  stored offset.
 
-- Each scroll container carries a `scroll_offset: (f32, f32)` in
-  `LayoutBox` (or in a side table keyed by path — TBD).
-- `Wheel` events resolve to the deepest hover-chain ancestor with a
-  scrollable overflow on the matching axis; that ancestor's offset
-  changes; layout itself does not need to re-run.
-- Hit-testing inside the container subtracts the offset before
-  recursing (§5).
-- Painting clips to the container's content box and translates
-  descendants by `−offset`.
+**Still missing / mocked:**
+
+- No DOM `wheel` event is forwarded to `Node::on_event`.
+- `LayoutBox` does not embed scroll offsets; they stay on
+  `InteractionState`.
+- Generic hit-testing does not fully subtract ancestor scroll offsets
+  inside `LayoutBox::hit_path`; host scroll paths compensate where
+  needed.
+- Horizontal element scrolling, smooth scrolling, scroll-snap, and
+  momentum are not implemented.
 
 `Wheel`'s `ScrollDelta::Lines` is converted to pixels by
 multiplying by a constant (default 16 px / line, configurable).
@@ -519,9 +493,9 @@ Mouse-first, but focus is shared state.
   call into the model.)
 - `Esc` clears focus + selection. (Today the harness exits the
   app on Esc by default; configurable via `with_exit_on_escape`.)
-- Arrow keys / Home / End / PageUp / PageDown caret movement
-  inside text leaves. Lands with `<input>` / `<textarea>` text
-  editing.
+- PageUp / PageDown caret movement. Arrow keys, Home, and End are
+  wired for focused `<input>` / `<textarea>` controls, but not for
+  arbitrary contenteditable text leaves.
 - `:focus-visible` (the "is this focus from keyboard?" flag) and
   `:focus-within` (the propagating-to-ancestors variant).
 
@@ -565,10 +539,13 @@ pub fn blur      (tree: &mut Tree) -> bool;
 pub fn focus_next(tree: &mut Tree, reverse: bool) -> Option<Vec<usize>>;
 pub fn key_down  (tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool;
 pub fn key_up    (tree: &mut Tree, key: &str, code: &str) -> bool;
+pub fn text_input(tree: &mut Tree, text: &str) -> bool;
 ```
 
-All of the above are also inherent methods on `Tree`
-(`tree.focus(...)`, `tree.dispatch_mouse_down(...)`, etc.).
+All dispatchers above except `text_input` are also inherent methods on
+`Tree` (`tree.focus(...)`, `tree.dispatch_mouse_down(...)`, etc.).
+`text_input` is re-exported as a free function and mutates the focused
+editable control when possible.
 
 Modifier state lives on `tree.interaction.modifiers`; hosts
 update it via `tree.set_modifier(Modifier::Shift, true/false)`
@@ -612,26 +589,30 @@ wgpu-html-tree
   + Tree::set_modifier, Tree::modifiers()                                 ✅ (focus slice)
   + dispatch module (path-based, no layout dep):                          ✅ (focus slice)
     - dispatch_pointer_move/_leave/_mouse_down/_mouse_up
-    - focus, blur, focus_next, key_down, key_up
+    - focus, blur, focus_next, key_down, key_up, text_input
     - Tree::focus / blur / focus_next / key_down / key_up /
       pointer_leave / dispatch_mouse_down/up / dispatch_pointer_move
       as inherent methods
+    - text_input is a free function today, not an inherent Tree method
+  + EditCursor + InteractionState::edit_cursor/caret_blink_epoch           ✅ (input slice)
   + focus module: is_focusable, is_keyboard_focusable,                    ✅ (focus slice)
     focusable_paths, keyboard_focusable_paths,
     next_in_order, prev_in_order, Element::tabindex()
   + query module: CompoundSelector, Tree::query_selector,                 ✅
     query_selector_all, query_selector_path,
     query_selector_all_paths, Node::query_selector* mirrors
-    (tag/id/class compound; no combinators or pseudo-classes)
+    (selector lists, combinators, attribute operators; pseudos mostly errors/no-match)
   + focus_visible flag                                                    ❌ M-INTER-2
 
 wgpu-html-models
   + (existing) Cursor, PointerEvents, UserSelect                         ✅ done
 
 wgpu-html-events
-  + HtmlEvent, MouseEvent, UIEvent, Event, EventPhase, HtmlEventType     ✅ M-INTER-1
-  + KeyboardEvent, FocusEvent, InputEvent (structs)                       ✅ M-INTER-1
-  + KeyboardEvent + FocusEvent dispatch wired                             ✅ (focus slice)
+  + HtmlEvent, Event/UI/Mouse/Pointer/Wheel/Keyboard/Focus/Input/         ✅ M-INTER-1
+    Composition/Clipboard/Drag/Touch/Animation/Transition/Submit/
+    FormData/Toggle/Progress structs, EventPhase, HtmlEventType
+  + Mouse, keyboard, and focus dispatch wired                             ✅
+  + Wheel/Input/Clipboard/Drag/Touch/Animation/Transition dispatch         ❌
 
 wgpu-html-parser / wgpu-html-style
   + Pseudo-class selector parsing (`:hover`, `:active`, `:focus`)        ✅
@@ -654,8 +635,8 @@ wgpu-html-layout
      layout_atomic_inline_subtree paths)
   + Flex max-content intrinsic for non-text non-replaced items           ✅
     (text_intrinsic_main recurses into descendants)
+  + overflow-hidden/scroll/auto clip in hit test                          ✅ M-INTER-2
   + pointer-events skip in hit test                                       ❌ M-INTER-2
-  + overflow-hidden clip in hit test                                      ❌ M-INTER-2
   + scroll_offset on LayoutBox                                            ❌ M-INTER-4 (offset stays on Tree)
 
 wgpu-html (facade)
@@ -713,7 +694,8 @@ text spec's T1..T7.
 - Hover-path tracking with synthesised enter / leave.
 - Implicit pointer capture during press (§7).
 - Click synthesis via deepest common ancestor.
-- Pseudo-class parsing: `:hover`, `:active`. Cascade reads `MatchContext`.
+- Pseudo-class parsing: `:hover`, `:active`, `:focus`. Cascade reads
+  `MatchContext`.
 - `wgpu-html-events` crate: `HtmlEvent`, `MouseEvent`, typed DOM
   event dispatch via `Node::on_event`.
 - Demo: cards change style on hover/active; `on_click` callbacks fire.
@@ -723,6 +705,7 @@ text spec's T1..T7.
 **Done** (out of order with the original phase plan; landed
 during the focus / keyboard slice):
 
+- Ancestor `overflow != visible` clipping in `LayoutBox::hit_path`.
 - `:focus` cascade (exact-match, no propagation) via
   `MatchContext::for_path` reading `state.focus_path`.
 - Focus state on `InteractionState` (`focus_path`).
@@ -731,8 +714,6 @@ during the focus / keyboard slice):
 **Not yet:**
 
 - Hit test honours `pointer-events: none` (self + descendants).
-- Hit test honours ancestor `overflow != visible` clip (no scroll
-  yet — clip only).
 - Double-click synthesis.
 - ContextMenu / AuxClick synthesis.
 - `:focus-visible` (set on Tab focus, cleared on press) and
@@ -740,8 +721,7 @@ during the focus / keyboard slice):
 - `:disabled` for `<button disabled>`, `<input disabled>`, etc.
   (`is_focusable` already excludes disabled controls; the cascade
   still needs to match `:disabled`.)
-- `user-select: none` recognised but not yet acted on (§11 lands
-  in M-INTER-3).
+- `user-select: none` recognised but not yet acted on.
 
 ### M-INTER-3 — Text selection + caret + clipboard ⚠️ Partial
 
@@ -751,14 +731,20 @@ during the focus / keyboard slice):
 - Press on text leaf starts selection; drag extends; release commits.
 - `select_all_text` / `selected_text` in `wgpu-html`.
 - Paint emits selection highlight rectangles.
-- Clipboard: `Ctrl+A` + `Ctrl+C` wired in demo via `arboard`.
+- Clipboard: document-level `Ctrl+A` + `Ctrl+C` wired in the winit
+  harness via `arboard`.
 - Drag-select suppresses click synthesis (tested).
+- Form-control `EditCursor`, click-to-position caret, edit selection,
+  blinking caret quad, typed-text insertion, Backspace/Delete,
+  ArrowLeft/Right/Up/Down, Home/End, textarea Enter, password masking.
+- Form-control `Ctrl+A/C/V/X` wired in the winit harness.
 
 **Not yet done:**
 - Word select (double-click), line select (triple-click).
 - `user-select: none / text / all` property enforcement.
-- Caret overlay quad (thin blinking cursor).
 - Shift+click to extend selection.
+- DOM `InputEvent`, `beforeinput`, `copy`/`cut`/`paste` event
+  dispatch; clipboard operations are host shortcuts, not DOM events.
 
 ### M-INTER-4 — Wheel + scroll containers ⚠️ Partial
 
@@ -768,6 +754,7 @@ during the focus / keyboard slice):
 - `MouseWheel` scrolls viewport; deepest scroll-container found and
   scrolled when applicable.
 - Per-element scroll container scrollbar quads in `paint.rs`.
+- Paint translates scrolled descendants from `InteractionState`.
 
 **Not yet done:**
 - `Wheel` event forwarded to element `on_event` callbacks.
@@ -793,10 +780,10 @@ during the focus / keyboard slice):
   click (currently the host has to call into the model).
 - Esc → clear focus + selection (the harness exits the app on
   Esc by default; configurable via `with_exit_on_escape`).
-- Arrow keys / Home / End move the caret in a focused
-  contenteditable text leaf.
+- PageUp / PageDown and word-level text navigation.
+- Arrow keys / Home / End for arbitrary contenteditable text leaves.
 - `InputEvent` dispatch for typed characters in `<input>` /
-  `<textarea>` (lands with the input-text-edit slice).
+  `<textarea>`; values mutate, but no DOM input event is emitted.
 
 ### M-INTER-6 — Re-cascade caching, hover-path stability ❌
 
@@ -823,10 +810,10 @@ during the focus / keyboard slice):
   (e.g. from an MCP-style remote driver) would deadlock against
   `&mut Tree`. Not a real concern today; flag for whoever embeds
   the engine in egui first.
-- **Modifier-only events.** `Ctrl` press alone never fires
-  anything in this model; modifier state lives on the next mouse
-  event. Browsers also fire `keydown` events for bare modifiers,
-  but no `:hover`-style cascade reads them. Skipped.
+- **Modifier-only events.** The winit glue now forwards bare
+  modifier keys as `keydown` / `keyup` and also updates
+  `InteractionState::modifiers`. No CSS state currently reads
+  modifier-only changes directly.
 - **Pointer capture API.** Web has explicit `setPointerCapture`;
   we have implicit-during-press only. If a host wants to keep
   receiving moves after release (e.g. a knob widget), it has to
@@ -849,17 +836,20 @@ State lives on the `Tree` (`InteractionState`), same constraint as
 fonts. The engine exposes four pointer functions (`pointer_move`,
 `mouse_down`, `mouse_up`, `pointer_leave`) in `wgpu-html::interactivity`.
 Typed DOM events flow through `wgpu-html-events` (`HtmlEvent`,
-`MouseEvent`, `EventPhase`). Cascade reads interaction state via
-`MatchContext::for_path`, matching `:hover` and `:active`. Text
-selection and Ctrl+C clipboard are wired. Viewport/element scrollbars
-paint and respond to drag.
+`MouseEvent`, `KeyboardEvent`, `FocusEvent`, `EventPhase`, plus
+typed structs for future events). Cascade reads interaction state via
+`MatchContext::for_path`, matching `:hover`, `:active`, and exact
+`:focus`. Text selection, form-control editing, edit caret paint,
+clipboard shortcuts, viewport/element scrollbars, and scrollbar drag
+are wired in the winit harness.
 
-Remaining work: `pointer-events` skip in hit test, `overflow`-clip in
-hit test, double-click, `:focus` / `:focus-visible` / `:focus-within`
-state, keyboard navigation (Tab, arrow keys), re-cascade caching,
-`user-select` enforcement, caret overlay.
+Remaining work: `pointer-events` skip in hit test, scroll-offset-aware
+generic hit testing, double-click/contextmenu/auxclick/wheel DOM event
+dispatch, `InputEvent` / clipboard DOM event dispatch,
+`:focus-visible` / `:focus-within` / `:disabled`, `user-select`
+enforcement, word/line selection, button/link keyboard activation,
+and re-cascade caching.
 
-No event handlers, no animations, no transforms in hit-testing —
-same posture the rest of the engine has. JS is a hard non-goal of
-the project (see `roadmap.md`); pseudo-class state on the cascade
-is the only "interactivity" surface that ever exists.
+There is still no JavaScript and no animation/transition runtime.
+Host-installed Rust callbacks (`on_click`, mouse slots, `on_event`,
+and `AppHook`) are the interactivity surface.

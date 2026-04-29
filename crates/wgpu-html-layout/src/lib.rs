@@ -1620,6 +1620,12 @@ pub struct LayoutBox {
     /// For text leaves: the resolved foreground color used when paint
     /// emits glyph quads. Defaults to opaque black if unset.
     pub text_color: Option<Color>,
+    /// When `true`, the `text_run` is a form control's internal
+    /// content (placeholder or typed value) and should not participate
+    /// in document-level drag-to-select. Mirrors browsers, where
+    /// `::placeholder` and input values are excluded from the
+    /// document's selectable text.
+    pub text_unselectable: bool,
     /// CSS `text-decoration-line`s active on this box (parsed from
     /// the `text-decoration` shorthand). Painted as solid quads at
     /// the appropriate vertical offset for text leaves.
@@ -1747,6 +1753,16 @@ pub enum BoxKind {
 }
 
 impl LayoutBox {
+    /// Whether this subtree contains any animated image (GIF, APNG,
+    /// animated WebP). Used by the render loop to decide whether to
+    /// keep requesting redraws for frame advancement.
+    pub fn has_animated_images(&self) -> bool {
+        if self.image.as_ref().is_some_and(|img| img.frames.is_some()) {
+            return true;
+        }
+        self.children.iter().any(|c| c.has_animated_images())
+    }
+
     /// Index path from `self` to the deepest descendant whose
     /// `border_rect` contains `point`. An empty path means `self` is the
     /// deepest match. `None` if the point is outside `self`.
@@ -1811,6 +1827,11 @@ impl LayoutBox {
     pub fn hit_text_cursor(&self, point: (f32, f32)) -> Option<TextCursor> {
         let path = self.hit_path(point)?;
         let text_box = self.box_at_path(&path)?;
+        // Form control internal text (placeholder / value) is excluded
+        // from document-level drag-to-select.
+        if text_box.text_unselectable {
+            return None;
+        }
         let run = text_box.text_run.as_ref()?;
         Some(TextCursor {
             path,
@@ -2463,6 +2484,7 @@ fn layout_block(
         kind: BoxKind::Block,
         text_run: placeholder_run,
         text_color: placeholder_color,
+        text_unselectable: true,
         text_decorations: Vec::new(),
         overflow: effective_overflow(style),
         opacity: resolved_opacity(style),
@@ -2522,7 +2544,7 @@ fn compute_value_run(
     let display_text = if is_password {
         "\u{2022}".repeat(value.chars().count())
     } else {
-        value
+        value.clone()
     };
 
     let max_width = if wraps_multiline {
@@ -2533,6 +2555,18 @@ fn compute_value_run(
 
     let (mut run, _w, _h, _ascent) =
         shape_text_run(&display_text, &node.style, max_width, false, ctx);
+
+    // For password inputs, replace byte_boundaries with the original
+    // value's char boundaries so the caret maps correctly. The shaped
+    // run's boundaries correspond to the bullet string (3 bytes per
+    // U+2022), but EditCursor.cursor is a byte offset into the
+    // cleartext value (1 byte per ASCII char, variable for UTF-8).
+    // The `text` field keeps the bullet string (no cleartext leak).
+    if is_password {
+        if let Some(run) = run.as_mut() {
+            run.byte_boundaries = wgpu_html_text::utf8_boundaries(&value);
+        }
+    }
 
     // Single-line inputs: horizontal clip + vertical centering
     // (same logic as compute_placeholder_run).
@@ -2681,15 +2715,27 @@ fn compute_placeholder_run(
         }
     }
 
-    // ::placeholder color: cascaded `color` * alpha 0.5, falling
-    // back to a 50% gray.
+    // ::placeholder color: cascaded `color` with alpha halved,
+    // matching the browser default `::placeholder` styling.
+    // Fallback when no color cascades: the UA default text color
+    // (black) at 50% opacity.
     let color = node
         .style
         .color
         .as_ref()
         .and_then(resolve_color)
         .map(|[r, g, b, a]| [r, g, b, a * 0.5])
-        .unwrap_or([0.5, 0.5, 0.5, 1.0]);
+        .unwrap_or([0.0, 0.0, 0.0, 0.5]);
+
+    // Override per-glyph colors to the placeholder color. Glyphs
+    // carry their own color from shaping (the cascaded `color` at
+    // full opacity); paint uses `g.color`, not `text_color`, so
+    // without this override the dimmed placeholder alpha is ignored.
+    if let Some(run) = run.as_mut() {
+        for g in run.glyphs.iter_mut() {
+            g.color = color;
+        }
+    }
 
     (run, Some(color))
 }
@@ -2704,7 +2750,7 @@ fn is_out_of_flow_position(position: Position) -> bool {
 ///
 /// Skips `<input type="hidden">` since the UA stylesheet sets
 /// `display: none` on it.
-fn form_control_default_line_height(node: &CascadedNode) -> bool {
+pub(crate) fn form_control_default_line_height(node: &CascadedNode) -> bool {
     use wgpu_html_models::common::html_enums::InputType;
     match &node.element {
         Element::Input(inp) => !matches!(inp.r#type, Some(InputType::Hidden)),
@@ -3197,7 +3243,7 @@ fn capitalize_words(s: &str) -> String {
 /// Zero-area `LayoutBox` for elements whose effective `display` is
 /// `none`. The parent treats it as contributing no width / height /
 /// children, so the subtree disappears from the box tree completely.
-fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
+pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     let r = Rect::new(origin_x, origin_y, 0.0, 0.0);
     LayoutBox {
         margin_rect: r,
@@ -3213,6 +3259,7 @@ fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         kind: BoxKind::Block,
         text_run: None,
         text_color: None,
+        text_unselectable: false,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
         opacity: 1.0,
@@ -3256,6 +3303,7 @@ fn make_text_leaf(
         kind: BoxKind::Text,
         text_run: run,
         text_color: Some(text_color),
+        text_unselectable: false,
         text_decorations: decorations,
         overflow: OverflowAxes::visible(),
         opacity: resolved_opacity(style),
@@ -3510,6 +3558,7 @@ fn layout_inline_subtree(
         // Decorations live on text leaves (cascade inheritance has
         // already propagated `text-decoration` down to every text
         // descendant). The inline wrapper itself draws nothing.
+        text_unselectable: false,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
         opacity: resolved_opacity(&node.style),
@@ -3703,6 +3752,7 @@ fn layout_atomic_inline_subtree(
             kind: BoxKind::Block,
             text_run: placeholder_run,
             text_color: placeholder_color,
+            text_unselectable: true,
             text_decorations: Vec::new(),
             overflow: OverflowAxes::visible(),
             opacity: resolved_opacity(style),
@@ -4238,6 +4288,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
         kind: BoxKind::Block,
         text_run: None,
         text_color: None,
+        text_unselectable: false,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
         opacity: opacity.clamp(0.0, 1.0),
@@ -4450,6 +4501,7 @@ fn layout_inline_paragraph(
         kind: BoxKind::Text,
         text_run: Some(run),
         text_color: None,
+        text_unselectable: false,
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
         opacity: resolved_opacity(&node.style),
@@ -4565,7 +4617,7 @@ fn font_style_axis(
 /// computed font size lands in T4 once the cascade tracks computed
 /// values). `Percent`, viewport-relative units, and `auto` aren't
 /// meaningful here yet and fall through.
-fn font_size_px(style: &Style) -> Option<f32> {
+pub(crate) fn font_size_px(style: &Style) -> Option<f32> {
     use wgpu_html_models::common::css_enums::CssLength;
     match style.font_size.as_ref()? {
         CssLength::Px(v) => Some(*v),
@@ -4579,7 +4631,7 @@ fn font_size_px(style: &Style) -> Option<f32> {
 /// `CssLength`, so a `Px` value is the literal height and `Em` /
 /// `Rem` multiply against `font_size_px`. Falls back to 1.25× the
 /// font size.
-fn line_height_px(style: &Style, font_size: f32) -> f32 {
+pub(crate) fn line_height_px(style: &Style, font_size: f32) -> f32 {
     use wgpu_html_models::common::css_enums::CssLength;
     match style.line_height.as_ref() {
         Some(CssLength::Px(v)) => *v,

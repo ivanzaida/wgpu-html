@@ -15,7 +15,7 @@
 //! attaching it via [`WgpuHtmlWindow::with_hook`].
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
 use wgpu_html::interactivity;
@@ -27,7 +27,7 @@ use wgpu_html::scroll::{
     translate_display_list_y, viewport_to_document,
 };
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::{Tree, TreeHook, TreeLifecycleStage, TreeRenderEvent, TreeRenderViewport};
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::error::EventLoopError;
@@ -151,6 +151,9 @@ struct RuntimeState {
     scrollbar_drag: Option<ScrollbarDrag>,
     /// Lazy clipboard handle. `arboard` connects on first use.
     clipboard: Option<Clipboard>,
+    started_at: Instant,
+    last_render_at: Option<Instant>,
+    frame_index: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -223,10 +226,19 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         self
     }
 
+    /// Register a tree-level hook on the borrowed [`Tree`].
+    ///
+    /// The harness emits through `Tree::emit_*`; the hook itself is stored on
+    /// the tree, not on the winit event loop.
+    pub fn with_tree_hook(self, hook: impl TreeHook + Send + 'static) -> Self {
+        self.tree.add_hook(hook);
+        self
+    }
+
     /// Block on the winit event loop until the window closes.
     pub fn run(mut self) -> Result<(), EventLoopError> {
         let event_loop = EventLoop::new()?;
-        event_loop.set_control_flow(ControlFlow::Wait);
+        event_loop.set_control_flow(ControlFlow::Poll);
         event_loop.run_app(&mut self)
     }
 }
@@ -252,6 +264,10 @@ fn timestamp() -> u64 {
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+fn duration_from_ms(ms: f64) -> Duration {
+    Duration::from_secs_f64((ms.max(0.0)) / 1000.0)
 }
 
 // ── Application handler ─────────────────────────────────────────────────────
@@ -282,6 +298,9 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             scroll_y: 0.0,
             scrollbar_drag: None,
             clipboard: None,
+            started_at: Instant::now(),
+            last_render_at: None,
+            frame_index: 0,
         });
     }
 
@@ -673,6 +692,8 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         let Some(state) = self.state.as_mut() else {
             return;
         };
+        let frame_t0 = Instant::now();
+        self.tree.emit_lifecycle_begin(TreeLifecycleStage::Frame);
         let size = state.window.inner_size();
 
         let (mut list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
@@ -681,6 +702,18 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             size.width as f32,
             size.height as f32,
             1.0,
+        );
+        self.tree.emit_lifecycle_end(
+            TreeLifecycleStage::Cascade,
+            duration_from_ms(timings.cascade_ms),
+        );
+        self.tree.emit_lifecycle_end(
+            TreeLifecycleStage::Layout,
+            duration_from_ms(timings.layout_ms),
+        );
+        self.tree.emit_lifecycle_end(
+            TreeLifecycleStage::Paint,
+            duration_from_ms(timings.paint_ms),
         );
 
         if let Some(layout) = layout.as_ref() {
@@ -704,6 +737,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             .atlas
             .upload(&state.renderer.queue, state.renderer.glyph_atlas_texture());
 
+        self.tree.emit_lifecycle_begin(TreeLifecycleStage::Render);
         let render_t0 = Instant::now();
         match state.renderer.render(&list) {
             FrameOutcome::Presented | FrameOutcome::Skipped => {}
@@ -711,7 +745,38 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 state.renderer.resize(size.width, size.height);
             }
         }
-        let render_ms = render_t0.elapsed().as_secs_f64() * 1000.0;
+        let render_duration = render_t0.elapsed();
+        self.tree
+            .emit_lifecycle_end(TreeLifecycleStage::Render, render_duration);
+        let render_ms = render_duration.as_secs_f64() * 1000.0;
+        let frame_duration = frame_t0.elapsed();
+
+        let now = Instant::now();
+        let delta = state
+            .last_render_at
+            .map(|prev| now.saturating_duration_since(prev))
+            .unwrap_or(Duration::ZERO);
+        state.last_render_at = Some(now);
+        let frame_index = state.frame_index;
+        state.frame_index = state.frame_index.saturating_add(1);
+        let render_event = TreeRenderEvent::new(delta)
+            .with_elapsed(now.saturating_duration_since(state.started_at))
+            .with_frame_index(frame_index)
+            .with_viewport(TreeRenderViewport::new(
+                size.width as f32,
+                size.height as f32,
+                1.0,
+            ))
+            .with_frame_duration(frame_duration)
+            .with_pipeline_durations(
+                Some(duration_from_ms(timings.cascade_ms)),
+                Some(duration_from_ms(timings.layout_ms)),
+                Some(duration_from_ms(timings.paint_ms)),
+                Some(render_duration),
+            );
+        self.tree.emit_render(&render_event);
+        self.tree
+            .emit_lifecycle_end(TreeLifecycleStage::Frame, frame_duration);
 
         // Hook callback with frame timings.
         let frame_timings = FrameTimings {
@@ -735,14 +800,6 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             }
         }
         self.hook = hook;
-
-        // Keep redrawing while a form control has focus so the
-        // caret blink animation cycles continuously.
-        if self.tree.interaction.edit_cursor.is_some() {
-            if let Some(state) = self.state.as_ref() {
-                state.window.request_redraw();
-            }
-        }
     }
 }
 

@@ -482,9 +482,25 @@ pub(crate) fn layout_flex_children(
     // ----------------------------------------------------------------
     // Phase 9: restore source order so the layout child indices stay
     // aligned with the cascaded tree (hit-testing relies on this).
+    // Insert empty placeholder boxes for `display: none` children so
+    // the layout child list has the same length and indexing as the
+    // DOM child list. Without this, every item after a skipped child
+    // has a shifted index, and hit-test paths resolve to the wrong
+    // DOM node.
     // ----------------------------------------------------------------
     final_boxes.sort_by_key(|(idx, _)| *idx);
-    let final_positions: Vec<LayoutBox> = final_boxes.into_iter().map(|(_, b)| b).collect();
+    let total_children = parent.children.len();
+    let mut final_positions: Vec<LayoutBox> = Vec::with_capacity(total_children);
+    let mut fb_iter = final_boxes.into_iter().peekable();
+    for i in 0..total_children {
+        if fb_iter.peek().is_some_and(|(idx, _)| *idx == i) {
+            final_positions.push(fb_iter.next().unwrap().1);
+        } else {
+            // `display: none` child — insert a zero-size placeholder
+            // so the index stays aligned with the DOM.
+            final_positions.push(crate::empty_box(content_x, content_y));
+        }
+    }
 
     // Container's used main / cross sizes for the parent's content
     // box. Free space distributed by `justify-content` is *not*
@@ -814,6 +830,8 @@ fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Opti
         let (w, h) = measure_text_leaf(text, &node.style, ctx);
         return Some(if is_row { w } else { h });
     }
+    // Scan children first (buttons have text children whose
+    // intrinsic width must be measured).
     let mut sum_main = 0.0_f32;
     let mut max_main = 0.0_f32;
     let mut found = false;
@@ -824,10 +842,24 @@ fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Opti
             found = true;
         }
     }
-    if !found {
-        return None;
+    if found {
+        return Some(if is_row { sum_main } else { max_main });
     }
-    Some(if is_row { sum_main } else { max_main })
+    // Form controls (`<input>`, `<textarea>`, `<select>`, `<button>`)
+    // have an intrinsic height of one line even when they have no DOM
+    // children. Without this, a column-direction flex container gives
+    // them 0 content height because the recursive child scan finds
+    // nothing, and the `form_control_default_line_height` fallback in
+    // `layout_block` is bypassed by the flex height override.
+    // Only applies on the cross axis (height in column flex) — for
+    // the main axis (width in row flex) we return None to let the
+    // flex algorithm use 0 / auto sizing.
+    if !is_row && crate::form_control_default_line_height(node) {
+        let font_size = crate::font_size_px(&node.style).unwrap_or(16.0);
+        let line_h = crate::line_height_px(&node.style, font_size);
+        return Some(line_h);
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------

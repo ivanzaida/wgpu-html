@@ -2,11 +2,13 @@
 
 The CSS pipeline this engine implements, what's already wired up, and
 what's deliberately out-of-scope or left for follow-ups. Companion to
-`spec/text.md` (text rendering) and `docs/status.md` (broader engine
+`spec/text.md` (text rendering) and `docs/full-status.md` (broader engine
 snapshot).
 
 This file is the source of truth for "what does our CSS support look
 like today and where is it heading".
+
+For the exhaustive per-property matrix, see `spec/css-properties.md`.
 
 ---
 
@@ -73,27 +75,31 @@ keyword resolution, inheritance.
 | Class       | `.card`               | Multi-class via repetition: `.a.b`     |
 | Universal   | `*`                   | Combines with other simple constraints |
 | Compound    | `div#hero.card.big`   | All conditions on one element          |
-| Selector list (comma) | `h1, h2, .big` | Each comma-separated entry is its own simple selector |
+| Descendant combinator | `main .card` | Tree-aware ancestor matching           |
+| Selector list (comma) | `h1, h2, .big` | Each comma-separated entry is its own selector |
+| Attribute presence/equality | `[hidden]`, `[type=submit]` | Exact equality only                    |
+| Pseudo-classes | `:hover`, `:active`, `:focus`, `:root`, `:first-child`, `:last-child` | `:visited` parses but never matches |
 
 Specificity (CSS-Selectors-3) packed into `u32`:
 `(id_count << 16) | (class_count << 8) | tag_count`. Comparing as
 plain integers gives the right ordering.
 
 **Missing / partial**
-- **Descendant combinator is implemented**. Child `>`, adjacent `+`,
-  and general sibling `~` are still rejected and drop the rule.
-- **Dynamic pseudo-classes implemented**: `:hover`, `:active` (via
-  `MatchContext::for_path` in `wgpu-html-style`).
-- **No attribute selectors**: `[href]`, `[type="text"]`, etc.
-- Structural / logical pseudo-classes still missing: `:focus`,
-  `:nth-child`, `:not()`, `:is()`, `:where()`, `:checked`, etc.
+- Child `>`, adjacent `+`, and general sibling `~` are still rejected
+  and drop the rule.
+- Attribute selectors only support `[attr]` and `[attr=value]`.
+  Operators `~=`, `|=`, `^=`, `$=`, `*=` and the case-insensitive
+  `i` flag are not implemented.
+- Structural / logical pseudo-classes still missing:
+  `:nth-child`, `:only-child`, `:empty`, `:not()`, `:is()`,
+  `:where()`, `:checked`, `:disabled`, etc.
 - **No pseudo-elements**: `::before`, `::after`, `::first-line`,
   `::placeholder`, etc.
 - **No namespaces** (`@namespace`, `ns|tag`).
 
 
 Selector matching supports tree-aware descendant checks plus a
-stateful `MatchContext` for `:hover` / `:active`.
+stateful `MatchContext` for `:hover` / `:active` / `:focus`.
 See `spec/interactivity.md` §8 for cascade integration details.
 
 ## 5. At-rules
@@ -120,9 +126,11 @@ fallback that layout treats as zero.
 Also supported:
 - `calc(...)`, `min(...)`, `max(...)`, `clamp(...)` — parsed into a
   typed math tree and resolved later by layout.
+- `var(--foo)` and custom properties — captured by the parser,
+  inherited through the cascade side-car maps, resolved before the
+  final typed property parser runs.
 
 Not yet supported:
-- `var(--foo)` / custom properties.
 - `ch`, `ex`, `lh`, container-query units (`cqw`/`cqh`/…).
 
 ### 6.2 Color values
@@ -226,10 +234,68 @@ than only storing the raw shorthand string.
 Shorthands reset their member longhands via `Style.reset_properties`
 even when some members do not yet have typed storage.
 
-**Recognised but ignored downstream** — see §10 below.
+**Typed and consumed end-to-end**: box model sizing, margin, padding,
+border widths/colors/radii, block/flex/grid layout, basic positioned
+layout, background color/clip/URL images, text/font properties,
+overflow, visibility, opacity, and selection-related paint data.
+
+**Typed but mocked or not yet consumed**: `transform`,
+`transform-origin`, `transition`, `animation`, `box-shadow`,
+`z-index`, `cursor`, `pointer-events`, `user-select`, most non-block
+`display` variants (`table`, `list-item`, `ruby`, `contents`, ...),
+and true sticky positioning. See §10 for downstream behavior.
 
 **Outright unknown** properties: silently dropped (parser's match
 falls through). No diagnostics yet.
+
+### 6.4 Property support table
+
+| Prop | Supported | Note |
+|---|---:|---|
+| `display` | Partial | Block/flex/grid/inline-block paths exist; table/list-item/ruby/contents parse but degrade to existing block/inline semantics. |
+| `position` | Partial | `relative`, `absolute`, and `fixed` affect layout; `sticky` parses but behaves relative-like, without sticky scroll thresholds. |
+| `top/right/bottom/left` | Partial | Used by relative/out-of-flow positioning; no logical inset support beyond deferred storage. |
+| `width`, `height` | Yes | Explicit, auto, percentages, and supported length math resolve in layout. |
+| `min-width`, `max-width`, `min-height`, `max-height` | Yes | Used as layout clamps. |
+| `margin`, `margin-*` | Yes | Physical shorthand and per-side longhands are consumed; logical margins are deferred only. |
+| `padding`, `padding-*` | Yes | Physical shorthand and per-side longhands are consumed; logical padding is deferred only. |
+| `box-sizing` | Yes | `content-box` and `border-box`. |
+| `border`, `border-*`, `border-width/style/color` | Partial | Width/color consumed; `solid`, `dashed`, `dotted`, `none`, `hidden` paint distinctly; double/groove/ridge/inset/outset degrade to solid. |
+| `border-radius`, corner radius longhands | Yes | Includes 1-4 value expansion and elliptical `/` syntax. |
+| `color` | Partial | Feeds text color; `currentcolor` is parsed but still weakly resolved. |
+| `background-color` | Yes | Painted with clipping/radii. |
+| `background` | Partial | Color/image/repeat/clip members handled; multi-layer and many modern members are deferred/ignored. |
+| `background-image` | Partial | URL-backed images load/paint; gradients and other functions parse but do not paint. |
+| `background-size`, `background-position`, `background-repeat` | Partial | Consumed for URL backgrounds. |
+| `background-clip` | Yes | `border-box`, `padding-box`, `content-box`. |
+| `background-origin`, `background-attachment`, `background-position-x/y` | Deferred | Recognized/stored but not consumed. |
+| `opacity` | Partial | Alpha-multiplied into primitives; no isolated compositing layer. |
+| `visibility` | Yes | Cascades/inherits and affects rendering behavior. |
+| `z-index` | Parsed only | Stored but no stacking-context or paint-order effect. |
+| `overflow`, `overflow-x`, `overflow-y` | Partial | Paint clipping, scroll containers, scrollbars, and hit-test clipping exist; scroll offsets live on `Tree`, not `LayoutBox`. |
+| `font-family` | Partial | Registered font matching plus generic fallback; no `@font-face` loading. |
+| `font-size`, `font-weight`, `font-style`, `line-height` | Partial | Feed shaping; font-relative computed-value semantics are approximate. |
+| `letter-spacing`, `text-align`, `text-transform`, `white-space` | Yes | Consumed by shaping/layout. |
+| `text-decoration` | Partial | Underline/overline/line-through paint; color/style/thickness longhands are deferred. |
+| `text-indent`, `text-shadow`, `word-spacing`, `overflow-wrap` | Deferred | Recognized where listed in shorthand/deferred tables, not consumed. |
+| `flex`, `flex-*`, `justify-content`, `align-*`, `gap`, `order` | Yes | Flexbox path consumes the typed values. |
+| `grid-*`, `justify-items`, `justify-self` | Yes | Grid track sizing, placement, auto-flow, and item alignment consume typed values. |
+| `cursor` | Parsed only | Stored/inherited, but no resolved cursor API or OS cursor update. |
+| `pointer-events` | Parsed only | Stored but hit-testing does not skip `pointer-events: none`; not inherited yet. |
+| `user-select` | Parsed only | Stored but document selection does not enforce `none/text/all/auto`; not inherited yet. |
+| `transform`, `transform-origin` | Parsed only | Stored as raw values; layout, paint, and hit-testing ignore them. |
+| `transition`, `transition-*` | Parsed only | Shorthand member extraction exists; no animation runtime or events. |
+| `animation`, `animation-*` | Parsed only | Shorthand member extraction exists; no keyframes/runtime/events. |
+| `box-shadow` | Parsed only | Stored but not painted. |
+| `outline-*` | Deferred | Recognized/stored but not painted. |
+| `scroll-margin-*`, `scroll-padding-*`, `overscroll-*`, timeline props | Deferred | Recognized/stored for future scrolling/timeline work. |
+| `list-style-*`, `marker-*`, `columns`, `column-*` | Deferred | Recognized/stored but no list marker or multicol layout behavior. |
+| `float`, `clear` | No | Not modeled. |
+| `vertical-align` | No | Not modeled in the current `Style`/layout path. |
+| `direction`, `unicode-bidi` | Deferred/No | `direction` is deferred; bidi layout semantics are not implemented. |
+| `--*`, `var()` | Partial | Custom properties inherit through side-car maps and reparse into typed values where the destination parser accepts them. |
+| CSS-wide keywords | Yes | `inherit`, `initial`, `unset` resolve through cascade keyword side-car maps. |
+| Unknown properties | No | Silently dropped; no diagnostics. |
 
 ## 7. Cascade
 
@@ -402,8 +468,14 @@ What survives the cascade and actually changes pixels on the screen.
 
 - `display` (block, flex, grid, and atomic inline variants such as
   `inline-block` / `inline-flex` where the current layout path
-  supports them).
-- `position` ignored — `top/right/bottom/left` parsed but unused.
+  supports them). Several parsed display values (`table`,
+  `list-item`, `ruby`, `contents`, etc.) currently degrade into the
+  existing block/inline paths rather than implementing their CSS
+  semantics.
+- `position` basic support: `relative` offsets the normal-flow box;
+  `absolute` and `fixed` are laid out out-of-flow with physical
+  insets. `sticky` is parsed but behaves like relative positioning;
+  there is no scroll-threshold sticky behavior.
 - `width, height, min/max-{width,height}` — honoured for explicit
   values; `auto` and percentages computed against parent content
   width.
@@ -424,6 +496,8 @@ What survives the cascade and actually changes pixels on the screen.
   back to any registered face when no listed family matches; see §6.2.1.
 - `letter-spacing`, `text-align`, `text-decoration`,
   `text-transform`, `white-space`.
+- `opacity` is carried to paint and alpha-multiplied into painted
+  primitives, but does not create an isolated compositing layer.
 - **`<input>` / `<textarea>` `placeholder` attribute** — when the
   field has no `value` (and a textarea has no children), layout
   shapes the placeholder text and attaches it as the box's
@@ -446,11 +520,22 @@ What survives the cascade and actually changes pixels on the screen.
 ### Recognised but ignored everywhere
 
 `z-index`, `transform`, `transform-origin`, `transition`,
-`animation`, `box-shadow`, logical `margin/padding/inset/border-*`
-longhands, `background-origin`, `background-attachment`,
-multi-layer background members, `outline-*`, `overscroll-*`,
-`scroll-margin-*`, `scroll-padding-*`, `text-emphasis-*`,
-timeline-related properties, and most other deferred longhands.
+`animation`, `box-shadow`, `cursor`, `pointer-events`,
+`user-select`, logical `margin/padding/inset/border-*` longhands,
+`background-origin`, `background-attachment`, multi-layer background
+members, `outline-*`, `overscroll-*`, `scroll-margin-*`,
+`scroll-padding-*`, `text-emphasis-*`, timeline-related properties,
+and most other deferred longhands.
+
+Also missing or mocked:
+- `float`, `clear`, and `vertical-align` are not modeled.
+- Background image functions such as gradients are parsed as
+  functions but only URL-backed images currently paint.
+- `currentcolor` is parsed but still weakly resolved; properties that
+  rely on it may fall back or disappear instead of using the element
+  `color`.
+- Border styles `double`, `groove`, `ridge`, `inset`, and `outset`
+  are accepted but paint as solid.
 
 ## 11. Phases
 
@@ -481,12 +566,12 @@ Each phase ends in something a host can demo or test against.
 
 ### C4 — Combinators (descendant / child / sibling)
 
-- Selector parser and matcher need ancestor / sibling context.
-- Selector `Vec<SimpleSelector>` chained by combinator type.
-- Matcher walks the tree (or a parent stack) for descendant /
-  ancestor relationships.
+- Descendant combinator — ✅ done.
+- Child and sibling combinators still need parser + matcher support.
+- Selector `Vec<SimpleSelector>` should be extended with explicit
+  combinator type for `>`, `+`, and `~`.
 - Specificity rules: combinators don't add to specificity.
-- Tests should cover `div p`, `div > p`, `h1 + p`, `h1 ~ p`.
+- Tests should cover `div > p`, `h1 + p`, `h1 ~ p`.
 
 ### C5 — Pseudo-classes (state + structural)
 
@@ -503,20 +588,24 @@ Each phase ends in something a host can demo or test against.
   Note that `is_focusable` already excludes `disabled` form
   controls from focus traversal, so a separate `:disabled`
   cascade hook is the only missing piece for that one.
-- Structural (`:nth-child(...)`, `:first-child`, `:last-child`,
-  `:only-child`, `:empty`) — purely tree-shape; doable independently.
+- Structural `:root`, `:first-child`, `:last-child` — ✅ done.
+- Remaining structural (`:nth-child(...)`, `:only-child`, `:empty`)
+  — purely tree-shape; doable independently.
+- `:visited` parses but deliberately never matches because link
+  history is not tracked.
 - Logical (`:not(...)`, `:is(...)`, `:where(...)`).
-- Each adds 0/10/100 to specificity per Selectors-4.
+- Supported pseudo-classes currently add to the class-specificity
+  bucket. Future logical pseudo-classes need their Selectors-4
+  specificity exceptions (`:where()` = 0, `:is()` / `:not()` use
+  their argument specificity).
 
 ### C6 — Attribute selectors
 
-- `[attr]`, `[attr=value]`, `[attr~=value]`, `[attr|=value]`,
+- `[attr]` and `[attr=value]` — ✅ done.
+- Remaining operators: `[attr~=value]`, `[attr|=value]`,
   `[attr^=value]`, `[attr$=value]`, `[attr*=value]`, plus the
   case-insensitive `i` flag.
 - Adds 10 to specificity.
-- Needs the parser to retain attributes the typed model dropped
-  (today many attributes are parsed into struct fields and the
-  raw key/value pairs are discarded).
 
 ### C7 — `@media` queries
 
@@ -550,20 +639,23 @@ inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
   through a host-supplied resolver into a synthetic
   `Tree::register_font(...)` call.
 
-### C11 — `var(--foo)` / custom properties
+### C11 — `var(--foo)` / custom properties — ✅ Partial/Done
 
-- Custom properties (any `--*` token) are inherited like normal
-  inheritable properties.
-- `var(--foo, fallback)` substitution at computed-value time.
-- Independent of the typed `Style` struct: keep custom-property
-  resolution as a side-car string map evaluated before the main
-  property parsers.
+- Custom properties (any `--*` token) are captured as side-car strings
+  and inherited through the cascade.
+- `var(--foo, fallback)` is resolved before reparsing the destination
+  property into typed `Style` storage.
+- Limitations: no CSSOM, no diagnostics, and variables only have
+  visible effect where the resolved value is accepted by the existing
+  typed parser.
 
-### C12 — `calc()` / `min()` / `max()` / `clamp()`
+### C12 — `calc()` / `min()` / `max()` / `clamp()` — ✅ Partial/Done
 
-- Tokenise the function bodies into typed AST.
-- Resolve against the same context layout uses for plain
-  `CssLength` values.
+- Function bodies are tokenised into typed length math.
+- Layout resolves the common length math functions against the same
+  context used for plain `CssLength` values.
+- Advanced numeric functions and contexts outside length resolution
+  may still degrade through raw or unsupported paths.
 
 ### C13 — Pseudo-elements
 
@@ -593,7 +685,7 @@ inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
   of the cascade has to keep the keyword map alive long enough for
   that check.
 - **Whitespace-only text.** Currently dropped at tree-build
-  (`docs/status.md` §1). Once the inline formatting context
+  (`docs/full-status.md` §1). Once the inline formatting context
   arrives, we'll need to keep at least the runs that sit between
   inline children.
 
@@ -601,19 +693,26 @@ inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
 
 ## Summary
 
-What works end-to-end today: simple selectors with full
+What works end-to-end today: simple and descendant selectors with full
 specificity-ordered + `!important`-aware + CSS-wide-keyword-aware
 cascade, implicit inheritance for the standard inheriting set, a UA
-default stylesheet, dynamic `:hover` / `:active` pseudo-classes backed
-by `InteractionState`, and a shared property-dispatch table that's the
-single source of truth for the parser ↔ cascade boundary.
+default stylesheet, attribute presence/equality selectors, dynamic
+`:hover` / `:active` / `:focus` and simple structural pseudo-classes,
+custom properties with `var()` substitution, length math
+(`calc` / `min` / `max` / `clamp`), and a shared property-dispatch
+table that's the single source of truth for the parser ↔ cascade
+boundary.
 
 What doesn't: remaining combinators (child/sibling), most pseudo-
-classes (`:focus`, structural, logical), pseudo-elements, attribute
-selectors, all at-rules (`@media` / `@import` / `@font-face` /
-`@keyframes` / …), `calc()` / `var()`, `<link>` stylesheet loading,
-`currentcolor` resolution, font-relative length resolution.
+classes (`:focus-visible`, `:focus-within`, `:disabled`, `:checked`,
+`nth-*`, logical), pseudo-elements, advanced attribute selector
+operators, all at-rules (`@media` / `@import` / `@font-face` /
+`@keyframes` / …), `<link>` stylesheet loading, reliable
+`currentcolor` resolution, font-relative length resolution, and many
+recognized-but-mocked visual properties such as transforms, shadows,
+z-index stacking, and transitions/animations.
 
 C1–C3 land the cascade machinery and are the foundation for
-everything that follows; C4–C7 unlock realistic stylesheets; C8–C13
-are reach goals tied to specific subsystems landing first.
+everything that follows; C4–C7 unlock realistic stylesheets; C8–C10
+and C13 are reach goals tied to specific subsystems, while C11–C12
+are partial/done and now mostly need hardening around edge cases.

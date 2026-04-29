@@ -317,9 +317,19 @@ pub(crate) fn layout_grid_children(
         placed.push((item.source_index, child_box));
     }
 
-    // Restore source order so hit-testing matches the DOM.
+    // Restore source order and insert empty placeholders for
+    // `display: none` children so layout indices match the DOM.
     placed.sort_by_key(|(idx, _)| *idx);
-    let final_boxes: Vec<LayoutBox> = placed.into_iter().map(|(_, b)| b).collect();
+    let total_children = parent.children.len();
+    let mut final_boxes: Vec<LayoutBox> = Vec::with_capacity(total_children);
+    let mut p_iter = placed.into_iter().peekable();
+    for i in 0..total_children {
+        if p_iter.peek().is_some_and(|(idx, _)| *idx == i) {
+            final_boxes.push(p_iter.next().unwrap().1);
+        } else {
+            final_boxes.push(crate::empty_box(content_x, content_y));
+        }
+    }
 
     let used_inline = total_col_w;
     let used_block = total_row_h;

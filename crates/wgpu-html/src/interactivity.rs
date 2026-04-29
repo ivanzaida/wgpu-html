@@ -62,51 +62,49 @@ pub fn mouse_down(
     if button == MouseButton::Primary {
         if let Some(focus_path) = tree.interaction.focus_path.as_deref() {
             if tree.interaction.edit_cursor.is_some() {
-                if let Some(text_box) = crate::layout_at_path(layout, focus_path) {
+                // Read the actual value length to distinguish
+                // placeholder (empty value) from typed content.
+                let value_len = tree
+                    .root
+                    .as_ref()
+                    .and_then(|r| r.at_path(focus_path))
+                    .and_then(|node| match &node.element {
+                        wgpu_html_tree::Element::Input(inp) => {
+                            Some(inp.value.as_deref().unwrap_or("").len())
+                        }
+                        wgpu_html_tree::Element::Textarea(ta) => {
+                            Some(ta.value.as_deref().unwrap_or("").len())
+                        }
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+
+                let byte_offset = if value_len == 0 {
+                    // Field is empty (showing placeholder) — caret
+                    // goes to position 0, not inside the placeholder.
+                    0
+                } else if let Some(text_box) = crate::layout_at_path(layout, focus_path) {
                     if let Some(run) = &text_box.text_run {
-                        // Find the glyph closest to the click x-position
-                        // relative to the text box's content origin.
                         let click_x = pos.0 - text_box.content_rect.x;
                         let glyph_idx = run
                             .glyphs
                             .iter()
                             .position(|g| g.x + g.w * 0.5 > click_x)
                             .unwrap_or(run.glyphs.len());
-                        // Convert glyph index to byte offset.
-                        let byte_offset = if glyph_idx < run.byte_boundaries.len() {
+                        if glyph_idx < run.byte_boundaries.len() {
                             run.byte_boundaries[glyph_idx]
-                        } else if let Some(&last) = run.byte_boundaries.last() {
-                            // Past the last glyph → end of value.
-                            // byte_boundaries has one entry per glyph;
-                            // the "end" byte is the value length.
-                            // Approximate by scanning to the next char
-                            // boundary after the last boundary.
-                            let mut end = last;
-                            if let Some(node) = tree
-                                .root
-                                .as_ref()
-                                .and_then(|r| r.at_path(focus_path))
-                            {
-                                let val_len = match &node.element {
-                                    wgpu_html_tree::Element::Input(inp) => {
-                                        inp.value.as_deref().unwrap_or("").len()
-                                    }
-                                    wgpu_html_tree::Element::Textarea(ta) => {
-                                        ta.value.as_deref().unwrap_or("").len()
-                                    }
-                                    _ => end,
-                                };
-                                end = val_len;
-                            }
-                            end
                         } else {
-                            0
-                        };
-                        tree.interaction.edit_cursor =
-                            Some(wgpu_html_tree::EditCursor::collapsed(byte_offset));
-                        tree.interaction.caret_blink_epoch = std::time::Instant::now();
+                            value_len
+                        }
+                    } else {
+                        0
                     }
-                }
+                } else {
+                    0
+                };
+                tree.interaction.edit_cursor =
+                    Some(wgpu_html_tree::EditCursor::collapsed(byte_offset));
+                tree.interaction.caret_blink_epoch = std::time::Instant::now();
             }
         }
     }
@@ -195,6 +193,7 @@ mod tests {
                 ascent: 12.0,
             }),
             text_color: Some([0.0, 0.0, 0.0, 1.0]),
+            text_unselectable: false,
             text_decorations: Vec::new(),
             overflow: wgpu_html_layout::OverflowAxes::visible(),
             opacity: 1.0,
