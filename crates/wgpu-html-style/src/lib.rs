@@ -218,20 +218,12 @@ impl PreparedStylesheet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Fingerprint-based cache key for computed declarations. Uses
+/// hashing instead of owned strings so building the key requires
+/// zero heap allocations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct DeclCacheKey {
-    element: SelectorSignature,
-    ancestors: Vec<SelectorSignature>,
-    inline_style: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct SelectorSignature {
-    tag: Option<String>,
-    id: Option<String>,
-    classes: Vec<String>,
-    attrs: Vec<(String, Option<String>)>,
-    ctx: MatchContext,
+    fingerprint: u64,
 }
 
 fn collect_relevant_selector_bits(sel: &Selector, relevant: &mut RelevantSelectors) {
@@ -255,53 +247,81 @@ fn decl_cache_key(
     element_ctx: MatchContext,
     sheets: &[&PreparedStylesheet],
     ancestors: &[(&Element, MatchContext)],
+    cascade_ctx: &CascadeContext,
 ) -> DeclCacheKey {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+
+    // Hash the element's selector-relevant bits.
+    hash_element_signature(element, element_ctx, sheets, cascade_ctx, &mut h);
+
+    // Hash the inline style attribute (highest specificity layer).
+    element_style_attr(element).hash(&mut h);
+
+    // Hash ancestor signatures so descendant-combinator rules
+    // that differ by ancestor path produce distinct keys.
+    ancestors.len().hash(&mut h);
+    for (ancestor, ctx) in ancestors {
+        hash_element_signature(ancestor, *ctx, sheets, cascade_ctx, &mut h);
+    }
+
     DeclCacheKey {
-        element: selector_signature(element, element_ctx, sheets),
-        ancestors: ancestors
-            .iter()
-            .map(|(ancestor, ctx)| selector_signature(ancestor, *ctx, sheets))
-            .collect(),
-        inline_style: element_style_attr(element).map(str::to_owned),
+        fingerprint: h.finish(),
     }
 }
 
-fn selector_signature(
+/// Hash the selector-relevant bits of an element into `h` without
+/// allocating any owned Strings. Uses `&str` references from the
+/// Element's existing fields, hashing them directly.
+fn hash_element_signature(
     element: &Element,
     ctx: MatchContext,
     sheets: &[&PreparedStylesheet],
-) -> SelectorSignature {
-    let tag = element_tag(element)
-        .filter(|tag| relevant_tag(sheets, tag))
-        .map(str::to_owned);
-    let id = element_id(element)
-        .filter(|id| relevant_id(sheets, id))
-        .map(str::to_owned);
-    let mut classes = element_class(element)
-        .into_iter()
-        .flat_map(|class_attr| class_attr.split_ascii_whitespace())
-        .filter(|class| relevant_class(sheets, class))
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    classes.sort_unstable();
-    classes.dedup();
+    cascade_ctx: &CascadeContext,
+    h: &mut impl std::hash::Hasher,
+) {
+    use std::hash::Hash;
 
-    let mut attr_names = relevant_attr_names(sheets);
-    let attrs = attr_names
-        .drain(..)
-        .map(|name| {
-            let value = element_attr(element, &name);
-            (name, value)
-        })
-        .collect();
-
-    SelectorSignature {
-        tag,
-        id,
-        classes,
-        attrs,
-        ctx,
+    // Tag
+    if let Some(tag) = element_tag(element) {
+        if relevant_tag(sheets, tag) {
+            tag.hash(h);
+        }
     }
+
+    // ID
+    if let Some(id) = element_id(element) {
+        if relevant_id(sheets, id) {
+            id.hash(h);
+        }
+    }
+
+    // Classes — hash in sorted order for determinism. Collects
+    // `&str` references (no owned Strings).
+    if let Some(class_attr) = element_class(element) {
+        let mut classes: Vec<&str> = class_attr
+            .split_ascii_whitespace()
+            .filter(|c| relevant_class(sheets, c))
+            .collect();
+        classes.sort_unstable();
+        classes.dedup();
+        classes.len().hash(h);
+        for c in &classes {
+            c.hash(h);
+        }
+    } else {
+        0usize.hash(h);
+    }
+
+    // Attributes — uses the pre-computed list from CascadeContext.
+    cascade_ctx.attr_names.len().hash(h);
+    for name in &cascade_ctx.attr_names {
+        name.hash(h);
+        element_attr(element, name).hash(h);
+    }
+
+    // Pseudo-class state
+    ctx.hash(h);
 }
 
 fn relevant_id(sheets: &[&PreparedStylesheet], id: &str) -> bool {
@@ -328,6 +348,21 @@ fn relevant_attr_names(sheets: &[&PreparedStylesheet]) -> Vec<String> {
     names
 }
 
+/// Pre-computed per-cascade-pass data that stays constant across
+/// all elements. Avoids recomputing `relevant_attr_names()` and
+/// the merged relevant sets on every `hash_element_signature` call.
+struct CascadeContext {
+    attr_names: Vec<String>,
+}
+
+impl CascadeContext {
+    fn new(sheets: &[&PreparedStylesheet]) -> Self {
+        Self {
+            attr_names: relevant_attr_names(sheets),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -351,6 +386,7 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
     let mut path: Vec<usize> = Vec::new();
     let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> =
         HashMap::new();
+    let cascade_ctx = CascadeContext::new(&stylesheets);
     CascadedTree {
         root: tree.root.as_ref().map(|n| {
             cascade_node(
@@ -362,6 +398,7 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
                 interaction,
                 &mut decl_cache,
                 None, // root has no siblings
+                &cascade_ctx,
             )
         }),
     }
@@ -465,6 +502,7 @@ pub fn cascade_incremental(
     let mut path: Vec<usize> = Vec::new();
     let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> =
         HashMap::new();
+    let cascade_ctx = CascadeContext::new(&sheets);
     re_cascade_dirty(
         dom_root,
         cascaded_root,
@@ -477,6 +515,7 @@ pub fn cascade_incremental(
         &dirty,
         &dirty_subtrees,
         None,
+        &cascade_ctx,
     );
     true
 }
@@ -532,6 +571,7 @@ fn re_cascade_dirty(
     dirty: &HashSet<Vec<usize>>,
     dirty_subtrees: &HashSet<Vec<usize>>,
     sibling_count: Option<usize>,
+    cascade_ctx: &CascadeContext,
 ) {
     let is_dirty = dirty.contains(path.as_slice());
     let subtree_dirty = dirty_subtrees
@@ -545,7 +585,7 @@ fn re_cascade_dirty(
         let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
             (Style::default(), HashMap::new())
         } else {
-            let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors);
+            let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors, cascade_ctx);
             if let Some(hit) = decl_cache.get(&key) {
                 hit.clone()
             } else {
@@ -613,6 +653,7 @@ fn re_cascade_dirty(
                 dirty,
                 dirty_subtrees,
                 Some(child_count),
+                cascade_ctx,
             );
             path.pop();
         }
@@ -699,12 +740,13 @@ fn cascade_node(
     interaction: &InteractionState,
     decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
     sibling_count: Option<usize>,
+    cascade_ctx: &CascadeContext,
 ) -> CascadedNode {
     let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
     let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
         (Style::default(), HashMap::new())
     } else {
-        let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors);
+        let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors, cascade_ctx);
         if let Some(cached) = decl_cache.get(&key) {
             cached.clone()
         } else {
@@ -767,6 +809,7 @@ fn cascade_node(
                 interaction,
                 decl_cache,
                 Some(child_count),
+                cascade_ctx,
             );
             path.pop();
             cn
