@@ -42,3 +42,45 @@
 - For layout changes, inspect both `crates/wgpu-html-layout/src/lib.rs` and the dedicated helpers in `flex.rs`, `grid.rs`, and `length.rs` before editing.
 - For paint/render changes, check both display-list generation (`crates/wgpu-html/src/paint.rs`) and renderer consumption (`crates/wgpu-html-renderer/src/lib.rs`, `quad_pipeline.rs`, `glyph_pipeline.rs`, `image_pipeline.rs`).
 - If you add a new interactive behavior, update both dispatch (`crates/wgpu-html/src/interactivity.rs`) and the cascade/state assumptions in `wgpu-html-style`.
+
+## Known-fixed bugs (reference for future debugging)
+
+### "No text after textarea" — stale `DisplayCommand::clip_index` after `finalize()` retain
+
+**Symptom:** Every glyph following a `<textarea>` (or any `overflow ≠ visible`
+element with no painted children) was invisible.  Quad-based drawables
+(backgrounds, borders, underlines) survived, so boxes were *visible but
+empty* — deeply misleading.
+
+**Root cause:** `DisplayList::finalize()` called `clips.retain(…)` to drop
+empty clip ranges, which shifted all subsequent slot indices.  Commands
+that were stamped with `clip_index = N` at push time now pointed past
+their clip's new position.  The `glyph_pipeline` (and `quad_pipeline`)
+resolve per-command `clip_index` via a positional `clip_slots` table —
+a shifted index either hit a *different* slot (whose `glyph_range` was
+empty → silent skip) or hit `None` → draw not issued.
+
+**Why only textarea:** `<textarea>` is the one stock element that ships with
+UA-default `overflow: auto` **and** no rendered children (its placeholder
+is painted as the box's own `text_run`, before `push_clip`).  So the clip
+range it opens is always empty → retained out → indices shift.  Elements
+with `overflow: hidden` that have children don't trigger it because their
+children paint *inside* the range, keeping it non-empty.
+
+**Fix:** `DisplayList::finalize()` now builds an old → new index remap
+*before* `retain` and patches every `DisplayCommand::clip_index`
+accordingly.  Commands on a dropped slot fall back to the nearest
+surviving predecessor.
+
+**Tests:**
+- `wgpu-html-renderer`: `finalize_remaps_command_clip_index_when_empty_ranges_dropped` — pushes a glyph, opens+closes an empty clip, pushes more content, finalizes, asserts every command's `clip_index` is in-bounds and lands on the correct post-retain slot.
+- `wgpu-html`: `glyphs_after_overflow_auto_sibling_are_not_clipped` — synthetic layout with an `overflow:auto` block followed by a text leaf, checks no clip suppresses the text glyph.
+- The existing quad-only guards (`real_textarea_in_flex_row_does_not_clip_following_block_quad`, `overflow_auto_in_flex_row_does_not_clip_block_sibling_below`) were not sufficient alone — they only walked `quad_range`, not `glyph_range`.
+
+**Files changed:** `crates/wgpu-html-renderer/src/paint.rs` (fix + test),
+`crates/wgpu-html/src/paint.rs` (test).
+
+## Debugging
+- `cargo run -p wgpu-html-demo <file.html>` launches a WINIT window with selected file as html content.
+- STDIN command `make_screenshot` saves a PNG screenshot of the current window.
+- STDIN command `make_screenshot <query>` from `spec/query.md` saves a PNG screenshot of the element.

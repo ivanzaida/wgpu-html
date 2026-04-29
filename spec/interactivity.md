@@ -39,9 +39,13 @@ exist for any of it to behave like a browser.
   textareas soft-wrap inside content-box width and stay top-
   aligned. Suppressed for `type="hidden"`, non-empty `value`, or
   non-empty textarea content. Wired into both `layout_block` and
-  `layout_atomic_inline_subtree`. Typing into an input,
-  checkbox/radio toggle, `<select>` menu, and `<form>` submit are
-  still ❌.
+  `layout_atomic_inline_subtree`. **Fixed:** textarea's
+  UA `overflow: auto` no longer suppresses glyphs in following
+  siblings — `DisplayList::finalize` now remaps
+  `DisplayCommand::clip_index` when `retain` drops empty clip
+  ranges (see AGENTS.md § "Known-fixed bugs"). Typing into an
+  input, checkbox/radio toggle, `<select>` menu, and `<form>`
+  submit are still ❌.
 - **M-INTER-3 ⚠️ partial.** `TextCursor`/`TextSelection` on
   `InteractionState`, drag-to-select, `select_all_text` /
   `selected_text`, `Ctrl+A`/`Ctrl+C` + `arboard` (now built into

@@ -1415,6 +1415,132 @@ mod tests {
     }
 
     #[test]
+    fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
+        // Same shape as the textarea forms.html bug: a body containing
+        // an overflow:auto sibling block and then a text-leaf sibling
+        // that follows it. Quad-only regression guards above only
+        // assert quads aren't clipped; this one walks the glyph axis
+        // of the display list to make sure the popped textarea clip
+        // doesn't continue suppressing the following text.
+        use wgpu_html_layout::{
+            BorderColors, BorderStyles, BoxKind, CornerRadii, Insets, LayoutBox, OverflowAxes,
+            Rect as LR,
+        };
+        use wgpu_html_models::common::css_enums::Overflow;
+        use wgpu_html_text::{PositionedGlyph, ShapedLine, ShapedRun};
+        let textarea_rect = LR::new(0.0, 0.0, 320.0, 64.0);
+        let textarea = LayoutBox {
+            margin_rect: textarea_rect,
+            border_rect: textarea_rect,
+            content_rect: textarea_rect,
+            background: None,
+            background_rect: textarea_rect,
+            background_radii: CornerRadii::zero(),
+            border: Insets::zero(),
+            border_colors: BorderColors::default(),
+            border_styles: BorderStyles::default(),
+            border_radius: CornerRadii::zero(),
+            kind: BoxKind::Block,
+            text_run: None,
+            text_color: None,
+            text_decorations: Vec::new(),
+            overflow: OverflowAxes {
+                x: Overflow::Auto,
+                y: Overflow::Auto,
+            },
+            opacity: 1.0,
+            image: None,
+            background_image: None,
+            children: Vec::new(),
+        };
+        let h2_rect = LR::new(0.0, 100.0, 200.0, 24.0);
+        let h2 = LayoutBox {
+            margin_rect: h2_rect,
+            border_rect: h2_rect,
+            content_rect: h2_rect,
+            background: None,
+            background_rect: h2_rect,
+            background_radii: CornerRadii::zero(),
+            border: Insets::zero(),
+            border_colors: BorderColors::default(),
+            border_styles: BorderStyles::default(),
+            border_radius: CornerRadii::zero(),
+            kind: BoxKind::Text,
+            text_run: Some(ShapedRun {
+                glyphs: vec![PositionedGlyph {
+                    x: 0.0,
+                    y: 4.0,
+                    w: 8.0,
+                    h: 14.0,
+                    uv_min: [0.0, 0.0],
+                    uv_max: [1.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
+                }],
+                lines: vec![ShapedLine {
+                    top: 0.0,
+                    height: 22.0,
+                    glyph_range: (0, 1),
+                }],
+                text: "A".to_string(),
+                byte_boundaries: wgpu_html_text::utf8_boundaries("A"),
+                width: 8.0,
+                height: 22.0,
+                ascent: 10.0,
+            }),
+            text_color: Some([1.0, 1.0, 1.0, 1.0]),
+            text_decorations: Vec::new(),
+            overflow: OverflowAxes::visible(),
+            opacity: 1.0,
+            image: None,
+            background_image: None,
+            children: Vec::new(),
+        };
+        let body_rect = LR::new(0.0, 0.0, 800.0, 200.0);
+        let body = LayoutBox {
+            margin_rect: body_rect,
+            border_rect: body_rect,
+            content_rect: body_rect,
+            background: None,
+            background_rect: body_rect,
+            background_radii: CornerRadii::zero(),
+            border: Insets::zero(),
+            border_colors: BorderColors::default(),
+            border_styles: BorderStyles::default(),
+            border_radius: CornerRadii::zero(),
+            kind: BoxKind::Block,
+            text_run: None,
+            text_color: None,
+            text_decorations: Vec::new(),
+            overflow: OverflowAxes::visible(),
+            opacity: 1.0,
+            image: None,
+            background_image: None,
+            children: vec![textarea, h2],
+        };
+        let mut list = DisplayList::new();
+        paint_layout(&body, &mut list);
+        assert_eq!(list.glyphs.len(), 1, "h2 glyph should be emitted");
+        let g = &list.glyphs[0];
+        let g_idx = 0u32;
+        for clip in &list.clips {
+            if clip.rect.is_some() && g_idx >= clip.glyph_range.0 && g_idx < clip.glyph_range.1 {
+                let r = clip.rect.unwrap();
+                let outside_x = g.rect.x + g.rect.w <= r.x || g.rect.x >= r.x + r.w;
+                let outside_y = g.rect.y + g.rect.h <= r.y || g.rect.y >= r.y + r.h;
+                assert!(
+                    !(outside_x || outside_y),
+                    "h2 glyph at {:?} sits inside clip range {:?} that suppresses it \
+                     (outside_x={} outside_y={})",
+                    g.rect,
+                    r,
+                    outside_x,
+                    outside_y
+                );
+            }
+        }
+    }
+
+    #[test]
     fn overflow_auto_in_flex_row_does_not_clip_block_sibling_below() {
         // Repro for the "no text after textarea" report. A flex item
         // with `overflow: auto` (textarea's UA default) emits a
