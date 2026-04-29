@@ -53,15 +53,17 @@ stage is independently testable.
 | Crate                | Role                                                                    | Status |
 |----------------------|-------------------------------------------------------------------------|--------|
 | `wgpu-html-models`   | Element structs (`Div`, `P`, `Body`, …), `css::Style`, enums            | done   |
-| `wgpu-html-tree`     | `Tree { root, fonts, interaction }`, `Node`, `Element`, `InteractionState` | done   |
-| `wgpu-html-events`   | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `EventPhase`  | done   |
-| `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser          | done   |
-| `wgpu-html-style`    | Selector matching + cascade + `MatchContext` (`:hover`/`:active`)      | done   |
+| `wgpu-html-tree`     | `Tree { root, fonts, interaction }`, `Node`, `Element`; path-based mouse + keyboard + focus dispatch (`dispatch`); `is_focusable` + Tab traversal (`focus`); DOM-style query helpers (`query`); `InteractionState` carries hover/active/**focus**/selection/scroll/**modifiers** | done   |
+| `wgpu-html-events`   | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `EventPhase` | done   |
+| `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser; CSS-Color-4 system colors (`buttonface`, `field`, …) | done   |
+| `wgpu-html-style`    | Selector matching + cascade + `MatchContext` (`:hover`/`:active`/`:focus`); generic-family font fallback in `FontRegistry::find_first` | done   |
 | `wgpu-html-text`     | Font database + cosmic-text shaping + glyph atlas                      | done   |
-| `wgpu-html-layout`   | Block/flex/grid layout + IFC + image loading + hit testing              | done   |
+| `wgpu-html-layout`   | Block/flex/grid layout + IFC + image loading + hit testing; `<input>` / `<textarea>` placeholder shaping; flex max-content intrinsic for non-text non-replaced items | done   |
 | `wgpu-html-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | done   |
-| `wgpu-html`          | Facade: parse → cascade → layout → paint, interactivity, `PipelineTimings` | done   |
-| `wgpu-html-demo`     | winit binary; font loading, event loop, scroll, `ProfileWindow`        | done   |
+| `wgpu-html`          | Facade: parse → cascade → layout → paint, layout-aware interactivity wrappers, `PipelineTimings`, public `scroll` module | done   |
+| `wgpu-html-winit`    | winit ↔ engine glue: type translators + forwarders + batteries-included `WgpuHtmlWindow` harness (`AppHook`, viewport scroll, scrollbar drag, clipboard, F12 screenshot); system-font discovery | done   |
+| `wgpu-html-egui`     | Alternative `egui` / `eframe` integration backend                       | done   |
+| `wgpu-html-demo`     | Thin shell over `wgpu-html-winit` (or `wgpu-html-egui` via `--renderer=`); HTML loading, demo `AppHook` for F9 profiling | done   |
 
 ## Milestones
 
@@ -306,23 +308,60 @@ See `spec/interactivity.md` for the full phase breakdown.
 
 **M-INTER-1 (hover / press / click / focus chain) ✅**
 
-- `InteractionState` on `Tree` (hover path, active path, scroll offsets,
-  text selection, buttons bitmask, time origin)
-- `interactivity::pointer_move`, `mouse_down`, `mouse_up`, `pointer_leave`
+- `InteractionState` on `Tree` (hover path, active path, **focus path**,
+  scroll offsets, text selection, buttons bitmask, time origin,
+  **modifiers**)
+- Layout-aware wrappers in `wgpu_html::interactivity` (`pointer_move`,
+  `mouse_down`, `mouse_up`); path-based dispatch in
+  `wgpu_html_tree::dispatch` (`dispatch_pointer_move/_leave/_mouse_down/_mouse_up`)
 - Synthesised enter / leave (deepest-first leave, root-first enter)
 - Click synthesis via deepest common ancestor; drag-select suppresses click
-- `:hover` / `:active` cascade via `MatchContext::for_path` (focus is
-  always `false` until M-INTER-2)
-- `wgpu-html-events` crate: `HtmlEvent`, `MouseEvent`, `EventPhase`,
-  `HtmlEventType`; both legacy (`on_click` slot) and typed (`on_event`)
-  callbacks wired
-- Demo wires up all mouse + scroll events; scrollbar drag implemented
+- `:hover` / `:active` / **`:focus`** cascade via `MatchContext::for_path`.
+  `:focus` is exact-match (no propagation to ancestors); `:focus-within`
+  not yet wired.
+- `wgpu-html-events` crate: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`,
+  `FocusEvent`, `InputEvent`, `EventPhase`, `HtmlEventType`; both legacy
+  (`on_click` slot) and typed (`on_event`) callbacks wired
 
-**M-INTER-3 (text selection + clipboard) ✅ partial**
+**Focus + keyboard foundations ✅** (overlaps with M-INTER-2 / M-INTER-5)
+
+- `Tree::focus(path)` / `Tree::blur()` / `Tree::focus_next(reverse)`
+  dispatch focus / blur / focusin / focusout events with `related_target`.
+  `Tree::focus(path)` walks up to the closest focusable ancestor; primary
+  `mouse_down` does the same automatically.
+- `Tree::key_down(key, code, repeat)` / `Tree::key_up(key, code)` bubble
+  `keydown` / `keyup` along the focused element's ancestry. Tab and
+  Shift+Tab navigation are built into `key_down` (cycle through
+  `keyboard_focusable_paths`, wrap at ends).
+- Modifier state lives on `InteractionState::modifiers`; updated via
+  `Tree::set_modifier(Modifier, bool)`. Dispatchers no longer take a
+  `Modifiers` parameter.
+- `wgpu_html_tree::focus` module: `is_focusable`, `is_keyboard_focusable`,
+  `focusable_paths`, `keyboard_focusable_paths`, `next_in_order`,
+  `prev_in_order`. Recognises `<button>` (unless disabled), `<a href>`,
+  `<input>` (unless disabled or `type=hidden`), `<textarea>`, `<select>`,
+  `<summary>`, anything with `tabindex >= 0`.
+
+**Form fields ⚠️ partial**
+
+- `<input>` and `<textarea>` empty-field placeholder rendering:
+  `compute_placeholder_run` shapes the `placeholder` attribute and
+  attaches it as the box's `text_run`. Color = cascaded `color` × alpha
+  0.5 (matches the browser default `::placeholder` styling). Single-line
+  inputs vertically centre and clip overflow at `content_rect.w`;
+  textareas soft-wrap and stay top-aligned. Wired into both
+  `layout_block` and `layout_atomic_inline_subtree`.
+- Suppressed for `type="hidden"`, non-empty `value`, non-empty textarea
+  content, or empty `placeholder=""`.
+- Not yet: typing into a field, caret overlay, checkbox/radio toggle,
+  `<select>` dropdown, form submission.
+
+**M-INTER-3 (text selection + clipboard) ⚠️ partial**
 
 - `TextCursor` / `TextSelection` on `InteractionState`
 - Drag-to-select; `select_all_text` / `selected_text` in `wgpu-html`
-- `Ctrl+A` + `Ctrl+C` + `arboard` integration in the demo
+- `Ctrl+A` + `Ctrl+C` + `arboard` integration — now built into the
+  `wgpu-html-winit` harness (no demo plumbing required)
 - Selection highlight quads painted; caret overlay not yet done
 - Word / line select (double-click / triple-click) not yet done
 
@@ -332,11 +371,34 @@ See `spec/interactivity.md` for the full phase breakdown.
 - Viewport scroll position + drag-scrollbar; `MouseWheel` scrolls
   viewport and detects deepest scrollable element
 - Scrollbar quads painted in `paint.rs`
+- Public `wgpu_html::scroll` module exposes scrollbar geometry,
+  hit-tests, painters, and document/element scroll utilities
 - `Wheel` events are not forwarded to element `on_event` callbacks yet
 
+**DOM-style query helpers ✅**
+
+- `wgpu_html_tree::query`: `CompoundSelector`, `Tree::query_selector(sel)`,
+  `query_selector_all`, `query_selector_path`, `query_selector_all_paths`
+  (and `Node::*` mirrors). Supports `tag` / `#id` / `.class` compound
+  selectors (`a.btn#cta`); no combinators or pseudo-classes.
+
+**`wgpu-html-winit` harness ✅**
+
+- `WgpuHtmlWindow` (full `winit::ApplicationHandler` impl) + builders
+  (`with_title`, `with_size`, `with_exit_on_escape`,
+  `with_clipboard_enabled`, `with_screenshot_key`, `with_hook`).
+- `AppHook` trait (`on_key`, `on_frame`, `on_pointer_move`),
+  `EventResponse { Continue, Stop }`, `HookContext`, `FrameTimings`.
+- Built-in viewport scroll + scrollbar drag (viewport + per-element),
+  clipboard (Ctrl+A / Ctrl+C via `arboard`), screenshot (default F12).
+- Type translators (`mouse_button`, `key_to_dom_key`, …) + forwarders
+  (`update_modifiers`, `forward_keyboard`, `handle_keyboard`).
+- System-font discovery (`system_font_variants`, `register_system_fonts`).
+
 Not yet done: M-INTER-2 (`pointer-events`, `overflow` clip in hit-test,
-double-click), M-INTER-5 (keyboard navigation), M-INTER-6 (re-cascade
-caching).
+double-click, `:focus-visible`, `:focus-within`, `:disabled`), arrow-key
+caret movement and `Enter`/`Space` click synthesis (M-INTER-5 tail),
+M-INTER-6 (re-cascade caching).
 
 ## Cross-cutting concerns
 
@@ -356,14 +418,23 @@ caching).
 
 ## Possible follow-ups
 
-- `:focus` / `:focus-visible` / `:disabled` / `:checked` pseudo-classes
-  and focus management (Tab navigation, Enter/Space on focused elements)
+- **Form fields**: typing into `<input>` / `<textarea>` (caret + edit
+  buffer + character insertion); checkbox/radio click toggle;
+  `<select>` dropdown menu; form submission (`Enter` in input or
+  click on `<button type="submit">` → `SubmitEvent`)
+- `:focus-visible` / `:focus-within` / `:disabled` / `:checked`
+  pseudo-classes
+- `Enter` / `Space` on a focused button or link → synthesised primary
+  click; arrow keys / Home / End for caret movement
 - `pointer-events: none` and `overflow`-clip in hit testing (M-INTER-2)
-- Keyboard navigation and caret movement (M-INTER-5)
+- Double-click / triple-click / context-menu / aux-click synthesis
+- `Wheel` event forwarding to element `on_event` callbacks
+- Re-cascade caching, hover-path stickiness across reflow (M-INTER-6)
 - CSS `transform` (layout and hit-test impact)
 - CSS `position: absolute / relative / fixed` with `top/right/bottom/left`
 - `z-index` and stacking contexts
-- `@font-face` / generic font families
+- `@font-face` (generic-family fallback in `FontRegistry::find_first`
+  is already shipped)
 - `calc()` / `min()` / `max()` / `clamp()` in length values
 - `var(--foo)` CSS custom properties
 - `@media` queries (re-cascade on resize)
@@ -372,7 +443,6 @@ caching).
   trace export (see `spec/profiler.md`)
 - `wgpu-html-devtools` inspector crate (see `spec/devtools.md`)
 - Render-loop hooks for engine-side animation (no JS; timeline-driven)
-- Embedding into `egui` or another host
 
 ## Versioning
 

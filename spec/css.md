@@ -134,6 +134,27 @@ Not yet supported:
 - `hsl(h, s, l)`, `hsla(h, s, l, a)`.
 - `transparent`, `currentcolor`.
 
+**CSS Color Module Level 4 system colors** — recognised by both
+the parser validator (`is_supported_named_color`) and the layout
+color resolver (`wgpu_html_layout::color::named_color`). Used by
+the UA stylesheet for form controls (`background-color: buttonface`,
+`color: fieldtext`, …) so those rules cascade cleanly:
+
+| Keyword | Light-mode RGB | Notes |
+|---|---|---|
+| `canvas` / `canvastext` | white / black | document area |
+| `buttonface` / `buttontext` / `buttonborder` | #ddd / black / #6f6f6f | UA button defaults |
+| `field` / `fieldtext` | white / black | UA `<input>` / `<textarea>` defaults |
+| `linktext` / `visitedtext` / `activetext` | #00e / #551a8b / red | anchor states |
+| `highlight` / `highlighttext` / `selecteditem` / `selecteditemtext` | #38f / white | text selection |
+| `mark` / `marktext` | yellow / black | `<mark>` |
+| `graytext` | #808080 | disabled text |
+| `accentcolor` / `accentcolortext` | #38f / white | system accent |
+
+We don't track `prefers-color-scheme` yet, so dark-mode UAs would
+just pick different RGB. Author CSS routinely overrides these,
+so the exact values matter less than not failing the cascade.
+
 Also accepted and preserved as function values:
 - `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`, `color()`,
   `color-mix()`, `light-dark()`.
@@ -143,6 +164,23 @@ Not yet fully resolved:
 - Wide-gamut color spaces.
 - `currentcolor` resolution (parsed into `CssColor::CurrentColor` but
   layout currently returns `None` for it).
+
+### 6.2.1 Generic font-family fallback — Done
+
+`FontRegistry::find_first` (in `wgpu-html-tree::fonts`) walks the
+CSS family list left-to-right and returns the first family that
+has a registered face. **If no listed family matches and any
+entry is a CSS generic keyword**, it falls back to the best
+`(weight, style)`-scoring face from the entire registry.
+Recognised generics: `sans-serif`, `serif`, `monospace`,
+`cursive`, `fantasy`, `system-ui`, `ui-sans-serif`, `ui-serif`,
+`ui-monospace`, `ui-rounded`, `math`, `emoji`, `fangsong`,
+`-apple-system`, `BlinkMacSystemFont`.
+
+This makes plain `font-family: sans-serif` resolve whatever font
+the host registered (typically via
+`wgpu_html_winit::register_system_fonts(tree, "MyFamily")`)
+without needing the host to also register the generic alias.
 
 ### 6.3 Properties — typed vs deferred vs ignored
 
@@ -302,6 +340,10 @@ line-height, letter-spacing, text-align, text-transform,
 white-space, text-decoration, visibility, cursor.
 ```
 
+`pointer-events` and `user-select` will join this set when
+M-INTER-2 wires them into hit-testing / selection enforcement;
+they're parsed but not yet inherited.
+
 This list mirrors `is_inherited()` in
 `wgpu-html-parser/src/style_props.rs` — the same kebab-case strings
 are consulted on both the cascade side (for implicit inheritance)
@@ -378,8 +420,18 @@ What survives the cascade and actually changes pixels on the screen.
 - `color`, `font-size`, `font-weight`, `font-style`,
   `line-height`, `font-family` — feed into text shaping (`spec/text.md`),
   with the inheritance pass making them flow through the document.
+  Generic font families (`sans-serif`, `serif`, `monospace`, …) fall
+  back to any registered face when no listed family matches; see §6.2.1.
 - `letter-spacing`, `text-align`, `text-decoration`,
   `text-transform`, `white-space`.
+- **`<input>` / `<textarea>` `placeholder` attribute** — when the
+  field has no `value` (and a textarea has no children), layout
+  shapes the placeholder text and attaches it as the box's
+  `text_run`, painted at `cascaded color × alpha 0.5` (the default
+  browser `::placeholder` styling). Single-line inputs vertically
+  centre and horizontally clip the run; textareas soft-wrap inside
+  `content_rect.w`. `type="hidden"` and non-empty `value` /
+  textarea content suppress the placeholder.
 
 ### Honoured by paint (`wgpu-html`)
 
@@ -388,6 +440,8 @@ What survives the cascade and actually changes pixels on the screen.
 - Background fills with corner radii.
 - Glyph quads emitted from shaped text runs (text color resolved
   from the cascaded `color`).
+- Selection-highlight rectangles and (future) caret overlay; see
+  `spec/interactivity.md` §11.
 
 ### Recognised but ignored everywhere
 
@@ -436,13 +490,19 @@ Each phase ends in something a host can demo or test against.
 
 ### C5 — Pseudo-classes (state + structural)
 
-- **State pseudo-classes `:hover` and `:active` — ✅ done.** Parsed
-  in `stylesheet.rs`; matched via `MatchContext { is_hover, is_active }`
-  derived in `wgpu-html-style::cascade` from `InteractionState`. See
-  `spec/interactivity.md` for the interaction-state wiring.
-- **Remaining state pseudo-classes** (`:focus`, `:focus-visible`,
-  `:focus-within`, `:disabled`, `:checked`) — not yet matched; `is_focus`
-  is always `false` in the current `MatchContext`.
+- **State pseudo-classes `:hover`, `:active`, `:focus` — ✅ done.**
+  Parsed in `stylesheet.rs`; matched via
+  `MatchContext { is_hover, is_active, is_focus }` derived in
+  `wgpu-html-style::cascade` from `InteractionState`'s
+  `hover_path` / `active_path` / `focus_path`. `:focus` is
+  exact-match (only the focused element, not its ancestors);
+  `:focus-within` (which would propagate) is not yet implemented.
+  See `spec/interactivity.md` for the interaction-state wiring.
+- **Remaining state pseudo-classes** (`:focus-visible`,
+  `:focus-within`, `:disabled`, `:checked`) — not yet matched.
+  Note that `is_focusable` already excludes `disabled` form
+  controls from focus traversal, so a separate `:disabled`
+  cascade hook is the only missing piece for that one.
 - Structural (`:nth-child(...)`, `:first-child`, `:last-child`,
   `:only-child`, `:empty`) — purely tree-shape; doable independently.
 - Logical (`:not(...)`, `:is(...)`, `:where(...)`).

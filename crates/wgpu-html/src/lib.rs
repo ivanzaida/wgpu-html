@@ -20,7 +20,7 @@ pub mod scroll;
 pub use paint::{paint_tree, paint_tree_with_text};
 
 use wgpu_html_layout::LayoutBox;
-use wgpu_html_renderer::DisplayList;
+use wgpu_html_renderer::{DisplayList, Renderer, ScreenshotError};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{TextCursor, TextSelection, Tree};
 
@@ -125,6 +125,105 @@ pub fn paint_tree_returning_layout_profiled(
     }
     timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
     (list, layout, timings)
+}
+
+/// Walk a child-index path through a layout tree, starting at `root`,
+/// and return the matching `LayoutBox`. The empty path returns
+/// `Some(root)`; any out-of-bounds index returns `None`.
+///
+/// Layout child indices line up 1:1 with the indices used elsewhere
+/// in this crate for paths (text-cursor `path`, scroll-offset map
+/// keys, etc.), so a path obtained from any of those APIs can be
+/// re-used here without remapping.
+pub fn layout_at_path<'a>(root: &'a LayoutBox, path: &[usize]) -> Option<&'a LayoutBox> {
+    let mut cur = root;
+    for &i in path {
+        cur = cur.children.get(i)?;
+    }
+    Some(cur)
+}
+
+/// What can go wrong when capturing a screenshot of a single node
+/// via [`screenshot_node_to`].
+#[derive(Debug)]
+pub enum NodeScreenshotError {
+    /// The tree produced no layout — either it's empty or every box
+    /// collapsed to zero size before paint could run.
+    NoLayout,
+    /// The path didn't resolve to any layout box in the tree.
+    NodeNotFound(Vec<usize>),
+    /// The node's `border_rect` is zero-area (e.g. `display: none`
+    /// elsewhere in the cascade or a collapsed inline). There's
+    /// nothing meaningful to capture.
+    EmptyRect,
+    /// The off-screen render itself failed during read-back or
+    /// PNG encoding.
+    Render(ScreenshotError),
+}
+
+impl std::fmt::Display for NodeScreenshotError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoLayout => write!(f, "tree produced no layout"),
+            Self::NodeNotFound(p) => write!(f, "no layout box at path {p:?}"),
+            Self::EmptyRect => write!(f, "node has an empty border rect"),
+            Self::Render(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for NodeScreenshotError {}
+
+impl From<ScreenshotError> for NodeScreenshotError {
+    fn from(e: ScreenshotError) -> Self {
+        Self::Render(e)
+    }
+}
+
+/// Lay out `tree`, paint it, and write the contents of the node at
+/// `layout_path` to `out_path` as a PNG sized exactly to that node's
+/// `border_rect`. Captures correctly even when the node is fully or
+/// partially outside the visible viewport, because the off-screen
+/// render target is allocated at the node's pixel size and the whole
+/// display list is painted into it (translated so the node sits at
+/// the origin).
+///
+/// `viewport_w` / `viewport_h` / `scale` mirror the pre-existing
+/// layout knobs — pass the same values you use for the on-screen
+/// frame to avoid re-flowing the document.
+///
+/// ```ignore
+/// // Capture the element at DOM path [1, 0, 2] (e.g. a deeply
+/// // nested footer link below the fold) at full size.
+/// wgpu_html::screenshot_node_to(
+///     &tree, &mut text_ctx, &mut renderer,
+///     &[1, 0, 2], 1280.0, 720.0, 1.0, "footer-link.png",
+/// )?;
+/// ```
+pub fn screenshot_node_to(
+    tree: &Tree,
+    text_ctx: &mut TextContext,
+    renderer: &mut Renderer,
+    layout_path: &[usize],
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+    out_path: impl AsRef<std::path::Path>,
+) -> Result<(), NodeScreenshotError> {
+    let (list, layout) =
+        paint_tree_returning_layout(tree, text_ctx, viewport_w, viewport_h, scale);
+    let root_layout = layout.as_ref().ok_or(NodeScreenshotError::NoLayout)?;
+    let target = layout_at_path(root_layout, layout_path)
+        .ok_or_else(|| NodeScreenshotError::NodeNotFound(layout_path.to_vec()))?;
+
+    let r = target.border_rect;
+    if !(r.w > 0.0 && r.h > 0.0) {
+        return Err(NodeScreenshotError::EmptyRect);
+    }
+
+    let region = wgpu_html_renderer::Rect::new(r.x, r.y, r.w, r.h);
+    renderer.capture_rect_to(&list, region, out_path)?;
+    Ok(())
 }
 
 /// Select every text run in document order.
@@ -315,6 +414,51 @@ mod tests {
             background_image: None,
             children: Vec::new(),
         }
+    }
+
+    #[test]
+    fn layout_at_path_walks_children() {
+        let leaf_a = LayoutBox {
+            margin_rect: wgpu_html_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
+            border_rect: wgpu_html_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
+            content_rect: wgpu_html_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
+            background: None,
+            background_rect: wgpu_html_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
+            background_radii: wgpu_html_layout::CornerRadii::zero(),
+            border: wgpu_html_layout::Insets::zero(),
+            border_colors: wgpu_html_layout::BorderColors::default(),
+            border_styles: wgpu_html_layout::BorderStyles::default(),
+            border_radius: wgpu_html_layout::CornerRadii::zero(),
+            kind: wgpu_html_layout::BoxKind::Block,
+            text_run: None,
+            text_color: None,
+            text_decorations: Vec::new(),
+            overflow: wgpu_html_layout::OverflowAxes::visible(),
+            opacity: 1.0,
+            image: None,
+            background_image: None,
+            children: Vec::new(),
+        };
+        let mut leaf_b = leaf_a.clone();
+        leaf_b.border_rect = wgpu_html_layout::Rect::new(50.0, 0.0, 50.0, 20.0);
+        let mut root = leaf_a.clone();
+        root.border_rect = wgpu_html_layout::Rect::new(0.0, 0.0, 100.0, 20.0);
+        root.children = vec![leaf_a.clone(), leaf_b.clone()];
+
+        assert_eq!(
+            layout_at_path(&root, &[]).unwrap().border_rect,
+            root.border_rect
+        );
+        assert_eq!(
+            layout_at_path(&root, &[0]).unwrap().border_rect,
+            leaf_a.border_rect
+        );
+        assert_eq!(
+            layout_at_path(&root, &[1]).unwrap().border_rect,
+            leaf_b.border_rect
+        );
+        assert!(layout_at_path(&root, &[2]).is_none());
+        assert!(layout_at_path(&root, &[0, 0]).is_none());
     }
 
     #[test]

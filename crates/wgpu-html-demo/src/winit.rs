@@ -1,0 +1,443 @@
+//! wgpu-html demo.
+//!
+//! Thin shell over [`wgpu_html_winit::WgpuHtmlWindow`]: parse the
+//! HTML document, register a system font, attach a couple of
+//! example callbacks, then hand the tree to the harness.
+//!
+//! Profiling (F9 toggle) is implemented as a [`AppHook`] so all
+//! the winit / event-loop plumbing stays inside `wgpu-html-winit`.
+//!
+//! Built-in shortcuts (provided by the harness):
+//!   F12  → save the current frame as `screenshot-<unix>.png`
+//!   Esc  → quit
+//!   Ctrl+A / Ctrl+C → select all + copy via the system clipboard
+
+use std::collections::VecDeque;
+use std::io::BufRead;
+use std::path::PathBuf;
+use std::process::ExitCode;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use winit::event::{ElementState, KeyEvent};
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::Window;
+
+use wgpu_html_tree::Tree;
+use wgpu_html_winit::{
+    AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
+    register_system_fonts, system_font_variants,
+};
+
+// ── Demo wiring ─────────────────────────────────────────────────────────────
+
+/// Wire example `on_click` / `on_mouse_enter` callbacks for the
+/// known demo IDs. Callbacks are intentionally silent so profiling
+/// logs stay readable.
+pub(crate) fn install_demo_callbacks(tree: &mut Tree, click_count: &Arc<AtomicUsize>) {
+    let counter = click_count.clone();
+    if let Some(btn) = tree.get_element_by_id("btn") {
+        btn.on_click = Some(Arc::new(move |_| {
+            let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
+            let _ = n;
+        }));
+    }
+    if let Some(panel) = tree.get_element_by_id("panel") {
+        panel.on_mouse_enter = Some(Arc::new(|_| {}));
+        panel.on_mouse_leave = Some(Arc::new(|_| {}));
+        panel.on_click = Some(Arc::new(|_| {}));
+    }
+}
+
+// ── Profiling hook ──────────────────────────────────────────────────────────
+
+/// Lightweight per-frame stats: average + max ms across the
+/// reporting window.
+#[derive(Debug, Clone, Copy, Default)]
+struct Stage {
+    sum_ms: f64,
+    max_ms: f64,
+}
+
+impl Stage {
+    fn add(&mut self, ms: f64) {
+        self.sum_ms += ms;
+        self.max_ms = self.max_ms.max(ms);
+    }
+    fn avg(&self, n: u64) -> f64 {
+        if n == 0 { 0.0 } else { self.sum_ms / n as f64 }
+    }
+}
+
+/// One-second rolling profile window.
+struct Profiler {
+    started_at: Instant,
+    frames: u64,
+    cascade: Stage,
+    layout: Stage,
+    paint: Stage,
+    render: Stage,
+    hover_moves: u64,
+    hover_changed: u64,
+    pointer_move: Stage,
+}
+
+impl Profiler {
+    fn new() -> Self {
+        Self {
+            started_at: Instant::now(),
+            frames: 0,
+            cascade: Stage::default(),
+            layout: Stage::default(),
+            paint: Stage::default(),
+            render: Stage::default(),
+            hover_moves: 0,
+            hover_changed: 0,
+            pointer_move: Stage::default(),
+        }
+    }
+
+    fn add_frame(&mut self, t: &FrameTimings) {
+        self.frames += 1;
+        self.cascade.add(t.cascade_ms);
+        self.layout.add(t.layout_ms);
+        self.paint.add(t.paint_ms);
+        self.render.add(t.render_ms);
+    }
+
+    fn add_pointer_move(&mut self, ms: f64, changed: bool) {
+        self.hover_moves += 1;
+        if changed {
+            self.hover_changed += 1;
+        }
+        self.pointer_move.add(ms);
+    }
+
+    fn take_summary_if_due(&mut self) -> Option<String> {
+        if self.started_at.elapsed() < Duration::from_secs(1) {
+            return None;
+        }
+        if self.frames == 0 && self.hover_moves == 0 {
+            self.reset();
+            return None;
+        }
+        let secs = self.started_at.elapsed().as_secs_f64().max(f64::EPSILON);
+        let fps = self.frames as f64 / secs;
+        let n = self.frames;
+        let line = format!(
+            "profile: {:.2}s frames={} fps={:.1}  cascade={:.2}/{:.2}  layout={:.2}/{:.2}  paint={:.2}/{:.2}  render={:.2}/{:.2}  hover[moves={} changed={} ptr={:.3}/{:.3}ms]",
+            secs,
+            n,
+            fps,
+            self.cascade.avg(n),
+            self.cascade.max_ms,
+            self.layout.avg(n),
+            self.layout.max_ms,
+            self.paint.avg(n),
+            self.paint.max_ms,
+            self.render.avg(n),
+            self.render.max_ms,
+            self.hover_moves,
+            self.hover_changed,
+            self.pointer_move.avg(self.hover_moves),
+            self.pointer_move.max_ms,
+        );
+        self.reset();
+        Some(line)
+    }
+
+    fn reset(&mut self) {
+        *self = Self::new();
+    }
+}
+
+/// Seconds since UNIX epoch; used to make screenshot filenames
+/// unique without coordinating a counter between threads.
+fn timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+// ── Stdin command listener ──────────────────────────────────────────────────
+
+/// Commands the user can type into the demo's stdin. The reader
+/// thread pushes parsed values onto a shared queue and wakes the
+/// event loop; the queue is drained inside the per-frame hook so
+/// every command runs against an up-to-date layout.
+#[derive(Debug)]
+enum DemoCommand {
+    /// `make_screenshot [selector]`. With no selector → full
+    /// viewport (the existing F12 behaviour). With one → match by
+    /// CSS-style compound selector (id / tag / class) and capture
+    /// just that node, even if it's outside the visible viewport.
+    Screenshot { selector: Option<String> },
+}
+
+type CommandQueue = Arc<Mutex<VecDeque<DemoCommand>>>;
+
+/// Detached reader: line-buffered, blocks on stdin, parses
+/// `make_screenshot [selector]` and pushes the result onto
+/// `commands`. Calls `window.request_redraw()` so the harness's
+/// `Wait` control flow wakes up and the next `on_frame` drains the
+/// queue. Unrecognised lines are reported on stderr and ignored.
+fn spawn_stdin_listener(commands: CommandQueue, window: Arc<Window>) {
+    std::thread::spawn(move || {
+        let stdin = std::io::stdin();
+        let lock = stdin.lock();
+        for line in lock.lines() {
+            let Ok(line) = line else {
+                break; // pipe closed / EOF / IO error
+            };
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            // Split on the first whitespace → command + optional argument.
+            let mut parts = trimmed.splitn(2, char::is_whitespace);
+            let cmd = parts.next().unwrap_or("");
+            let arg = parts
+                .next()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned);
+            match cmd {
+                "make_screenshot" => {
+                    if let Ok(mut q) = commands.lock() {
+                        q.push_back(DemoCommand::Screenshot { selector: arg });
+                    }
+                    window.request_redraw();
+                }
+                "help" | "?" => {
+                    println!("commands:");
+                    println!("  make_screenshot              capture the full viewport");
+                    println!("  make_screenshot <selector>   capture the node matching the selector");
+                    println!("                                 (e.g. `make_screenshot #panel`,");
+                    println!("                                  `make_screenshot div.cta`)");
+                }
+                _ => {
+                    eprintln!(
+                        "demo: unknown command `{cmd}` (try `make_screenshot [selector]` or `help`)"
+                    );
+                }
+            }
+        }
+    });
+}
+
+/// Sanitise a selector for use as a filename fragment: keep
+/// alphanumerics + dashes / underscores, drop everything else.
+/// Empty input becomes `"node"`.
+fn sanitise_for_filename(s: &str) -> String {
+    let cleaned: String = s
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if cleaned.is_empty() {
+        "node".to_owned()
+    } else {
+        cleaned
+    }
+}
+
+/// Per-app hook: F9 toggles profiling; while enabled, frame and
+/// pointer-move stats are aggregated and a summary line is printed
+/// once per second. Also drains the stdin command queue every
+/// frame and dispatches `make_screenshot` commands.
+struct DemoHook {
+    enabled: bool,
+    profiler: Profiler,
+    commands: CommandQueue,
+    /// Set to `true` after the first `on_frame` has run, at which
+    /// point we have an `Arc<Window>` and can spawn the stdin
+    /// reader. Doing this lazily (rather than before `run_app`)
+    /// avoids needing to pass a window handle through the builder
+    /// API.
+    stdin_started: bool,
+}
+
+impl DemoHook {
+    fn new(profiling_enabled: bool) -> Self {
+        Self {
+            enabled: profiling_enabled,
+            profiler: Profiler::new(),
+            commands: Arc::new(Mutex::new(VecDeque::new())),
+            stdin_started: false,
+        }
+    }
+
+    fn drain_commands(&mut self, ctx: &mut HookContext<'_>) {
+        let cmds: Vec<DemoCommand> = match self.commands.lock() {
+            Ok(mut q) => q.drain(..).collect(),
+            Err(_) => return,
+        };
+        for cmd in cmds {
+            self.run_command(ctx, cmd);
+        }
+    }
+
+    fn run_command(&mut self, ctx: &mut HookContext<'_>, cmd: DemoCommand) {
+        match cmd {
+            DemoCommand::Screenshot { selector: None } => {
+                let path: PathBuf =
+                    format!("screenshot-viewport-{}.png", timestamp()).into();
+                ctx.renderer.capture_next_frame_to(path.clone());
+                ctx.window.request_redraw();
+                println!("demo: queued viewport screenshot → {}", path.display());
+            }
+            DemoCommand::Screenshot {
+                selector: Some(sel),
+            } => {
+                // Resolve the DOM path first so we can fail fast
+                // with a useful diagnostic before doing any GPU work.
+                let dom_path = ctx.tree.query_selector_path(sel.as_str());
+                let Some(path_indices) = dom_path else {
+                    eprintln!("demo: selector `{sel}` matched no element");
+                    return;
+                };
+                let size = ctx.window.inner_size();
+                let out_path: PathBuf = format!(
+                    "screenshot-{}-{}.png",
+                    sanitise_for_filename(&sel),
+                    timestamp()
+                )
+                .into();
+                let result = wgpu_html::screenshot_node_to(
+                    ctx.tree,
+                    ctx.text_ctx,
+                    ctx.renderer,
+                    &path_indices,
+                    size.width as f32,
+                    size.height as f32,
+                    1.0,
+                    &out_path,
+                );
+                match result {
+                    Ok(()) => println!(
+                        "demo: saved screenshot of `{sel}` at path {path_indices:?} → {}",
+                        out_path.display()
+                    ),
+                    Err(e) => eprintln!(
+                        "demo: screenshot for `{sel}` failed: {e}"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+impl AppHook for DemoHook {
+    fn on_key(&mut self, _ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+        if event.state == ElementState::Pressed && !event.repeat {
+            if let PhysicalKey::Code(KeyCode::F9) = event.physical_key {
+                self.enabled = !self.enabled;
+                println!(
+                    "demo: profiling {}",
+                    if self.enabled { "enabled" } else { "disabled" }
+                );
+                if !self.enabled {
+                    self.profiler.reset();
+                }
+                // We've fully handled F9; suppress the harness's
+                // (currently no-op) default for this key.
+                return EventResponse::Stop;
+            }
+        }
+        EventResponse::Continue
+    }
+
+    fn on_frame(&mut self, mut ctx: HookContext<'_>, timings: &FrameTimings) {
+        // Lazy stdin reader: needs a `Send` window handle, which
+        // first becomes available here.
+        if !self.stdin_started {
+            self.stdin_started = true;
+            spawn_stdin_listener(self.commands.clone(), Arc::clone(ctx.window));
+        }
+
+        // Drain any commands queued by the stdin thread since the
+        // previous frame. Doing this here means commands always run
+        // against the just-painted layout in `ctx.last_layout`.
+        self.drain_commands(&mut ctx);
+
+        if !self.enabled {
+            return;
+        }
+        self.profiler.add_frame(timings);
+        if let Some(line) = self.profiler.take_summary_if_due() {
+            println!("{line}");
+        }
+    }
+
+    fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
+        if !self.enabled {
+            return;
+        }
+        self.profiler.add_pointer_move(pointer_move_ms, changed);
+    }
+}
+
+// ── Runner ──────────────────────────────────────────────────────────────────
+
+pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool) -> ExitCode {
+    println!("wgpu-html demo:");
+    println!("  renderer  →  winit");
+    println!("  F12  →  save current frame as screenshot-<unix>.png");
+    println!("  F9   →  toggle frame profiling logs");
+    println!("  Esc  →  quit");
+    println!("  Ctrl+A / Ctrl+C  →  select all + copy");
+    println!("  stdin →  `make_screenshot [selector]` (e.g. `make_screenshot #panel`)");
+    println!("            no selector → full viewport; selector → just that node");
+    println!("            (works even when the node is below the fold)");
+    println!("  doc  →  {doc_source}");
+    if system_font_variants().is_empty() {
+        eprintln!(
+            "demo: no system font found at the candidate paths — text \
+             will render as zero-size. Update FONT_FAMILIES in \
+             wgpu-html-winit/src/fonts.rs to point at a TTF on your \
+             machine."
+        );
+    }
+    if profiling_enabled {
+        eprintln!("demo: profiling enabled via --profile");
+    }
+
+    // Build the tree once, eagerly; the harness owns the borrow
+    // for the duration of `run`, so anything that mutates the tree
+    // (font registration, callback wiring) has to happen first.
+    let click_count = Arc::new(AtomicUsize::new(0));
+    let mut tree = wgpu_html::parser::parse(&doc_html);
+    register_system_fonts(&mut tree, "DemoSans");
+    install_demo_callbacks(&mut tree, &click_count);
+
+    let hook = DemoHook::new(profiling_enabled);
+
+    let result = create_window(&mut tree)
+        .with_title(format!("wgpu-html demo: {doc_source}"))
+        .with_size(1280, 720)
+        .with_hook(hook)
+        .run();
+
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("demo: event loop error: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+// Keep WgpuHtmlWindow in scope so the bound is observable; cargo
+// would otherwise warn about an unused import in the rare path
+// where create_window happens to be the only thing referenced.
+#[allow(dead_code)]
+fn _ensure_type_in_scope<'tree>() -> WgpuHtmlWindow<'tree> {
+    unreachable!()
+}

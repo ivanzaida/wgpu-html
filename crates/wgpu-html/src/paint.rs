@@ -1397,15 +1397,18 @@ mod tests {
             if clip.rect.is_some() && blue >= clip.quad_range.0 && blue < clip.quad_range.1 {
                 let r = clip.rect.unwrap();
                 let blue_quad = &list.quads[blue_idx];
-                let outside_x = blue_quad.rect.x + blue_quad.rect.w <= r.x
-                    || blue_quad.rect.x >= r.x + r.w;
-                let outside_y = blue_quad.rect.y + blue_quad.rect.h <= r.y
-                    || blue_quad.rect.y >= r.y + r.h;
+                let outside_x =
+                    blue_quad.rect.x + blue_quad.rect.w <= r.x || blue_quad.rect.x >= r.x + r.w;
+                let outside_y =
+                    blue_quad.rect.y + blue_quad.rect.h <= r.y || blue_quad.rect.y >= r.y + r.h;
                 assert!(
                     !(outside_x || outside_y),
                     "blue sibling at {:?} sits inside textarea-row clip range {:?} \
                      (outside_x={} outside_y={})",
-                    blue_quad.rect, r, outside_x, outside_y
+                    blue_quad.rect,
+                    r,
+                    outside_x,
+                    outside_y
                 );
             }
         }
@@ -1443,15 +1446,18 @@ mod tests {
             if clip.rect.is_some() && blue >= clip.quad_range.0 && blue < clip.quad_range.1 {
                 let r = clip.rect.unwrap();
                 let blue_quad = &list.quads[blue_idx];
-                let outside_x = blue_quad.rect.x + blue_quad.rect.w <= r.x
-                    || blue_quad.rect.x >= r.x + r.w;
-                let outside_y = blue_quad.rect.y + blue_quad.rect.h <= r.y
-                    || blue_quad.rect.y >= r.y + r.h;
+                let outside_x =
+                    blue_quad.rect.x + blue_quad.rect.w <= r.x || blue_quad.rect.x >= r.x + r.w;
+                let outside_y =
+                    blue_quad.rect.y + blue_quad.rect.h <= r.y || blue_quad.rect.y >= r.y + r.h;
                 assert!(
                     !(outside_x || outside_y),
                     "blue sibling at {:?} sits inside a clip range {:?} that would visually \
                      suppress it (outside_x={} outside_y={})",
-                    blue_quad.rect, r, outside_x, outside_y
+                    blue_quad.rect,
+                    r,
+                    outside_x,
+                    outside_y
                 );
             }
         }

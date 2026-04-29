@@ -515,11 +515,79 @@ impl DisplayList {
             glyph_range: (0, 0),
         });
     }
+
+    /// Return a copy of this list with every quad / glyph / image
+    /// rect *and* every active clip rect shifted by `(dx, dy)`.
+    /// Used to recenter a sub-region of a document at the origin
+    /// for off-screen capture (see `Renderer::capture_to`).
+    pub fn translated(&self, dx: f32, dy: f32) -> Self {
+        let mut out = self.clone();
+        for q in &mut out.quads {
+            q.rect.x += dx;
+            q.rect.y += dy;
+        }
+        for g in &mut out.glyphs {
+            g.rect.x += dx;
+            g.rect.y += dy;
+        }
+        for i in &mut out.images {
+            i.rect.x += dx;
+            i.rect.y += dy;
+        }
+        for c in &mut out.clips {
+            if let Some(r) = c.rect.as_mut() {
+                r.x += dx;
+                r.y += dy;
+            }
+        }
+        out
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn translated_shifts_quads_glyphs_images_and_clips() {
+        let mut list = DisplayList::new();
+        list.push_clip(
+            Some(Rect::new(10.0, 20.0, 100.0, 100.0)),
+            [0.0; 4],
+            [0.0; 4],
+        );
+        list.push_quad(Rect::new(15.0, 25.0, 30.0, 30.0), [1.0, 0.0, 0.0, 1.0]);
+        list.push_glyph(
+            Rect::new(16.0, 26.0, 8.0, 12.0),
+            [0.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 1.0],
+        );
+        list.push_image(
+            Rect::new(20.0, 30.0, 40.0, 40.0),
+            42,
+            std::sync::Arc::new(vec![0u8; 4]),
+            1,
+            1,
+        );
+        list.finalize();
+
+        let shifted = list.translated(-10.0, -20.0);
+        // Quad / glyph / image rects all shift uniformly.
+        assert_eq!(shifted.quads[0].rect, Rect::new(5.0, 5.0, 30.0, 30.0));
+        assert_eq!(shifted.glyphs[0].rect, Rect::new(6.0, 6.0, 8.0, 12.0));
+        assert_eq!(shifted.images[0].rect, Rect::new(10.0, 10.0, 40.0, 40.0));
+        // The clip's rect shifts with them; clips with `None` stay
+        // `None`.
+        let scissored = shifted
+            .clips
+            .iter()
+            .find_map(|c| c.rect)
+            .expect("the pushed clip should still be present");
+        assert_eq!(scissored, Rect::new(0.0, 0.0, 100.0, 100.0));
+        // Original list is untouched.
+        assert_eq!(list.quads[0].rect, Rect::new(15.0, 25.0, 30.0, 30.0));
+    }
 
     #[test]
     fn display_commands_preserve_cross_type_push_order() {

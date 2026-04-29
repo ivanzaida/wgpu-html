@@ -2334,7 +2334,7 @@ fn layout_block(
     // Final inner height: explicit / override wins; otherwise content
     // size, then clamped by min/max (so a too-short content can be
     // extended by `min-height` and a too-tall content by `max-height`).
-    let inner_height = match inner_height_explicit {
+    let mut inner_height = match inner_height_explicit {
         Some(h) => h,
         None => clamp_axis(
             content_h_from_children,
@@ -2346,6 +2346,20 @@ fn layout_block(
             ctx,
         ),
     };
+
+    // Empty form controls (`<input>`, `<textarea>`, `<select>`,
+    // `<button>` with no children) collapse to `inner_height = 0`
+    // because they have nothing to measure. Browsers give them a
+    // default content height of one line of the cascaded font, so
+    // the placeholder text run we attach below has room to render
+    // and the input visually matches typed content height.
+    if inner_height_explicit.is_none() && form_control_default_line_height(node) {
+        let font_size = font_size_px(style).unwrap_or(16.0);
+        let line_h = line_height_px(style, font_size);
+        if inner_height < line_h {
+            inner_height = line_h;
+        }
+    }
 
     // Compose the rects.
     let border_rect = Rect::new(
@@ -2421,6 +2435,13 @@ fn layout_block(
 
     let background_image = resolve_background_image(style, background_rect);
 
+    // For form controls without a value/content, shape the
+    // `placeholder` attribute as the box's text run so the empty
+    // input shows the hint text (HTML's `:placeholder-shown`
+    // behaviour). Painted with `color` reduced to ~50% opacity, the
+    // browser default `::placeholder` styling.
+    let (placeholder_run, placeholder_color) = compute_placeholder_run(node, content_rect, ctx);
+
     LayoutBox {
         margin_rect,
         border_rect,
@@ -2433,8 +2454,8 @@ fn layout_block(
         border_styles,
         border_radius,
         kind: BoxKind::Block,
-        text_run: None,
-        text_color: None,
+        text_run: placeholder_run,
+        text_color: placeholder_color,
         text_decorations: Vec::new(),
         overflow: effective_overflow(style),
         opacity: resolved_opacity(style),
@@ -2444,8 +2465,137 @@ fn layout_block(
     }
 }
 
+/// Shape the `placeholder` attribute on an empty `<input>` /
+/// `<textarea>` so the field renders the hint text. Returns
+/// `(None, None)` for non-form-control elements, hidden inputs,
+/// fields with a non-empty value/content, or empty placeholders.
+///
+/// Color: the cascaded `color` with alpha multiplied by 0.5,
+/// approximating the browser default `::placeholder` styling.
+/// Falls back to mid-gray if `color` doesn't resolve.
+fn compute_placeholder_run(
+    node: &CascadedNode,
+    content_rect: Rect,
+    ctx: &mut Ctx,
+) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
+    use wgpu_html_models::common::html_enums::InputType;
+
+    // Pull the placeholder string (if any) and the "is this a
+    // wrapping multiline field?" hint up front.
+    let (text, wraps_multiline) = match &node.element {
+        Element::Input(inp) => {
+            // A non-empty `value` overrides the placeholder.
+            // (We don't render the value yet — that lands with
+            // typing — but we shouldn't paint placeholder text
+            // on top of a real value either.)
+            if inp.value.as_deref().is_some_and(|v| !v.is_empty()) {
+                return (None, None);
+            }
+            // Hidden inputs don't render at all.
+            if matches!(inp.r#type, Some(InputType::Hidden)) {
+                return (None, None);
+            }
+            (inp.placeholder.as_deref(), false)
+        }
+        Element::Textarea(ta) => {
+            // RAWTEXT children of a `<textarea>` are its content;
+            // if any are present, suppress the placeholder.
+            if !node.children.is_empty() {
+                return (None, None);
+            }
+            (ta.placeholder.as_deref(), true)
+        }
+        _ => return (None, None),
+    };
+    let Some(text) = text else {
+        return (None, None);
+    };
+    if text.is_empty() {
+        return (None, None);
+    }
+
+    // For textareas, soft-wrap inside the content-box width.
+    // For single-line inputs, pass `None` so the shaper produces
+    // a single line at its natural width — we clip overflow after
+    // the fact (see below).
+    let max_width = if wraps_multiline {
+        Some(content_rect.w)
+    } else {
+        None
+    };
+    let (mut run, _w, _h, _ascent) = shape_text_run(text, &node.style, max_width, false, ctx);
+
+    // Single-line inputs:
+    //   1. Truncate any trailing glyphs whose right edge crosses
+    //      the content edge, so the placeholder never paints into
+    //      the right padding or past the input's border. Mirrors
+    //      browsers' built-in clip on `<input>` content.
+    //   2. Vertically centre the run inside the content box, as
+    //      browsers do for form-control line boxes.
+    // Textareas skip both: long lines wrap (already handled at
+    // shape time) and content flows from the top down.
+    if !wraps_multiline {
+        if let Some(run) = run.as_mut() {
+            // 1. Horizontal clip.
+            let max_x = content_rect.w;
+            if max_x > 0.0 {
+                let cutoff = run
+                    .glyphs
+                    .iter()
+                    .position(|g| g.x + g.w > max_x)
+                    .unwrap_or(run.glyphs.len());
+                if cutoff < run.glyphs.len() {
+                    run.glyphs.truncate(cutoff);
+                    for line in run.lines.iter_mut() {
+                        let (start, end) = line.glyph_range;
+                        line.glyph_range = (start, end.min(cutoff).max(start));
+                    }
+                    run.width = run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
+                }
+            }
+            // 2. Vertical centering.
+            let dy = ((content_rect.h - run.height) * 0.5).max(0.0);
+            if dy > 0.0 {
+                for g in run.glyphs.iter_mut() {
+                    g.y += dy;
+                }
+                for line in run.lines.iter_mut() {
+                    line.top += dy;
+                }
+            }
+        }
+    }
+
+    // ::placeholder color: cascaded `color` * alpha 0.5, falling
+    // back to a 50% gray.
+    let color = node
+        .style
+        .color
+        .as_ref()
+        .and_then(resolve_color)
+        .map(|[r, g, b, a]| [r, g, b, a * 0.5])
+        .unwrap_or([0.5, 0.5, 0.5, 1.0]);
+
+    (run, Some(color))
+}
+
 fn is_out_of_flow_position(position: Position) -> bool {
     matches!(position, Position::Absolute | Position::Fixed)
+}
+
+/// Whether `node` is a form control whose empty content box
+/// should default to `line-height` tall (the browser-side
+/// behaviour: an empty `<input>` doesn't collapse to 0px).
+///
+/// Skips `<input type="hidden">` since the UA stylesheet sets
+/// `display: none` on it.
+fn form_control_default_line_height(node: &CascadedNode) -> bool {
+    use wgpu_html_models::common::html_enums::InputType;
+    match &node.element {
+        Element::Input(inp) => !matches!(inp.r#type, Some(InputType::Hidden)),
+        Element::Textarea(_) | Element::Select(_) | Element::Button(_) => true,
+        _ => false,
+    }
 }
 
 fn resolved_opacity(style: &Style) -> f32 {
@@ -3304,7 +3454,23 @@ fn layout_atomic_inline_subtree(
             BoxSizing::ContentBox => specified,
             BoxSizing::BorderBox => (specified - border.vertical() - padding.vertical()).max(0.0),
         });
-    let inner_height = specified_h.unwrap_or(measured_h);
+    let mut inner_height = specified_h.unwrap_or(measured_h);
+
+    // Empty form controls (`<input>`, `<textarea>`, `<select>`,
+    // `<button>` with no children) collapse to `inner_height = 0`
+    // because they have nothing to measure. Browsers give them a
+    // default content height equal to one line of the cascaded
+    // font, so the placeholder text run we attach below has room
+    // to render and the box visually matches the user's typed
+    // content height. This is also what `<input value="">` would
+    // need once value rendering lands.
+    if specified_h.is_none() && form_control_default_line_height(node) {
+        let font_size = font_size_px(style).unwrap_or(16.0);
+        let line_h = line_height_px(style, font_size);
+        if inner_height < line_h {
+            inner_height = line_h;
+        }
+    }
 
     if inner_height > measured_h && max_ascent > 0.0 {
         let baseline_y = content_y + max_ascent + (inner_height - measured_h);
@@ -3398,6 +3564,13 @@ fn layout_atomic_inline_subtree(
     let inline_ascent = margin.top + border.top + max_ascent.max(0.0);
     let inline_descent = (margin_rect.h - inline_ascent).max(0.0);
 
+    // For form controls (`<input>`, `<textarea>`) without a value /
+    // content, attach the `placeholder` attribute as the box's text
+    // run. Same logic as `layout_block`'s placeholder path; the
+    // inline-block code path is independent and needs its own
+    // hookup. See `compute_placeholder_run`.
+    let (placeholder_run, placeholder_color) = compute_placeholder_run(node, content_rect, ctx);
+
     InlineLayout {
         box_: LayoutBox {
             margin_rect,
@@ -3411,8 +3584,8 @@ fn layout_atomic_inline_subtree(
             border_styles,
             border_radius,
             kind: BoxKind::Block,
-            text_run: None,
-            text_color: None,
+            text_run: placeholder_run,
+            text_color: placeholder_color,
             text_decorations: Vec::new(),
             overflow: OverflowAxes::visible(),
             opacity: resolved_opacity(style),

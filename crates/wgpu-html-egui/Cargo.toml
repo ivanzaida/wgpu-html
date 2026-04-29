@@ -1,0 +1,10 @@
+[package]
+name = "wgpu-html-egui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egui.workspace           = true
+wgpu-html.workspace      = true
+wgpu-html-text.workspace = true
+wgpu-html-tree.workspace = true

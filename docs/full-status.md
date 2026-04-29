@@ -26,20 +26,22 @@ DisplayList
 Frame on wgpu surface
 ```
 
-### Crate map (10 crates)
+### Crate map (12 crates)
 
 | Crate | Role |
 |---|---|
 | `wgpu-html-parser` | HTML tokenizer, tree builder, CSS declaration parser, stylesheet parser |
 | `wgpu-html-models` | `Style` struct (~80+ fields), CSS enums, ~100 HTML element structs |
-| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, `InteractionState` (hover/active/selection/scroll offsets) |
-| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching (`MatchContext` for `:hover`/`:active`), field merge, CSS-wide keywords, inheritance |
+| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, `InteractionState` (hover/active/focus/selection/scroll/modifiers), path-based mouse + keyboard + focus dispatch (`dispatch` module), `is_focusable` / Tab traversal helpers (`focus` module), DOM-style query helpers (`query` module — `CompoundSelector`, `query_selector*`) |
+| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching (`MatchContext` for `:hover`/`:active`/`:focus`), field merge, CSS-wide keywords, inheritance, CSS Color Module Level 4 system colors, generic-family font fallback |
 | `wgpu-html-text` | Font database, text shaping (cosmic-text), glyph atlas (rasterisation + GPU upload) |
-| `wgpu-html-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `EventPhase`, `HtmlEventType`; bubbling semantics |
-| `wgpu-html-layout` | Block flow, Flexbox, Grid, inline formatting context, hit testing, image loading/cache, scroll geometry |
+| `wgpu-html-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `EventPhase`, `HtmlEventType`; bubbling semantics |
+| `wgpu-html-layout` | Block flow, Flexbox, Grid, inline formatting context, hit testing, image loading/cache, scroll geometry, `<input>` / `<textarea>` placeholder shaping |
 | `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF shader), glyph pipeline, image pipeline, scissor clipping, screenshot |
-| `wgpu-html` | Façade: `parse → cascade → layout → paint`, interactivity module, `PipelineTimings`, text selection helpers |
-| `wgpu-html-demo` | winit window, font loading, mouse/keyboard/scroll events, scrollbar drag, `ProfileWindow`, continuous redraw loop |
+| `wgpu-html` | Façade: `parse → cascade → layout → paint`, interactivity wrappers (layout-aware), `PipelineTimings`, text selection helpers, public `scroll` module (scrollbar geometry + paint, document/element scroll utilities) |
+| `wgpu-html-winit` | winit ↔ engine glue: type translators (`mouse_button`, `key_to_dom_key`, `keycode_to_dom_code`, `keycode_to_modifier`), forwarders (`update_modifiers`, `forward_keyboard`, `handle_keyboard`), batteries-included `WgpuHtmlWindow` harness (`AppHook` trait + `EventResponse` + `HookContext` + `FrameTimings`; built-in viewport scroll, scrollbar drag, clipboard, F12 screenshot), `system_font_variants` / `register_system_fonts` |
+| `wgpu-html-egui` | Alternative `egui` / `eframe` integration backend; the demo can pick between the winit and egui renderers via `--renderer=` |
+| `wgpu-html-demo` | Thin shell over `wgpu-html-winit` (or `wgpu-html-egui` via `--renderer=egui`); HTML loading, demo hooks (F9 profiling), `--profile` CLI flag |
 
 ---
 
@@ -157,18 +159,46 @@ Frame on wgpu surface
 - F12 screenshot → PNG export.
 
 ### 7. Interactivity & Demo
+
+**Pointer:**
 - **Mouse input:** `CursorMoved`, `MouseInput` (press/release), `CursorLeft`, `MouseWheel` — all wired.
-- **Event system:** `pointer_move`, `pointer_leave`, `mouse_down`, `mouse_up` with hit-test → event dispatch.
-- **Event typing:** `wgpu-html-events` crate provides `HtmlEvent`, `MouseEvent`, `EventPhase`, `HtmlEventType`; events carry DOM-compatible `target`, `current_target`, `time_stamp`, `buttons` bitmask.
-- **Event bubbling:** mousedown/mouseup/click bubble target → root; mouseenter/mouseleave do not bubble (DOM semantics).
-- **Hover tracking:** `InteractionState` tracks `hover_path` and `active_path`; `:hover` / `:active` cascade integration via `MatchContext::for_path`.
-- **Callback slots on Node:** `on_click`, `on_mouse_down`, `on_mouse_up`, `on_mouse_enter`, `on_mouse_leave` — `Arc<dyn Fn(&MouseEvent)>`; plus `on_event: Arc<dyn Fn(&HtmlEvent)>` for typed DOM events.
+- **Event system:** layout-aware wrappers (`pointer_move`, `pointer_leave`, `mouse_down`, `mouse_up`) in `wgpu_html::interactivity`; path-based dispatch (`dispatch_pointer_move`, `dispatch_mouse_down/up`, `dispatch_pointer_leave`) in `wgpu_html_tree::dispatch` (no layout dep). Hit-testing happens in the wrappers.
+- **Event typing:** `wgpu-html-events` crate provides `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `EventPhase`, `HtmlEventType`; events carry DOM-compatible `target`, `current_target`, `time_stamp`, `buttons` bitmask.
+- **Event bubbling:** mousedown/mouseup/click bubble target → root; mouseenter/mouseleave do not bubble (DOM semantics). `keydown`/`keyup` bubble. `focusout`/`focusin` bubble; `focus`/`blur` don't.
+- **Hover / active / focus tracking:** `InteractionState` tracks `hover_path`, `active_path`, `focus_path`; `:hover` / `:active` / `:focus` cascade integration via `MatchContext::for_path`. `:focus` is exact-match (not prefix); `:focus-within` is not yet implemented.
+- **Callback slots on Node:** `on_click`, `on_mouse_down`, `on_mouse_up`, `on_mouse_enter`, `on_mouse_leave` — `Arc<dyn Fn(&MouseEvent)>`; plus `on_event: Arc<dyn Fn(&HtmlEvent)>` for typed DOM events (mouse / keyboard / focus / etc.).
 - **MouseEvent:** carries `pos`, `button`, `modifiers` (shift/ctrl/alt/meta), `target_path`, `current_path`.
-- **Text selection:** `TextCursor` / `TextSelection` on `InteractionState`; drag-to-select wired in `interactivity.rs`; `select_all_text` / `selected_text` in `wgpu-html`; `Ctrl+A` + `Ctrl+C` wired in demo via `arboard`.
-- **Scrollbars & scroll offsets:** `InteractionState::scroll_offsets_y: BTreeMap<Vec<usize>, f32>`; viewport and per-element scrollbar paint (10 px track, drag-to-scroll); `MouseWheel` scrolls viewport and nested scroll containers.
-- **Keyboard:** F12 (screenshot), Esc (exit), Ctrl+A (select all), Ctrl+C (copy selection).
-- **Font loading:** platform-aware font discovery (macOS `.ttc`, Windows/Linux `.ttf`), multiple weights/styles registered.
-- **Continuous redraw loop** via `request_redraw` in `about_to_wait`. Hover-path changes trigger a throttled redraw (16 ms budget) rather than unconditional full-speed redraws.
+
+**Focus + keyboard:**
+- **Focus state on tree:** `InteractionState::focus_path: Option<Vec<usize>>`; `Tree::focus(path)` / `Tree::blur()` / `Tree::focus_next(reverse)` (and free-function equivalents). `Tree::focus(path)` walks up to the nearest focusable ancestor; the closest-ancestor logic also fires from `mouse_down` automatically.
+- **Focusable predicate:** `is_focusable` / `is_keyboard_focusable` recognise `<button>` / `<a href>` / `<input>` (non-hidden) / `<textarea>` / `<select>` / `<summary>`, plus any element with `tabindex >= 0`. `tabindex < 0` means scriptable-focus only (excluded from Tab traversal).
+- **Tab navigation built in:** `Tree::key_down(key, code, repeat)` advances focus when `key == "Tab"` (Shift held → reverse), wrapping at the ends.
+- **Modifier state on tree:** `Modifier { Ctrl, Shift, Alt, Meta }`, `Tree::set_modifier(modifier, down)`, `Tree::modifiers()`. Dispatchers no longer take a `Modifiers` parameter — they read `tree.interaction.modifiers` when constructing DOM events.
+- **DOM-style query helpers:** `wgpu_html_tree::query` — `CompoundSelector`, `Tree::query_selector(sel)`, `query_selector_all`, `query_selector_path`, `query_selector_all_paths` (and `Node::*` mirrors). Supports `tag` / `#id` / `.class` compound selectors; no combinators or pseudo-classes.
+
+**Form fields:**
+- **Placeholder rendering** for `<input>` and `<textarea>`: `compute_placeholder_run` shapes the `placeholder` attribute and attaches it as the box's text run. Color = cascaded `color` × alpha 0.5 (matches the browser default `::placeholder` styling). Single-line inputs vertically centre the run inside `content_rect` and clip overflowing glyphs at the right padding edge; textareas soft-wrap inside `content_rect.w` and stay top-aligned. Suppressed for `type="hidden"`, non-empty `value`, or non-empty textarea content. Wired into both `layout_block` and `layout_atomic_inline_subtree`.
+
+**Text selection:**
+- `TextCursor` / `TextSelection` on `InteractionState`; drag-to-select wired in `interactivity.rs`; `select_all_text` / `selected_text` in `wgpu-html`; `Ctrl+A` + `Ctrl+C` built into the `wgpu-html-winit` harness (via `arboard`).
+
+**Scrolling:**
+- `InteractionState::scroll_offsets_y: BTreeMap<Vec<usize>, f32>`; viewport and per-element scrollbar paint (10 px track, drag-to-scroll); `MouseWheel` scrolls viewport and nested scroll containers. Public `wgpu_html::scroll` module exposes `ScrollbarGeometry`, `scrollbar_geometry`, `scroll_y_from_thumb_top`, `paint_viewport_scrollbar`, `translate_display_list_y`, `clamp_scroll_y`, hit-tests, and per-element variants.
+
+**`wgpu-html-winit` harness:**
+- Batteries-included `WgpuHtmlWindow` wraps a `&mut Tree` and runs the full event loop (winit `ApplicationHandler` impl). One-call setup: `create_window(&mut tree).with_title(...).run()`.
+- Builders: `with_title`, `with_size`, `with_exit_on_escape`, `with_clipboard_enabled`, `with_screenshot_key`, `with_hook`.
+- Built-in: viewport scroll (mouse wheel) + scrollbar drag (viewport + per-element); clipboard (Ctrl+A select-all, Ctrl+C copy via `arboard`); screenshot (F12 → `screenshot-<unix>.png`).
+- `AppHook` trait for app extension: `on_key`, `on_frame`, `on_pointer_move`. `EventResponse { Continue, Stop }` lets `on_key` skip harness defaults. `HookContext` exposes `&mut Tree`, `&mut Renderer`, `&mut TextContext`, `Option<&LayoutBox>`, `&Window`, `&ActiveEventLoop`. `FrameTimings` carries cascade/layout/paint/render ms.
+- Type translators: `mouse_button`, `keycode_to_modifier`, `key_to_dom_key`, `keycode_to_dom_code`. Forwarders: `update_modifiers`, `forward_keyboard`, `handle_keyboard`.
+- System-font discovery: `system_font_variants()` (Windows / Linux / macOS table) and `register_system_fonts(tree, family)` lifted out of the demo so any host can pull them in.
+
+**Demo:**
+- Now ~450 lines (was ~1460). The bespoke `App` struct + `ApplicationHandler` impl is gone. `main()` parses HTML, registers system fonts, installs example callbacks, and calls `wgpu_html_winit::create_window(&mut tree).with_hook(DemoHook::new(...)).run()`.
+- `DemoHook impl AppHook`: F9 toggles a small built-in profiler (1-second rolling stats: cascade / layout / paint / render avg+max, plus hover-move count and pointer dispatch ms).
+- `--renderer=winit|egui` CLI flag picks between the winit harness (default) and `wgpu-html-egui`.
+
+**Continuous redraw loop** via `request_redraw` in `about_to_wait`. Hover-path changes trigger a throttled redraw (16 ms budget) rather than unconditional full-speed redraws.
 
 ### 8. Profiling (Inline)
 - **`PipelineTimings`** struct in `wgpu-html/src/lib.rs`: `cascade_ms`, `layout_ms`, `paint_ms`, `total_ms()`.
@@ -222,12 +252,16 @@ Frame on wgpu surface
 - No multi-pass compositing (no stencil buffer usage beyond scissor).
 
 ### Interactivity Gaps
-- **No keyboard input** for text fields — `<input>` and `<textarea>` are inert.
-- **No focus management** / tab navigation / `:focus` state.
+- **No text editing** for `<input>` / `<textarea>` — typing into a focused field has no effect on its `value`. Placeholder rendering is done; live typing / caret movement / IME / arrow-key navigation aren't.
+- **No `<input type="checkbox" / "radio">` click-to-toggle** — `checked` is parsed and the cascade reads it, but pointer presses don't flip it.
+- **No `<select>` dropdown** menu rendering or interaction.
+- **No form submission** — `Enter` in a focused input or click on `<button type="submit">` doesn't synthesise `SubmitEvent`.
+- **`:focus-visible`, `:focus-within`, `:disabled`** not yet matched in cascade.
 - **No `Wheel` event dispatch to elements** — wheel scrolls the viewport and detects scroll-container scroll, but is not forwarded to element `on_event` callbacks.
 - **No cursor styling** (`cursor` property parsed but not applied to the OS cursor shape).
 - **No `pointer-events: none`** skipping in hit test.
 - No event `preventDefault` / `stopPropagation` semantics.
+- No double-click / triple-click / context-menu / aux-click synthesis.
 - The document is a compile-time constant — no URL loading, no live editing, no hot reload.
 
 ### Explicitly Out of Scope (Forever)
@@ -246,7 +280,7 @@ Frame on wgpu surface
 | CSS-wide keywords (inherit/initial/unset) | ✅ Done |
 | UA default stylesheet | ✅ Done (headings, body margin, inline emphasis, display:none) |
 | Style inheritance | ✅ Done (color, font-*, text-*, line-height, visibility, etc.) |
-| `:hover` / `:active` cascade integration | ✅ Done (`MatchContext::for_path` in `wgpu-html-style`) |
+| `:hover` / `:active` / `:focus` cascade integration | ✅ Done (`MatchContext::for_path` in `wgpu-html-style`; `:focus` is exact-match — no propagation to ancestors yet) |
 | Block flow layout | ✅ Done |
 | Flexbox (Level 1 complete) | ✅ Done |
 | CSS Grid | ✅ Done |
@@ -277,8 +311,13 @@ Frame on wgpu surface
 | box-shadow | ❌ Not done |
 | Transforms / transitions / animations | ❌ Not done |
 | Opacity layers / filters / blend modes | ❌ Not done |
-| Keyboard input / text editing | ❌ Not done |
-| Focus management (Tab, `:focus`) | ❌ Not done |
+| Keyboard event dispatch (`keydown`/`keyup` to focused element) | ✅ Done (via `Tree::key_down`/`key_up`, modifier state on tree) |
+| Tab / Shift+Tab focus traversal | ✅ Done (built into `Tree::key_down`) |
+| Focus state (`focus_path`, `focus`/`blur`/`focusin`/`focusout`) | ✅ Done |
+| `<input>` / `<textarea>` placeholder rendering | ✅ Done (`::placeholder`-style alpha; vertical centre + horizontal clip on inputs; soft-wrap on textarea) |
+| `<input>` / `<textarea>` value rendering + typing | ❌ Not done |
+| Checkbox / radio click toggle, `<select>` menu, form submit | ❌ Not done |
+| `:focus-visible` / `:focus-within` / `:disabled` | ❌ Not done |
 | Pseudo-elements (`::before`, `::after`, …) | ❌ Not done |
 | Structural pseudo-classes (`:nth-child`, `:not()`, …) | ❌ Not done |
 | Child/sibling combinators (`>`, `+`, `~`) | ❌ Not done |

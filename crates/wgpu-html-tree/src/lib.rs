@@ -13,6 +13,9 @@ mod dispatch;
 mod events;
 mod focus;
 mod fonts;
+mod query;
+
+pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
 
 pub use dispatch::{
     blur, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move,
@@ -576,6 +579,342 @@ impl Element {
             };
         }
         all_element_variants!(arms)
+    }
+
+    /// `class` HTML attribute on this element, if set. `Text`
+    /// returns `None`. The returned string is the raw attribute
+    /// value — split on ASCII whitespace to enumerate classes.
+    pub fn class(&self) -> Option<&str> {
+        macro_rules! arms {
+            ($($v:ident),* $(,)?) => {
+                match self {
+                    Element::Text(_) => None,
+                    $(Element::$v(e) => e.class.as_deref(),)*
+                }
+            };
+        }
+        all_element_variants!(arms)
+    }
+
+    /// Look up an HTML attribute by name (case-insensitive).
+    /// Returns `None` if the element doesn't carry that attribute
+    /// or the slot is empty.
+    ///
+    /// Coverage is the subset that actually shows up in selectors:
+    /// the global attributes (`id`, `class`, `title`, `lang`,
+    /// `tabindex`, `hidden`, `style`), `data-*` / `aria-*` entries,
+    /// and the most common per-element attributes (`type`, `name`,
+    /// `value`, `placeholder`, `href`, `src`, `alt`, `for`,
+    /// `content`, plus boolean form attributes `disabled`,
+    /// `readonly`, `required`, `checked`, `selected`, `multiple`,
+    /// `autofocus`). Boolean attributes return `Some(String::new())`
+    /// when present so they participate in `[attr]` presence
+    /// filters, and `[attr=""]` matches them — same shape as the
+    /// browser's reflection of HTML boolean attributes.
+    ///
+    /// `Text` nodes have no attributes and always return `None`.
+    pub fn attr(&self, name: &str) -> Option<String> {
+        let lname = name.to_ascii_lowercase();
+
+        if let Some(v) = self.global_attr(&lname) {
+            return Some(v);
+        }
+        if let Some(suffix) = lname.strip_prefix("data-") {
+            return self.data_attr(suffix);
+        }
+        if let Some(suffix) = lname.strip_prefix("aria-") {
+            return self.aria_attr(suffix);
+        }
+        self.specific_attr(&lname)
+    }
+
+    fn global_attr(&self, name: &str) -> Option<String> {
+        macro_rules! arms {
+            ($($v:ident),* $(,)?) => {
+                match self {
+                    Element::Text(_) => None,
+                    $(Element::$v(e) => match name {
+                        "id" => e.id.clone(),
+                        "class" => e.class.clone(),
+                        "title" => e.title.clone(),
+                        "lang" => e.lang.clone(),
+                        "tabindex" => e.tabindex.map(|t| t.to_string()),
+                        "hidden" => match e.hidden { Some(true) => Some(String::new()), _ => None },
+                        "style" => e.style.clone(),
+                        _ => None,
+                    },)*
+                }
+            };
+        }
+        all_element_variants!(arms)
+    }
+
+    fn data_attr(&self, suffix: &str) -> Option<String> {
+        macro_rules! arms {
+            ($($v:ident),* $(,)?) => {
+                match self {
+                    Element::Text(_) => None,
+                    $(Element::$v(e) => e.data_attrs.get(suffix).cloned(),)*
+                }
+            };
+        }
+        all_element_variants!(arms)
+    }
+
+    fn aria_attr(&self, suffix: &str) -> Option<String> {
+        macro_rules! arms {
+            ($($v:ident),* $(,)?) => {
+                match self {
+                    Element::Text(_) => None,
+                    $(Element::$v(e) => e.aria_attrs.get(suffix).cloned(),)*
+                }
+            };
+        }
+        all_element_variants!(arms)
+    }
+
+    fn specific_attr(&self, name: &str) -> Option<String> {
+        // Boolean attribute helper: `Some(true)` becomes the empty
+        // string (`[attr]` presence test), anything else `None`.
+        fn flag(b: Option<bool>) -> Option<String> {
+            match b {
+                Some(true) => Some(String::new()),
+                _ => None,
+            }
+        }
+        match (name, self) {
+            // type
+            ("type", Element::Input(e)) => e.r#type.as_ref().map(|t| {
+                use m::common::html_enums::InputType::*;
+                match t {
+                    Button => "button",
+                    Checkbox => "checkbox",
+                    Color => "color",
+                    Date => "date",
+                    DatetimeLocal => "datetime-local",
+                    Email => "email",
+                    File => "file",
+                    Hidden => "hidden",
+                    Image => "image",
+                    Month => "month",
+                    Number => "number",
+                    Password => "password",
+                    Radio => "radio",
+                    Range => "range",
+                    Reset => "reset",
+                    Search => "search",
+                    Submit => "submit",
+                    Tel => "tel",
+                    Text => "text",
+                    Time => "time",
+                    Url => "url",
+                    Week => "week",
+                }
+                .to_owned()
+            }),
+            ("type", Element::Button(e)) => e.r#type.as_ref().map(|t| {
+                use m::common::html_enums::ButtonType::*;
+                match t {
+                    Button => "button",
+                    Submit => "submit",
+                    Reset => "reset",
+                }
+                .to_owned()
+            }),
+            ("type", Element::Source(e)) => e.r#type.clone(),
+            ("type", Element::Script(e)) => e.r#type.clone(),
+            ("type", Element::StyleElement(e)) => e.r#type.clone(),
+            ("type", Element::Link(e)) => e.r#type.clone(),
+            ("type", Element::A(e)) => e.r#type.clone(),
+
+            // name
+            ("name", Element::Input(e)) => e.name.clone(),
+            ("name", Element::Textarea(e)) => e.name.clone(),
+            ("name", Element::Select(e)) => e.name.clone(),
+            ("name", Element::Button(e)) => e.name.clone(),
+            ("name", Element::Output(e)) => e.name.clone(),
+            ("name", Element::Form(e)) => e.name.clone(),
+            ("name", Element::Iframe(e)) => e.name.clone(),
+            ("name", Element::Slot(e)) => e.name.clone(),
+            ("name", Element::Meta(e)) => e.name.clone(),
+            ("name", Element::Fieldset(e)) => e.name.clone(),
+            ("name", Element::Details(e)) => e.name.clone(),
+
+            // value
+            ("value", Element::Input(e)) => e.value.clone(),
+            ("value", Element::Button(e)) => e.value.clone(),
+            ("value", Element::OptionElement(e)) => e.value.clone(),
+            ("value", Element::Data(e)) => e.value.clone(),
+            ("value", Element::Progress(e)) => e.value.map(|v| v.to_string()),
+            ("value", Element::Meter(e)) => e.value.map(|v| v.to_string()),
+            ("value", Element::Li(e)) => e.value.map(|v| v.to_string()),
+
+            // content (meta)
+            ("content", Element::Meta(e)) => e.content.clone(),
+
+            // href
+            ("href", Element::A(e)) => e.href.clone(),
+            ("href", Element::Link(e)) => e.href.clone(),
+
+            // src
+            ("src", Element::Img(e)) => e.src.clone(),
+            ("src", Element::Iframe(e)) => e.src.clone(),
+            ("src", Element::Source(e)) => e.src.clone(),
+            ("src", Element::Video(e)) => e.src.clone(),
+            ("src", Element::Audio(e)) => e.src.clone(),
+            ("src", Element::Track(e)) => e.src.clone(),
+            ("src", Element::Script(e)) => e.src.clone(),
+
+            // alt
+            ("alt", Element::Img(e)) => e.alt.clone(),
+
+            // for
+            ("for", Element::Label(e)) => e.r#for.clone(),
+            ("for", Element::Output(e)) => e.r#for.as_ref().map(|v| v.join(" ")),
+
+            // placeholder
+            ("placeholder", Element::Input(e)) => e.placeholder.clone(),
+            ("placeholder", Element::Textarea(e)) => e.placeholder.clone(),
+
+            // booleans
+            ("disabled", Element::Input(e)) => flag(e.disabled),
+            ("disabled", Element::Textarea(e)) => flag(e.disabled),
+            ("disabled", Element::Select(e)) => flag(e.disabled),
+            ("disabled", Element::Button(e)) => flag(e.disabled),
+            ("disabled", Element::Optgroup(e)) => flag(e.disabled),
+            ("disabled", Element::OptionElement(e)) => flag(e.disabled),
+            ("disabled", Element::Fieldset(e)) => flag(e.disabled),
+
+            ("readonly", Element::Input(e)) => flag(e.readonly),
+            ("readonly", Element::Textarea(e)) => flag(e.readonly),
+
+            ("required", Element::Input(e)) => flag(e.required),
+            ("required", Element::Textarea(e)) => flag(e.required),
+            ("required", Element::Select(e)) => flag(e.required),
+
+            ("checked", Element::Input(e)) => flag(e.checked),
+            ("selected", Element::OptionElement(e)) => flag(e.selected),
+
+            ("multiple", Element::Input(e)) => flag(e.multiple),
+            ("multiple", Element::Select(e)) => flag(e.multiple),
+
+            ("autofocus", Element::Input(e)) => flag(e.autofocus),
+            ("autofocus", Element::Textarea(e)) => flag(e.autofocus),
+            ("autofocus", Element::Select(e)) => flag(e.autofocus),
+            ("autofocus", Element::Button(e)) => flag(e.autofocus),
+
+            _ => None,
+        }
+    }
+
+    /// Lowercase HTML tag name for this element (e.g. `"div"`,
+    /// `"option"`, `"style"`). `Text` returns `"#text"`.
+    pub fn tag_name(&self) -> &'static str {
+        match self {
+            Element::Text(_) => "#text",
+            Element::StyleElement(_) => "style",
+            Element::OptionElement(_) => "option",
+            Element::Html(_) => "html",
+            Element::Head(_) => "head",
+            Element::Body(_) => "body",
+            Element::Title(_) => "title",
+            Element::Meta(_) => "meta",
+            Element::Link(_) => "link",
+            Element::Script(_) => "script",
+            Element::Noscript(_) => "noscript",
+            Element::H1(_) => "h1",
+            Element::H2(_) => "h2",
+            Element::H3(_) => "h3",
+            Element::H4(_) => "h4",
+            Element::H5(_) => "h5",
+            Element::H6(_) => "h6",
+            Element::P(_) => "p",
+            Element::Br(_) => "br",
+            Element::Hr(_) => "hr",
+            Element::Pre(_) => "pre",
+            Element::Blockquote(_) => "blockquote",
+            Element::Address(_) => "address",
+            Element::Span(_) => "span",
+            Element::A(_) => "a",
+            Element::Strong(_) => "strong",
+            Element::B(_) => "b",
+            Element::Em(_) => "em",
+            Element::I(_) => "i",
+            Element::U(_) => "u",
+            Element::S(_) => "s",
+            Element::Small(_) => "small",
+            Element::Mark(_) => "mark",
+            Element::Code(_) => "code",
+            Element::Kbd(_) => "kbd",
+            Element::Samp(_) => "samp",
+            Element::Var(_) => "var",
+            Element::Abbr(_) => "abbr",
+            Element::Cite(_) => "cite",
+            Element::Dfn(_) => "dfn",
+            Element::Sub(_) => "sub",
+            Element::Sup(_) => "sup",
+            Element::Time(_) => "time",
+            Element::Ul(_) => "ul",
+            Element::Ol(_) => "ol",
+            Element::Li(_) => "li",
+            Element::Dl(_) => "dl",
+            Element::Dt(_) => "dt",
+            Element::Dd(_) => "dd",
+            Element::Header(_) => "header",
+            Element::Nav(_) => "nav",
+            Element::Main(_) => "main",
+            Element::Section(_) => "section",
+            Element::Article(_) => "article",
+            Element::Aside(_) => "aside",
+            Element::Footer(_) => "footer",
+            Element::Div(_) => "div",
+            Element::Img(_) => "img",
+            Element::Picture(_) => "picture",
+            Element::Source(_) => "source",
+            Element::Video(_) => "video",
+            Element::Audio(_) => "audio",
+            Element::Track(_) => "track",
+            Element::Iframe(_) => "iframe",
+            Element::Canvas(_) => "canvas",
+            Element::Svg(_) => "svg",
+            Element::Table(_) => "table",
+            Element::Caption(_) => "caption",
+            Element::Thead(_) => "thead",
+            Element::Tbody(_) => "tbody",
+            Element::Tfoot(_) => "tfoot",
+            Element::Tr(_) => "tr",
+            Element::Th(_) => "th",
+            Element::Td(_) => "td",
+            Element::Colgroup(_) => "colgroup",
+            Element::Col(_) => "col",
+            Element::Form(_) => "form",
+            Element::Label(_) => "label",
+            Element::Input(_) => "input",
+            Element::Textarea(_) => "textarea",
+            Element::Button(_) => "button",
+            Element::Select(_) => "select",
+            Element::Optgroup(_) => "optgroup",
+            Element::Fieldset(_) => "fieldset",
+            Element::Legend(_) => "legend",
+            Element::Datalist(_) => "datalist",
+            Element::Output(_) => "output",
+            Element::Progress(_) => "progress",
+            Element::Meter(_) => "meter",
+            Element::Details(_) => "details",
+            Element::Summary(_) => "summary",
+            Element::Dialog(_) => "dialog",
+            Element::Template(_) => "template",
+            Element::Slot(_) => "slot",
+            Element::Del(_) => "del",
+            Element::Ins(_) => "ins",
+            Element::Bdi(_) => "bdi",
+            Element::Bdo(_) => "bdo",
+            Element::Wbr(_) => "wbr",
+            Element::Data(_) => "data",
+            Element::Ruby(_) => "ruby",
+            Element::Rt(_) => "rt",
+            Element::Rp(_) => "rp",
+        }
     }
 }
 

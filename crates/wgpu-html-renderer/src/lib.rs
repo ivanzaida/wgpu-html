@@ -160,6 +160,136 @@ impl Renderer {
         self.pending_capture = Some(path.into());
     }
 
+    /// Render `list` into a freshly-allocated off-screen texture
+    /// sized `width × height` and write it to `path` as a PNG.
+    ///
+    /// This is independent of the on-screen surface — coordinates in
+    /// `list` are taken at face value (so to capture a particular
+    /// document region, translate the list with
+    /// [`paint::DisplayList::translated`] first and pass the
+    /// region's pixel size). Because the off-screen target is
+    /// allocated at the requested size and not constrained by the
+    /// surface, regions partially or fully outside the visible
+    /// viewport are captured at full fidelity.
+    ///
+    /// Reuses the renderer's pipelines, so per-frame buffers
+    /// (instances, globals, scissors) are re-prepared for `list`
+    /// here and `render`'s next call will re-prepare with its own
+    /// list — calling `capture_to` between frames is safe.
+    ///
+    /// Errors propagate from the staging-buffer mapping or PNG
+    /// encoder; the off-screen texture is always submitted and
+    /// dropped before this returns.
+    pub fn capture_to(
+        &mut self,
+        list: &DisplayList,
+        width: u32,
+        height: u32,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<(), ScreenshotError> {
+        let width = width.max(1);
+        let height = height.max(1);
+        let format = self.surface_config.format;
+        let glyph_view_format = self.glyph_view_format;
+
+        let mut view_formats = Vec::new();
+        if glyph_view_format != format {
+            view_formats.push(glyph_view_format);
+        }
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("offscreen capture target"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &view_formats,
+        });
+
+        let srgb_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let glyph_view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("offscreen glyph view"),
+            format: Some(glyph_view_format),
+            ..Default::default()
+        });
+
+        let viewport = [width as f32, height as f32];
+        self.quads
+            .prepare(&self.device, &self.queue, viewport, list);
+        self.images
+            .prepare(&self.device, &self.queue, viewport, list);
+        self.glyphs
+            .prepare(&self.device, &self.queue, viewport, list);
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("offscreen capture encoder"),
+            });
+
+        // Initial clear matches the on-screen `render` path so the
+        // captured image has the same background fill.
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("offscreen clear"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &srgb_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(self.clear_color),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            let _ = &mut pass;
+        }
+
+        self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
+
+        let staging = screenshot::begin_capture(&self.device, &mut encoder, &texture, width, height);
+        self.queue.submit(Some(encoder.finish()));
+
+        screenshot::finish_capture(
+            &self.device,
+            staging,
+            width,
+            height,
+            format,
+            path.as_ref(),
+        )
+    }
+
+    /// Capture a rectangular region of the document described by
+    /// `list` and write it to `path`. The output image is exactly
+    /// `region.w × region.h` (rounded up to integer pixels). Equivalent
+    /// to `capture_to(&list.translated(-region.x, -region.y), w, h, path)`.
+    ///
+    /// Works for regions outside the on-screen viewport because the
+    /// off-screen render target is sized to the region — the
+    /// renderer's pipelines paint every command in `list` against it
+    /// regardless of where it falls relative to the visible window.
+    pub fn capture_rect_to(
+        &mut self,
+        list: &DisplayList,
+        region: paint::Rect,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<(), ScreenshotError> {
+        let width = region.w.max(1.0).ceil() as u32;
+        let height = region.h.max(1.0).ceil() as u32;
+        let translated = list.translated(-region.x, -region.y);
+        self.capture_to(&translated, width, height, path)
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;

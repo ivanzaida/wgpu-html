@@ -39,7 +39,7 @@ paint):
 | Property              | Coverage                                                                  |
 |-----------------------|---------------------------------------------------------------------------|
 | `color`               | Per-glyph foreground; resolved via `resolve_color`                        |
-| `font-family`         | Comma list, walked left-to-right; quoted names trimmed                    |
+| `font-family`         | Comma list walked left-to-right; quoted names trimmed; generic CSS keywords (`sans-serif`, `serif`, `monospace`, `cursive`, `fantasy`, `system-ui`, `ui-*`, `-apple-system`, `BlinkMacSystemFont`) fall back to the best-scoring registered face if no listed family matched |
 | `font-weight`         | `100..900`, `normal/bold/bolder/lighter` (no parent-context shift yet)    |
 | `font-style`          | `normal/italic/oblique` → `FontStyleAxis`                                 |
 | `font-size`           | `Px / Em / Rem / Vw / Vh / Vmin / Vmax / %` plus `calc()`/`min`/`max`     |
@@ -50,6 +50,7 @@ paint):
 | `text-decoration`     | `underline / line-through / overline` (whitespace list; `none` resets)    |
 | `background-color`    | Inline-element wrapper backgrounds expand per-line (`<mark>`)             |
 | `white-space: normal` | Whitespace runs collapse to a single ASCII space pre-shape                |
+| `<input>` / `<textarea>` `placeholder` | Shaped + painted as the box's text run when the field has no value/content; colour = cascaded `color × alpha 0.5`; single-line input vertically centred + horizontally clipped; textarea soft-wrap top-aligned. See §11.8 for the full behaviour matrix. |
 
 **Inheritance.** `wgpu-html-style::cascade` runs an
 `inherit_into(child, parent)` pass that fills the standard
@@ -193,9 +194,23 @@ whole walk misses, layout falls back to `FontDb::first_handle`
 (lowest-numbered loaded handle). An empty registry → text leaves
 shape to zero size.
 
-Generic family names (`serif`, `sans-serif`, `monospace`, …) get
-no special treatment. Hosts that want `sans-serif: Inter` register
-`Inter` under that exact family.
+**Generic family fallback — done.** `FontRegistry::find_first`
+recognises the CSS-Fonts-4 generic keywords (`sans-serif`,
+`serif`, `monospace`, `cursive`, `fantasy`, `system-ui`,
+`ui-sans-serif`, `ui-serif`, `ui-monospace`, `ui-rounded`,
+`math`, `emoji`, `fangsong`, `-apple-system`, `BlinkMacSystemFont`).
+If no name in the family list matches a registered face but any
+entry is one of these generics, the search returns the
+best-`(weight, style)`-scoring face from the entire registry.
+This makes plain `font-family: sans-serif` resolve whatever face
+the host registered (e.g. via
+`wgpu_html_winit::register_system_fonts(tree, "DemoSans")`)
+without requiring an explicit alias.
+
+If the whole walk misses *and* no generic is in the list, layout
+still falls back to `FontDb::first_handle` (lowest-numbered loaded
+handle) for backward-compat. An empty registry → text leaves
+shape to zero size.
 
 ## 6. Inline formatting context
 
@@ -428,11 +443,10 @@ pub fn paint_tree_returning_layout(tree, &mut TextContext, vw, vh, scale)
 - **Bidi / vertical writing modes.** Not modelled.
 - **Subpixel antialiasing.** Straight alpha mask only — sufficient
   for typical 16 px body text on Retina-class displays.
-- **Generic family fallback** (`sans-serif`, `serif`, `monospace`,
-  `system-ui`, `cursive`, `fantasy`). No mapping; hosts that want
-  one register their preferred face under the generic name
-  explicitly. A future `Tree::set_generic_family` would canonicalise
-  this.
+- ~~**Generic family fallback** — done.~~ See §5: generic CSS
+  keywords now trigger a fall-back to any registered face,
+  ranked by `(weight, style)`. Hosts no longer have to register
+  their preferred face under the generic name explicitly.
 - **`@font-face` from CSS.** Out of scope. The natural extension
   would parse `src: url(...)` into a synthetic `register_font`
   call against a host-supplied resolver — not wired up.
@@ -536,6 +550,8 @@ either already covered by tests, or explicitly marked as a gap.
 - Long CJK-like token / no-space Latin token.
 - Nested overflow clipping around text.
 - Font fallback chain where first family is missing.
+- Generic-family fallback: a tree with `sans-serif` only and a
+  registry under `Inter` resolves; same with `Garamond, sans-serif`.
 
 ### 11.7 Known Uncovered (Must Stay Explicit)
 
@@ -547,3 +563,32 @@ The following remain intentionally uncovered until implemented:
 - `letter-spacing` in rich-text shaping path.
 - Bidi + RTL text shaping/layout.
 - Number-only `line-height` (unitless).
+
+### 11.8 Form-field placeholder rendering — done
+
+`compute_placeholder_run` (in `wgpu_html_layout::lib`) shapes the
+`placeholder` attribute on empty `<input>` and `<textarea>`
+elements and attaches the result as the box's `text_run`,
+painted at the cascaded `color × alpha 0.5` (the browser default
+`::placeholder` styling). Wired into both `layout_block` and
+`layout_atomic_inline_subtree` (form controls hit the inline-block
+path most often).
+
+Behavioural rules covered by tests in
+`wgpu-html-layout::tests::*placeholder*`:
+
+- Empty `<input>` with `placeholder="…"` → text_run + color set.
+- Non-empty `value="…"` suppresses placeholder.
+- Bare `<input>` (no placeholder) → no text_run.
+- `<input type="hidden">` with `placeholder="…"` → no text_run.
+- `placeholder=""` (empty) → no text_run.
+- Empty `<textarea>` with `placeholder="…"` → text_run + color set.
+- `<textarea>` with children (RAWTEXT content) → no placeholder.
+- Single-line input: glyphs whose right edge crosses
+  `content_rect.w` are dropped (horizontal clip); remaining run
+  vertically centred inside `content_rect`.
+- Textarea: soft-wrap at `content_rect.w` (white-space: pre-wrap
+  from UA), top-aligned.
+- Cascaded `color: red` → placeholder colour = linear-red × alpha 0.5.
+- User CSS `padding: 8px 10px` overrides UA padding-block /
+  padding-inline; placeholder origin tracks the new content_rect.

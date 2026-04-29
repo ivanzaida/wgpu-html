@@ -75,7 +75,22 @@ pub trait AppHook {
 pub struct HookContext<'a> {
     pub tree: &'a mut Tree,
     pub renderer: &'a mut Renderer,
-    pub window: &'a Window,
+    /// Text shaping / atlas context. Mutable because hooks that
+    /// re-run layout (e.g. capturing a node screenshot via
+    /// [`wgpu_html::screenshot_node_to`]) need to feed it through
+    /// the cascade pipeline.
+    pub text_ctx: &'a mut TextContext,
+    /// The most recent layout box, populated after at least one
+    /// frame has been rendered. `None` before the first redraw or
+    /// when the document collapsed to nothing during cascade.
+    pub last_layout: Option<&'a LayoutBox>,
+    /// Reference to the Arc-wrapped window. Hooks that need a
+    /// `Send` handle (e.g. to spawn a stdin reader thread that
+    /// wakes the event loop via `request_redraw`) clone the Arc;
+    /// hooks that only call window methods can keep using
+    /// `ctx.window.foo()` thanks to `Arc<Window>`'s `Deref` to
+    /// `Window`.
+    pub window: &'a Arc<Window>,
     pub event_loop: &'a ActiveEventLoop,
 }
 
@@ -388,6 +403,8 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 let ctx = HookContext {
                     tree: &mut *self.tree,
                     renderer: &mut state.renderer,
+                    text_ctx: &mut state.text_ctx,
+                    last_layout: state.last_layout.as_ref(),
                     window: &state.window,
                     event_loop,
                 };
@@ -483,6 +500,8 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             let ctx = HookContext {
                 tree: &mut *self.tree,
                 renderer: &mut state.renderer,
+                text_ctx: &mut state.text_ctx,
+                last_layout: state.last_layout.as_ref(),
                 window: &state.window,
                 event_loop,
             };
@@ -617,6 +636,8 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 let ctx = HookContext {
                     tree: &mut *self.tree,
                     renderer: &mut state.renderer,
+                    text_ctx: &mut state.text_ctx,
+                    last_layout: state.last_layout.as_ref(),
                     window: &state.window,
                     event_loop,
                 };

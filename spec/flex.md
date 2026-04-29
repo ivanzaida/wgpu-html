@@ -245,10 +245,20 @@ In rough priority order if we ever come back to flex:
    currently owns ascent/descent state. A clean fix would surface
    `Option<{ascent, descent}>` from `layout_block` for blocks
    whose first descendant is text-bearing.
-3. **Intrinsic content basis.** A measurement pre-pass that lays
-   each item out at zero main constraint, observes its
-   max-content size, and uses that as the base. Bounded extra
-   cost: O(items) per flex container.
+3. **Intrinsic content basis** — partial. `text_intrinsic_main`
+   in `flex.rs` now recurses into descendants for non-text non-
+   replaced items: row direction sums each text descendant's
+   shaped one-line width (max-content max-line approximation),
+   column direction takes the max child height. This unblocks
+   `<button>Submit</button>`-style atomic-inline flex items
+   (which previously fell through to `intrinsic_main = None` and
+   `base_size = 0`, collapsing the button to padding-only width).
+   `build_item` decouples the explicit basis (still box-sizing
+   converted) from the intrinsic basis (treated as content-box).
+   A full measurement pre-pass that lays each item out at zero
+   main constraint and observes its max-content size — handling
+   nested block content, percentage main-sizes inside the item,
+   and pre-resolved flex sub-items — is still pending.
 4. **`min-content` / `max-content` / `fit-content` keywords.**
    Add the variants to `CssLength`, plumb them through `length::resolve`
    (returning `None` for "needs intrinsic measurement" so the caller
