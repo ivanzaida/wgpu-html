@@ -104,6 +104,8 @@ pub struct HookContext<'a> {
     /// [`wgpu_html::screenshot_node_to`]) need to feed it through
     /// the cascade pipeline.
     pub text_ctx: &'a mut TextContext,
+    /// Per-tree image cache handle.
+    pub image_cache: &'a mut wgpu_html::layout::ImageCache,
     /// The most recent layout box, populated after at least one
     /// frame has been rendered. `None` before the first redraw or
     /// when the document collapsed to nothing during cascade.
@@ -169,6 +171,7 @@ struct RuntimeState {
     window: Arc<Window>,
     renderer: Renderer,
     text_ctx: TextContext,
+    image_cache: wgpu_html::layout::ImageCache,
     last_layout: Option<LayoutBox>,
     cursor_pos: Option<(f32, f32)>,
     scroll_y: f32,
@@ -345,6 +348,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             window,
             renderer,
             text_ctx,
+            image_cache: wgpu_html::layout::ImageCache::new(),
             last_layout: None,
             cursor_pos: None,
             scroll_y: 0.0,
@@ -372,6 +376,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
                         tree: &mut *self.tree,
                         renderer: &mut state.renderer,
                         text_ctx: &mut state.text_ctx,
+                        image_cache: &mut state.image_cache,
                         last_layout: state.last_layout.as_ref(),
                         window: &state.window,
                         event_loop,
@@ -497,6 +502,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                     tree: &mut *self.tree,
                     renderer: &mut state.renderer,
                     text_ctx: &mut state.text_ctx,
+                    image_cache: &mut state.image_cache,
                     last_layout: state.last_layout.as_ref(),
                     window: &state.window,
                     event_loop,
@@ -594,6 +600,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 tree: &mut *self.tree,
                 renderer: &mut state.renderer,
                 text_ctx: &mut state.text_ctx,
+                image_cache: &mut state.image_cache,
                 last_layout: state.last_layout.as_ref(),
                 window: &state.window,
                 event_loop,
@@ -773,6 +780,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
             self.tree,
             &mut state.text_ctx,
+            &mut state.image_cache,
             size.width as f32,
             size.height as f32,
             1.0,
@@ -868,6 +876,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                     tree: &mut *self.tree,
                     renderer: &mut state.renderer,
                     text_ctx: &mut state.text_ctx,
+                    image_cache: &mut state.image_cache,
                     last_layout: state.last_layout.as_ref(),
                     window: &state.window,
                     event_loop,
@@ -883,11 +892,11 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         // 3. Active caret blink → wake at next 500ms toggle
         // 4. Nothing pending → sleep until an OS event
         if let Some(state) = self.state.as_mut() {
-            if wgpu_html::layout::has_pending_images() {
+            if state.image_cache.has_pending() {
                 let deadline = Instant::now() + Duration::from_millis(100);
                 state.caret_blink_deadline = Some(deadline);
                 event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
-            } else if wgpu_html::layout::has_animated_images() {
+            } else if state.image_cache.has_animated() {
                 // Animated images need continuous redraws to advance
                 // frames. 50ms ≈ 20fps, matching typical GIF rates.
                 let deadline = Instant::now() + Duration::from_millis(50);

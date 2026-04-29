@@ -166,11 +166,16 @@ impl FontRegistry {
         if !families.iter().any(|f| is_generic_family(f)) {
             return None;
         }
+        // Generic fallback: pick the best-scoring face across all
+        // registered families. Unlike `find` (where later registrations
+        // win ties to allow overrides), here first-wins-on-ties so
+        // the primary text font (registered first) is preferred over
+        // icon/symbol fonts (registered later at the same weight).
         let mut best: Option<(u32, FontHandle)> = None;
         for (h, face) in self.iter() {
             let score = match_score(face, weight, style);
             match best {
-                Some((b, _)) if score > b => {}
+                Some((b, _)) if score >= b => {}
                 _ => best = Some((score, h)),
             }
         }

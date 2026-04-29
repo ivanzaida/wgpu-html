@@ -252,6 +252,19 @@ mod tests {
     }
 
     #[test]
+    fn test_template_contents_are_retained() {
+        let tree = build(tokenize("<template id=\"tpl\"><div>hidden</div></template><p>shown</p>"));
+        let body = tree.root.as_ref().expect("root");
+        assert!(matches!(body.element, Element::Body(_)));
+        assert_eq!(body.children.len(), 2);
+        let template = &body.children[0];
+        assert!(matches!(template.element, Element::Template(_)));
+        assert_eq!(template.children.len(), 1);
+        assert!(matches!(template.children[0].element, Element::Div(_)));
+        assert!(matches!(body.children[1].element, Element::P(_)));
+    }
+
+    #[test]
     fn test_comments_and_doctype_dropped() {
         let tree = build(tokenize("<!DOCTYPE html><!--c--><p>hi</p>"));
         // Doctype + comment dropped → only <p> at top level → it becomes the root,

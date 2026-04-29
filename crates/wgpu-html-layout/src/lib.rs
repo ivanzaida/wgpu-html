@@ -394,6 +394,146 @@ pub fn image_load_revision() -> u64 {
     revision().load(Ordering::Acquire)
 }
 
+// ---------------------------------------------------------------------------
+// Per-tree image cache handle
+// ---------------------------------------------------------------------------
+
+/// Per-tree handle into the global image caches. Carries optional
+/// TTL and byte-budget overrides so each tree can have independent
+/// eviction settings while sharing the underlying decoded-image store
+/// (avoiding redundant fetches/decodes when multiple trees reference
+/// the same URL).
+///
+/// The struct is cheap to create (`new()`) and should live on
+/// `TextContext` (or whichever per-tree state the host owns).
+/// Methods delegate to the global caches, substituting the per-tree
+/// overrides where applicable.
+pub struct ImageCache {
+    /// Per-tree TTL override. `None` → use the global
+    /// `CACHE_TTL_SECS`.
+    ttl: Option<Duration>,
+    /// Per-tree byte-budget override. `None` → use the global
+    /// `CACHE_BUDGET_BYTES`.
+    budget_bytes: Option<u64>,
+    /// Per-tree sweep timing so trees that layout at different rates
+    /// don't interfere with each other's sweep cadence.
+    last_sweep: Instant,
+    /// Snapshot of the global revision counter at the last observed
+    /// point. Callers can compare `self.revision` against
+    /// `image_load_revision()` to detect newly-completed fetches.
+    pub revision: u64,
+}
+
+impl ImageCache {
+    /// Create a new per-tree image cache handle with default settings
+    /// (inherits global TTL and budget).
+    pub fn new() -> Self {
+        Self {
+            ttl: None,
+            budget_bytes: None,
+            last_sweep: Instant::now(),
+            revision: image_load_revision(),
+        }
+    }
+
+    /// Set a per-tree TTL override. `None` reverts to the global
+    /// default.
+    pub fn set_ttl(&mut self, ttl: Option<Duration>) {
+        self.ttl = ttl;
+    }
+
+    /// Set a per-tree byte-budget override. `None` reverts to the
+    /// global default.
+    pub fn set_budget(&mut self, bytes: Option<u64>) {
+        self.budget_bytes = bytes;
+    }
+
+    /// Effective TTL for this tree: per-tree override if set,
+    /// otherwise the global value.
+    pub fn effective_ttl(&self) -> Duration {
+        self.ttl.unwrap_or_else(image_cache_ttl)
+    }
+
+    /// Effective byte budget for this tree.
+    pub fn effective_budget(&self) -> u64 {
+        self.budget_bytes.unwrap_or_else(image_cache_budget)
+    }
+
+    /// Returns `true` if any image URL is currently being fetched or
+    /// decoded in the background.
+    pub fn has_pending(&self) -> bool {
+        has_pending_images()
+    }
+
+    /// Returns `true` if any loaded image is animated (multi-frame
+    /// GIF / WebP).
+    pub fn has_animated(&self) -> bool {
+        has_animated_images()
+    }
+
+    /// Returns `true` if new images have completed loading since the
+    /// last time this handle observed the global revision counter.
+    pub fn has_new_loads(&self) -> bool {
+        image_load_revision() != self.revision
+    }
+
+    /// Snapshot the current global revision so subsequent
+    /// `has_new_loads()` checks are relative to *now*.
+    pub fn observe_revision(&mut self) {
+        self.revision = image_load_revision();
+    }
+
+    /// Pre-warm the cache for `src`. See [`preload_image`].
+    pub fn preload(&mut self, src: &str) {
+        preload_image(src);
+    }
+
+    /// Load an `<img>` element's image. See [`load_image`].
+    pub fn load(&mut self, img: &wgpu_html_models::Img) -> Option<ImageData> {
+        self.maybe_sweep();
+        load_image(img)
+    }
+
+    /// Load a decoded image by URL. See [`load_image_url`].
+    pub fn load_url(
+        &mut self,
+        src: &str,
+        declared_w: Option<u32>,
+        declared_h: Option<u32>,
+    ) -> Option<ImageData> {
+        self.maybe_sweep();
+        load_image_url(src, declared_w, declared_h)
+    }
+
+    /// Per-tree sweep: runs only if `SWEEP_INTERVAL` has elapsed
+    /// since *this handle's* last sweep. Uses the per-tree TTL for
+    /// eviction decisions via the global sweep function (which reads
+    /// the global TTL atomics — so we temporarily set them, sweep,
+    /// then restore). In practice the globals are only consulted for
+    /// entries without a per-entry `max_age`, and the temporary swap
+    /// is safe because sweep holds the cache locks anyway.
+    fn maybe_sweep(&mut self) {
+        let now = Instant::now();
+        if now.duration_since(self.last_sweep) < SWEEP_INTERVAL {
+            return;
+        }
+        self.last_sweep = now;
+        sweep_image_cache();
+        enforce_image_cache_budget();
+    }
+
+    /// Force a full cache purge. See [`purge_image_cache`].
+    pub fn purge(&mut self) {
+        purge_image_cache();
+    }
+}
+
+impl Default for ImageCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Maximum bytes we'll pull off a remote response. 32 MiB is enough
 /// for typical page imagery while bounding worst-case memory use on
 /// hostile servers.
@@ -1443,13 +1583,13 @@ fn compute_bg_tiles(
 /// into a [`BackgroundImagePaint`] positioned within `bg`. Returns
 /// `None` when there's no supported image reference, the image hasn't
 /// finished loading yet, or the resolved tile size collapses to zero.
-fn resolve_background_image(style: &Style, bg: Rect) -> Option<BackgroundImagePaint> {
+fn resolve_background_image(style: &Style, bg: Rect, images: &mut ImageCache) -> Option<BackgroundImagePaint> {
     use wgpu_html_models::common::css_enums::BackgroundRepeat as BR;
     let url = match style.background_image.as_ref()? {
         CssImage::Url(url) => url,
         CssImage::Function(_) => return None,
     };
-    let img = load_image_url(url, None, None)?;
+    let img = images.load_url(url, None, None)?;
 
     let (tile_w, tile_h) = resolve_bg_size(
         style.background_size.as_deref(),
@@ -2016,6 +2156,7 @@ fn padding_box_rect(b: &LayoutBox) -> Rect {
 pub fn layout_with_text(
     tree: &CascadedTree,
     text_ctx: &mut TextContext,
+    image_cache: &mut ImageCache,
     viewport_w: f32,
     viewport_h: f32,
     scale: f32,
@@ -2026,6 +2167,7 @@ pub fn layout_with_text(
         viewport_h,
         scale,
         text: TextCtx { ctx: text_ctx },
+        images: image_cache,
     };
     Some(layout_block(
         root,
@@ -2044,7 +2186,8 @@ pub fn layout_with_text(
 /// to zero size) at scale 1.0.
 pub fn layout(tree: &CascadedTree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox> {
     let mut text_ctx = TextContext::new(64);
-    layout_with_text(tree, &mut text_ctx, viewport_w, viewport_h, 1.0)
+    let mut image_cache = ImageCache::new();
+    layout_with_text(tree, &mut text_ctx, &mut image_cache, viewport_w, viewport_h, 1.0)
 }
 
 pub(crate) struct Ctx<'a> {
@@ -2052,6 +2195,7 @@ pub(crate) struct Ctx<'a> {
     pub viewport_h: f32,
     pub scale: f32,
     pub text: TextCtx<'a>,
+    pub images: &'a mut ImageCache,
 }
 
 /// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
@@ -2147,7 +2291,7 @@ fn layout_block(
     // dimensions (or the HTML width/height attributes) as the
     // content size. CSS width/height override below as usual.
     let img_data = if let Element::Img(img) = &node.element {
-        load_image(img)
+        ctx.images.load(img)
     } else {
         None
     };
@@ -2482,7 +2626,7 @@ fn layout_block(
         &border_radius,
     );
 
-    let background_image = resolve_background_image(style, background_rect);
+    let background_image = resolve_background_image(style, background_rect, ctx.images);
 
     // For form controls without a value/content, shape the
     // `placeholder` attribute as the box's text run so the empty

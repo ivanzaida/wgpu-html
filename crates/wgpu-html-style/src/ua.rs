@@ -35,7 +35,8 @@ link,
 meta,
 style,
 script,
-noscript {
+noscript,
+template {
   display: none;
 }
 

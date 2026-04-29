@@ -25,6 +25,7 @@ use wgpu_html_tree::{Modifier, MouseButton, Tree};
 /// Stateful egui host for one HTML document.
 pub struct HtmlState {
     text_ctx: TextContext,
+    image_cache: wgpu_html::layout::ImageCache,
     display_list: DisplayList,
     last_layout: Option<LayoutBox>,
     last_rect: Option<EguiRect>,
@@ -40,6 +41,7 @@ impl HtmlState {
     pub fn new() -> Self {
         Self {
             text_ctx: TextContext::new(wgpu_html::renderer::GLYPH_ATLAS_SIZE),
+            image_cache: wgpu_html::layout::ImageCache::new(),
             display_list: DisplayList::new(),
             last_layout: None,
             last_rect: None,
@@ -74,6 +76,7 @@ impl HtmlState {
         let (list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
             tree,
             &mut self.text_ctx,
+            &mut self.image_cache,
             viewport_w,
             viewport_h,
             scale,

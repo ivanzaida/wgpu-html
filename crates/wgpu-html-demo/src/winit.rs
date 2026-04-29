@@ -349,6 +349,7 @@ impl DemoHook {
                 let result = wgpu_html::screenshot_node_to(
                     ctx.tree,
                     ctx.text_ctx,
+                    ctx.image_cache,
                     ctx.renderer,
                     &path_indices,
                     size.width as f32,

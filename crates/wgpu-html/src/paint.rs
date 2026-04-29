@@ -28,7 +28,8 @@ fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_htm
 /// zero size. Use [`paint_tree_with_text`] when fonts are registered.
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
     let mut ctx = TextContext::new(64);
-    paint_tree_with_text(tree, &mut ctx, viewport_w, viewport_h, 1.0)
+    let mut image_cache = wgpu_html_layout::ImageCache::new();
+    paint_tree_with_text(tree, &mut ctx, &mut image_cache, viewport_w, viewport_h, 1.0)
 }
 
 /// Cascade + lay out + paint, threading a long-lived `TextContext`
@@ -39,21 +40,22 @@ pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList 
 pub fn paint_tree_with_text(
     tree: &Tree,
     text_ctx: &mut TextContext,
+    image_cache: &mut wgpu_html_layout::ImageCache,
     viewport_w: f32,
     viewport_h: f32,
     scale: f32,
 ) -> DisplayList {
     text_ctx.sync_fonts(&tree.fonts);
     if let Some(ttl) = tree.asset_cache_ttl {
-        wgpu_html_layout::set_image_cache_ttl(ttl);
+        image_cache.set_ttl(Some(ttl));
     }
     for url in &tree.preload_queue {
-        wgpu_html_layout::preload_image(url);
+        image_cache.preload(url);
     }
     let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
     if let Some(root) =
-        wgpu_html_layout::layout_with_text(&cascaded, text_ctx, viewport_w, viewport_h, scale)
+        wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale)
     {
         let mut clip_stack: Vec<ClipFrame> = Vec::new();
         let mut path = Vec::new();
@@ -1718,6 +1720,21 @@ mod tests {
         assert!(list.clips[0].rect.is_none());
         assert_eq!(list.clips[0].quad_range.0, 0);
         assert_eq!(list.clips[0].quad_range.1, list.quads.len() as u32);
+    }
+
+    #[test]
+    fn template_contents_do_not_paint() {
+        let tree = wgpu_html_parser::parse(
+            r#"<body style="margin: 0;">
+                <template>
+                    <div style="width: 100px; height: 50px; background-color: red;"></div>
+                </template>
+                <div style="width: 100px; height: 50px; background-color: blue;"></div>
+            </body>"#,
+        );
+        let list = paint_tree(&tree, 800.0, 600.0);
+        assert!(!list.quads.iter().any(|q| q.color == [1.0, 0.0, 0.0, 1.0]));
+        assert!(list.quads.iter().any(|q| q.color == [0.0, 0.0, 1.0, 1.0]));
     }
 
     #[test]

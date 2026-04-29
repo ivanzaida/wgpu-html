@@ -316,6 +316,7 @@ fn ua_stylesheet_applies_browser_display_defaults() {
     let tree = wgpu_html_parser::parse(
         r#"
         <section></section>
+        <template><div></div></template>
         <ul><li></li></ul>
         <table><tr><td></td><th></th></tr></table>
         <ruby><rt></rt><rp></rp></ruby>
@@ -365,6 +366,38 @@ fn ua_stylesheet_applies_browser_display_defaults() {
             .display,
         Some(Display::None)
     ));
+    assert!(matches!(
+        find_style(root, &|el| matches!(el, Element::Template(_)))
+            .unwrap()
+            .display,
+        Some(Display::None)
+    ));
+}
+
+#[test]
+fn stylesheet_collection_skips_template_contents() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <template>
+            <style>#outside { background-color: red; }</style>
+        </template>
+        <style>#outside { background-color: blue; }</style>
+        <div id="outside"></div>
+        "#,
+    );
+
+    let sheet = collect_stylesheet(&tree);
+    assert_eq!(sheet.rules.len(), 1);
+
+    let cascaded = cascade(&tree);
+    let root = cascaded.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("outside")),
+    )
+    .unwrap();
+    let bg = div.background_color.as_ref().unwrap();
+    assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
 }
 
 #[test]
