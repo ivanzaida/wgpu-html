@@ -2078,6 +2078,70 @@ fn textarea_with_placeholder_attaches_placeholder_run() {
 }
 
 #[test]
+fn empty_input_content_height_defaults_to_line_height() {
+    // An empty `<input>` collapses to zero measured height (no
+    // children to lay out), which would put the placeholder text
+    // run below the padding box and clip it at the input's bottom
+    // border. Layout fills the missing measured height with one
+    // line of the cascaded font so the run renders fully inside
+    // the box.
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <input type="text" style="border: 0; padding: 0;">
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    fn first_input_box(b: &LayoutBox) -> Option<&LayoutBox> {
+        if matches!(b.kind, BoxKind::Block) && b.children.is_empty() {
+            return Some(b);
+        }
+        for c in &b.children {
+            if let Some(found) = first_input_box(c) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    let input = first_input_box(&body).expect("input box");
+    // No font registered → `font_size_px` defaults to 16, so
+    // `line-height: normal` lands at ~1.25 × 16 = 20.
+    assert!(
+        input.content_rect.h >= 16.0,
+        "empty input should default to one line of content height (got {})",
+        input.content_rect.h
+    );
+}
+
+#[test]
+fn empty_textarea_content_height_defaults_to_line_height() {
+    // Same default as `<input>` — an empty textarea would
+    // otherwise collapse to zero measured height.
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <textarea style="border: 0; padding: 0;"></textarea>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    fn first_ta(b: &LayoutBox) -> Option<&LayoutBox> {
+        if matches!(b.kind, BoxKind::Block) && b.children.is_empty() {
+            return Some(b);
+        }
+        for c in &b.children {
+            if let Some(found) = first_ta(c) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    let ta = first_ta(&body).expect("textarea box");
+    assert!(
+        ta.content_rect.h >= 16.0,
+        "empty textarea should default to one line of content height (got {})",
+        ta.content_rect.h
+    );
+}
+
+#[test]
 fn placeholder_respects_user_padding_shorthand() {
     // User CSS `padding: 8px 10px` should override the UA's
     // `padding-block: 1px; padding-inline: 2px`, so the input's
