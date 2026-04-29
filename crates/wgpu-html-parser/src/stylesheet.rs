@@ -44,6 +44,12 @@ pub enum PseudoClass {
     /// The engine has no navigation history, so it only matches if
     /// style matching grows visited-link state later.
     Visited,
+    /// `:root` — matches only the document root element.
+    Root,
+    /// `:first-child` — matches if this element is the first child of its parent.
+    FirstChild,
+    /// `:last-child` — matches if this element is the last child of its parent.
+    LastChild,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -260,6 +266,18 @@ fn parse_compound(s: &str) -> Option<Selector> {
                 }
                 "visited" => {
                     sel.pseudo_classes.push(PseudoClass::Visited);
+                    buf.clear();
+                }
+                "root" => {
+                    sel.pseudo_classes.push(PseudoClass::Root);
+                    buf.clear();
+                }
+                "first-child" => {
+                    sel.pseudo_classes.push(PseudoClass::FirstChild);
+                    buf.clear();
+                }
+                "last-child" => {
+                    sel.pseudo_classes.push(PseudoClass::LastChild);
                     buf.clear();
                 }
                 // Anything we don't recognize (`::before`,

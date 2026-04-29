@@ -192,6 +192,16 @@ pub struct Style {
     /// implementation, but doesn't model as dedicated typed fields yet.
     /// Keys are CSS kebab-case property names.
     pub deferred_longhands: HashMap<String, String>,
+    /// CSS custom properties (`--name: value`). Keys are the full
+    /// property name including the `--` prefix, case-preserved.
+    /// Custom properties are always inherited.
+    pub custom_properties: HashMap<String, String>,
+    /// Regular CSS property declarations whose value contains an
+    /// unresolved `var()` reference. Keys are the CSS property name
+    /// (e.g. `"color"`), values are the raw declaration value string
+    /// (e.g. `"var(--theme-color)"`). Resolved at computed-value
+    /// time by `resolve_var_references`.
+    pub var_properties: HashMap<String, String>,
     /// Longhands that a parsed shorthand declaration must reset before
     /// applying its explicit member values. This lets shorthands clear
     /// previously-set longhands even when the shorthand's initial value

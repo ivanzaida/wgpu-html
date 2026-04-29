@@ -1,0 +1,870 @@
+<style>
+    :root {
+        /* ── Surface / background ─────────────────────── */
+        --bg-modal:         #232323;
+        --bg-header:        #2B2B2B;
+        --bg-footer:        #2B2B2B;
+        --bg-body:          #1C1C1C;
+        --bg-panel:         #232323;
+        --bg-input:         #1C1C1C;
+        --bg-input-focus:   #1C1C1C;
+        --bg-btn:           #3D3D3D;
+        --bg-row-alt:       #2F2F2F;
+        --bg-row-selected:  #365C88;
+        --bg-icon-thumb:    #2E2E2E;
+        --bg-tag:           #365C88;
+        --bg-tag-rec:       #00000066;
+        --bg-step-active:   #E87C14;
+        --bg-step-inactive: #3D3D3D;
+        --bg-valid-icon:    #6FB247;
+
+        /* ── Accent / brand ───────────────────────────── */
+        --accent:           #E87C14;
+        --accent-text:      #1A1A1A;
+        --blue:             #4C84C2;
+        --green:            #6FB247;
+
+        /* ── Text ─────────────────────────────────────── */
+        --text-primary:     #E4E4E4;
+        --text-secondary:   #A3A3A3;
+        --text-muted:       #707070;
+        --text-tag:         #CFDDED;
+        --text-dark:        #1A1A1A;
+        --text-green-dark:  #0D1A05;
+
+        /* ── Borders ──────────────────────────────────── */
+        --border-heavy:     #141414;
+        --border-panel:     #1A1A1A;
+        --border-input:     #1A1A1A;
+        --border-focus:     #4C84C2;
+        --border-modal:     #141414;
+
+        /* ── Radius ───────────────────────────────────── */
+        --radius-modal:     6px;
+        --radius-panel:     5px;
+        --radius-input:     5px;
+        --radius-btn:       5px;
+        --radius-tag:       3px;
+        --radius-step:      17px;
+        --radius-radio:     9px;
+        --radius-icon:      3px;
+
+        /* ── Spacing ──────────────────────────────────── */
+        --pad-section-x:    36px;
+        --pad-section-y:    30px;
+        --pad-header-x:     32px;
+        --pad-footer-x:     30px;
+        --pad-input-x:      18px;
+        --gap-section:      16px;
+        --gap-step:         14px;
+        --gap-row:          14px;
+
+        /* ── Fonts ────────────────────────────────────── */
+        --font-sans:        Inter, sans-serif;
+        --font-mono:        "Geist Mono", monospace;
+
+        /* ── Cursor (text input) ──────────────────────── */
+        --cursor-color:     #4C84C2;
+    }
+
+    body {
+        margin: 0;
+        padding: 40px;
+        background: #111111;
+        font-family: var(--font-sans);
+        display: flex;
+        justify-content: center;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       Modal shell
+       ═══════════════════════════════════════════════════ */
+    .modal {
+        width: 700px;
+        background: var(--bg-modal);
+        border-radius: var(--radius-modal);
+        border: 1px solid var(--border-modal);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────── */
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 96px;
+        padding: 0 var(--pad-header-x);
+        background: var(--bg-header);
+        border-bottom: 1px solid var(--border-heavy);
+    }
+    .modal-header-left {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    .header-icon {
+        width: 52px;
+        height: 52px;
+        background: var(--accent);
+        border-radius: var(--radius-panel);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-dark);
+        font-size: 26px;
+    }
+    .header-text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .header-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--text-primary);
+        letter-spacing: -0.3px;
+    }
+    .header-subtitle {
+        font-size: 16px;
+        color: var(--text-muted);
+    }
+    .close-btn {
+        width: 48px;
+        height: 48px;
+        background: var(--bg-btn);
+        border: 1px solid var(--border-panel);
+        border-radius: var(--radius-tag);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        font-size: 20px;
+    }
+
+    /* ── Stepper ────────────────────────────────────── */
+    .stepper {
+        display: flex;
+        align-items: center;
+        gap: var(--gap-step);
+        height: 64px;
+        padding: 0 36px;
+        border-bottom: 1px solid var(--border-panel);
+    }
+    .step {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .step-num {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-step);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-size: 16px;
+        font-weight: 700;
+    }
+    .step-num.active {
+        background: var(--bg-step-active);
+        color: var(--text-dark);
+    }
+    .step-num.inactive {
+        background: var(--bg-step-inactive);
+        color: var(--text-muted);
+        border: 1px solid var(--border-heavy);
+    }
+    .step-label {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    .step-label.inactive {
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+    .step-sep {
+        width: 40px;
+        height: 1px;
+        background: var(--border-heavy);
+    }
+    .step-spacer {
+        flex: 1;
+    }
+    .step-counter {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    /* ── Body (scrollable area) ─────────────────────── */
+    .modal-body {
+        flex: 1;
+        background: var(--bg-body);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* ── Section ────────────────────────────────────── */
+    .section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-section);
+        padding: var(--pad-section-y) var(--pad-section-x);
+        border-bottom: 1px solid var(--border-panel);
+    }
+    .section:last-child {
+        border-bottom: none;
+    }
+    .section-label-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .section-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 2px;
+    }
+    .required-badge {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--accent);
+    }
+
+    /* ── Path input row ────────────────────────────── */
+    .path-input-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 56px;
+    }
+    .path-input {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        height: 56px;
+        padding: 0 20px;
+        background: var(--bg-input);
+        border: 2px solid var(--border-focus);
+        border-radius: var(--radius-input);
+    }
+    .path-input .icon { color: var(--blue); font-size: 20px; }
+    .path-input .path-text {
+        flex: 1;
+        font-family: var(--font-mono);
+        font-size: 17px;
+        font-weight: 500;
+        color: var(--text-primary);
+        overflow: hidden;
+    }
+    .path-input .check-icon { color: var(--green); font-size: 20px; }
+
+    .browse-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 56px;
+        padding: 0 22px;
+        background: var(--bg-btn);
+        border: 1px solid var(--border-panel);
+        border-radius: var(--radius-input);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        font-size: 17px;
+        font-weight: 500;
+    }
+
+    /* ── Validation panel ──────────────────────────── */
+    .validation-panel {
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-panel);
+        border-radius: var(--radius-panel);
+        border: 1px solid var(--border-panel);
+        overflow: hidden;
+    }
+    .validation-top {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--border-panel);
+    }
+    .valid-icon-box {
+        width: 48px;
+        height: 48px;
+        background: var(--bg-valid-icon);
+        border-radius: var(--radius-panel);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-green-dark);
+        font-size: 24px;
+    }
+    .valid-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    .valid-title-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .valid-title {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    .version-tag {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 3px 10px;
+        background: var(--bg-tag);
+        border-radius: var(--radius-tag);
+    }
+    .version-tag .ver {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    .version-tag .build,
+    .version-tag .lang {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        color: var(--text-tag);
+    }
+    .version-tag .lang { font-weight: 500; }
+    .edition-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        font-size: 14px;
+    }
+    .edition-row .hash-icon { font-size: 15px; }
+
+    .validation-bottom {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 14px 20px;
+    }
+    .check-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .check-item .ci { color: var(--green); font-size: 15px; }
+    .check-item span {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+    .check-spacer { flex: 1; }
+    .maps-found {
+        font-family: var(--font-sans);
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--blue);
+    }
+
+    /* ── Base map section ──────────────────────────── */
+    .map-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .map-section-labels {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .map-section-sub {
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+    .filter-input {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 280px;
+        height: 38px;
+        padding: 0 12px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-panel);
+        border-radius: 4px;
+    }
+    .filter-input .fi { color: var(--text-muted); font-size: 16px; }
+    .filter-input span {
+        font-size: 15px;
+        color: var(--text-muted);
+    }
+
+    /* ── Map list ──────────────────────────────────── */
+    .map-list {
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-panel);
+        border-radius: var(--radius-panel);
+        border: 1px solid var(--border-panel);
+        overflow: hidden;
+        max-height: 336px;
+    }
+    .map-row {
+        display: flex;
+        align-items: center;
+        gap: var(--gap-row);
+        height: 54px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--border-panel);
+    }
+    .map-row:last-child { border-bottom: none; }
+    .map-row.selected {
+        background: var(--bg-row-selected);
+        height: 64px;
+    }
+    .map-row.alt { background: var(--bg-row-alt); }
+
+    .radio {
+        width: 18px;
+        height: 18px;
+        border-radius: var(--radius-radio);
+        border: 3px solid var(--border-heavy);
+        background: transparent;
+    }
+    .radio.on {
+        background: var(--accent);
+        border: 3px solid var(--text-primary);
+    }
+
+    .map-icon-box {
+        width: 44px;
+        height: 44px;
+        background: var(--bg-icon-thumb);
+        border: 1px solid var(--border-heavy);
+        border-radius: var(--radius-icon);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+    }
+    .map-row.selected .map-icon-box .mi { color: var(--green); }
+    .map-icon-box .mi { color: var(--text-secondary); }
+
+    .map-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+    .map-name {
+        font-size: 17px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+    .map-row.selected .map-name { font-weight: 600; }
+    .map-meta {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+    .map-row.selected .map-meta { color: var(--text-tag); }
+
+    .rec-tag {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--bg-tag-rec);
+        border-radius: var(--radius-tag);
+    }
+    .rec-tag .star { color: var(--accent); font-size: 13px; }
+    .rec-tag span {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    /* ── Project details fields ────────────────────── */
+    .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .field-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .field-label {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+    .field-hint {
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    .text-input-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+    }
+    .text-input {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        padding: 0 var(--pad-input-x);
+        background: var(--bg-input);
+        border-radius: var(--radius-input);
+    }
+    .text-input.focused { border: 2px solid var(--border-focus); }
+    .text-input.unfocused { border: 1px solid var(--border-input); }
+    .text-input .inp-icon { font-size: 18px; color: var(--text-muted); }
+    .text-input .inp-value {
+        flex: 1;
+        font-family: var(--font-sans);
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+    .text-input .inp-cursor {
+        width: 3px;
+        height: 22px;
+        background: var(--cursor-color);
+    }
+    .text-input .inp-suffix {
+        font-family: var(--font-mono);
+        font-size: 16px;
+        color: var(--text-muted);
+    }
+    .text-input .folder-value {
+        flex: 1;
+        font-family: var(--font-mono);
+        font-size: 17px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .change-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 52px;
+        padding: 0 20px;
+        background: var(--bg-btn);
+        border: 1px solid var(--border-panel);
+        border-radius: var(--radius-btn);
+        color: var(--text-primary);
+        font-size: 16px;
+        font-weight: 500;
+    }
+
+    /* ── Footer ────────────────────────────────────── */
+    .modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 88px;
+        padding: 0 var(--pad-footer-x);
+        background: var(--bg-footer);
+        border-top: 1px solid var(--border-heavy);
+    }
+    .footer-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .footer-info .info-icon { color: var(--text-muted); font-size: 15px; }
+    .footer-info span {
+        font-size: 15px;
+        color: var(--text-secondary);
+    }
+    .footer-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .cancel-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 52px;
+        padding: 0 24px;
+        background: var(--bg-btn);
+        border: 1px solid var(--border-panel);
+        border-radius: var(--radius-btn);
+    }
+    .cancel-btn .cancel-text {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+    .cancel-btn .cancel-key {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+    .create-btn {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        padding: 0 26px;
+        background: var(--accent);
+        border-radius: var(--radius-btn);
+    }
+    .create-btn .cb-icon { color: var(--text-dark); font-size: 18px; }
+    .create-btn span {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+    .create-btn .cb-key {
+        font-family: var(--font-mono);
+        font-size: 16px;
+        font-weight: 500;
+        color: #1A1A1AAA;
+    }
+
+    /* section 3 uses 18px gap between field groups */
+    .section.details { gap: 18px; }
+</style>
+
+<!-- ══════════════════════════════════════════════════
+     Modal Window — New Project
+     ══════════════════════════════════════════════════ -->
+<div class="modal">
+
+    <!-- ── Header ──────────────────────────────────── -->
+    <div class="modal-header">
+        <div class="modal-header-left">
+            <div class="header-icon">+</div>
+            <div class="header-text">
+                <div class="header-title">New Project</div>
+                <div class="header-subtitle">Create from a PW element folder</div>
+            </div>
+        </div>
+        <div class="close-btn">&#x2715;</div>
+    </div>
+
+    <!-- ── Stepper ─────────────────────────────────── -->
+    <div class="stepper">
+        <div class="step">
+            <div class="step-num active">1</div>
+            <div class="step-label">Element Folder</div>
+        </div>
+        <div class="step-sep"></div>
+        <div class="step">
+            <div class="step-num active">2</div>
+            <div class="step-label">Base Map</div>
+        </div>
+        <div class="step-sep"></div>
+        <div class="step">
+            <div class="step-num inactive">3</div>
+            <div class="step-label inactive">Project Details</div>
+        </div>
+        <div class="step-spacer"></div>
+        <div class="step-counter">Step 2 of 3</div>
+    </div>
+
+    <!-- ── Body ────────────────────────────────────── -->
+    <div class="modal-body">
+
+        <!-- Section 1 — PW Element Folder ──────────── -->
+        <div class="section">
+            <div class="section-label-row">
+                <span class="section-label">PW ELEMENT FOLDER</span>
+                <span class="required-badge">Required</span>
+            </div>
+
+            <div class="path-input-row">
+                <div class="path-input">
+                    <span class="icon">&#x1F4C2;</span>
+                    <span class="path-text">G:/Perfect World Client 1.7.6 Build 4311 (EN)/element</span>
+                    <span class="check-icon">&#x2713;</span>
+                </div>
+                <div class="browse-btn">
+                    <span>&#x1F50D;</span>
+                    <span>Browse…</span>
+                </div>
+            </div>
+
+            <div class="validation-panel">
+                <div class="validation-top">
+                    <div class="valid-icon-box">&#x2714;</div>
+                    <div class="valid-info">
+                        <div class="valid-title-row">
+                            <span class="valid-title">Valid PW element folder</span>
+                            <div class="version-tag">
+                                <span class="ver">PW 1.7.6</span>
+                                <span class="build">Build 4311</span>
+                                <span class="lang">EN</span>
+                            </div>
+                        </div>
+                        <div class="edition-row">
+                            <span class="hash-icon">#</span>
+                            <span>edition 1e84a2 4a8f31 6e2a90 6e2ab1 6e2ac2</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="validation-bottom">
+                    <div class="check-item"><span class="ci">&#x2713;</span><span>elements.data</span></div>
+                    <div class="check-item"><span class="ci">&#x2713;</span><span>tasks.data</span></div>
+                    <div class="check-item"><span class="ci">&#x2713;</span><span>gshop &times; 3</span></div>
+                    <div class="check-spacer"></div>
+                    <span class="maps-found">58 maps found</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2 — Base Map ───────────────────── -->
+        <div class="section">
+            <div class="map-section-header">
+                <div class="map-section-labels">
+                    <span class="section-label">BASE MAP</span>
+                    <span class="map-section-sub">Select one to open at project creation</span>
+                </div>
+                <div class="filter-input">
+                    <span class="fi">&#x1F50D;</span>
+                    <span>Filter 58 maps…</span>
+                </div>
+            </div>
+
+            <div class="map-list">
+                <!-- row 1 — selected -->
+                <div class="map-row selected">
+                    <div class="radio on"></div>
+                    <div class="map-icon-box"><span class="mi">&#x1F5FA;</span></div>
+                    <div class="map-info">
+                        <span class="map-name">world_1.map</span>
+                        <span class="map-meta">worldtag 1  ·  12.4 MB  ·  848 objects</span>
+                    </div>
+                    <div class="rec-tag">
+                        <span class="star">&#x2605;</span>
+                        <span>Recommended</span>
+                    </div>
+                </div>
+                <!-- row 2 -->
+                <div class="map-row">
+                    <div class="radio"></div>
+                    <div class="map-icon-box"><span class="mi">&#x1F5FA;</span></div>
+                    <div class="map-info">
+                        <span class="map-name">world_12.map</span>
+                        <span class="map-meta">worldtag 12  ·  18.7 MB</span>
+                    </div>
+                </div>
+                <!-- row 3 -->
+                <div class="map-row alt">
+                    <div class="radio"></div>
+                    <div class="map-icon-box"><span class="mi">&#x1F5FA;</span></div>
+                    <div class="map-info">
+                        <span class="map-name">world_4.map</span>
+                        <span class="map-meta">worldtag 4  ·  9.2 MB</span>
+                    </div>
+                </div>
+                <!-- row 4 -->
+                <div class="map-row">
+                    <div class="radio"></div>
+                    <div class="map-icon-box"><span class="mi">&#x1F5FA;</span></div>
+                    <div class="map-info">
+                        <span class="map-name">world_7.map</span>
+                        <span class="map-meta">worldtag 7  ·  14.1 MB</span>
+                    </div>
+                </div>
+                <!-- row 5 -->
+                <div class="map-row alt">
+                    <div class="radio"></div>
+                    <div class="map-icon-box"><span class="mi">&#x1F5FA;</span></div>
+                    <div class="map-info">
+                        <span class="map-name">world_22.map</span>
+                        <span class="map-meta">worldtag 22  ·  22.8 MB</span>
+                    </div>
+                </div>
+                <!-- row 6 -->
+                <div class="map-row">
+                    <div class="radio"></div>
+                    <div class="map-icon-box"><span class="mi">&#x1F5FA;</span></div>
+                    <div class="map-info">
+                        <span class="map-name">world_31.map</span>
+                        <span class="map-meta">worldtag 31  ·  11.6 MB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3 — Project Details ────────────── -->
+        <div class="section details">
+            <span class="section-label">PROJECT DETAILS</span>
+
+            <div class="field-group">
+                <div class="field-label-row">
+                    <span class="field-label">Project name</span>
+                    <span class="field-hint">used as folder and file prefix</span>
+                </div>
+                <div class="text-input-row">
+                    <div class="text-input focused">
+                        <span class="inp-icon">T</span>
+                        <span class="inp-value">elven_forest</span>
+                        <div class="inp-cursor"></div>
+                        <span class="inp-suffix">.pwmeproj</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <div class="field-label-row">
+                    <span class="field-label">Save location</span>
+                    <span class="field-hint">project file and scene data are stored here</span>
+                </div>
+                <div class="text-input-row">
+                    <div class="text-input unfocused">
+                        <span class="inp-icon">&#x1F4C1;</span>
+                        <span class="folder-value">D:/gavno/pw-maps/elven_forest</span>
+                    </div>
+                    <div class="change-btn">
+                        <span>&#x1F50D;</span>
+                        <span>Change…</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Footer ──────────────────────────────────── -->
+    <div class="modal-footer">
+        <div class="footer-info">
+            <span class="info-icon">&#x2139;</span>
+            <span>Source assets stay in the element folder — the project stores only references.</span>
+        </div>
+        <div class="footer-actions">
+            <div class="cancel-btn">
+                <span class="cancel-text">Cancel</span>
+                <span class="cancel-key">Esc</span>
+            </div>
+            <div class="create-btn">
+                <span class="cb-icon">&#x2713;</span>
+                <span>Create Project</span>
+                <span class="cb-key">&#x23CE;</span>
+            </div>
+        </div>
+    </div>
+
+</div>

@@ -148,10 +148,12 @@ macro_rules! style_props {
             $field:ident => $name:literal $(, $is_inh:ident)?
         );* $(;)?
     ) => {
-        /// Wipe the field for one named property.
+        /// Wipe the field for one named property. Also clears any
+        /// pending `var_properties` entry for the same name.
         pub fn clear_value_for(prop: &str, values: &mut Style) {
             if prop == "all" {
                 clear_all_values(values);
+                values.var_properties.clear();
                 return;
             }
             if let Some(members) = shorthand_members(prop) {
@@ -162,6 +164,7 @@ macro_rules! style_props {
                 }
             }
             clear_direct_value_for(prop, values);
+            values.var_properties.remove(prop);
         }
 
         fn clear_direct_value_for(prop: &str, values: &mut Style) {
@@ -188,16 +191,29 @@ macro_rules! style_props {
                 clear_value_for(prop, dst);
                 clear_keywords_covered_by_value(prop, keywords);
             }
+            // Merge var_properties from src BEFORE typed fields so that
+            // a typed field in src can override a var_property.
+            for (prop, val) in &src.var_properties {
+                clear_value_for(prop, dst);
+                clear_keywords_covered_by_value(prop, keywords);
+                dst.var_properties.insert(prop.clone(), val.clone());
+            }
+            // Merge custom_properties (simple override).
+            for (prop, val) in &src.custom_properties {
+                dst.custom_properties.insert(prop.clone(), val.clone());
+            }
             if src.background.is_some() {
                 clear_background_values(dst);
                 clear_background_keywords(keywords);
                 dst.background = src.background.clone();
                 keywords.remove("background");
+                dst.var_properties.remove("background");
             }
             $(
                 if src.$field.is_some() {
                     dst.$field = src.$field.clone();
                     clear_keywords_covered_by_value($name, keywords);
+                    dst.var_properties.remove($name);
                 }
             )*
             for (prop, value) in &src.deferred_longhands {
@@ -275,7 +291,11 @@ macro_rules! style_props {
         }
 
         /// True if a property is in the standard inherited set.
+        /// Custom properties (`--*`) are always inherited per CSS spec.
         pub fn is_inherited(prop: &str) -> bool {
+            if prop.starts_with("--") {
+                return true;
+            }
             match prop {
                 $(
                     $name => style_props!(@is_inh $($is_inh)?),

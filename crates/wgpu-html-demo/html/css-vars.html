@@ -1,0 +1,404 @@
+<style>
+    :root {
+        --primary: #4c8eff;
+        --primary-hover: #6aa0ff;
+        --danger: #e85454;
+        --success: #4caf50;
+        --warning: #ff9800;
+
+        --bg: #0e0e10;
+        --surface: #1a1a1e;
+        --surface-hover: #242428;
+        --border: #2a2a30;
+        --border-focus: var(--primary);
+
+        --text: #e0e0e0;
+        --text-muted: #888;
+        --text-dim: #555;
+
+        --radius: 6px;
+        --radius-sm: 4px;
+        --gap: 12px;
+        --pad: 16px;
+
+        --font: sans-serif;
+        --font-mono: monospace;
+    }
+
+    body {
+        margin: 0;
+        padding: 32px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 14px;
+    }
+
+    h1 {
+        font-size: 22px;
+        color: #fff;
+        margin: 0 0 4px 0;
+    }
+    .subtitle {
+        color: var(--text-muted);
+        font-size: 13px;
+        margin: 0 0 28px 0;
+    }
+
+    h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--text-dim);
+        margin: 28px 0 10px 0;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 4px;
+    }
+
+    /* ── Cards ────────────────────────────────────────── */
+    .card-row {
+        display: flex;
+        gap: var(--gap);
+        margin-bottom: var(--gap);
+    }
+    .card {
+        flex: 1;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--pad);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .card-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .card-body {
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    /* ── Badges ───────────────────────────────────────── */
+    .badge-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: var(--gap);
+    }
+    .badge {
+        display: flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .badge-primary {
+        background: var(--primary);
+        color: #fff;
+    }
+    .badge-danger {
+        background: var(--danger);
+        color: #fff;
+    }
+    .badge-success {
+        background: var(--success);
+        color: #fff;
+    }
+    .badge-warning {
+        background: var(--warning);
+        color: #111;
+    }
+    .badge-outline {
+        background: transparent;
+        border: 1px solid var(--primary);
+        color: var(--primary);
+    }
+
+    /* ── Buttons ──────────────────────────────────────── */
+    .btn-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: var(--gap);
+    }
+    .btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 18px;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 500;
+        font-family: var(--font);
+    }
+    .btn-filled {
+        background: var(--primary);
+        color: #fff;
+    }
+    .btn-filled:hover {
+        background: var(--primary-hover);
+    }
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+    }
+    .btn-outline:hover {
+        background: var(--surface-hover);
+        border-color: var(--primary);
+    }
+    .btn-danger {
+        background: var(--danger);
+        color: #fff;
+    }
+    .btn-ghost {
+        background: transparent;
+        color: var(--text-muted);
+    }
+    .btn-ghost:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+    }
+
+    /* ── Input fields ────────────────────────────────── */
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: var(--gap);
+    }
+    .field-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+    .field-input {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 40px;
+        padding: 0 var(--pad);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .field-input:focus {
+        border-color: var(--border-focus);
+    }
+    .field-input .value {
+        flex: 1;
+        font-size: 14px;
+        color: var(--text);
+    }
+    .field-input .placeholder {
+        flex: 1;
+        font-size: 14px;
+        color: var(--text-dim);
+    }
+    .field-input .icon {
+        color: var(--text-dim);
+        font-size: 16px;
+    }
+    .field-hint {
+        font-size: 12px;
+        color: var(--text-dim);
+    }
+
+    /* ── Table ────────────────────────────────────────── */
+    .table {
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        margin-bottom: var(--gap);
+    }
+    .table-header {
+        display: flex;
+        align-items: center;
+        height: 36px;
+        padding: 0 var(--pad);
+        background: var(--surface-hover);
+        border-bottom: 1px solid var(--border);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .table-row {
+        display: flex;
+        align-items: center;
+        height: 44px;
+        padding: 0 var(--pad);
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+    }
+    .table-row:last-child {
+        border-bottom: none;
+    }
+    .col-name  { flex: 2; color: var(--text); font-weight: 500; }
+    .col-type  { flex: 1; color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
+    .col-value { flex: 1; color: var(--primary); font-family: var(--font-mono); font-size: 12px; }
+
+    /* ── Var chain (var referencing another var) ──────── */
+    .chain-demo {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: var(--pad);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: var(--gap);
+        font-family: var(--font-mono);
+        font-size: 13px;
+    }
+    .chain-line {
+        display: flex;
+        gap: 8px;
+    }
+    .chain-prop { color: var(--primary); }
+    .chain-colon { color: var(--text-dim); }
+    .chain-val { color: var(--success); }
+    .chain-comment { color: var(--text-dim); font-style: italic; }
+
+    /* ── Fallback demo ───────────────────────────────── */
+    .fallback-row {
+        display: flex;
+        gap: var(--gap);
+        margin-bottom: var(--gap);
+    }
+    .fallback-box {
+        flex: 1;
+        padding: var(--pad);
+        border-radius: var(--radius);
+        font-size: 13px;
+        font-weight: 500;
+        text-align: center;
+    }
+    .fb-defined {
+        background: var(--success);
+        color: #fff;
+    }
+    .fb-fallback {
+        /* --undefined is never set, so the fallback #9c27b0 is used */
+        background: var(--undefined, #9c27b0);
+        color: #fff;
+    }
+    .fb-nested {
+        /* --also-undefined is never set, fallback references --primary */
+        background: var(--also-undefined, var(--primary));
+        color: #fff;
+    }
+</style>
+
+<h1>CSS Custom Properties</h1>
+<p class="subtitle">All colors, spacing, and radii on this page are driven by var() references.</p>
+
+<!-- ── Section 1: Cards ─────────────────────────────── -->
+<h2>Cards — surface + border vars</h2>
+<div class="card-row">
+    <div class="card">
+        <span class="card-title">Surface Color</span>
+        <span class="card-body">This card uses var(--surface) for its background and var(--border) for the outline.</span>
+    </div>
+    <div class="card">
+        <span class="card-title">Text Colors</span>
+        <span class="card-body">Title uses var(--text), body uses var(--text-muted). Both inherit from :root.</span>
+    </div>
+    <div class="card">
+        <span class="card-title">Spacing</span>
+        <span class="card-body">Padding is var(--pad), border-radius is var(--radius), gap is var(--gap).</span>
+    </div>
+</div>
+
+<!-- ── Section 2: Badges ────────────────────────────── -->
+<h2>Badges — semantic color vars</h2>
+<div class="badge-row">
+    <span class="badge badge-primary">Primary</span>
+    <span class="badge badge-danger">Danger</span>
+    <span class="badge badge-success">Success</span>
+    <span class="badge badge-warning">Warning</span>
+    <span class="badge badge-outline">Outline</span>
+</div>
+
+<!-- ── Section 3: Buttons ───────────────────────────── -->
+<h2>Buttons — hover uses var overrides</h2>
+<div class="btn-row">
+    <div class="btn btn-filled">Save Changes</div>
+    <div class="btn btn-outline">Cancel</div>
+    <div class="btn btn-danger">Delete</div>
+    <div class="btn btn-ghost">Skip</div>
+</div>
+
+<!-- ── Section 4: Input fields ──────────────────────── -->
+<h2>Input fields — border-focus references --primary</h2>
+<div class="field">
+    <span class="field-label">Username</span>
+    <input type="text" placeholder="Enter username…">
+    <span class="field-hint">var(--border-focus) resolves to var(--primary) which is #4c8eff</span>
+</div>
+
+<!-- ── Section 5: Table ─────────────────────────────── -->
+<h2>Table — mono font + color vars</h2>
+<div class="table">
+    <div class="table-header">
+        <span class="col-name">Property</span>
+        <span class="col-type">Type</span>
+        <span class="col-value">Value</span>
+    </div>
+    <div class="table-row">
+        <span class="col-name">--primary</span>
+        <span class="col-type">color</span>
+        <span class="col-value">#4c8eff</span>
+    </div>
+    <div class="table-row">
+        <span class="col-name">--surface</span>
+        <span class="col-type">color</span>
+        <span class="col-value">#1a1a1e</span>
+    </div>
+    <div class="table-row">
+        <span class="col-name">--radius</span>
+        <span class="col-type">length</span>
+        <span class="col-value">6px</span>
+    </div>
+    <div class="table-row">
+        <span class="col-name">--font-mono</span>
+        <span class="col-type">font</span>
+        <span class="col-value">monospace</span>
+    </div>
+</div>
+
+<!-- ── Section 6: Var chaining ──────────────────────── -->
+<h2>Var chaining — var() referencing another var()</h2>
+<div class="chain-demo">
+    <div class="chain-line">
+        <span class="chain-prop">--primary</span>
+        <span class="chain-colon">:</span>
+        <span class="chain-val">#4c8eff</span>
+    </div>
+    <div class="chain-line">
+        <span class="chain-prop">--border-focus</span>
+        <span class="chain-colon">:</span>
+        <span class="chain-val">var(--primary)</span>
+        <span class="chain-comment">/* resolves to #4c8eff */</span>
+    </div>
+    <div class="chain-line">
+        <span class="chain-comment">/* The input field's :focus border uses --border-focus, which chains through --primary */</span>
+    </div>
+</div>
+
+<!-- ── Section 7: Fallbacks ─────────────────────────── -->
+<h2>Fallbacks — var(--undefined, fallback)</h2>
+<div class="fallback-row">
+    <div class="fallback-box fb-defined">var(--success) = #4caf50</div>
+    <div class="fallback-box fb-fallback">var(--undefined, #9c27b0)</div>
+    <div class="fallback-box fb-nested">var(--also-undefined, var(--primary))</div>
+</div>

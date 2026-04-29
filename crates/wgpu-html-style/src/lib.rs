@@ -31,6 +31,9 @@ pub struct MatchContext {
     pub is_hover: bool,
     pub is_active: bool,
     pub is_focus: bool,
+    pub is_root: bool,
+    pub is_first_child: bool,
+    pub is_last_child: bool,
 }
 
 impl MatchContext {
@@ -39,13 +42,24 @@ impl MatchContext {
     /// chain" iff its path is a prefix of `state.hover_path` (i.e. it
     /// is, or is an ancestor of, the deepest hovered element).
     pub fn for_path(path: &[usize], state: &InteractionState) -> Self {
+        Self::for_path_with_siblings(path, state, None)
+    }
+
+    pub fn for_path_with_siblings(
+        path: &[usize],
+        state: &InteractionState,
+        sibling_count: Option<usize>,
+    ) -> Self {
         Self {
             is_hover: path_is_prefix(path, state.hover_path.as_deref()),
             is_active: path_is_prefix(path, state.active_path.as_deref()),
-            // `:focus` matches only the focused element itself, not
-            // its ancestors. (`:focus-within` would propagate, but
-            // we don't model it yet.)
             is_focus: state.focus_path.as_deref() == Some(path),
+            is_root: path.is_empty(),
+            is_first_child: path.last().copied() == Some(0),
+            is_last_child: match (path.last(), sibling_count) {
+                (Some(&idx), Some(count)) => idx + 1 == count,
+                _ => false,
+            },
         }
     }
 }
@@ -291,6 +305,7 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
                 &mut path,
                 interaction,
                 &mut decl_cache,
+                None, // root has no siblings
             )
         }),
     }
@@ -371,8 +386,9 @@ fn cascade_node(
     path: &mut Vec<usize>,
     interaction: &InteractionState,
     decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
+    sibling_count: Option<usize>,
 ) -> CascadedNode {
-    let element_ctx = MatchContext::for_path(path, interaction);
+    let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
     let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
         (Style::default(), HashMap::new())
     } else {
@@ -406,12 +422,24 @@ fn cascade_node(
         inherit_into(&mut style, parent, &keywords);
     }
 
+    // Inject programmatic custom properties from the Node. These act
+    // like inline-style declarations and override any inherited values.
+    for (prop, value) in &node.custom_properties {
+        style.custom_properties.insert(prop.clone(), value.clone());
+    }
+
+    // Resolve var() references now that custom properties are final.
+    if !style.var_properties.is_empty() || style.custom_properties.values().any(|v| v.contains("var(")) {
+        wgpu_html_parser::resolve_var_references(&mut style);
+    }
+
     // Build the child ancestor chain by prepending this element.
     let mut child_ancestors: Vec<(&Element, MatchContext)> =
         Vec::with_capacity(ancestors.len() + 1);
     child_ancestors.push((&node.element, element_ctx));
     child_ancestors.extend_from_slice(ancestors);
 
+    let child_count = node.children.len();
     let children = node
         .children
         .iter()
@@ -426,6 +454,7 @@ fn cascade_node(
                 path,
                 interaction,
                 decl_cache,
+                Some(child_count),
             );
             path.pop();
             cn
@@ -483,6 +512,24 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, Cs
         }
         if wgpu_html_parser::is_inherited(prop) {
             child.deferred_longhands.insert(prop.clone(), value.clone());
+        }
+    }
+    // Custom properties always inherit.
+    for (prop, value) in &parent.custom_properties {
+        if !child.custom_properties.contains_key(prop) && !keywords.contains_key(prop) {
+            child.custom_properties.insert(prop.clone(), value.clone());
+        }
+    }
+    // Inherit var_properties for inherited CSS properties.
+    for (prop, value) in &parent.var_properties {
+        if child.var_properties.contains_key(prop) || keywords.contains_key(prop) {
+            continue;
+        }
+        if child.reset_properties.contains(prop) || child.keyword_reset_properties.contains(prop) {
+            continue;
+        }
+        if wgpu_html_parser::is_inherited(prop) {
+            child.var_properties.insert(prop.clone(), value.clone());
         }
     }
 }
@@ -787,6 +834,8 @@ fn apply_layer(
         wgpu_html_parser::clear_value_for(prop, values);
         keywords.insert(prop.clone(), *kw);
     }
+    // merge_values_clearing_keywords handles custom_properties,
+    // var_properties, and their interplay with typed fields internally.
     wgpu_html_parser::merge_values_clearing_keywords(values, keywords, layer_values);
 }
 
@@ -903,6 +952,8 @@ fn style_has_values(style: &Style) -> bool {
     ) || !style.deferred_longhands.is_empty()
         || !style.reset_properties.is_empty()
         || !style.keyword_reset_properties.is_empty()
+        || !style.custom_properties.is_empty()
+        || !style.var_properties.is_empty()
 }
 
 // ---------------------------------------------------------------------------
@@ -1035,6 +1086,9 @@ fn pseudo_classes_satisfied(sel: &Selector, ctx: &MatchContext) -> bool {
             PseudoClass::Active => ctx.is_active,
             PseudoClass::Focus => ctx.is_focus,
             PseudoClass::Visited => false,
+            PseudoClass::Root => ctx.is_root,
+            PseudoClass::FirstChild => ctx.is_first_child,
+            PseudoClass::LastChild => ctx.is_last_child,
         };
         if !ok {
             return false;

@@ -6,6 +6,7 @@
 //!
 //! Models stay pure data. Composition lives here.
 
+use std::collections::HashMap;
 use std::time::Duration;
 use wgpu_html_models as m;
 
@@ -14,16 +15,17 @@ mod events;
 mod focus;
 mod fonts;
 mod query;
+pub mod text_edit;
 
 pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
 
 pub use dispatch::{
     blur, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move,
-    focus, focus_next, key_down, key_up,
+    focus, focus_next, key_down, key_up, text_input,
 };
 pub use events::{
-    EventCallback, HtmlEvent, HtmlEventType, InteractionState, Modifier, Modifiers, MouseButton,
-    MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
+    EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionState, Modifier, Modifiers,
+    MouseButton, MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
 };
 pub use focus::{
     focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order,
@@ -71,6 +73,19 @@ impl Tree {
             asset_cache_ttl: None,
             preload_queue: Vec::new(),
         }
+    }
+
+    /// Set a CSS custom property on the document root. Shorthand for
+    /// `tree.root.set_custom_property(name, value)`.
+    pub fn set_custom_property(&mut self, name: impl Into<String>, value: impl Into<String>) {
+        if let Some(root) = &mut self.root {
+            root.set_custom_property(name, value);
+        }
+    }
+
+    /// Remove a programmatic custom property from the document root.
+    pub fn remove_custom_property(&mut self, name: &str) -> Option<String> {
+        self.root.as_mut()?.remove_custom_property(name)
     }
 
     /// Register a font face with this document and return its handle.
@@ -135,6 +150,12 @@ impl Tree {
 pub struct Node {
     pub element: Element,
     pub children: Vec<Node>,
+    /// CSS custom properties set programmatically on this node.
+    /// Behaves as if declared in an inline `style` attribute — the
+    /// cascade sees them after author/inline layers, and they
+    /// inherit to descendants just like CSS-declared custom
+    /// properties. Keys include the `--` prefix (e.g. `"--color"`).
+    pub custom_properties: HashMap<String, String>,
     /// Fires when a primary-button press *and* the matching release
     /// both land inside this node's subtree. Bubbles target → root.
     pub on_click: Option<MouseCallback>,
@@ -162,6 +183,7 @@ impl std::fmt::Debug for Node {
         f.debug_struct("Node")
             .field("element", &self.element)
             .field("children", &self.children)
+            .field("custom_properties", &self.custom_properties)
             .field("on_click", &self.on_click.as_ref().map(|_| "<fn>"))
             .field(
                 "on_mouse_down",
@@ -186,6 +208,7 @@ impl Node {
         Self {
             element: element.into(),
             children: Vec::new(),
+            custom_properties: HashMap::new(),
             on_click: None,
             on_mouse_down: None,
             on_mouse_up: None,
@@ -205,6 +228,26 @@ impl Node {
         self
     }
 
+    /// Set a CSS custom property on this node. Behaves as if declared
+    /// in an inline `style` attribute — inherits to descendants and
+    /// is available via `var(--name)` in CSS values.
+    ///
+    /// `name` must include the `--` prefix (e.g. `"--theme-color"`).
+    pub fn set_custom_property(&mut self, name: impl Into<String>, value: impl Into<String>) {
+        self.custom_properties.insert(name.into(), value.into());
+    }
+
+    /// Remove a previously set programmatic custom property.
+    pub fn remove_custom_property(&mut self, name: &str) -> Option<String> {
+        self.custom_properties.remove(name)
+    }
+
+    /// Read a programmatic custom property set on this node (does NOT
+    /// walk the cascade or ancestors).
+    pub fn custom_property(&self, name: &str) -> Option<&str> {
+        self.custom_properties.get(name).map(|s| s.as_str())
+    }
+
     /// Depth-first search for a descendant (or `self`) whose `id`
     /// attribute equals `id`. Document order; first match wins.
     pub fn find_by_id_mut(&mut self, id: &str) -> Option<&mut Node> {
@@ -222,6 +265,16 @@ impl Node {
     /// Walk a child-index path from this node to a descendant. An empty
     /// path returns `Some(self)`. Returns `None` if any index is out of
     /// bounds.
+    /// Walk a child-index path and return an immutable reference to
+    /// the node at the end. Returns `None` for out-of-bounds indices.
+    pub fn at_path(&self, path: &[usize]) -> Option<&Node> {
+        let mut cursor: &Node = self;
+        for &i in path {
+            cursor = cursor.children.get(i)?;
+        }
+        Some(cursor)
+    }
+
     pub fn at_path_mut(&mut self, path: &[usize]) -> Option<&mut Node> {
         let mut cursor: &mut Node = self;
         for &i in path {
@@ -638,6 +691,14 @@ impl Element {
                         "class" => e.class.clone(),
                         "title" => e.title.clone(),
                         "lang" => e.lang.clone(),
+                        "dir" => e.dir.as_ref().map(|d| {
+                            use wgpu_html_models::common::html_enums::HtmlDirection;
+                            match d {
+                                HtmlDirection::Ltr => "ltr",
+                                HtmlDirection::Rtl => "rtl",
+                                HtmlDirection::Auto => "auto",
+                            }.to_owned()
+                        }),
                         "tabindex" => e.tabindex.map(|t| t.to_string()),
                         "hidden" => match e.hidden { Some(true) => Some(String::new()), _ => None },
                         "style" => e.style.clone(),

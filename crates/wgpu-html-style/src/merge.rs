@@ -122,4 +122,10 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
     for (prop, value) in &rhs.deferred_longhands {
         lhs.deferred_longhands.insert(prop.clone(), value.clone());
     }
+    for (prop, value) in &rhs.custom_properties {
+        lhs.custom_properties.insert(prop.clone(), value.clone());
+    }
+    for (prop, value) in &rhs.var_properties {
+        lhs.var_properties.insert(prop.clone(), value.clone());
+    }
 }
