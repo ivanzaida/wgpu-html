@@ -174,6 +174,10 @@ enum DemoCommand {
     /// CSS-style compound selector (id / tag / class) and capture
     /// just that node, even if it's outside the visible viewport.
     Screenshot { selector: Option<String> },
+    /// `dump_tree [selector]`. With no selector → dump the entire
+    /// tree. With one → dump the subtree rooted at the first
+    /// matching element. Writes JSON to a file.
+    DumpTree { selector: Option<String> },
 }
 
 type CommandQueue = Arc<Mutex<VecDeque<DemoCommand>>>;
@@ -210,16 +214,22 @@ fn spawn_stdin_listener(commands: CommandQueue, window: Arc<Window>) {
                     }
                     window.request_redraw();
                 }
+                "dump_tree" => {
+                    if let Ok(mut q) = commands.lock() {
+                        q.push_back(DemoCommand::DumpTree { selector: arg });
+                    }
+                    window.request_redraw();
+                }
                 "help" | "?" => {
                     println!("commands:");
                     println!("  make_screenshot              capture the full viewport");
                     println!("  make_screenshot <selector>   capture the node matching the selector");
-                    println!("                                 (e.g. `make_screenshot #panel`,");
-                    println!("                                  `make_screenshot div.cta`)");
+                    println!("  dump_tree                    dump the full DOM tree as JSON");
+                    println!("  dump_tree <selector>         dump the subtree matching the selector");
                 }
                 _ => {
                     eprintln!(
-                        "demo: unknown command `{cmd}` (try `make_screenshot [selector]` or `help`)"
+                        "demo: unknown command `{cmd}` (try `help` for a list)"
                     );
                 }
             }
@@ -293,6 +303,9 @@ impl DemoHook {
                 ctx.window.request_redraw();
                 println!("demo: queued viewport screenshot → {}", path.display());
             }
+            DemoCommand::DumpTree { selector } => {
+                self.run_dump_tree(ctx, selector);
+            }
             DemoCommand::Screenshot {
                 selector: Some(sel),
             } => {
@@ -332,6 +345,156 @@ impl DemoHook {
             }
         }
     }
+
+    fn run_dump_tree(&self, ctx: &mut HookContext<'_>, selector: Option<String>) {
+        let (node, label) = match &selector {
+            None => {
+                let Some(root) = ctx.tree.root.as_ref() else {
+                    eprintln!("demo: tree has no root");
+                    return;
+                };
+                (root, "tree".to_owned())
+            }
+            Some(sel) => {
+                let dom_path = ctx.tree.query_selector_path(sel.as_str());
+                let Some(path_indices) = dom_path else {
+                    eprintln!("demo: selector `{sel}` matched no element");
+                    return;
+                };
+                let Some(root) = ctx.tree.root.as_ref() else {
+                    eprintln!("demo: tree has no root");
+                    return;
+                };
+                let Some(node) = root.at_path(&path_indices) else {
+                    eprintln!("demo: path {path_indices:?} out of bounds");
+                    return;
+                };
+                (node, sanitise_for_filename(sel))
+            }
+        };
+        let out_path: PathBuf = format!("dump-{}-{}.json", label, timestamp()).into();
+        let mut buf = String::with_capacity(4096);
+        write_node_json(&mut buf, node, 0);
+        buf.push('\n');
+        match std::fs::write(&out_path, &buf) {
+            Ok(()) => println!(
+                "demo: dumped tree → {} ({} bytes)",
+                out_path.display(),
+                buf.len()
+            ),
+            Err(e) => eprintln!("demo: dump_tree failed: {e}"),
+        }
+    }
+}
+
+// ── JSON tree serialiser (zero external dependencies) ───────────────────────
+
+fn write_node_json(out: &mut String, node: &wgpu_html_tree::Node, depth: usize) {
+    use std::fmt::Write;
+    let indent = "  ".repeat(depth);
+    let inner = "  ".repeat(depth + 1);
+
+    out.push_str(&indent);
+    out.push_str("{\n");
+
+    // tag
+    let tag = node.element.tag_name();
+    let _ = write!(out, "{inner}\"tag\": {}", json_string(tag));
+
+    // id
+    if let Some(id) = node.element.id() {
+        let _ = write!(out, ",\n{inner}\"id\": {}", json_string(id));
+    }
+
+    // class
+    if let Some(cls) = node.element.class() {
+        let _ = write!(out, ",\n{inner}\"class\": {}", json_string(cls));
+    }
+
+    // text content (for #text nodes)
+    if let wgpu_html_tree::Element::Text(txt) = &node.element {
+        let _ = write!(out, ",\n{inner}\"text\": {}", json_string(txt));
+    }
+
+    // custom properties
+    if !node.custom_properties.is_empty() {
+        let _ = write!(out, ",\n{inner}\"customProperties\": {{");
+        for (i, (k, v)) in node.custom_properties.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            let _ = write!(out, "\n{}  {}: {}", inner, json_string(k), json_string(v));
+        }
+        let _ = write!(out, "\n{inner}}}");
+    }
+
+    // attributes (selected interesting ones beyond id/class)
+    write_extra_attrs(out, &node.element, &inner);
+
+    // children
+    if !node.children.is_empty() {
+        let _ = write!(out, ",\n{inner}\"children\": [\n");
+        for (i, child) in node.children.iter().enumerate() {
+            if i > 0 {
+                out.push_str(",\n");
+            }
+            write_node_json(out, child, depth + 2);
+        }
+        let _ = write!(out, "\n{inner}]");
+    }
+
+    out.push('\n');
+    out.push_str(&indent);
+    out.push('}');
+}
+
+fn write_extra_attrs(out: &mut String, el: &wgpu_html_tree::Element, indent: &str) {
+    use std::fmt::Write;
+    // Collect non-None specific attributes that are interesting for debugging.
+    let interesting = [
+        "type", "name", "value", "placeholder", "href", "src", "alt",
+        "disabled", "checked", "required", "readonly", "hidden",
+        "tabindex", "lang", "dir", "role", "style",
+    ];
+    let mut attrs = Vec::new();
+    for name in &interesting {
+        if let Some(v) = el.attr(name) {
+            attrs.push((*name, v));
+        }
+    }
+    if !attrs.is_empty() {
+        let _ = write!(out, ",\n{indent}\"attrs\": {{");
+        for (i, (k, v)) in attrs.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            let _ = write!(out, "\n{}  {}: {}", indent, json_string(k), json_string(v));
+        }
+        let _ = write!(out, "\n{indent}}}");
+    }
+}
+
+/// Produce a JSON-safe quoted string, escaping control chars,
+/// backslashes, and double-quotes.
+fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => {
+                use std::fmt::Write;
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 impl AppHook for DemoHook {
