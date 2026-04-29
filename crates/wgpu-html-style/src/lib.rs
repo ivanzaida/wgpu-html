@@ -94,6 +94,39 @@ pub struct CascadedNode {
     pub children: Vec<CascadedNode>,
 }
 
+/// Tracks which pseudo-classes appear in which position across all
+/// selectors. Used by incremental cascade to decide whether a
+/// pseudo-class state change requires re-cascade at all.
+#[derive(Debug, Clone, Default)]
+struct PseudoClassUsage {
+    /// Any selector uses `:hover` on the subject compound.
+    has_hover_subject: bool,
+    /// Any selector uses `:hover` on an ancestor compound (descendant
+    /// combinator, e.g. `.nav:hover .link { … }`).
+    has_hover_ancestor: bool,
+    /// Same for `:active`.
+    has_active_subject: bool,
+    has_active_ancestor: bool,
+    /// Same for `:focus`.
+    has_focus_subject: bool,
+    has_focus_ancestor: bool,
+}
+
+impl PseudoClassUsage {
+    fn has_hover(&self) -> bool {
+        self.has_hover_subject || self.has_hover_ancestor
+    }
+    fn has_active(&self) -> bool {
+        self.has_active_subject || self.has_active_ancestor
+    }
+    fn has_focus(&self) -> bool {
+        self.has_focus_subject || self.has_focus_ancestor
+    }
+    fn has_any_ancestor(&self) -> bool {
+        self.has_hover_ancestor || self.has_active_ancestor || self.has_focus_ancestor
+    }
+}
+
 #[derive(Debug, Clone)]
 struct PreparedStylesheet {
     sheet: Arc<Stylesheet>,
@@ -101,6 +134,7 @@ struct PreparedStylesheet {
     normal_nonempty: Vec<bool>,
     important_nonempty: Vec<bool>,
     relevant: RelevantSelectors,
+    pseudo_usage: PseudoClassUsage,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -131,12 +165,33 @@ impl PreparedStylesheet {
         let mut normal_nonempty = Vec::with_capacity(sheet.rules.len());
         let mut important_nonempty = Vec::with_capacity(sheet.rules.len());
         let mut relevant = RelevantSelectors::default();
+        let mut pseudo_usage = PseudoClassUsage::default();
         for (rule_idx, rule) in sheet.rules.iter().enumerate() {
             normal_nonempty.push(!rule.keywords.is_empty() || style_has_values(&rule.declarations));
             important_nonempty
                 .push(!rule.important_keywords.is_empty() || style_has_values(&rule.important));
             for (selector_idx, selector) in rule.selectors.iter().enumerate() {
                 collect_relevant_selector_bits(selector, &mut relevant);
+                // Scan subject compound for pseudo-class usage.
+                for pc in &selector.pseudo_classes {
+                    match pc {
+                        PseudoClass::Hover => pseudo_usage.has_hover_subject = true,
+                        PseudoClass::Active => pseudo_usage.has_active_subject = true,
+                        PseudoClass::Focus => pseudo_usage.has_focus_subject = true,
+                        _ => {}
+                    }
+                }
+                // Scan ancestor compounds for pseudo-class usage.
+                for anc in &selector.ancestors {
+                    for pc in &anc.pseudo_classes {
+                        match pc {
+                            PseudoClass::Hover => pseudo_usage.has_hover_ancestor = true,
+                            PseudoClass::Active => pseudo_usage.has_active_ancestor = true,
+                            PseudoClass::Focus => pseudo_usage.has_focus_ancestor = true,
+                            _ => {}
+                        }
+                    }
+                }
                 let entry = SelectorRuleRef {
                     rule_idx,
                     selector_idx,
@@ -158,6 +213,7 @@ impl PreparedStylesheet {
             normal_nonempty,
             important_nonempty,
             relevant,
+            pseudo_usage,
         }
     }
 }
@@ -308,6 +364,258 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
                 None, // root has no siblings
             )
         }),
+    }
+}
+
+/// Incrementally re-cascade only the nodes whose pseudo-class state
+/// changed between `old_snapshot` and the current `tree.interaction`.
+/// Mutates `cached` in-place. Returns `true` if any node was
+/// re-cascaded (meaning layout must re-run).
+///
+/// When no CSS rule uses the changed pseudo-class (e.g. hover changed
+/// but no `:hover` rules exist), this short-circuits and returns
+/// `false` — the most common case for pages without hover styles.
+pub fn cascade_incremental(
+    tree: &Tree,
+    cached: &mut CascadedTree,
+    old_snapshot: &wgpu_html_tree::InteractionSnapshot,
+) -> bool {
+    let new_snapshot = tree.interaction.cascade_snapshot();
+    if *old_snapshot == new_snapshot {
+        return false;
+    }
+
+    let author = collect_prepared_stylesheet_cached(tree);
+    let sheets: [&PreparedStylesheet; 2] = [ua_prepared_stylesheet(), author.as_ref()];
+
+    // Check which pseudo-classes changed AND have rules.
+    let hover_changed = old_snapshot.hover_path != new_snapshot.hover_path;
+    let active_changed = old_snapshot.active_path != new_snapshot.active_path;
+    let focus_changed = old_snapshot.focus_path != new_snapshot.focus_path;
+
+    let any_hover = sheets.iter().any(|s| s.pseudo_usage.has_hover());
+    let any_active = sheets.iter().any(|s| s.pseudo_usage.has_active());
+    let any_focus = sheets.iter().any(|s| s.pseudo_usage.has_focus());
+
+    let needs_cascade = (hover_changed && any_hover)
+        || (active_changed && any_active)
+        || (focus_changed && any_focus);
+
+    if !needs_cascade {
+        return false;
+    }
+
+    // Are there any ancestor-compound pseudo-class rules? If so, we
+    // must dirty subtrees, not just the exact path nodes.
+    let any_ancestor_rules = sheets.iter().any(|s| s.pseudo_usage.has_any_ancestor());
+
+    // Collect all paths that need re-cascade.
+    let mut dirty: HashSet<Vec<usize>> = HashSet::new();
+    let mut dirty_subtrees: HashSet<Vec<usize>> = HashSet::new();
+
+    if hover_changed && any_hover {
+        collect_dirty_from_diff(
+            &old_snapshot.hover_path,
+            &new_snapshot.hover_path,
+            &mut dirty,
+            if any_ancestor_rules {
+                Some(&mut dirty_subtrees)
+            } else {
+                None
+            },
+        );
+    }
+    if active_changed && any_active {
+        collect_dirty_from_diff(
+            &old_snapshot.active_path,
+            &new_snapshot.active_path,
+            &mut dirty,
+            if any_ancestor_rules {
+                Some(&mut dirty_subtrees)
+            } else {
+                None
+            },
+        );
+    }
+    if focus_changed && any_focus {
+        collect_dirty_from_diff(
+            &old_snapshot.focus_path,
+            &new_snapshot.focus_path,
+            &mut dirty,
+            if any_ancestor_rules {
+                Some(&mut dirty_subtrees)
+            } else {
+                None
+            },
+        );
+    }
+
+    if dirty.is_empty() && dirty_subtrees.is_empty() {
+        return false;
+    }
+
+    let interaction = &tree.interaction;
+    let Some(dom_root) = &tree.root else {
+        return false;
+    };
+    let Some(cascaded_root) = &mut cached.root else {
+        return false;
+    };
+
+    let mut path: Vec<usize> = Vec::new();
+    let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> =
+        HashMap::new();
+    re_cascade_dirty(
+        dom_root,
+        cascaded_root,
+        &sheets,
+        None,
+        &[],
+        &mut path,
+        interaction,
+        &mut decl_cache,
+        &dirty,
+        &dirty_subtrees,
+        None,
+    );
+    true
+}
+
+/// Diff two pseudo-class paths and collect the node paths that
+/// changed. Every node from the divergence point to the leaf of
+/// both old and new paths is marked dirty.
+fn collect_dirty_from_diff(
+    old: &Option<Vec<usize>>,
+    new: &Option<Vec<usize>>,
+    dirty: &mut HashSet<Vec<usize>>,
+    mut subtrees: Option<&mut HashSet<Vec<usize>>>,
+) {
+    // Find the common prefix length.
+    let common_len = match (old, new) {
+        (Some(o), Some(n)) => o.iter().zip(n.iter()).take_while(|(a, b)| a == b).count(),
+        _ => 0,
+    };
+
+    // Old path: nodes from common_len onward lose their pseudo-class.
+    if let Some(old_path) = old {
+        for depth in common_len..=old_path.len() {
+            let prefix = old_path[..depth.min(old_path.len())].to_vec();
+            dirty.insert(prefix.clone());
+            if let Some(ref mut subs) = subtrees.as_deref_mut() {
+                subs.insert(prefix);
+            }
+        }
+    }
+
+    // New path: nodes from common_len onward gain their pseudo-class.
+    if let Some(new_path) = new {
+        for depth in common_len..=new_path.len() {
+            let prefix = new_path[..depth.min(new_path.len())].to_vec();
+            dirty.insert(prefix.clone());
+            if let Some(ref mut subs) = subtrees.as_deref_mut() {
+                subs.insert(prefix);
+            }
+        }
+    }
+}
+
+/// Walk the cached tree and re-cascade only dirty nodes in-place.
+fn re_cascade_dirty(
+    node: &Node,
+    cached: &mut CascadedNode,
+    sheets: &[&PreparedStylesheet],
+    parent_style: Option<&Style>,
+    ancestors: &[(&Element, MatchContext)],
+    path: &mut Vec<usize>,
+    interaction: &InteractionState,
+    decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
+    dirty: &HashSet<Vec<usize>>,
+    dirty_subtrees: &HashSet<Vec<usize>>,
+    sibling_count: Option<usize>,
+) {
+    let is_dirty = dirty.contains(path.as_slice());
+    let subtree_dirty = dirty_subtrees
+        .iter()
+        .any(|s| path.len() >= s.len() && &path[..s.len()] == s.as_slice());
+
+    if is_dirty || subtree_dirty {
+        // Re-cascade this node (same logic as cascade_node).
+        let element_ctx =
+            MatchContext::for_path_with_siblings(path, interaction, sibling_count);
+        let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
+            (Style::default(), HashMap::new())
+        } else {
+            let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors);
+            if let Some(hit) = decl_cache.get(&key) {
+                hit.clone()
+            } else {
+                let computed = computed_decls_in_prepared_stylesheets_with_context(
+                    &node.element,
+                    &element_ctx,
+                    sheets,
+                    ancestors,
+                );
+                decl_cache.insert(key, computed.clone());
+                computed
+            }
+        };
+        for (prop, kw) in &keywords {
+            wgpu_html_parser::apply_keyword(&mut style, parent_style, prop, *kw);
+        }
+        if let Some(parent) = parent_style {
+            inherit_into(&mut style, parent, &keywords);
+        }
+        for (prop, value) in &node.custom_properties {
+            style.custom_properties.insert(prop.clone(), value.clone());
+        }
+        if !style.var_properties.is_empty()
+            || style.custom_properties.values().any(|v| v.contains("var("))
+        {
+            wgpu_html_parser::resolve_var_references(&mut style);
+        }
+        cached.style = style;
+    }
+
+    // Build ancestor chain for children.
+    let element_ctx =
+        MatchContext::for_path_with_siblings(path, interaction, sibling_count);
+    let mut child_ancestors: Vec<(&Element, MatchContext)> =
+        Vec::with_capacity(ancestors.len() + 1);
+    child_ancestors.push((&node.element, element_ctx));
+    child_ancestors.extend_from_slice(ancestors);
+
+    // Check if any child needs work before recursing.
+    let any_child_dirty = dirty.iter().any(|d| {
+        d.len() > path.len() && d[..path.len()] == *path.as_slice()
+    }) || dirty_subtrees.iter().any(|s| {
+        // A subtree root at or above us means children are dirty.
+        path.len() >= s.len() && &path[..s.len()] == s.as_slice()
+    });
+
+    if any_child_dirty {
+        let child_count = node.children.len();
+        for (i, (dom_child, cascaded_child)) in node
+            .children
+            .iter()
+            .zip(cached.children.iter_mut())
+            .enumerate()
+        {
+            path.push(i);
+            re_cascade_dirty(
+                dom_child,
+                cascaded_child,
+                sheets,
+                Some(&cached.style),
+                &child_ancestors,
+                path,
+                interaction,
+                decl_cache,
+                dirty,
+                dirty_subtrees,
+                Some(child_count),
+            );
+            path.pop();
+        }
     }
 }
 

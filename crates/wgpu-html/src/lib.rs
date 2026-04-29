@@ -149,8 +149,11 @@ pub fn paint_tree_returning_layout_profiled(
 /// What the per-frame pipeline needs to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PipelineAction {
-    /// Cascade-affecting state changed — must re-cascade + relayout + repaint.
+    /// DOM / viewport / fonts changed — must cascade + layout + paint from scratch.
     FullPipeline,
+    /// Only pseudo-class state changed (hover / active / focus).
+    /// Run incremental re-cascade on affected nodes, then relayout + repaint.
+    PartialCascade,
     /// Layout is unchanged; only repaint (scroll / selection / caret changed).
     RepaintOnly,
 }
@@ -164,6 +167,8 @@ pub struct PipelineCache {
     font_generation: u64,
     tree_generation: u64,
     layout: Option<LayoutBox>,
+    /// Cached cascade result for incremental re-cascade.
+    cascaded: Option<wgpu_html_style::CascadedTree>,
 }
 
 impl PipelineCache {
@@ -179,12 +184,14 @@ impl PipelineCache {
             font_generation: u64::MAX, // force first frame to run
             tree_generation: u64::MAX,
             layout: None,
+            cascaded: None,
         }
     }
 
     /// Force a full re-cascade + relayout on the next frame.
     pub fn invalidate(&mut self) {
         self.layout = None;
+        self.cascaded = None;
     }
 
     /// Borrow the cached layout (if any).
@@ -201,7 +208,7 @@ pub fn classify_frame(
     viewport_h: f32,
     scale: f32,
 ) -> PipelineAction {
-    if cache.layout.is_none() {
+    if cache.layout.is_none() || cache.cascaded.is_none() {
         return PipelineAction::FullPipeline;
     }
     if (cache.viewport.0 - viewport_w).abs() > 0.5
@@ -218,7 +225,7 @@ pub fn classify_frame(
     }
     let current = tree.interaction.cascade_snapshot();
     if current != cache.snapshot {
-        return PipelineAction::FullPipeline;
+        return PipelineAction::PartialCascade;
     }
     PipelineAction::RepaintOnly
 }
@@ -240,16 +247,57 @@ pub fn paint_tree_cached<'c>(
 
     let mut timings = PipelineTimings::default();
 
-    if action == PipelineAction::FullPipeline {
-        let (layout, t) = compute_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale);
-        timings.cascade_ms = t.cascade_ms;
-        timings.layout_ms = t.layout_ms;
-        cache.layout = layout;
-        cache.snapshot = tree.interaction.cascade_snapshot();
-        cache.viewport = (viewport_w, viewport_h);
-        cache.scale = scale;
-        cache.font_generation = tree.fonts.generation();
-        cache.tree_generation = tree.generation;
+    match action {
+        PipelineAction::FullPipeline => {
+            text_ctx.sync_fonts(&tree.fonts);
+            if let Some(ttl) = tree.asset_cache_ttl {
+                wgpu_html_layout::set_image_cache_ttl(ttl);
+            }
+            for url in &tree.preload_queue {
+                wgpu_html_layout::preload_image(url);
+            }
+
+            let cascade_t0 = Instant::now();
+            let cascaded = wgpu_html_style::cascade(tree);
+            timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
+
+            let layout_t0 = Instant::now();
+            let layout = wgpu_html_layout::layout_with_text(
+                &cascaded, text_ctx, viewport_w, viewport_h, scale,
+            );
+            timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+
+            cache.layout = layout;
+            cache.cascaded = Some(cascaded);
+            cache.snapshot = tree.interaction.cascade_snapshot();
+            cache.viewport = (viewport_w, viewport_h);
+            cache.scale = scale;
+            cache.font_generation = tree.fonts.generation();
+            cache.tree_generation = tree.generation;
+        }
+        PipelineAction::PartialCascade => {
+            let cascade_t0 = Instant::now();
+            let old_snapshot = cache.snapshot.clone();
+            let changed = if let Some(cascaded) = &mut cache.cascaded {
+                wgpu_html_style::cascade_incremental(tree, cascaded, &old_snapshot)
+            } else {
+                false
+            };
+            timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
+
+            // Re-layout if cascade changed any styles.
+            if changed {
+                let layout_t0 = Instant::now();
+                if let Some(cascaded) = &cache.cascaded {
+                    cache.layout = wgpu_html_layout::layout_with_text(
+                        cascaded, text_ctx, viewport_w, viewport_h, scale,
+                    );
+                }
+                timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+            }
+            cache.snapshot = tree.interaction.cascade_snapshot();
+        }
+        PipelineAction::RepaintOnly => {}
     }
 
     // Paint (always runs — scroll / selection / caret may have changed).
