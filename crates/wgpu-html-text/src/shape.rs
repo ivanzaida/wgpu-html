@@ -443,6 +443,18 @@ impl TextContext {
             });
         }
 
+        // Expand height to cover every rasterised glyph. Cosmic-text
+        // centres the font's content area (ascender + descender) inside
+        // the CSS line-height, so when font metrics exceed the line-
+        // height, glyph bitmaps can land below `line_top + line_height`.
+        // The box must be tall enough to contain them or paint will
+        // overflow the layout rect.
+        let actual_bottom = glyphs
+            .iter()
+            .map(|g| g.y + g.h)
+            .fold(0.0_f32, f32::max);
+        let total_height = total_height.max(actual_bottom);
+
         Some(ShapedRun {
             glyphs,
             lines,
@@ -709,6 +721,14 @@ impl TextContext {
             total_height = (line.top + line.height).max(total_height);
         }
 
+        // Same expansion as `shape_and_pack`: ensure reported height
+        // covers every rasterised glyph.
+        let actual_bottom = all_glyphs
+            .iter()
+            .map(|g| g.y + g.h)
+            .fold(0.0_f32, f32::max);
+        let total_height = total_height.max(actual_bottom);
+
         let first_line_ascent = lines_meta[0].baseline - lines_meta[0].top;
 
         Some(ParagraphLayout {
@@ -719,5 +739,86 @@ impl TextContext {
             first_line_ascent,
             leaf_segments,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn system_font_bytes() -> Option<Arc<[u8]>> {
+        let candidates = [
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        ];
+        for path in candidates {
+            if let Ok(bytes) = std::fs::read(path) {
+                return Some(Arc::from(bytes.into_boxed_slice()));
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn glyph_positions_within_run_height() {
+        let Some(font_data) = system_font_bytes() else {
+            eprintln!("skipping: no system font found");
+            return;
+        };
+
+        let mut registry = FontRegistry::new();
+        registry.register(wgpu_html_tree::FontFace::regular("test", font_data));
+
+        let mut ctx = TextContext::new(2048);
+        ctx.sync_fonts(&registry);
+
+        let handle = ctx
+            .pick_font(&["test"], 400, FontStyleAxis::Normal)
+            .expect("font registered");
+
+        for size in [12.0, 16.0, 24.0, 32.0, 48.0] {
+            let line_h = size * 1.25;
+            let run = ctx
+                .shape_and_pack(
+                    "Hello World gqypj",
+                    handle,
+                    size,
+                    line_h,
+                    0.0,
+                    400,
+                    FontStyleAxis::Normal,
+                    None,
+                    [0.0, 0.0, 0.0, 1.0],
+                )
+                .expect("shaped");
+
+            let mut min_y = f32::INFINITY;
+            let mut max_bottom = f32::NEG_INFINITY;
+            for g in &run.glyphs {
+                min_y = min_y.min(g.y);
+                max_bottom = max_bottom.max(g.y + g.h);
+            }
+
+            eprintln!(
+                "size={:.0} lh={:.1} run.h={:.1} ascent={:.1} y_range=[{:.1}, {:.1}]",
+                size, line_h, run.height, run.ascent, min_y, max_bottom,
+            );
+
+            // Every glyph must sit within the reported run height.
+            assert!(
+                min_y >= -0.5,
+                "size={size}: glyph extends above run (min_y={min_y:.1})"
+            );
+            assert!(
+                max_bottom <= run.height + 0.5,
+                "size={size}: glyph extends below run by {:.1}px \
+                 (max_bottom={max_bottom:.1}, run.h={:.1})",
+                max_bottom - run.height,
+                run.height,
+            );
+        }
     }
 }
