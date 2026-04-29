@@ -306,13 +306,13 @@ still recomputes all ~200 elements.
 | O11b — Pseudo-class invalidation sets | **done** |
 | O11c — Bulk HashMap inheritance | **done** |
 | O11d — O(n²) → O(1) in selector matching | **done** |
-| O3 — Display list caching | pending |
-| O7 — Cow<str> text processing | pending |
-| O6 — GPU buffer reuse | pending |
-| O4 — Cascade COW/Arc | pending |
-| O5 — Hit-test spatial index | pending |
-| O10 — Pre-sorted glyph index | pending |
-| O8 — Atlas eviction/growth | pending |
+| O3 — Display list caching | **wontfix** — paint is 0.02ms |
+| O7 — Cow<str> text processing | **wontfix** — layout is 0.08ms |
+| O6 — GPU buffer reuse | **wontfix** — render is GPU-bound |
+| O4 — Cascade COW/Arc | **wontfix** — cascade is 0-3ms |
+| O5 — Hit-test spatial index | **wontfix** — ptr is 0.006ms |
+| O10 — Pre-sorted glyph index | **wontfix** — ptr is 0.006ms |
+| O8 — Atlas eviction/growth | deferred — correctness, not perf |
 
 ## Measured results (click-demo.html)
 
@@ -326,17 +326,37 @@ After O1+O2+O9+O11:
 cascade=0-3ms  layout=0.08ms  paint=0.02ms  render=1ms  → 60 fps
 ```
 
-## Priority order
+## Closed items — rationale
 
-| Priority | Item | Impact | Complexity |
-|----------|------|--------|------------|
-| 1 | O3 — Display list caching | medium-high | medium |
-| 2 | O7 — Cow<str> text processing | low-medium | low |
-| 3 | O6 — GPU buffer reuse | low-medium | low |
-| 4 | O4 — Cascade COW/Arc | medium | medium |
-| 5 | O5 — Hit-test spatial index | medium | medium |
-| 6 | O10 — Pre-sorted glyph index | low | low |
-| 7 | O8 — Atlas eviction/growth | low | medium |
+O3 (display list caching): paint=0.02ms. Caching saves <0.02ms.
+Not worth the complexity of cache invalidation on scroll/selection.
 
-All performance-critical items (O1, O2, O9, O11) are done.
-Remaining items are diminishing returns — implement as needed.
+O7 (Cow<str> text processing): layout=0.08ms total, already cached
+by O2. The text normalization path only runs on cache misses.
+
+O6 (GPU buffer reuse): render=1ms is dominated by wgpu command
+encoding and GPU submission, not by Vec allocations. Buffer
+reallocation happens rarely (capacity grows monotonically).
+
+O4 (Cascade COW/Arc for inheritance): cascade=0-3ms on hover
+changes, 0ms on idle. The incremental cascade (O11a) already
+skips most nodes. Arc<str> for font_family would save ~0.1ms
+on full cascade — not measurable.
+
+O5 (hit-test spatial index): pointer_move=0.006ms. The recursive
+tree walk is already faster than the overhead of maintaining a
+spatial index.
+
+O10 (pre-sorted glyph index): pointer_move=0.006ms. Same — the
+sort in hit_glyph_boundary is negligible at current glyph counts.
+
+O8 (atlas eviction/growth): not a performance issue but a
+correctness concern — atlas-full drops glyphs silently. Deferred
+until a real document hits the 2048×2048 atlas limit.
+
+## Summary
+
+All performance-critical optimizations are complete. The pipeline
+went from 50ms/frame (10 fps) to 4ms/frame (60 fps). Remaining
+items target sub-millisecond stages where the optimization cost
+exceeds the benefit.
