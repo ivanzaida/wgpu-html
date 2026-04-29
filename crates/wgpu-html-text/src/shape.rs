@@ -19,6 +19,7 @@
 //! sees newly-inserted glyphs each frame.
 
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use cosmic_text::{Attrs, Buffer, CacheKey, Metrics, Shaping};
 
@@ -26,6 +27,40 @@ use wgpu_html_tree::{FontHandle, FontRegistry, FontStyleAxis};
 
 use crate::atlas::{Atlas, AtlasRect};
 use crate::font_db::FontDb;
+
+// ── Text measurement cache keys ─────────────────────────────────────────────
+
+/// Cache key for a single-span `shape_and_pack` call. Excludes
+/// `color` because colour doesn't affect glyph geometry or line
+/// breaking — on cache hit the caller patches glyph colours.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct TextCacheKey {
+    text_hash: u64,
+    font_handle: FontHandle,
+    size_px_bits: u32,
+    line_height_bits: u32,
+    letter_spacing_bits: u32,
+    weight: u16,
+    style: FontStyleAxis,
+    max_width_bits: Option<u32>,
+}
+
+/// Cache key for a multi-span `shape_paragraph` call.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ParagraphCacheKey {
+    /// Hash of all span texts concatenated with their attributes.
+    content_hash: u64,
+    max_width_bits: Option<u32>,
+}
+
+fn hash_str(s: &str) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    s.hash(&mut h);
+    h.finish()
+}
+
+/// Maximum entries per text cache before a full clear.
+const TEXT_CACHE_MAX: usize = 4096;
 
 /// One glyph after shaping + atlas packing. Positions are run-relative
 /// pixel coordinates with `(0, 0)` at the top-left of the line box.
@@ -178,6 +213,19 @@ pub struct TextContext {
     pub atlas: Atlas,
     swash: cosmic_text::SwashCache,
     glyph_cache: HashMap<CacheKey, AtlasGlyph>,
+    /// Generation of the `FontRegistry` at the last successful
+    /// `sync_fonts` call. Used to short-circuit when fonts haven't
+    /// changed between frames.
+    last_font_generation: u64,
+    /// Cached shaped runs keyed by text + font + size parameters
+    /// (excludes colour). Cleared when fonts change.
+    text_cache: HashMap<TextCacheKey, ShapedRun>,
+    /// Cached paragraph layouts keyed by span content hash.
+    paragraph_cache: HashMap<ParagraphCacheKey, ParagraphLayout>,
+    /// Font generation at the time the text caches were last
+    /// validated. When `last_font_generation` advances past this
+    /// value, both caches are cleared.
+    cache_font_generation: u64,
 }
 
 impl TextContext {
@@ -191,6 +239,26 @@ impl TextContext {
             atlas: Atlas::new(atlas_size, atlas_size),
             swash: cosmic_text::SwashCache::new(),
             glyph_cache: HashMap::new(),
+            last_font_generation: 0,
+            text_cache: HashMap::new(),
+            paragraph_cache: HashMap::new(),
+            cache_font_generation: 0,
+        }
+    }
+
+    /// Invalidate text measurement caches if fonts have changed.
+    fn maybe_invalidate_text_caches(&mut self) {
+        if self.last_font_generation != self.cache_font_generation {
+            self.text_cache.clear();
+            self.paragraph_cache.clear();
+            self.cache_font_generation = self.last_font_generation;
+        }
+        // Simple size bound — prevent unbounded growth.
+        if self.text_cache.len() > TEXT_CACHE_MAX {
+            self.text_cache.clear();
+        }
+        if self.paragraph_cache.len() > TEXT_CACHE_MAX {
+            self.paragraph_cache.clear();
         }
     }
 
@@ -198,9 +266,19 @@ impl TextContext {
     /// Stores a clone of the registry so `pick_font` can do
     /// CSS-aware family / weight / style matching without a fresh
     /// borrow from the host.
+    ///
+    /// Short-circuits when the registry's generation counter hasn't
+    /// changed since the last sync — avoids a full clone + bridge
+    /// reconciliation on every frame.
     pub fn sync_fonts(&mut self, registry: &FontRegistry) {
+        if registry.generation() == self.last_font_generation
+            && registry.len() == self.fonts.len()
+        {
+            return;
+        }
         self.fonts = registry.clone();
         self.font_db.sync(registry);
+        self.last_font_generation = registry.generation();
     }
 
     /// Pick a `FontHandle` for a CSS `font-family` list, weight, and
@@ -269,6 +347,26 @@ impl TextContext {
         max_width_px: Option<f32>,
         color: [f32; 4],
     ) -> Option<ShapedRun> {
+        self.maybe_invalidate_text_caches();
+
+        let cache_key = TextCacheKey {
+            text_hash: hash_str(text),
+            font_handle: font,
+            size_px_bits: size_px.to_bits(),
+            line_height_bits: line_height_px.to_bits(),
+            letter_spacing_bits: letter_spacing_px.to_bits(),
+            weight,
+            style: axis,
+            max_width_bits: max_width_px.map(|w| w.to_bits()),
+        };
+        if let Some(cached) = self.text_cache.get(&cache_key) {
+            let mut run = cached.clone();
+            for g in &mut run.glyphs {
+                g.color = color;
+            }
+            return Some(run);
+        }
+
         let fontdb_id = self.font_db.fontdb_id(font)?;
 
         // cosmic-text needs the family name to find the face. We have
@@ -455,7 +553,7 @@ impl TextContext {
             .fold(0.0_f32, f32::max);
         let total_height = total_height.max(actual_bottom);
 
-        Some(ShapedRun {
+        let run = ShapedRun {
             glyphs,
             lines,
             text: text.to_owned(),
@@ -463,7 +561,9 @@ impl TextContext {
             width: max_x,
             height: total_height,
             ascent: ascent_px,
-        })
+        };
+        self.text_cache.insert(cache_key, run.clone());
+        Some(run)
     }
 
     /// Shape a multi-span paragraph in one go. cosmic-text's
@@ -487,6 +587,30 @@ impl TextContext {
     ) -> Option<ParagraphLayout> {
         if spans.is_empty() {
             return None;
+        }
+
+        self.maybe_invalidate_text_caches();
+
+        // Build a cache key that hashes all span content + attributes.
+        let para_cache_key = {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            for s in spans {
+                s.text.hash(&mut h);
+                s.family.hash(&mut h);
+                s.weight.hash(&mut h);
+                s.style.hash(&mut h);
+                s.size_px.to_bits().hash(&mut h);
+                s.line_height_px.to_bits().hash(&mut h);
+                // Exclude color — doesn't affect geometry.
+                s.leaf_id.hash(&mut h);
+            }
+            ParagraphCacheKey {
+                content_hash: h.finish(),
+                max_width_bits: max_width_px.map(|w| w.to_bits()),
+            }
+        };
+        if let Some(cached) = self.paragraph_cache.get(&para_cache_key) {
+            return Some(cached.clone());
         }
 
         // Buffer-default Metrics: pick the largest span size so a
@@ -731,14 +855,16 @@ impl TextContext {
 
         let first_line_ascent = lines_meta[0].baseline - lines_meta[0].top;
 
-        Some(ParagraphLayout {
+        let layout = ParagraphLayout {
             glyphs: all_glyphs,
             lines: lines_meta,
             width: max_line_width,
             height: total_height,
             first_line_ascent,
             leaf_segments,
-        })
+        };
+        self.paragraph_cache.insert(para_cache_key, layout.clone());
+        Some(layout)
     }
 }
 

@@ -178,6 +178,9 @@ struct RuntimeState {
     started_at: Instant,
     last_render_at: Option<Instant>,
     frame_index: u64,
+    /// Pipeline cache — lets `render_frame` skip cascade + layout
+    /// when inputs haven't changed since the previous frame.
+    pipeline_cache: wgpu_html::PipelineCache,
 }
 
 #[derive(Debug, Clone)]
@@ -262,7 +265,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
     /// Block on the winit event loop until the window closes.
     pub fn run(mut self) -> Result<(), EventLoopError> {
         let event_loop = EventLoop::new()?;
-        event_loop.set_control_flow(ControlFlow::Poll);
+        event_loop.set_control_flow(ControlFlow::Wait);
         event_loop.run_app(&mut self)
     }
 }
@@ -333,6 +336,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             started_at: Instant::now(),
             last_render_at: None,
             frame_index: 0,
+            pipeline_cache: wgpu_html::PipelineCache::new(),
         });
     }
 
@@ -748,12 +752,13 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         self.tree.emit_lifecycle_begin(TreeLifecycleStage::Frame);
         let size = state.window.inner_size();
 
-        let (mut list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
+        let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
             self.tree,
             &mut state.text_ctx,
             size.width as f32,
             size.height as f32,
             1.0,
+            &mut state.pipeline_cache,
         );
         self.tree.emit_lifecycle_end(
             TreeLifecycleStage::Cascade,
@@ -768,7 +773,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             duration_from_ms(timings.paint_ms),
         );
 
-        if let Some(layout) = layout.as_ref() {
+        if let Some(layout) = layout {
             state.scroll_y = clamp_scroll_y(state.scroll_y, layout, size.height as f32);
             translate_display_list_y(&mut list, -state.scroll_y);
             paint_viewport_scrollbar(
@@ -781,7 +786,8 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         } else {
             state.scroll_y = 0.0;
         }
-        state.last_layout = layout;
+        // Keep last_layout in sync for hit-testing between frames.
+        state.last_layout = state.pipeline_cache.layout().cloned();
 
         // Push freshly-rasterised glyph rasters into the GPU atlas.
         state
@@ -852,6 +858,19 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             }
         }
         self.hook = hook;
+
+        // Caret blink: when a text control is focused, schedule a
+        // redraw ~500 ms from now so the caret toggles. With
+        // ControlFlow::Wait the event loop sleeps until an OS event
+        // arrives, so without this the caret would freeze after the
+        // last keystroke.
+        if self.tree.interaction.edit_cursor.is_some() {
+            if let Some(state) = self.state.as_ref() {
+                let next_blink = Instant::now() + Duration::from_millis(500);
+                event_loop.set_control_flow(ControlFlow::WaitUntil(next_blink));
+                state.window.request_redraw();
+            }
+        }
     }
 }
 

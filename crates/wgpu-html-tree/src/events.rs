@@ -236,3 +236,25 @@ impl Default for InteractionState {
         }
     }
 }
+
+/// Lightweight snapshot of the `InteractionState` fields that affect
+/// cascade output (pseudo-class resolution). Two snapshots are equal
+/// iff the cascade would produce identical `CascadedTree`s for the
+/// same DOM tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InteractionSnapshot {
+    pub hover_path: Option<Vec<usize>>,
+    pub active_path: Option<Vec<usize>>,
+    pub focus_path: Option<Vec<usize>>,
+}
+
+impl InteractionState {
+    /// Capture the fields that affect cascade (pseudo-class resolution).
+    pub fn cascade_snapshot(&self) -> InteractionSnapshot {
+        InteractionSnapshot {
+            hover_path: self.hover_path.clone(),
+            active_path: self.active_path.clone(),
+            focus_path: self.focus_path.clone(),
+        }
+    }
+}

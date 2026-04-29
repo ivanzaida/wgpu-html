@@ -62,9 +62,22 @@ pub struct FontHandle(pub usize);
 /// `docs/text.md` §6. The registry is stored in registration order;
 /// when several faces tie on the matching score, the one registered
 /// later wins.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct FontRegistry {
     faces: Vec<FontFace>,
+    /// Monotonically increasing counter, bumped on every `register()`
+    /// call. Consumers (e.g. `TextContext::sync_fonts`) compare this
+    /// against their last-seen value to skip redundant work.
+    generation: u64,
+}
+
+impl Default for FontRegistry {
+    fn default() -> Self {
+        Self {
+            faces: Vec::new(),
+            generation: 0,
+        }
+    }
 }
 
 impl FontRegistry {
@@ -80,10 +93,16 @@ impl FontRegistry {
         self.faces.is_empty()
     }
 
+    /// Current generation counter. Bumped on every `register()`.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
     /// Push a face; returns its handle.
     pub fn register(&mut self, face: FontFace) -> FontHandle {
         let h = FontHandle(self.faces.len());
         self.faces.push(face);
+        self.generation += 1;
         h
     }
 

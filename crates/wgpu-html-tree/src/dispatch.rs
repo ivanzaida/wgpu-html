@@ -997,6 +997,7 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     }
     tree.interaction.edit_cursor = Some(new_cursor);
     tree.interaction.caret_blink_epoch = std::time::Instant::now();
+    tree.generation += 1;
 
     true
 }
@@ -1062,6 +1063,7 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
             if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
                 write_value(node, new_value);
             }
+            tree.generation += 1;
         }
         tree.interaction.edit_cursor = Some(new_cursor);
         tree.interaction.caret_blink_epoch = std::time::Instant::now();

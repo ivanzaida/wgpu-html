@@ -22,7 +22,7 @@ pub use paint::{paint_tree, paint_tree_with_text};
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_renderer::{DisplayList, Renderer, ScreenshotError};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::{TextCursor, TextSelection, Tree};
+use wgpu_html_tree::{InteractionSnapshot, TextCursor, TextSelection, Tree};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PipelineTimings {
@@ -142,6 +142,150 @@ pub fn paint_tree_returning_layout_profiled(
     }
     timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
     (list, layout, timings)
+}
+
+// ── Pipeline cache (O1 optimisation) ─────────────────────────────────────────
+
+/// What the per-frame pipeline needs to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PipelineAction {
+    /// Cascade-affecting state changed — must re-cascade + relayout + repaint.
+    FullPipeline,
+    /// Layout is unchanged; only repaint (scroll / selection / caret changed).
+    RepaintOnly,
+}
+
+/// Cached results from the previous frame's cascade + layout. Lets
+/// the harness skip the expensive stages when inputs haven't changed.
+pub struct PipelineCache {
+    snapshot: InteractionSnapshot,
+    viewport: (f32, f32),
+    scale: f32,
+    font_generation: u64,
+    tree_generation: u64,
+    layout: Option<LayoutBox>,
+}
+
+impl PipelineCache {
+    pub fn new() -> Self {
+        Self {
+            snapshot: InteractionSnapshot {
+                hover_path: None,
+                active_path: None,
+                focus_path: None,
+            },
+            viewport: (0.0, 0.0),
+            scale: 0.0,
+            font_generation: u64::MAX, // force first frame to run
+            tree_generation: u64::MAX,
+            layout: None,
+        }
+    }
+
+    /// Force a full re-cascade + relayout on the next frame.
+    pub fn invalidate(&mut self) {
+        self.layout = None;
+    }
+
+    /// Borrow the cached layout (if any).
+    pub fn layout(&self) -> Option<&LayoutBox> {
+        self.layout.as_ref()
+    }
+}
+
+/// Determine what work the pipeline needs to do this frame.
+pub fn classify_frame(
+    tree: &Tree,
+    cache: &PipelineCache,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+) -> PipelineAction {
+    if cache.layout.is_none() {
+        return PipelineAction::FullPipeline;
+    }
+    if (cache.viewport.0 - viewport_w).abs() > 0.5
+        || (cache.viewport.1 - viewport_h).abs() > 0.5
+        || (cache.scale - scale).abs() > 0.001
+    {
+        return PipelineAction::FullPipeline;
+    }
+    if tree.generation != cache.tree_generation {
+        return PipelineAction::FullPipeline;
+    }
+    if tree.fonts.generation() != cache.font_generation {
+        return PipelineAction::FullPipeline;
+    }
+    let current = tree.interaction.cascade_snapshot();
+    if current != cache.snapshot {
+        return PipelineAction::FullPipeline;
+    }
+    PipelineAction::RepaintOnly
+}
+
+/// Run the pipeline with caching: skip cascade + layout when inputs
+/// haven't changed, repaint from the cached `LayoutBox`.
+///
+/// Returns `(display_list, &LayoutBox, timings)`. The layout
+/// reference borrows from `cache`.
+pub fn paint_tree_cached<'c>(
+    tree: &Tree,
+    text_ctx: &mut TextContext,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+    cache: &'c mut PipelineCache,
+) -> (DisplayList, Option<&'c LayoutBox>, PipelineTimings) {
+    let action = classify_frame(tree, cache, viewport_w, viewport_h, scale);
+
+    let mut timings = PipelineTimings::default();
+
+    if action == PipelineAction::FullPipeline {
+        let (layout, t) = compute_layout_profiled(tree, text_ctx, viewport_w, viewport_h, scale);
+        timings.cascade_ms = t.cascade_ms;
+        timings.layout_ms = t.layout_ms;
+        cache.layout = layout;
+        cache.snapshot = tree.interaction.cascade_snapshot();
+        cache.viewport = (viewport_w, viewport_h);
+        cache.scale = scale;
+        cache.font_generation = tree.fonts.generation();
+        cache.tree_generation = tree.generation;
+    }
+
+    // Paint (always runs — scroll / selection / caret may have changed).
+    let mut list = DisplayList::new();
+    let paint_t0 = Instant::now();
+    if let Some(root) = cache.layout.as_ref() {
+        let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
+            let fp = tree.interaction.focus_path.as_deref()?;
+            let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
+            let sel = if ec.has_selection() {
+                Some(ec.selection_range())
+            } else {
+                None
+            };
+            Some(paint::EditCaretInfo {
+                focus_path: fp,
+                cursor_byte: ec.cursor,
+                selection_bytes: sel,
+                caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+            })
+        });
+        paint::paint_layout_full(
+            root,
+            &mut list,
+            tree.interaction.selection.as_ref(),
+            tree.interaction.selection_colors,
+            &tree.interaction.scroll_offsets_y,
+            edit_caret_info.as_ref(),
+        );
+        list.finalize();
+    } else {
+        list.finalize();
+    }
+    timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
+
+    (list, cache.layout.as_ref(), timings)
 }
 
 /// Walk a child-index path through a layout tree, starting at `root`,

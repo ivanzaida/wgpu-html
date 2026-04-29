@@ -25,8 +25,9 @@ pub use dispatch::{
     focus, focus_next, key_down, key_up, text_input,
 };
 pub use events::{
-    EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionState, Modifier, Modifiers,
-    MouseButton, MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
+    EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState,
+    Modifier, Modifiers, MouseButton, MouseCallback, MouseEvent, SelectionColors, TextCursor,
+    TextSelection,
 };
 pub use focus::{
     focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order,
@@ -70,6 +71,11 @@ pub struct Tree {
     /// Host hooks registered on this document. Integration crates emit through
     /// `Tree::emit_*` methods so hook dispatch stays owned by this crate.
     pub hooks: Vec<TreeHookHandle>,
+    /// Monotonically increasing counter, bumped whenever the DOM
+    /// structure or content changes (custom properties, form control
+    /// values, etc.). The pipeline cache compares this against its
+    /// stored value to detect mutations that require re-cascade + relayout.
+    pub generation: u64,
 }
 
 impl Tree {
@@ -81,6 +87,7 @@ impl Tree {
             asset_cache_ttl: None,
             preload_queue: Vec::new(),
             hooks: Vec::new(),
+            generation: 0,
         }
     }
 
@@ -89,12 +96,17 @@ impl Tree {
     pub fn set_custom_property(&mut self, name: impl Into<String>, value: impl Into<String>) {
         if let Some(root) = &mut self.root {
             root.set_custom_property(name, value);
+            self.generation += 1;
         }
     }
 
     /// Remove a programmatic custom property from the document root.
     pub fn remove_custom_property(&mut self, name: &str) -> Option<String> {
-        self.root.as_mut()?.remove_custom_property(name)
+        let v = self.root.as_mut()?.remove_custom_property(name);
+        if v.is_some() {
+            self.generation += 1;
+        }
+        v
     }
 
     /// Register a font face with this document and return its handle.
