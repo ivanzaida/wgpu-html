@@ -31,6 +31,10 @@ pub struct Devtools {
     // ── Inspected-tree tracking ─────────────────────────────
     selected_path: Option<Vec<usize>>,
     click_sink: Arc<Mutex<Option<Vec<usize>>>>,
+    /// Paths toggled (collapsed/expanded) by clicking a chevron.
+    toggle_sink: Arc<Mutex<Option<Vec<usize>>>>,
+    /// Set of paths whose children are collapsed (hidden).
+    collapsed: std::collections::HashSet<Vec<usize>>,
     inspected_root: Option<Node>,
     last_inspected_gen: Option<u64>,
 
@@ -49,7 +53,9 @@ impl Devtools {
     /// The host must call [`update_inspected_tree`] manually.
     pub fn new(enable_profiler: bool) -> Self {
         let click_sink = Arc::new(Mutex::new(None));
-        let mut tree = html_gen::build(None, None, &click_sink);
+        let toggle_sink = Arc::new(Mutex::new(None));
+        let collapsed = std::collections::HashSet::new();
+        let mut tree = html_gen::build(None, None, &click_sink, &toggle_sink, &collapsed);
         let lucide = wgpu_html_tree::FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
         tree.register_font(lucide.clone());
 
@@ -61,6 +67,8 @@ impl Devtools {
             tree,
             selected_path: None,
             click_sink,
+            toggle_sink,
+            collapsed,
             inspected_root: None,
             last_inspected_gen: None,
             needs_redraw: true,
@@ -128,6 +136,14 @@ impl Devtools {
             self.update_tree_rows();
         }
 
+        let toggled = self.toggle_sink.lock().unwrap().take();
+        if let Some(path) = toggled {
+            if !self.collapsed.remove(&path) {
+                self.collapsed.insert(path);
+            }
+            self.update_tree_rows();
+        }
+
         let clicked = self.click_sink.lock().unwrap().take();
         if let Some(path) = clicked {
             self.selected_path = Some(path);
@@ -144,6 +160,8 @@ impl Devtools {
             self.inspected_root.as_ref(),
             self.selected_path.as_deref(),
             &self.click_sink,
+            &self.toggle_sink,
+            &self.collapsed,
         );
         self.needs_redraw = true;
     }
@@ -161,13 +179,7 @@ impl Devtools {
             self.selected_path.as_deref(),
         );
         // Also update tree rows to reflect the new selection highlight.
-        html_gen::update_tree_rows(
-            &mut self.tree,
-            self.inspected_root.as_ref(),
-            self.selected_path.as_deref(),
-            &self.click_sink,
-        );
-        self.needs_redraw = true;
+        self.update_tree_rows();
     }
 
     // ── Window lifecycle ────────────────────────────────────
