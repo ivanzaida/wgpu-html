@@ -1127,4 +1127,23 @@ mod tests {
             line_h,
         );
     }
+
+    #[test]
+    fn parse_line_height_multiplier_lucide() {
+        let lucide_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../wgpu-html-devtools/fonts/lucide.ttf"
+        );
+        let Ok(bytes) = std::fs::read(lucide_path) else {
+            eprintln!("skipping: no lucide font at {lucide_path}");
+            return;
+        };
+        let mult = parse_line_height_multiplier(&bytes).unwrap();
+        eprintln!("Lucide multiplier: {mult}");
+        // OS/2 USE_TYPO_METRICS: (1000 - 0 + 90) / 1000 = 1.09
+        assert!(
+            (mult - 1.09).abs() < 0.01,
+            "expected ~1.09 from OS/2 typo metrics, got {mult}"
+        );
+    }
 }
