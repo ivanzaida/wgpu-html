@@ -922,13 +922,16 @@ impl TextContext {
 
 /// Parse `line-height: normal` multiplier from raw font bytes.
 ///
-/// Reads the hhea table's ascender, descender, and lineGap fields
-/// plus the head table's unitsPerEm. The formula
-/// `(ascender - descender + lineGap) / unitsPerEm` matches what
-/// browsers use for CSS `line-height: normal`.
+/// Uses the same algorithm as browsers (Chrome / Safari):
 ///
-/// Returns `None` if the tables can't be located (not a valid
-/// TrueType / OpenType font).
+/// 1. If the OS/2 table has the `USE_TYPO_METRICS` flag (bit 7 of
+///    `fsSelection`), use `(sTypoAscender − sTypoDescender +
+///    sTypoLineGap) / unitsPerEm`.
+/// 2. Otherwise use `(usWinAscent + usWinDescent) / unitsPerEm`.
+/// 3. If there is no OS/2 table, fall back to the hhea table:
+///    `(ascender − descender + lineGap) / unitsPerEm`.
+///
+/// Returns `None` if the required tables can't be located.
 pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
     // For TTC (font collections), use the first offset table.
     let offset_table_start = if data.len() >= 12 && &data[0..4] == b"ttcf" {
@@ -948,9 +951,10 @@ pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
     }
     let num_tables = u16::from_be_bytes(d[4..6].try_into().ok()?) as usize;
 
-    // Scan the table directory for `head` and `hhea`.
+    // Scan the table directory for `head`, `hhea`, and `OS/2`.
     let mut head_off = None;
     let mut hhea_off = None;
+    let mut os2_off = None;
     for i in 0..num_tables {
         let rec = 12 + i * 16;
         if rec + 16 > d.len() {
@@ -958,15 +962,15 @@ pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
         }
         let tag = &d[rec..rec + 4];
         let off = u32::from_be_bytes(d[rec + 8..rec + 12].try_into().ok()?) as usize;
-        if tag == b"head" {
-            head_off = Some(off);
-        } else if tag == b"hhea" {
-            hhea_off = Some(off);
+        match tag {
+            b"head" => head_off = Some(off),
+            b"hhea" => hhea_off = Some(off),
+            b"OS/2" => os2_off = Some(off),
+            _ => {}
         }
     }
 
     let head = head_off?;
-    let hhea = hhea_off?;
 
     // head: unitsPerEm is at offset 18 (uint16).
     if head + 20 > data.len() {
@@ -977,7 +981,35 @@ pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
         return None;
     }
 
-    // hhea: ascender (int16 @ 4), descender (int16 @ 6), lineGap (int16 @ 8).
+    // Try OS/2 table first (browser-preferred path).
+    if let Some(os2) = os2_off {
+        // fsSelection is at offset 62 (uint16).
+        // sTypoAscender @ 68, sTypoDescender @ 70, sTypoLineGap @ 72 (int16).
+        // usWinAscent @ 74, usWinDescent @ 76 (uint16).
+        if os2 + 78 <= data.len() {
+            let fs_selection = u16::from_be_bytes(data[os2 + 62..os2 + 64].try_into().ok()?);
+            let use_typo_metrics = fs_selection & (1 << 7) != 0;
+
+            if use_typo_metrics {
+                let typo_asc =
+                    i16::from_be_bytes(data[os2 + 68..os2 + 70].try_into().ok()?) as f32;
+                let typo_desc =
+                    i16::from_be_bytes(data[os2 + 70..os2 + 72].try_into().ok()?) as f32;
+                let typo_gap =
+                    i16::from_be_bytes(data[os2 + 72..os2 + 74].try_into().ok()?) as f32;
+                return Some((typo_asc - typo_desc + typo_gap) / upem);
+            } else {
+                let win_asc =
+                    u16::from_be_bytes(data[os2 + 74..os2 + 76].try_into().ok()?) as f32;
+                let win_desc =
+                    u16::from_be_bytes(data[os2 + 76..os2 + 78].try_into().ok()?) as f32;
+                return Some((win_asc + win_desc) / upem);
+            }
+        }
+    }
+
+    // Fallback: hhea table.
+    let hhea = hhea_off?;
     if hhea + 10 > data.len() {
         return None;
     }
