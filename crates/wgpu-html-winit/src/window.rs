@@ -293,6 +293,8 @@ pub struct WgpuHtmlWindow<'tree> {
     state: Option<RuntimeState>,
     devtools: Option<wgpu_html_devtools::Devtools>,
     devtools_window: Option<DevtoolsWindow>,
+    /// 2nd-level devtools that inspects the 1st devtools' own tree.
+    meta_devtools_window: Option<DevtoolsWindow>,
 }
 
 struct RuntimeState {
@@ -340,6 +342,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             state: None,
             devtools: None,
             devtools_window: None,
+            meta_devtools_window: None,
         }
     }
 
@@ -445,14 +448,21 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         if let Some(h) = self.hook.as_mut() {
             h.on_idle();
         }
-        // Drop devtools window if it was closed.
+        // Drop devtools windows if they were closed.
+        if self
+            .meta_devtools_window
+            .as_ref()
+            .is_some_and(|w| w.pending_close)
+        {
+            self.meta_devtools_window = None;
+        }
         if self
             .devtools_window
             .as_ref()
-            .is_some_and(|dw| dw.pending_close)
+            .is_some_and(|w| w.pending_close)
         {
+            self.meta_devtools_window = None; // close meta too
             if let Some(dw) = self.devtools_window.take() {
-                // Move the Devtools state back so it can be reopened.
                 self.devtools = Some(dw.inner);
             }
         }
@@ -510,11 +520,39 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             return;
         };
 
-        // Route events for secondary windows (e.g. devtools) to the
-        // built-in devtools first, then fall through to the app hook.
+        // Route events for secondary windows (devtools / meta-devtools).
         if id != window.id() {
+            // 2nd-level meta-devtools — no further nesting.
+            if let Some(mw) = self.meta_devtools_window.as_mut() {
+                if mw.window_id() == id {
+                    mw.handle_event(&event);
+                    return;
+                }
+            }
+            // 1st-level devtools — F11 toggles meta-devtools.
             if let Some(dw) = self.devtools_window.as_mut() {
                 if dw.window_id() == id {
+                    if let WindowEvent::KeyboardInput { event: key_ev, .. } = &event {
+                        if key_ev.state == ElementState::Pressed
+                            && !key_ev.repeat
+                            && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
+                        {
+                            if self.meta_devtools_window.is_some() {
+                                self.meta_devtools_window = None;
+                            } else {
+                                let mut meta =
+                                    wgpu_html_devtools::Devtools::new();
+                                // Copy fonts from the primary devtools.
+                                for (_h, face) in dw.inner.tree().fonts.iter() {
+                                    meta.register_font(face.clone());
+                                }
+                                meta.update_inspected_tree(dw.inner.tree());
+                                self.meta_devtools_window =
+                                    Some(DevtoolsWindow::open(&mut meta, event_loop));
+                            }
+                            return;
+                        }
+                    }
                     dw.handle_event(&event);
                     return;
                 }
@@ -1057,6 +1095,11 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         // Devtools: poll for tree changes and re-render if needed.
         if let Some(dw) = self.devtools_window.as_mut() {
             dw.poll_and_redraw();
+            // Feed the devtools' own tree into the meta-devtools.
+            if let Some(mw) = self.meta_devtools_window.as_mut() {
+                mw.inner.update_inspected_tree(dw.inner.tree());
+                mw.poll_and_redraw();
+            }
         }
 
         // Schedule the next wake-up. Priority order:
