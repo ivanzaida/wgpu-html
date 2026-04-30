@@ -115,6 +115,16 @@ impl DevtoolsProfiler {
     }
 }
 
+/// Active scrollbar drag state for an inner overflow container.
+#[derive(Clone)]
+struct ScrollbarDrag {
+    /// Tree path of the scrollable element being dragged.
+    path: Vec<usize>,
+    /// Offset from the thumb top to the grab point so the thumb
+    /// doesn't jump on the first move.
+    grab_offset_y: f32,
+}
+
 /// Runtime state for the devtools window.
 struct WindowState {
     window: Arc<Window>,
@@ -127,6 +137,8 @@ struct WindowState {
     cache: PipelineCache,
     /// Last known cursor position in viewport space.
     cursor_pos: (f32, f32),
+    /// Active scrollbar thumb drag, if any.
+    scrollbar_drag: Option<ScrollbarDrag>,
     profiler: DevtoolsProfiler,
 }
 
@@ -231,6 +243,7 @@ impl Devtools {
             tree,
             cache,
             cursor_pos: (0.0, 0.0),
+            scrollbar_drag: None,
             profiler: DevtoolsProfiler::new(),
         });
     }
@@ -358,6 +371,19 @@ impl Devtools {
                 let state = self.window_state.as_mut().unwrap();
                 state.cursor_pos = (position.x as f32, position.y as f32);
                 if let Some(layout) = state.cache.layout() {
+                    // Scrollbar drag in progress — update the scroll
+                    // position and skip normal pointer dispatch.
+                    if let Some(drag) = state.scrollbar_drag.clone() {
+                        wgpu_html::scroll::scroll_element_thumb_to(
+                            &mut state.tree,
+                            layout,
+                            drag.path,
+                            state.cursor_pos.1 - drag.grab_offset_y,
+                        );
+                        state.window.request_redraw();
+                        return;
+                    }
+
                     let t0 = Instant::now();
                     let target = hit_path_scrolled(
                         layout,
@@ -389,6 +415,25 @@ impl Devtools {
                     return;
                 };
                 let ws = self.window_state.as_mut().unwrap();
+
+                // ── Mouse up: end scrollbar drag ────────────────
+                if *button_state == ElementState::Released
+                    && mb == MouseButton::Primary
+                    && ws.scrollbar_drag.take().is_some()
+                {
+                    ws.window.request_redraw();
+                    return;
+                }
+
+                // ── Mouse down: start scrollbar drag? ───────────
+                if *button_state == ElementState::Pressed
+                    && mb == MouseButton::Primary
+                    && Self::try_start_scrollbar_drag(ws)
+                {
+                    return;
+                }
+
+                // ── Normal DOM dispatch ─────────────────────────
                 if let Some(layout) = ws.cache.layout() {
                     let target = hit_path_scrolled(
                         layout,
@@ -432,6 +477,57 @@ impl Devtools {
             }
             _ => {}
         }
+    }
+
+    /// Check if the cursor is over an element scrollbar. If so,
+    /// start a drag and return `true` (consuming the mouse-down).
+    fn try_start_scrollbar_drag(ws: &mut WindowState) -> bool {
+        use wgpu_html::scroll::{
+            deepest_element_scrollbar_at, rect_contains, scroll_element_thumb_to,
+        };
+        let pos = ws.cursor_pos;
+
+        // Phase 1: hit-test (immutable borrow of cache + tree).
+        let hit = {
+            let Some(layout) = ws.cache.layout() else {
+                return false;
+            };
+            deepest_element_scrollbar_at(
+                layout,
+                pos,
+                &ws.tree.interaction.scroll_offsets_y,
+                &mut Vec::new(),
+            )
+        };
+        // Immutable borrow released here.
+
+        let Some((path, geom)) = hit else {
+            return false;
+        };
+
+        // Phase 2: mutate (mutable borrow of tree + cache).
+        if rect_contains(geom.thumb, pos) {
+            ws.scrollbar_drag = Some(ScrollbarDrag {
+                path,
+                grab_offset_y: pos.1 - geom.thumb.y,
+            });
+        } else {
+            // Track click — teleport thumb, then drag from centre.
+            if let Some(layout) = ws.cache.layout() {
+                scroll_element_thumb_to(
+                    &mut ws.tree,
+                    layout,
+                    path.clone(),
+                    pos.1,
+                );
+            }
+            ws.scrollbar_drag = Some(ScrollbarDrag {
+                path,
+                grab_offset_y: 0.0,
+            });
+        }
+        ws.window.request_redraw();
+        true
     }
 
     /// Actually drop any window state that was deferred from a
