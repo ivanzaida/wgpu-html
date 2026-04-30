@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use wgpu_html::layout::{LayoutBox, Rect};
 use wgpu_html::PipelineCache;
+use wgpu_html::layout::{LayoutBox, Rect};
 use wgpu_html_renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Node, Tree};
@@ -211,8 +211,7 @@ impl Devtools {
                 .expect("wgpu-html-devtools: failed to create window"),
         );
         let size = window.inner_size();
-        let renderer =
-            pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
+        let renderer = pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
         let text_ctx = TextContext::new(GLYPH_ATLAS_SIZE);
 
         // Build an empty placeholder tree; the real content arrives
@@ -365,11 +364,10 @@ impl Devtools {
                         state.cursor_pos,
                         &state.tree.interaction.scroll_offsets_y,
                     );
-                    let changed = state.tree.dispatch_pointer_move(
-                        target.as_deref(),
-                        state.cursor_pos,
-                        None,
-                    );
+                    let changed =
+                        state
+                            .tree
+                            .dispatch_pointer_move(target.as_deref(), state.cursor_pos, None);
                     let ms = t0.elapsed().as_secs_f64() * 1000.0;
                     state.profiler.add_pointer_move(ms, changed);
                     if changed {
@@ -399,20 +397,12 @@ impl Devtools {
                     );
                     match button_state {
                         ElementState::Pressed => {
-                            ws.tree.dispatch_mouse_down(
-                                target.as_deref(),
-                                ws.cursor_pos,
-                                mb,
-                                None,
-                            );
+                            ws.tree
+                                .dispatch_mouse_down(target.as_deref(), ws.cursor_pos, mb, None);
                         }
                         ElementState::Released => {
-                            ws.tree.dispatch_mouse_up(
-                                target.as_deref(),
-                                ws.cursor_pos,
-                                mb,
-                                None,
-                            );
+                            ws.tree
+                                .dispatch_mouse_up(target.as_deref(), ws.cursor_pos, mb, None);
                         }
                     }
                     ws.window.request_redraw();
@@ -434,12 +424,8 @@ impl Devtools {
                 };
                 let ws = self.window_state.as_mut().unwrap();
                 if let Some(layout) = ws.cache.layout() {
-                    if wgpu_html::scroll::scroll_element_at(
-                        &mut ws.tree,
-                        layout,
-                        ws.cursor_pos,
-                        dy,
-                    ) {
+                    if wgpu_html::scroll::scroll_element_at(&mut ws.tree, layout, ws.cursor_pos, dy)
+                    {
                         ws.window.request_redraw();
                     }
                 }
@@ -462,8 +448,8 @@ impl Devtools {
         let style_css = include_str!("../html/devtools.css");
         let style = wgpu_html_tree::Node::new(wgpu_html_models::StyleElement::default())
             .with_children(vec![wgpu_html_tree::Node::new(style_css)]);
-        let body = wgpu_html_tree::Node::new(wgpu_html_models::Body::default())
-            .with_children(vec![style]);
+        let body =
+            wgpu_html_tree::Node::new(wgpu_html_models::Body::default()).with_children(vec![style]);
         let mut tree = Tree::new(body);
         for face in &self.fonts {
             tree.register_font(face.clone());
@@ -474,13 +460,16 @@ impl Devtools {
     /// Render the devtools UI into its window.
     fn render_frame(state: &mut WindowState) {
         let size = state.window.inner_size();
+        let scale = state
+            .tree
+            .effective_dpi_scale(state.window.scale_factor() as f32);
         let (list, _layout, timings) = wgpu_html::paint_tree_cached(
             &state.tree,
             &mut state.text_ctx,
             &mut state.image_cache,
             size.width as f32,
             size.height as f32,
-            1.0,
+            scale,
             &mut state.cache,
         );
         // Layout is retained inside `state.cache` for hit-testing
@@ -572,10 +561,7 @@ fn collect_hit_scrolled(
 
     // Compensate for this element's scroll offset so children are
     // tested at their true layout positions.
-    let own_scroll = scroll_offsets
-        .get(path.as_slice())
-        .copied()
-        .unwrap_or(0.0);
+    let own_scroll = scroll_offsets.get(path.as_slice()).copied().unwrap_or(0.0);
     let child_y = y + own_scroll;
 
     // Walk children last-to-first (topmost painted wins).
