@@ -31,13 +31,11 @@ fn pointer_hover_repaints_tree_row_background() {
         ..Default::default()
     }));
     let mut devtools = Devtools::new(false);
-    devtools.update_inspected_tree(&inspected);
+    devtools.poll(&inspected);
     if wgpu_html_tree::register_system_fonts(&mut devtools.tree, "DemoSans") == 0 {
         return;
     }
 
-    // This test previously used pointer_move/paint/cache which are now
-    // handled by HtmlWindow. Re-enable once headless HtmlWindow is available.
     let _ = first_path_with_class(
         devtools.tree.root.as_ref().expect("devtools root"),
         "tree-row",

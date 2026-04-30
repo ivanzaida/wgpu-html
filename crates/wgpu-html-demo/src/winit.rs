@@ -654,7 +654,7 @@ impl AppHook for DemoHook {
         self.drain_commands(&mut ctx);
 
         if self.devtools.is_enabled() {
-            self.devtools.poll_and_redraw();
+            self.devtools.poll_and_redraw(ctx.tree);
         }
 
         if !self.enabled {
@@ -726,7 +726,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     tree.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
     install_demo_callbacks(&mut tree, &click_count);
 
-    let devtools = Devtools::attach(&mut tree);
+    let devtools = Devtools::attach(&mut tree, true);
     let hook = DemoHook::new(profiling_enabled, devtools);
 
     let result = create_window(&mut tree)

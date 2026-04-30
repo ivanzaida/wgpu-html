@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use wgpu_html_tree::{Node, Profiler, Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
+use wgpu_html_tree::{Node, Profiler, Tree};
 use wgpu_html_winit::HtmlWindow;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
@@ -17,30 +17,6 @@ use crate::html_gen;
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
-
-// ── TreeHook for auto-snapshot ────────────────────────────────────
-
-struct SharedSnapshot {
-    root: Option<Node>,
-    generation: u64,
-    dirty: bool,
-}
-
-struct DevtoolsHook {
-    shared: Arc<Mutex<SharedSnapshot>>,
-}
-
-impl TreeHook for DevtoolsHook {
-    fn on_render(&mut self, tree: &mut Tree, _event: &TreeRenderEvent<'_>) -> TreeHookResponse {
-        let mut shared = self.shared.lock().unwrap();
-        if tree.generation != shared.generation {
-            shared.root = tree.root.clone();
-            shared.generation = tree.generation;
-            shared.dirty = true;
-        }
-        TreeHookResponse::Continue
-    }
-}
 
 // ── Devtools ─────────────────────────────────────────────────────
 
@@ -57,8 +33,6 @@ pub struct Devtools {
     click_sink: Arc<Mutex<Option<Vec<usize>>>>,
     inspected_root: Option<Node>,
     last_inspected_gen: Option<u64>,
-    /// Shared state with the TreeHook installed by `attach()`.
-    snapshot: Option<Arc<Mutex<SharedSnapshot>>>,
 
     /// Set to `true` whenever the UI needs a repaint.
     needs_redraw: bool,
@@ -91,7 +65,6 @@ impl Devtools {
             click_sink,
             inspected_root: None,
             last_inspected_gen: None,
-            snapshot: None,
             needs_redraw: true,
             html_window: None,
             pending_drop: None,
@@ -99,22 +72,12 @@ impl Devtools {
         }
     }
 
-    /// Attach to `tree` by installing a [`TreeHook`] that
-    /// auto-snapshots the tree's root on every render. The
-    /// devtools will pick up changes via [`poll`] — no manual
-    /// [`update_inspected_tree`] calls needed.
+    /// Create a devtools instance pre-populated with the host tree's
+    /// state and fonts. The host calls [`poll`] each frame with
+    /// `&tree` to sync changes.
     ///
     /// Copies the tree's registered fonts into the devtools.
     pub fn attach(tree: &mut Tree, enable_profiler: bool) -> Self {
-        let shared = Arc::new(Mutex::new(SharedSnapshot {
-            root: tree.root.clone(),
-            generation: tree.generation,
-            dirty: true,
-        }));
-        tree.add_hook(DevtoolsHook {
-            shared: shared.clone(),
-        });
-
         // Enable profiling on the host tree so the cascade → layout →
         // paint pipeline records and auto-flushes timings.
         if enable_profiler && tree.profiler.is_none() {
@@ -124,7 +87,6 @@ impl Devtools {
         let mut devtools = Self::new(enable_profiler);
         devtools.inspected_root = tree.root.clone();
         devtools.last_inspected_gen = Some(tree.generation);
-        devtools.snapshot = Some(shared);
         // Copy the tree's fonts so the devtools UI can render text.
         for (_handle, face) in tree.fonts.iter() {
             devtools.register_font(face.clone());
@@ -154,61 +116,20 @@ impl Devtools {
 
     // ── Polling ─────────────────────────────────────────────
 
-    /// Check for tree changes (from the auto-snapshot hook) and
-    /// pending click selections. Updates only the affected parts
-    /// of the UI tree (tree-rows on DOM change; breadcrumb +
-    /// styles on selection change).
-    pub fn poll(&mut self) {
-        let mut dom_changed = false;
-        if let Some(shared) = &self.snapshot {
-            let mut snap = shared.lock().unwrap();
-            if snap.dirty {
-                snap.dirty = false;
-                self.inspected_root = snap.root.take();
-                self.last_inspected_gen = Some(snap.generation);
-                dom_changed = true;
-            }
-        }
-
-        let selection_changed = self
-            .click_sink
-            .lock()
-            .unwrap()
-            .take()
-            .map(|path| {
-                self.selected_path = Some(path);
-            })
-            .is_some();
-
+    /// Sync with the host tree. Call once per frame. Only updates
+    /// the parts of the devtools UI that actually changed:
+    /// tree-rows on DOM mutation, breadcrumb + styles on selection.
+    pub fn poll(&mut self, host_tree: &Tree) {
+        let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
         if dom_changed {
-            self.update_tree_rows();
-        }
-        if selection_changed {
-            self.update_selection();
-        }
-    }
-
-    /// Feed the inspected tree directly (manual mode, no hook).
-    pub fn update_inspected_tree(&mut self, inspected: &Tree) {
-        let inspected_gen = inspected.generation;
-        let dom_changed = self.last_inspected_gen != Some(inspected_gen);
-        if dom_changed {
-            self.inspected_root = inspected.root.clone();
-            self.last_inspected_gen = Some(inspected_gen);
+            self.inspected_root = host_tree.root.clone();
+            self.last_inspected_gen = Some(host_tree.generation);
             self.update_tree_rows();
         }
 
-        let selection_changed = self
-            .click_sink
-            .lock()
-            .unwrap()
-            .take()
-            .map(|path| {
-                self.selected_path = Some(path);
-            })
-            .is_some();
-
-        if selection_changed {
+        let clicked = self.click_sink.lock().unwrap().take();
+        if let Some(path) = clicked {
+            self.selected_path = Some(path);
             self.update_selection();
         }
     }
@@ -340,9 +261,9 @@ impl Devtools {
         }
     }
 
-    /// Poll for changes and request a redraw if needed.
-    pub fn poll_and_redraw(&mut self) {
-        self.poll();
+    /// Sync with host tree and request a redraw if needed.
+    pub fn poll_and_redraw(&mut self, host_tree: &Tree) {
+        self.poll(host_tree);
         if self.needs_redraw {
             if let Some(hw) = &self.html_window {
                 hw.request_redraw();
