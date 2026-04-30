@@ -50,8 +50,6 @@ impl Devtools {
     pub fn new(enable_profiler: bool) -> Self {
         let click_sink = Arc::new(Mutex::new(None));
         let mut tree = html_gen::build(None, None, &click_sink);
-        // Register the Lucide icon font so the devtools UI renders
-        // icons regardless of what fonts the host has registered.
         let lucide = wgpu_html_tree::FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
         tree.register_font(lucide.clone());
 
@@ -91,6 +89,9 @@ impl Devtools {
         for (_handle, face) in tree.fonts.iter() {
             devtools.register_font(face.clone());
         }
+        // Populate the tree rows with the initial inspected tree.
+        devtools.update_tree_rows();
+        devtools.update_selection();
         devtools
     }
 
