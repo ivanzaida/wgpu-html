@@ -1,10 +1,12 @@
-//! Build the devtools UI as a [`Tree`] directly from an inspected
-//! tree — no HTML generation or parsing involved.
+//! Build the devtools UI by parsing the static HTML shell and
+//! injecting dynamic content (tree rows, breadcrumb, styles)
+//! into placeholder containers identified by `id`.
 
 use std::sync::{Arc, Mutex};
 
 use wgpu_html_tree::{Element, Node};
 
+const SHELL_HTML: &str = include_str!("../html/devtools.html");
 const CSS: &str = include_str!("../html/devtools.css");
 
 /// Maximum tree depth rendered.
@@ -12,14 +14,9 @@ const MAX_DEPTH: usize = 32;
 
 // ── Lucide icon codepoints (PUA) ────────────────────────────────
 
-const ICON_INSPECT: &str = "\u{e202}";
 const ICON_CHEVRON_DOWN: &str = "\u{e06d}";
 #[allow(dead_code)]
 const ICON_CHEVRON_RIGHT: &str = "\u{e06f}";
-const ICON_FILTER: &str = "\u{e0dc}";
-const ICON_PLUS: &str = "\u{e13d}";
-#[allow(dead_code)]
-const ICON_CODE: &str = "\u{e093}";
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -52,76 +49,69 @@ fn text(s: &str) -> Node {
 
 // ── Public API ──────────────────────────────────────────────────
 
-/// Build a complete devtools UI tree from the inspected root node.
+/// Parse the static devtools shell and populate the dynamic
+/// containers with content derived from the inspected tree.
 pub fn build(
     inspected_root: Option<&Node>,
     selected_path: Option<&[usize]>,
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
 ) -> wgpu_html_tree::Tree {
-    let style = Node::new(wgpu_html_models::StyleElement::default()).with_children(vec![text(CSS)]);
+    let mut tree = wgpu_html_parser::parse(SHELL_HTML);
 
-    let toolbar = build_toolbar();
-    let main = build_main(inspected_root, selected_path, click_sink);
-
-    let body =
-        Node::new(wgpu_html_models::Body::default()).with_children(vec![style, toolbar, main]);
-
-    wgpu_html_tree::Tree::new(body)
-}
-
-// ── Toolbar ─────────────────────────────────────────────────────
-
-fn build_toolbar() -> Node {
-    div("toolbar").with_children(vec![
-        span("pick-btn", ICON_INSPECT),
-        div("tb-divider"),
-        div("filter").with_children(vec![
-            span("filter-icon", ICON_FILTER),
-            span("filter-text", "Filter"),
-        ]),
-    ])
-}
-
-// ── Main area ───────────────────────────────────────────────────
-
-fn build_main(
-    inspected_root: Option<&Node>,
-    selected_path: Option<&[usize]>,
-    click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
-) -> Node {
-    let tree_panel = build_tree_panel(inspected_root, selected_path, click_sink);
-
-    // Look up the selected node for the styles panel.
-    let selected_node = selected_path.and_then(|path| {
-        let root = inspected_root?;
-        if path.is_empty() {
-            Some(root)
-        } else {
-            root.at_path(path)
-        }
-    });
-    let styles_panel = build_styles_panel(selected_node);
-
-    div("main").with_children(vec![tree_panel, styles_panel])
-}
-
-// ── Tree panel ──────────────────────────────────────────────────
-
-fn build_tree_panel(
-    inspected_root: Option<&Node>,
-    selected_path: Option<&[usize]>,
-    click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
-) -> Node {
-    let mut rows = div("tree-rows");
-    if let Some(root) = inspected_root {
-        let mut path = Vec::new();
-        emit_node(&mut rows, root, 0, &mut path, selected_path, click_sink);
+    // Inject the stylesheet into the shell's <style> element.
+    if let Some(style_el) = find_style_element(&mut tree) {
+        style_el.children = vec![text(CSS)];
     }
 
-    let breadcrumb = build_breadcrumb(inspected_root, selected_path);
+    // ── Tree rows ───────────────────────────────────────────
+    if let Some(container) = tree.get_element_by_id("tree-rows") {
+        container.children.clear();
+        if let Some(root) = inspected_root {
+            let mut path = Vec::new();
+            emit_node(container, root, 0, &mut path, selected_path, click_sink);
+        }
+    }
 
-    div("tree-panel").with_children(vec![rows, breadcrumb])
+    // ── Breadcrumb ──────────────────────────────────────────
+    if let Some(container) = tree.get_element_by_id("breadcrumb") {
+        container.children.clear();
+        populate_breadcrumb(container, inspected_root, selected_path);
+    }
+
+    // ── Styles content ──────────────────────────────────────
+    if let Some(container) = tree.get_element_by_id("styles-content") {
+        container.children.clear();
+        let selected_node = selected_path.and_then(|path| {
+            let root = inspected_root?;
+            if path.is_empty() {
+                Some(root)
+            } else {
+                root.at_path(path)
+            }
+        });
+        populate_styles(container, selected_node);
+    }
+
+    tree
 }
+
+/// Find the first `<style>` element in the tree.
+fn find_style_element(tree: &mut wgpu_html_tree::Tree) -> Option<&mut Node> {
+    fn walk(node: &mut Node) -> Option<&mut Node> {
+        if node.element.tag_name() == "style" {
+            return Some(node);
+        }
+        for child in &mut node.children {
+            if let Some(found) = walk(child) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    tree.root.as_mut().and_then(walk)
+}
+
+// ── Tree rows ───────────────────────────────────────────────────
 
 fn emit_node(
     parent: &mut Node,
@@ -213,13 +203,11 @@ fn tree_row(
         style: Some(format!("padding-left: {px}px;")),
         ..Default::default()
     };
-    // Store the inspected-tree path for debugging / future use.
     div_model
         .data_attrs
         .insert("path".to_string(), encode_path(path));
     let mut node = Node::new(div_model);
 
-    // Click callback: write the inspected path to the shared sink.
     let sink = click_sink.clone();
     let path_owned = path.to_vec();
     node.on_click = Some(Arc::new(move |_| {
@@ -255,28 +243,29 @@ fn push_open_tag(row: &mut Node, node: &Node, tag: &str) {
 
 // ── Breadcrumb ──────────────────────────────────────────────────
 
-fn build_breadcrumb(inspected_root: Option<&Node>, selected_path: Option<&[usize]>) -> Node {
-    let mut items: Vec<Node> = Vec::new();
-
+fn populate_breadcrumb(
+    container: &mut Node,
+    inspected_root: Option<&Node>,
+    selected_path: Option<&[usize]>,
+) {
     if let (Some(root), Some(path)) = (inspected_root, selected_path) {
         let mut current = root;
         let len = path.len();
 
-        // Root element
         if len == 0 {
-            items.push(span("bc-active", &tag_label(current)));
+            container.push(span("bc-active", &tag_label(current)));
         } else {
-            items.push(span("bracket", &tag_label(current)));
+            container.push(span("bracket", &tag_label(current)));
         }
 
         for (i, &idx) in path.iter().enumerate() {
-            items.push(text(" \u{203A} ")); // ›
+            container.push(text(" \u{203A} "));
             if let Some(child) = current.children.get(idx) {
                 let label = tag_label(child);
                 if i == len - 1 {
-                    items.push(span("bc-active", &label));
+                    container.push(span("bc-active", &label));
                 } else {
-                    items.push(span("bracket", &label));
+                    container.push(span("bracket", &label));
                 }
                 current = child;
             } else {
@@ -284,10 +273,8 @@ fn build_breadcrumb(inspected_root: Option<&Node>, selected_path: Option<&[usize
             }
         }
     } else {
-        items.push(span("bc-active", "document"));
+        container.push(span("bc-active", "document"));
     }
-
-    div("breadcrumb").with_children(items)
 }
 
 fn tag_label(node: &Node) -> String {
@@ -306,26 +293,9 @@ fn tag_label(node: &Node) -> String {
     label
 }
 
-// ── Styles panel ────────────────────────────────────────────────
+// ── Styles content ──────────────────────────────────────────────
 
-fn build_styles_panel(selected_node: Option<&Node>) -> Node {
-    let tab_bar = div("tab-bar").with_children(vec![
-        div_style("tab tab-active", "height: 100%;").with_children(vec![text("Styles")]),
-        div_style("tab", "height: 100%;").with_children(vec![text("Computed")]),
-        div_style("tab", "height: 100%;").with_children(vec![text("Layout")]),
-        div_style("tab", "height: 100%;").with_children(vec![text("Event Listeners")]),
-    ]);
-
-    let style_search = div("style-search").with_children(vec![
-        span("ss-label", "Filter"),
-        div("ss-spacer"),
-        span("ss-btn ss-btn-active", ":hov"),
-        span("ss-btn", ".cls"),
-        span("ss-btn icon", ICON_PLUS),
-    ]);
-
-    let mut content = div("styles-content");
-
+fn populate_styles(container: &mut Node, selected_node: Option<&Node>) {
     if let Some(node) = selected_node {
         // ── element.style rule ──
         let mut element_style = div("rule");
@@ -345,7 +315,7 @@ fn build_styles_panel(selected_node: Option<&Node>) -> Node {
             }
         }
         element_style.push(div("rule-end").with_children(vec![text("}")]));
-        content.push(element_style);
+        container.push(element_style);
 
         // ── Element info ──
         let tag = node.element.tag_name();
@@ -361,17 +331,14 @@ fn build_styles_panel(selected_node: Option<&Node>) -> Node {
 
         let mut info_rule = div("rule");
         info_rule.push(div("rule-header").with_children(vec![span("selector-text", &info_text)]));
-        content.push(info_rule);
+        container.push(info_rule);
     } else {
-        // No selection — placeholder.
         let placeholder = div_style("rule", "padding: 12px;").with_children(vec![span(
             "text-node",
             "Select an element to inspect its styles",
         )]);
-        content.push(placeholder);
+        container.push(placeholder);
     }
-
-    div("styles-panel").with_children(vec![tab_bar, style_search, content])
 }
 
 fn make_decl(prop: &str, value: &str) -> Node {

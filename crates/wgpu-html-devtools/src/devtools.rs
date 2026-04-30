@@ -442,15 +442,9 @@ impl Devtools {
         self.pending_drop = None;
     }
 
-    /// Build a minimal tree with just the stylesheet so the window
-    /// isn't completely blank before the first update.
+    /// Build the devtools shell with no inspected content.
     fn new_empty_tree(&self) -> Tree {
-        let style_css = include_str!("../html/devtools.css");
-        let style = wgpu_html_tree::Node::new(wgpu_html_models::StyleElement::default())
-            .with_children(vec![wgpu_html_tree::Node::new(style_css)]);
-        let body =
-            wgpu_html_tree::Node::new(wgpu_html_models::Body::default()).with_children(vec![style]);
-        let mut tree = Tree::new(body);
+        let mut tree = html_gen::build(None, None, &self.click_sink);
         for face in &self.fonts {
             tree.register_font(face.clone());
         }
