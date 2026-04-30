@@ -54,7 +54,6 @@ pub struct Devtools {
     tree: Tree,
 
     // ── Inspected-tree tracking ─────────────────────────────
-    fonts: Vec<wgpu_html_tree::FontFace>,
     selected_path: Option<Vec<usize>>,
     click_sink: Arc<Mutex<Option<Vec<usize>>>>,
     inspected_root: Option<Node>,
@@ -89,7 +88,6 @@ impl Devtools {
 
         Self {
             tree,
-            fonts: vec![lucide],
             selected_path: None,
             click_sink,
             inspected_root: None,
@@ -139,7 +137,6 @@ impl Devtools {
 
     /// Register a font face for the devtools UI.
     pub fn register_font(&mut self, face: wgpu_html_tree::FontFace) {
-        self.fonts.push(face.clone());
         self.tree.register_font(face);
     }
 
@@ -220,7 +217,7 @@ impl Devtools {
             self.selected_path.as_deref(),
             &self.click_sink,
         );
-        for face in &self.fonts {
+        for (_handle, face) in self.tree.fonts.iter() {
             tree.register_font(face.clone());
         }
         let _build_ms = t0.elapsed().as_secs_f64() * 1000.0;
