@@ -6,46 +6,13 @@ use std::sync::{Arc, Mutex};
 
 use wgpu_html_tree::{Element, Node};
 
+use crate::tags::*;
+
 const SHELL_HTML: &str = include_str!("../html/devtools.html");
 const CSS: &str = include_str!("../html/devtools.css");
 
 /// Maximum tree depth rendered.
 const MAX_DEPTH: usize = 32;
-
-// ── Lucide icon codepoints (PUA) ────────────────────────────────
-
-const ICON_CHEVRON_DOWN: &str = "\u{e06d}";
-#[allow(dead_code)]
-const ICON_CHEVRON_RIGHT: &str = "\u{e06f}";
-
-// ── Helpers ─────────────────────────────────────────────────────
-
-fn div(class: &str) -> Node {
-    Node::new(wgpu_html_models::Div {
-        class: Some(class.to_owned()),
-        ..Default::default()
-    })
-}
-
-fn div_style(class: &str, style: &str) -> Node {
-    Node::new(wgpu_html_models::Div {
-        class: Some(class.to_owned()),
-        style: Some(style.to_owned()),
-        ..Default::default()
-    })
-}
-
-fn span(class: &str, text: &str) -> Node {
-    Node::new(wgpu_html_models::Span {
-        class: Some(class.to_owned()),
-        ..Default::default()
-    })
-    .with_children(vec![Node::new(text)])
-}
-
-fn text(s: &str) -> Node {
-    Node::new(s)
-}
 
 // ── Public API ──────────────────────────────────────────────────
 
@@ -57,11 +24,7 @@ pub fn build(
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
 ) -> wgpu_html_tree::Tree {
     let mut tree = wgpu_html_parser::parse(SHELL_HTML);
-
-    // Inject the stylesheet into the shell's <style> element.
-    if let Some(style_el) = find_style_element(&mut tree) {
-        style_el.children = vec![text(CSS)];
-    }
+    tree.register_linked_stylesheet("devtools.css", CSS);
 
     // ── Tree rows ───────────────────────────────────────────
     if let Some(container) = tree.get_element_by_id("tree-rows") {
@@ -93,22 +56,6 @@ pub fn build(
     }
 
     tree
-}
-
-/// Find the first `<style>` element in the tree.
-fn find_style_element(tree: &mut wgpu_html_tree::Tree) -> Option<&mut Node> {
-    fn walk(node: &mut Node) -> Option<&mut Node> {
-        if node.element.tag_name() == "style" {
-            return Some(node);
-        }
-        for child in &mut node.children {
-            if let Some(found) = walk(child) {
-                return Some(found);
-            }
-        }
-        None
-    }
-    tree.root.as_mut().and_then(walk)
 }
 
 // ── Tree rows ───────────────────────────────────────────────────
@@ -145,20 +92,17 @@ fn emit_node(
             let has_vis = has_visible_children(node);
 
             if has_vis {
-                // Open tag row
                 let mut row = tree_row(depth, path, selected_path, click_sink);
                 row.push(span("chevron", ICON_CHEVRON_DOWN));
                 push_open_tag(&mut row, node, tag);
                 parent.push(row);
 
-                // Children
                 for (i, child) in node.children.iter().enumerate() {
                     path.push(i);
                     emit_node(parent, child, depth + 1, path, selected_path, click_sink);
                     path.pop();
                 }
 
-                // Close tag row
                 let close = tree_row_plain(depth).with_children(vec![
                     span("bracket", "</"),
                     span("tag", tag),
@@ -166,7 +110,6 @@ fn emit_node(
                 ]);
                 parent.push(close);
             } else {
-                // Leaf / self-closing on one row
                 let mut row = tree_row(depth, path, selected_path, click_sink);
                 push_open_tag(&mut row, node, tag);
 
@@ -181,64 +124,6 @@ fn emit_node(
             }
         }
     }
-}
-
-/// Build an interactive tree row with click-to-select and selection
-/// highlight.
-fn tree_row(
-    depth: usize,
-    path: &[usize],
-    selected_path: Option<&[usize]>,
-    click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
-) -> Node {
-    let px = 12 + depth * 16;
-    let is_selected = selected_path.is_some_and(|sp| sp == path);
-    let class = if is_selected {
-        "tree-row tree-row-selected"
-    } else {
-        "tree-row"
-    };
-    let mut div_model = wgpu_html_models::Div {
-        class: Some(class.to_owned()),
-        style: Some(format!("padding-left: {px}px;")),
-        ..Default::default()
-    };
-    div_model
-        .data_attrs
-        .insert("path".to_string(), encode_path(path));
-    let mut node = Node::new(div_model);
-
-    let sink = click_sink.clone();
-    let path_owned = path.to_vec();
-    node.on_click = Some(Arc::new(move |_| {
-        *sink.lock().unwrap() = Some(path_owned.clone());
-    }));
-
-    node
-}
-
-/// Plain (non-interactive) tree row used for closing tags.
-fn tree_row_plain(depth: usize) -> Node {
-    let px = 12 + depth * 16;
-    div_style("tree-row", &format!("padding-left: {px}px;"))
-}
-
-fn push_open_tag(row: &mut Node, node: &Node, tag: &str) {
-    row.push(span("bracket", "<"));
-    row.push(span("tag", tag));
-
-    if let Some(id) = node.element.id() {
-        row.push(span("attr-n", " id"));
-        row.push(span("bracket", "="));
-        row.push(span("attr-v", &format!("\"{id}\"")));
-    }
-    if let Some(cls) = node.element.class() {
-        row.push(span("attr-n", " class"));
-        row.push(span("bracket", "="));
-        row.push(span("attr-v", &format!("\"{cls}\"")));
-    }
-
-    row.push(span("bracket", ">"));
 }
 
 // ── Breadcrumb ──────────────────────────────────────────────────
@@ -275,22 +160,6 @@ fn populate_breadcrumb(
     } else {
         container.push(span("bc-active", "document"));
     }
-}
-
-fn tag_label(node: &Node) -> String {
-    let tag = node.element.tag_name();
-    let mut label = tag.to_string();
-    if let Some(id) = node.element.id() {
-        label.push('#');
-        label.push_str(&id);
-    }
-    if let Some(cls) = node.element.class() {
-        for c in cls.split_whitespace().take(2) {
-            label.push('.');
-            label.push_str(c);
-        }
-    }
-    label
 }
 
 // ── Styles content ──────────────────────────────────────────────
@@ -339,57 +208,4 @@ fn populate_styles(container: &mut Node, selected_node: Option<&Node>) {
         )]);
         container.push(placeholder);
     }
-}
-
-fn make_decl(prop: &str, value: &str) -> Node {
-    div("decl").with_children(vec![
-        div("cb"),
-        span("prop", prop),
-        span("colon", ": "),
-        span("val", value),
-        span("semi", ";"),
-    ])
-}
-
-// ── Utilities ───────────────────────────────────────────────────
-
-fn has_visible_children(node: &Node) -> bool {
-    node.children.iter().any(|c| match &c.element {
-        Element::Text(t) => !t.trim().is_empty(),
-        _ => !matches!(
-            c.element.tag_name(),
-            "style" | "script" | "meta" | "link" | "title"
-        ),
-    })
-}
-
-fn single_text_child(node: &Node) -> Option<&str> {
-    if node.children.len() == 1 {
-        if let Element::Text(t) = &node.children[0].element {
-            let trimmed = t.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed);
-            }
-        }
-    }
-    None
-}
-
-fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_owned()
-    } else {
-        let mut end = max;
-        while !s.is_char_boundary(end) && end > 0 {
-            end -= 1;
-        }
-        format!("{}...", &s[..end])
-    }
-}
-
-fn encode_path(path: &[usize]) -> String {
-    path.iter()
-        .map(|i| i.to_string())
-        .collect::<Vec<_>>()
-        .join(".")
 }
