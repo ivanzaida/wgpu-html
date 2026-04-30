@@ -484,7 +484,8 @@ impl Devtools {
                 self.render_to_window();
             }
             WindowEvent::CursorMoved { position, .. } => {
-                if self.pointer_move(position.x as f32, position.y as f32) {
+                self.pointer_move(position.x as f32, position.y as f32);
+                if self.needs_redraw {
                     if let Some(hw) = &self.html_window {
                         hw.request_redraw();
                     }

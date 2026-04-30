@@ -133,7 +133,6 @@ body {
 .tree-row {
     display: flex;
     align-items: center;
-    gap: 4px;
     height: 18px;
     flex-shrink: 0;
     padding-right: 8px;
@@ -158,6 +157,7 @@ body {
     font-family: lucide;
     font-size: 10px;
     width: 12px;
+    margin-right: 2px;
 }
 
 .tag {
