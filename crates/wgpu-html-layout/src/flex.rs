@@ -716,8 +716,8 @@ fn build_item<'a>(
     // Intrinsic basis: max-content of the item's content. Already
     // content-box (no padding/border), so it bypasses the box-sizing
     // conversion and is used as-is when no explicit basis is set.
-    let intrinsic_main =
-        replaced_intrinsic_main(node, is_row, ctx.images).or_else(|| text_intrinsic_main(node, is_row, ctx));
+    let intrinsic_main = replaced_intrinsic_main(node, is_row, ctx.images)
+        .or_else(|| text_intrinsic_main(node, is_row, ctx));
     let mut base_size = match basis_explicit {
         Some(v) => match box_sizing {
             BoxSizing::ContentBox => v,
@@ -793,7 +793,11 @@ fn build_item<'a>(
 /// [`crate::load_image`]. Returns `None` for non-replaced elements
 /// and for images whose fetch hasn't completed yet, in which case the
 /// flex algorithm falls back to its previous "0 base size" behaviour.
-fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool, images: &mut crate::ImageCache) -> Option<f32> {
+fn replaced_intrinsic_main(
+    node: &CascadedNode,
+    is_row: bool,
+    images: &mut crate::ImageCache,
+) -> Option<f32> {
     match &node.element {
         Element::Img(img) => {
             let loaded = images.load(img);

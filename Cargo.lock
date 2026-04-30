@@ -4033,6 +4033,7 @@ dependencies = [
  "pollster",
  "wgpu-html",
  "wgpu-html-models",
+ "wgpu-html-parser",
  "wgpu-html-renderer",
  "wgpu-html-text",
  "wgpu-html-tree",

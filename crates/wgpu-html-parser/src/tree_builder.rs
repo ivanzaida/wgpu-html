@@ -253,7 +253,9 @@ mod tests {
 
     #[test]
     fn test_template_contents_are_retained() {
-        let tree = build(tokenize("<template id=\"tpl\"><div>hidden</div></template><p>shown</p>"));
+        let tree = build(tokenize(
+            "<template id=\"tpl\"><div>hidden</div></template><p>shown</p>",
+        ));
         let body = tree.root.as_ref().expect("root");
         assert!(matches!(body.element, Element::Body(_)));
         assert_eq!(body.children.len(), 2);

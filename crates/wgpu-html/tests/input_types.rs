@@ -148,9 +148,7 @@ fn password_input_stores_cleartext_but_renders_bullets() {
     let typed = "secret";
 
     // ── Type into the password field ────────────────────────────
-    let pw_path = tree
-        .query_selector_path("#pw")
-        .expect("#pw should exist");
+    let pw_path = tree.query_selector_path("#pw").expect("#pw should exist");
     tree.focus(Some(&pw_path));
     for ch in typed.chars() {
         wgpu_html_tree::text_input(&mut tree, &ch.to_string());
@@ -166,9 +164,7 @@ fn password_input_stores_cleartext_but_renders_bullets() {
 
     // ── Type the same text into the plain text field ────────────
     tree.blur();
-    let txt_path = tree
-        .query_selector_path("#txt")
-        .expect("#txt should exist");
+    let txt_path = tree.query_selector_path("#txt").expect("#txt should exist");
     tree.focus(Some(&txt_path));
     for ch in typed.chars() {
         wgpu_html_tree::text_input(&mut tree, &ch.to_string());
@@ -191,13 +187,17 @@ fn password_input_stores_cleartext_but_renders_bullets() {
 
     // Walk the layout tree to find the two inputs' text runs.
     // body → children; each input is a direct child of body.
-    let pw_box = wgpu_html::layout_at_path(&layout, &pw_path)
-        .expect("password layout box");
-    let txt_box = wgpu_html::layout_at_path(&layout, &txt_path)
-        .expect("text layout box");
+    let pw_box = wgpu_html::layout_at_path(&layout, &pw_path).expect("password layout box");
+    let txt_box = wgpu_html::layout_at_path(&layout, &txt_path).expect("text layout box");
 
-    let pw_run = pw_box.text_run.as_ref().expect("password should have a text run");
-    let txt_run = txt_box.text_run.as_ref().expect("text should have a text run");
+    let pw_run = pw_box
+        .text_run
+        .as_ref()
+        .expect("password should have a text run");
+    let txt_run = txt_box
+        .text_run
+        .as_ref()
+        .expect("text should have a text run");
 
     // 2. Password run contains only bullets.
     let bullet = '\u{2022}';

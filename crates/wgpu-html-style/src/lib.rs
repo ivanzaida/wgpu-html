@@ -580,8 +580,7 @@ fn re_cascade_dirty(
 
     if is_dirty || subtree_dirty {
         // Re-cascade this node (same logic as cascade_node).
-        let element_ctx =
-            MatchContext::for_path_with_siblings(path, interaction, sibling_count);
+        let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
         let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
             (Style::default(), HashMap::new())
         } else {
@@ -617,20 +616,20 @@ fn re_cascade_dirty(
     }
 
     // Build ancestor chain for children.
-    let element_ctx =
-        MatchContext::for_path_with_siblings(path, interaction, sibling_count);
+    let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
     let mut child_ancestors: Vec<(&Element, MatchContext)> =
         Vec::with_capacity(ancestors.len() + 1);
     child_ancestors.push((&node.element, element_ctx));
     child_ancestors.extend_from_slice(ancestors);
 
     // Check if any child needs work before recursing.
-    let any_child_dirty = dirty.iter().any(|d| {
-        d.len() > path.len() && d[..path.len()] == *path.as_slice()
-    }) || dirty_subtrees.iter().any(|s| {
-        // A subtree root at or above us means children are dirty.
-        path.len() >= s.len() && &path[..s.len()] == s.as_slice()
-    });
+    let any_child_dirty = dirty
+        .iter()
+        .any(|d| d.len() > path.len() && d[..path.len()] == *path.as_slice())
+        || dirty_subtrees.iter().any(|s| {
+            // A subtree root at or above us means children are dirty.
+            path.len() >= s.len() && &path[..s.len()] == s.as_slice()
+        });
 
     if any_child_dirty {
         let child_count = node.children.len();
@@ -783,7 +782,9 @@ fn cascade_node(
     }
 
     // Resolve var() references now that custom properties are final.
-    if !style.var_properties.is_empty() || style.custom_properties.values().any(|v| v.contains("var(")) {
+    if !style.var_properties.is_empty()
+        || style.custom_properties.values().any(|v| v.contains("var("))
+    {
         wgpu_html_parser::resolve_var_references(&mut style);
     }
 

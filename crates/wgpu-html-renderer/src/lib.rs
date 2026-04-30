@@ -256,17 +256,11 @@ impl Renderer {
 
         self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
 
-        let staging = screenshot::begin_capture(&self.device, &mut encoder, &texture, width, height);
+        let staging =
+            screenshot::begin_capture(&self.device, &mut encoder, &texture, width, height);
         self.queue.submit(Some(encoder.finish()));
 
-        screenshot::finish_capture(
-            &self.device,
-            staging,
-            width,
-            height,
-            format,
-            path.as_ref(),
-        )
+        screenshot::finish_capture(&self.device, staging, width, height, format, path.as_ref())
     }
 
     /// Capture a rectangular region of the document described by

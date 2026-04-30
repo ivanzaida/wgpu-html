@@ -73,8 +73,14 @@ pub fn compute_layout_profiled(
     let cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
     let layout_t0 = Instant::now();
-    let layout =
-        wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+    let layout = wgpu_html_layout::layout_with_text(
+        &cascaded,
+        text_ctx,
+        image_cache,
+        viewport_w,
+        viewport_h,
+        scale,
+    );
     let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
     (
@@ -98,8 +104,14 @@ pub fn paint_tree_returning_layout(
     viewport_h: f32,
     scale: f32,
 ) -> (DisplayList, Option<LayoutBox>) {
-    let (list, layout, _) =
-        paint_tree_returning_layout_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale);
+    let (list, layout, _) = paint_tree_returning_layout_profiled(
+        tree,
+        text_ctx,
+        image_cache,
+        viewport_w,
+        viewport_h,
+        scale,
+    );
     (list, layout)
 }
 
@@ -283,7 +295,12 @@ pub fn paint_tree_cached<'c>(
 
             let layout_t0 = Instant::now();
             let layout = wgpu_html_layout::layout_with_text(
-                &cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale,
+                &cascaded,
+                text_ctx,
+                image_cache,
+                viewport_w,
+                viewport_h,
+                scale,
             );
             timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -313,7 +330,12 @@ pub fn paint_tree_cached<'c>(
                 let layout_t0 = Instant::now();
                 if let Some(cascaded) = &cache.cascaded {
                     cache.layout = wgpu_html_layout::layout_with_text(
-                        cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale,
+                        cascaded,
+                        text_ctx,
+                        image_cache,
+                        viewport_w,
+                        viewport_h,
+                        scale,
                     );
                 }
                 timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
@@ -552,7 +574,8 @@ fn collect_selected_text(
     out: &mut String,
 ) {
     if let Some(run) = &layout.text_run {
-        if !layout.text_unselectable && !path_less(path, &start.path) && !path_less(&end.path, path) {
+        if !layout.text_unselectable && !path_less(path, &start.path) && !path_less(&end.path, path)
+        {
             let from = if path.as_slice() == start.path.as_slice() {
                 run.byte_offset_for_boundary(start.glyph_index)
             } else {
@@ -797,5 +820,4 @@ mod tests {
             Some("Hello world\nSecond")
         );
     }
-
 }

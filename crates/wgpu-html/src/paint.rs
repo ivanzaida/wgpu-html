@@ -29,7 +29,14 @@ fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_htm
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
     let mut ctx = TextContext::new(64);
     let mut image_cache = wgpu_html_layout::ImageCache::new();
-    paint_tree_with_text(tree, &mut ctx, &mut image_cache, viewport_w, viewport_h, 1.0)
+    paint_tree_with_text(
+        tree,
+        &mut ctx,
+        &mut image_cache,
+        viewport_w,
+        viewport_h,
+        1.0,
+    )
 }
 
 /// Cascade + lay out + paint, threading a long-lived `TextContext`
@@ -54,9 +61,14 @@ pub fn paint_tree_with_text(
     }
     let cascaded = wgpu_html_style::cascade(tree);
     let mut list = DisplayList::new();
-    if let Some(root) =
-        wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale)
-    {
+    if let Some(root) = wgpu_html_layout::layout_with_text(
+        &cascaded,
+        text_ctx,
+        image_cache,
+        viewport_w,
+        viewport_h,
+        scale,
+    ) {
         let mut clip_stack: Vec<ClipFrame> = Vec::new();
         let mut path = Vec::new();
         paint_box_in_clip(
@@ -127,7 +139,14 @@ pub fn paint_layout_with_interaction(
     selection_colors: SelectionColors,
     scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
 ) {
-    paint_layout_full(root, list, selection, selection_colors, scroll_offsets_y, None);
+    paint_layout_full(
+        root,
+        list,
+        selection,
+        selection_colors,
+        scroll_offsets_y,
+        None,
+    );
 }
 
 /// Paint with full interaction state including the text editing caret.
@@ -450,8 +469,7 @@ fn paint_box_in_clip(
                     .lines
                     .iter()
                     .find(|l| {
-                        caret_glyph_idx >= l.glyph_range.0
-                            && caret_glyph_idx <= l.glyph_range.1
+                        caret_glyph_idx >= l.glyph_range.0 && caret_glyph_idx <= l.glyph_range.1
                     })
                     .map(|l| (l.top, l.height))
                     .or_else(|| run.lines.last().map(|l| (l.top, l.height)))

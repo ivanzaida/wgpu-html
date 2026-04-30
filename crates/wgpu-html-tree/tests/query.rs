@@ -190,8 +190,7 @@ fn empty_pseudo_class_matches_no_children() {
 fn root_pseudo_class_matches_html_root() {
     // Build a document with an explicit <html> wrapper so `:root`
     // has a unique target.
-    let body = Node::new(m::Body::default())
-        .with_children(vec![Node::new(div(Some("a"), None))]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("a"), None))]);
     let html = Node::new(m::Html::default()).with_children(vec![body]);
     let mut tree = Tree::new(html);
     SelectorList::parse(":root").expect("`:root` must parse");
@@ -454,8 +453,7 @@ fn lang_pseudo_class_dash_matches() {
     e.lang = Some("en-US".into());
     let mut e2 = m::Div::default();
     e2.lang = Some("fr".into());
-    let body = Node::new(m::Body::default())
-        .with_children(vec![Node::new(e), Node::new(e2)]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(e), Node::new(e2)]);
     let mut tree = Tree::new(body);
     SelectorList::parse(":lang(en)").expect("`:lang()` must parse");
     let hits = tree.query_selector_all_paths(":lang(en)");
@@ -469,8 +467,7 @@ fn dir_pseudo_class_matches_explicit_direction() {
     e.dir = Some(HtmlDirection::Rtl);
     let mut e2 = m::Div::default();
     e2.dir = Some(HtmlDirection::Ltr);
-    let body = Node::new(m::Body::default())
-        .with_children(vec![Node::new(e), Node::new(e2)]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(e), Node::new(e2)]);
     let mut tree = Tree::new(body);
     SelectorList::parse(":dir(rtl)").expect("`:dir()` must parse");
     let hits = tree.query_selector_all_paths(":dir(rtl)");
@@ -513,10 +510,8 @@ fn css_escape_in_id_selector() {
     // An id literally containing a dot: `<div id="has.dot">`.
     // CSS escapes the dot as `\.`. Today the parser stops at the
     // backslash and rejects it.
-    let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(
-        Some("has.dot"),
-        None,
-    ))]);
+    let body =
+        Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("has.dot"), None))]);
     let mut tree = Tree::new(body);
     SelectorList::parse(r"#has\.dot").expect("escaped `.` must parse");
     let hit = tree.query_selector(r"#has\.dot").unwrap();
@@ -526,10 +521,7 @@ fn css_escape_in_id_selector() {
 #[test]
 fn css_numeric_escape_in_class_selector() {
     // `.\31 23` — escapes to the class `123`.
-    let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(
-        None,
-        Some("123"),
-    ))]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(None, Some("123")))]);
     let mut tree = Tree::new(body);
     SelectorList::parse(r".\31 23").expect("numeric escape must parse");
     let hit = tree.query_selector(r".\31 23").unwrap();
@@ -752,8 +744,7 @@ fn empty_pseudo_class_with_whitespace_text_still_not_empty() {
 fn root_pseudo_class_does_not_match_inner_html_like_element() {
     // If a tree has an Html element nested inside body (synthetic),
     // `:root` only matches the top-level html.
-    let body = Node::new(m::Body::default())
-        .with_children(vec![Node::new(m::Html::default())]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(m::Html::default())]);
     let html = Node::new(m::Html::default()).with_children(vec![body]);
     let mut tree = Tree::new(html);
     let hits = tree.query_selector_all_paths(":root");
@@ -799,13 +790,11 @@ fn pseudo_class_name_is_ascii_case_insensitive() {
 fn checked_with_some_false_does_not_match() {
     // `Some(false)` means the attribute was authored as `checked=false`
     // (or programmatically cleared). Per spec it is NOT `:checked`.
-    let body = Node::new(m::Body::default()).with_children(vec![
-        Node::new(m::Input {
-            id: Some("a".into()),
-            checked: Some(false),
-            ..m::Input::default()
-        }),
-    ]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(m::Input {
+        id: Some("a".into()),
+        checked: Some(false),
+        ..m::Input::default()
+    })]);
     let mut tree = Tree::new(body);
     SelectorList::parse(":checked").expect("must parse");
     assert!(tree.query_selector(":checked").is_none());
@@ -834,13 +823,11 @@ fn checked_matches_option_with_selected() {
 
 #[test]
 fn disabled_matches_option_too() {
-    let body = Node::new(m::Body::default()).with_children(vec![Node::new(
-        m::OptionElement {
-            id: Some("d".into()),
-            disabled: Some(true),
-            ..m::OptionElement::default()
-        },
-    )]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(m::OptionElement {
+        id: Some("d".into()),
+        disabled: Some(true),
+        ..m::OptionElement::default()
+    })]);
     let mut tree = Tree::new(body);
     let hit = tree.query_selector(":disabled").unwrap();
     assert_eq!(hit.element.id(), Some("d"));
@@ -960,8 +947,7 @@ fn dir_default_when_unset() {
     // Without an explicit `dir` attribute, `:dir(ltr)` should match
     // (per spec, default is ltr). This test pins down "fall back
     // to ltr".
-    let body = Node::new(m::Body::default())
-        .with_children(vec![Node::new(div(Some("a"), None))]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("a"), None))]);
     let mut tree = Tree::new(body);
     let hits = tree.query_selector_all_paths("#a:dir(ltr)");
     assert_eq!(hits.len(), 1);
@@ -1025,8 +1011,7 @@ fn star_prefix_matches_any_namespace() {
 fn css_escape_with_six_hex_digits() {
     // `\000041` → 'A'. Per spec, hex escape can be up to 6 digits.
     SelectorList::parse(r"#\000041").expect("must parse");
-    let body = Node::new(m::Body::default())
-        .with_children(vec![Node::new(div(Some("A"), None))]);
+    let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("A"), None))]);
     let mut tree = Tree::new(body);
     let hit = tree.query_selector(r"#\000041").unwrap();
     assert_eq!(hit.element.id(), Some("A"));

@@ -666,8 +666,7 @@ fn substitute_vars(
                         let mut resolved = cp_val.clone();
                         if value_contains_var(&resolved) {
                             resolving.insert(name.to_owned());
-                            resolved =
-                                substitute_vars(&resolved, custom_props, resolving);
+                            resolved = substitute_vars(&resolved, custom_props, resolving);
                             resolving.remove(name);
                         }
                         out.push_str(&resolved);

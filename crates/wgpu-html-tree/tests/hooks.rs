@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use wgpu_html_events as dom;
 use wgpu_html_tree::{
-  Modifiers, MouseButton, MouseEvent as TreeMouseEvent, Node, Tree, TreeHook, TreeHookResponse,
-  TreeLifecycleEvent, TreeLifecyclePhase, TreeLifecycleStage, TreeRenderEvent,
-  TreeRenderViewport,
+    Modifiers, MouseButton, MouseEvent as TreeMouseEvent, Node, Tree, TreeHook, TreeHookResponse,
+    TreeLifecycleEvent, TreeLifecyclePhase, TreeLifecycleStage, TreeRenderEvent,
+    TreeRenderViewport,
 };
 
 #[derive(Clone, Default)]
@@ -501,18 +501,18 @@ fn lifecycle_hook_fans_out_by_phase() {
     tree.add_hook(RecordingHook::new(log.clone()));
 
     assert_eq!(
-      tree.emit_lifecycle_begin(TreeLifecycleStage::Frame),
-      TreeHookResponse::Continue
+        tree.emit_lifecycle_begin(TreeLifecycleStage::Frame),
+        TreeHookResponse::Continue
     );
     assert_eq!(
-      tree.emit_lifecycle_end(TreeLifecycleStage::Render, Duration::from_millis(5)),
-      TreeHookResponse::Continue
+        tree.emit_lifecycle_end(TreeLifecycleStage::Render, Duration::from_millis(5)),
+        TreeHookResponse::Continue
     );
     assert_eq!(
-      tree.emit_lifecycle_event(
+        tree.emit_lifecycle_event(
             &TreeLifecycleEvent::instant(TreeLifecycleStage::Custom).with_label("mark")
         ),
-      TreeHookResponse::Continue
+        TreeHookResponse::Continue
     );
 
     assert_eq!(
@@ -535,7 +535,10 @@ fn low_level_mouse_hook_receives_tree_mouse_event() {
         current_path: vec![0],
     };
 
-    assert_eq!(tree.emit_mouse_event(&mut event), TreeHookResponse::Continue);
+    assert_eq!(
+        tree.emit_mouse_event(&mut event),
+        TreeHookResponse::Continue
+    );
     assert_eq!(log.entries(), ["tree-mouse"]);
 }
 

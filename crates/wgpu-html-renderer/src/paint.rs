@@ -323,10 +323,7 @@ impl DisplayList {
                 .flatten()
                 .or_else(|| {
                     // Walk backwards for the nearest surviving slot.
-                    remap[..old.min(remap.len())]
-                        .iter()
-                        .rev()
-                        .find_map(|s| *s)
+                    remap[..old.min(remap.len())].iter().rev().find_map(|s| *s)
                 })
                 .or_else(|| {
                     // Fall back to the first surviving slot, if any.
@@ -672,11 +669,7 @@ mod tests {
         );
         // Open the empty `overflow: auto` clip and immediately close
         // it without pushing anything inside.
-        list.push_clip(
-            Some(Rect::new(0.0, 0.0, 320.0, 64.0)),
-            [0.0; 4],
-            [0.0; 4],
-        );
+        list.push_clip(Some(Rect::new(0.0, 0.0, 320.0, 64.0)), [0.0; 4], [0.0; 4]);
         list.pop_clip(None, [0.0; 4], [0.0; 4]);
         // Post-textarea content lands on clip_index 2 in the raw,
         // pre-finalize numbering.

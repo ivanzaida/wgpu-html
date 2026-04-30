@@ -271,8 +271,7 @@ impl TextContext {
     /// changed since the last sync — avoids a full clone + bridge
     /// reconciliation on every frame.
     pub fn sync_fonts(&mut self, registry: &FontRegistry) {
-        if registry.generation() == self.last_font_generation
-            && registry.len() == self.fonts.len()
+        if registry.generation() == self.last_font_generation && registry.len() == self.fonts.len()
         {
             return;
         }
@@ -547,10 +546,7 @@ impl TextContext {
         // height, glyph bitmaps can land below `line_top + line_height`.
         // The box must be tall enough to contain them or paint will
         // overflow the layout rect.
-        let actual_bottom = glyphs
-            .iter()
-            .map(|g| g.y + g.h)
-            .fold(0.0_f32, f32::max);
+        let actual_bottom = glyphs.iter().map(|g| g.y + g.h).fold(0.0_f32, f32::max);
         let total_height = total_height.max(actual_bottom);
 
         let run = ShapedRun {
@@ -847,10 +843,7 @@ impl TextContext {
 
         // Same expansion as `shape_and_pack`: ensure reported height
         // covers every rasterised glyph.
-        let actual_bottom = all_glyphs
-            .iter()
-            .map(|g| g.y + g.h)
-            .fold(0.0_f32, f32::max);
+        let actual_bottom = all_glyphs.iter().map(|g| g.y + g.h).fold(0.0_f32, f32::max);
         let total_height = total_height.max(actual_bottom);
 
         let first_line_ascent = lines_meta[0].baseline - lines_meta[0].top;

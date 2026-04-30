@@ -182,7 +182,9 @@ fn consume_css_escape(s: &str, pos: usize, out: &mut String) -> Result<usize, St
             i += 1;
         }
         // Take only the hex digits (before any whitespace).
-        let digit_end = s[start..i].find(|c: char| !c.is_ascii_hexdigit()).map_or(i, |p| start + p);
+        let digit_end = s[start..i]
+            .find(|c: char| !c.is_ascii_hexdigit())
+            .map_or(i, |p| start + p);
         let hex_str = &s[start..digit_end];
         let cp = u32::from_str_radix(hex_str, 16)
             .map_err(|_| format!("bad hex escape `{}`", hex_str))?;
@@ -324,16 +326,33 @@ impl ComplexSelector {
             }
 
             let comb = match bytes[i] {
-                b'>' => { i += 1; Combinator::Child }
-                b'+' => { i += 1; Combinator::NextSibling }
-                b'~' => { i += 1; Combinator::SubsequentSibling }
+                b'>' => {
+                    i += 1;
+                    Combinator::Child
+                }
+                b'+' => {
+                    i += 1;
+                    Combinator::NextSibling
+                }
+                b'~' => {
+                    i += 1;
+                    Combinator::SubsequentSibling
+                }
                 _ if saw_ws => Combinator::Descendant,
-                c => return Err(format!("unexpected `{}` after compound selector", c as char)),
+                c => {
+                    return Err(format!(
+                        "unexpected `{}` after compound selector",
+                        c as char
+                    ));
+                }
             };
             combinators.push(comb);
         }
 
-        Ok(ComplexSelector { compounds, combinators })
+        Ok(ComplexSelector {
+            compounds,
+            combinators,
+        })
     }
 }
 
@@ -349,7 +368,9 @@ fn split_top_level_commas(s: &str) -> Vec<&str> {
         let c = bytes[i];
         match quote {
             Some(q) => {
-                if c == q { quote = None; }
+                if c == q {
+                    quote = None;
+                }
             }
             None => match c {
                 b'"' | b'\'' => quote = Some(c),
@@ -638,7 +659,9 @@ fn consume_balanced_parens(s: &str, pos: usize) -> Result<(&str, usize), String>
     while i < bytes.len() && depth > 0 {
         match quote {
             Some(q) => {
-                if bytes[i] == q { quote = None; }
+                if bytes[i] == q {
+                    quote = None;
+                }
             }
             None => match bytes[i] {
                 b'"' | b'\'' => quote = Some(bytes[i]),
@@ -647,7 +670,9 @@ fn consume_balanced_parens(s: &str, pos: usize) -> Result<(&str, usize), String>
                 _ => {}
             },
         }
-        if depth > 0 { i += 1; }
+        if depth > 0 {
+            i += 1;
+        }
     }
     if depth != 0 {
         return Err("unbalanced parentheses".into());
@@ -678,9 +703,18 @@ fn parse_relative_selector(s: &str) -> Result<HasSelector, String> {
     }
     // Check for leading combinator.
     let leading = match bytes.get(i) {
-        Some(b'>') => { i += 1; Combinator::Child }
-        Some(b'+') => { i += 1; Combinator::NextSibling }
-        Some(b'~') => { i += 1; Combinator::SubsequentSibling }
+        Some(b'>') => {
+            i += 1;
+            Combinator::Child
+        }
+        Some(b'+') => {
+            i += 1;
+            Combinator::NextSibling
+        }
+        Some(b'~') => {
+            i += 1;
+            Combinator::SubsequentSibling
+        }
         _ => Combinator::Descendant,
     };
     let rest = s[i..].trim();
@@ -722,10 +756,7 @@ fn find_of_keyword(s: &str) -> Option<usize> {
             b'(' => paren_depth += 1,
             b')' => paren_depth -= 1,
             _ if paren_depth == 0 => {
-                if i > 0
-                    && bytes[i].is_ascii_whitespace()
-                    && i + 3 <= bytes.len()
-                {
+                if i > 0 && bytes[i].is_ascii_whitespace() && i + 3 <= bytes.len() {
                     let rest = &s[i..];
                     let trimmed = rest.trim_start();
                     if trimmed.len() >= 2
@@ -779,7 +810,9 @@ fn parse_nth_formula(s: &str) -> Result<NthFormula, String> {
     if i < bytes.len() && bytes[i] == b'n' {
         // An+B form.
         let a = if has_digits {
-            let v: i32 = lower[num_start..i].parse().map_err(|_| "bad nth coefficient")?;
+            let v: i32 = lower[num_start..i]
+                .parse()
+                .map_err(|_| "bad nth coefficient")?;
             if a_neg { -v } else { v }
         } else if a_neg {
             -1
@@ -798,8 +831,14 @@ fn parse_nth_formula(s: &str) -> Result<NthFormula, String> {
         }
 
         let b_neg = match bytes[i] {
-            b'+' => { i += 1; false }
-            b'-' => { i += 1; true }
+            b'+' => {
+                i += 1;
+                false
+            }
+            b'-' => {
+                i += 1;
+                true
+            }
             _ => return Err(format!("unexpected `{}` in nth formula", bytes[i] as char)),
         };
 
@@ -818,7 +857,10 @@ fn parse_nth_formula(s: &str) -> Result<NthFormula, String> {
         let b = if b_neg { -b } else { b };
 
         if i != bytes.len() {
-            return Err(format!("trailing content in nth formula: `{}`", &lower[i..]));
+            return Err(format!(
+                "trailing content in nth formula: `{}`",
+                &lower[i..]
+            ));
         }
         Ok(NthFormula { a, b })
     } else if has_digits && i == bytes.len() {
@@ -860,22 +902,47 @@ fn parse_attr_filter(s: &str) -> Result<(AttrFilter, usize), String> {
     }
     if bytes[i] == b']' {
         return Ok((
-            AttrFilter { name, op: AttrOp::Exists, value: String::new(), case_insensitive: false },
+            AttrFilter {
+                name,
+                op: AttrOp::Exists,
+                value: String::new(),
+                case_insensitive: false,
+            },
             i + 1,
         ));
     }
 
     let op = match bytes[i] {
-        b'=' => { i += 1; AttrOp::Equals }
-        b'~' if matches!(bytes.get(i + 1), Some(b'=')) => { i += 2; AttrOp::Includes }
-        b'|' if matches!(bytes.get(i + 1), Some(b'=')) => { i += 2; AttrOp::DashMatch }
-        b'^' if matches!(bytes.get(i + 1), Some(b'=')) => { i += 2; AttrOp::Prefix }
-        b'$' if matches!(bytes.get(i + 1), Some(b'=')) => { i += 2; AttrOp::Suffix }
-        b'*' if matches!(bytes.get(i + 1), Some(b'=')) => { i += 2; AttrOp::Substring }
-        c => return Err(format!(
-            "unexpected `{}` inside attribute selector — expected an operator or `]`",
-            c as char
-        )),
+        b'=' => {
+            i += 1;
+            AttrOp::Equals
+        }
+        b'~' if matches!(bytes.get(i + 1), Some(b'=')) => {
+            i += 2;
+            AttrOp::Includes
+        }
+        b'|' if matches!(bytes.get(i + 1), Some(b'=')) => {
+            i += 2;
+            AttrOp::DashMatch
+        }
+        b'^' if matches!(bytes.get(i + 1), Some(b'=')) => {
+            i += 2;
+            AttrOp::Prefix
+        }
+        b'$' if matches!(bytes.get(i + 1), Some(b'=')) => {
+            i += 2;
+            AttrOp::Suffix
+        }
+        b'*' if matches!(bytes.get(i + 1), Some(b'=')) => {
+            i += 2;
+            AttrOp::Substring
+        }
+        c => {
+            return Err(format!(
+                "unexpected `{}` inside attribute selector — expected an operator or `]`",
+                c as char
+            ));
+        }
     };
 
     while i < bytes.len() && bytes[i].is_ascii_whitespace() {
@@ -931,36 +998,63 @@ fn parse_attr_filter(s: &str) -> Result<(AttrFilter, usize), String> {
         return Err("expected `]` to close attribute selector".into());
     }
 
-    Ok((AttrFilter { name, op, value, case_insensitive }, i + 1))
+    Ok((
+        AttrFilter {
+            name,
+            op,
+            value,
+            case_insensitive,
+        },
+        i + 1,
+    ))
 }
 
 // ── Conversion impls ────────────────────────────────────────────────────────
 
 impl From<&str> for SelectorList {
-    fn from(s: &str) -> Self { SelectorList::parse(s).unwrap_or_default() }
+    fn from(s: &str) -> Self {
+        SelectorList::parse(s).unwrap_or_default()
+    }
 }
 impl From<String> for SelectorList {
-    fn from(s: String) -> Self { SelectorList::from(s.as_str()) }
+    fn from(s: String) -> Self {
+        SelectorList::from(s.as_str())
+    }
 }
 impl From<&String> for SelectorList {
-    fn from(s: &String) -> Self { SelectorList::from(s.as_str()) }
+    fn from(s: &String) -> Self {
+        SelectorList::from(s.as_str())
+    }
 }
 impl From<&SelectorList> for SelectorList {
-    fn from(s: &SelectorList) -> Self { s.clone() }
+    fn from(s: &SelectorList) -> Self {
+        s.clone()
+    }
 }
 impl From<CompoundSelector> for SelectorList {
     fn from(c: CompoundSelector) -> Self {
-        SelectorList { selectors: vec![ComplexSelector { compounds: vec![c], combinators: Vec::new() }] }
+        SelectorList {
+            selectors: vec![ComplexSelector {
+                compounds: vec![c],
+                combinators: Vec::new(),
+            }],
+        }
     }
 }
 impl From<&CompoundSelector> for SelectorList {
-    fn from(c: &CompoundSelector) -> Self { SelectorList::from(c.clone()) }
+    fn from(c: &CompoundSelector) -> Self {
+        SelectorList::from(c.clone())
+    }
 }
 impl From<ComplexSelector> for SelectorList {
-    fn from(c: ComplexSelector) -> Self { SelectorList { selectors: vec![c] } }
+    fn from(c: ComplexSelector) -> Self {
+        SelectorList { selectors: vec![c] }
+    }
 }
 impl From<&ComplexSelector> for SelectorList {
-    fn from(c: &ComplexSelector) -> Self { SelectorList::from(c.clone()) }
+    fn from(c: &ComplexSelector) -> Self {
+        SelectorList::from(c.clone())
+    }
 }
 
 impl CompoundSelector {
@@ -971,7 +1065,10 @@ impl CompoundSelector {
         }
         let (compound, consumed) = parse_compound(s)?;
         if consumed != s.len() {
-            return Err(format!("trailing input after compound selector: `{}`", &s[consumed..]));
+            return Err(format!(
+                "trailing input after compound selector: `{}`",
+                &s[consumed..]
+            ));
         }
         Ok(compound)
     }
@@ -983,22 +1080,34 @@ impl CompoundSelector {
     }
 
     fn matches_basic(&self, el: &Element) -> bool {
-        if self.never_matches { return false; }
-        if matches!(el, Element::Text(_)) { return false; }
+        if self.never_matches {
+            return false;
+        }
+        if matches!(el, Element::Text(_)) {
+            return false;
+        }
         if let Some(tag) = &self.tag {
-            if !el.tag_name().eq_ignore_ascii_case(tag) { return false; }
+            if !el.tag_name().eq_ignore_ascii_case(tag) {
+                return false;
+            }
         }
         if let Some(id) = &self.id {
-            if el.id() != Some(id.as_str()) { return false; }
+            if el.id() != Some(id.as_str()) {
+                return false;
+            }
         }
         if !self.classes.is_empty() {
             let class_attr = el.class().unwrap_or("");
             for needed in &self.classes {
-                if !class_attr.split_ascii_whitespace().any(|c| c == needed) { return false; }
+                if !class_attr.split_ascii_whitespace().any(|c| c == needed) {
+                    return false;
+                }
             }
         }
         for filter in &self.attrs {
-            if !filter.matches_element(el) { return false; }
+            if !filter.matches_element(el) {
+                return false;
+            }
         }
         // Namespace: Named(...) never matches in our namespaceless model.
         if let Some(Namespace::Named(_)) = &self.namespace {
@@ -1012,8 +1121,12 @@ impl CompoundSelector {
         if self.pseudo_element.is_some() {
             return false; // Pseudo-elements never match in querySelector.
         }
-        let Some(node) = node_at_path(root, path) else { return false };
-        if !self.matches_basic(&node.element) { return false; }
+        let Some(node) = node_at_path(root, path) else {
+            return false;
+        };
+        if !self.matches_basic(&node.element) {
+            return false;
+        }
         for pc in &self.pseudo_classes {
             if !match_pseudo_class(pc, root, path, node, ctx) {
                 return false;
@@ -1025,17 +1138,26 @@ impl CompoundSelector {
 
 impl From<&str> for CompoundSelector {
     fn from(s: &str) -> Self {
-        Self::parse(s).unwrap_or(CompoundSelector { never_matches: true, ..CompoundSelector::default() })
+        Self::parse(s).unwrap_or(CompoundSelector {
+            never_matches: true,
+            ..CompoundSelector::default()
+        })
     }
 }
 impl From<&CompoundSelector> for CompoundSelector {
-    fn from(s: &CompoundSelector) -> Self { s.clone() }
+    fn from(s: &CompoundSelector) -> Self {
+        s.clone()
+    }
 }
 impl From<String> for CompoundSelector {
-    fn from(s: String) -> Self { CompoundSelector::from(s.as_str()) }
+    fn from(s: String) -> Self {
+        CompoundSelector::from(s.as_str())
+    }
 }
 impl From<&String> for CompoundSelector {
-    fn from(s: &String) -> Self { CompoundSelector::from(s.as_str()) }
+    fn from(s: &String) -> Self {
+        CompoundSelector::from(s.as_str())
+    }
 }
 
 // ── Attribute matching ──────────────────────────────────────────────────────
@@ -1048,42 +1170,75 @@ impl AttrFilter {
             (AttrOp::Exists, None) => false,
             (_, None) => false,
             (AttrOp::Equals, Some(v)) => self.cmp_eq(&v, &self.value),
-            (AttrOp::Includes, Some(v)) => v.split_ascii_whitespace().any(|tok| self.cmp_eq(tok, &self.value)),
+            (AttrOp::Includes, Some(v)) => v
+                .split_ascii_whitespace()
+                .any(|tok| self.cmp_eq(tok, &self.value)),
             (AttrOp::DashMatch, Some(v)) => {
-                if self.cmp_eq(&v, &self.value) { return true; }
+                if self.cmp_eq(&v, &self.value) {
+                    return true;
+                }
                 let nl = self.value.len();
-                v.len() > nl && v.is_char_boundary(nl) && v.as_bytes()[nl] == b'-' && self.cmp_eq(&v[..nl], &self.value)
+                v.len() > nl
+                    && v.is_char_boundary(nl)
+                    && v.as_bytes()[nl] == b'-'
+                    && self.cmp_eq(&v[..nl], &self.value)
             }
-            (AttrOp::Prefix, Some(v)) => !self.value.is_empty() && self.starts_with_cmp(&v, &self.value),
-            (AttrOp::Suffix, Some(v)) => !self.value.is_empty() && self.ends_with_cmp(&v, &self.value),
-            (AttrOp::Substring, Some(v)) => !self.value.is_empty() && self.contains_cmp(&v, &self.value),
+            (AttrOp::Prefix, Some(v)) => {
+                !self.value.is_empty() && self.starts_with_cmp(&v, &self.value)
+            }
+            (AttrOp::Suffix, Some(v)) => {
+                !self.value.is_empty() && self.ends_with_cmp(&v, &self.value)
+            }
+            (AttrOp::Substring, Some(v)) => {
+                !self.value.is_empty() && self.contains_cmp(&v, &self.value)
+            }
         }
     }
     fn cmp_eq(&self, a: &str, b: &str) -> bool {
-        if self.case_insensitive { a.eq_ignore_ascii_case(b) } else { a == b }
+        if self.case_insensitive {
+            a.eq_ignore_ascii_case(b)
+        } else {
+            a == b
+        }
     }
     fn starts_with_cmp(&self, hay: &str, needle: &str) -> bool {
-        if self.case_insensitive { hay.len() >= needle.len() && hay[..needle.len()].eq_ignore_ascii_case(needle) }
-        else { hay.starts_with(needle) }
+        if self.case_insensitive {
+            hay.len() >= needle.len() && hay[..needle.len()].eq_ignore_ascii_case(needle)
+        } else {
+            hay.starts_with(needle)
+        }
     }
     fn ends_with_cmp(&self, hay: &str, needle: &str) -> bool {
-        if self.case_insensitive { hay.len() >= needle.len() && hay[hay.len()-needle.len()..].eq_ignore_ascii_case(needle) }
-        else { hay.ends_with(needle) }
+        if self.case_insensitive {
+            hay.len() >= needle.len()
+                && hay[hay.len() - needle.len()..].eq_ignore_ascii_case(needle)
+        } else {
+            hay.ends_with(needle)
+        }
     }
     fn contains_cmp(&self, hay: &str, needle: &str) -> bool {
-        if self.case_insensitive { ascii_icase_contains(hay, needle) }
-        else { hay.contains(needle) }
+        if self.case_insensitive {
+            ascii_icase_contains(hay, needle)
+        } else {
+            hay.contains(needle)
+        }
     }
 }
 
 fn ascii_icase_contains(hay: &str, needle: &str) -> bool {
-    if needle.is_empty() { return true; }
+    if needle.is_empty() {
+        return true;
+    }
     let h = hay.as_bytes();
     let n = needle.as_bytes();
-    if h.len() < n.len() { return false; }
+    if h.len() < n.len() {
+        return false;
+    }
     'outer: for i in 0..=h.len() - n.len() {
         for j in 0..n.len() {
-            if !h[i + j].eq_ignore_ascii_case(&n[j]) { continue 'outer; }
+            if !h[i + j].eq_ignore_ascii_case(&n[j]) {
+                continue 'outer;
+            }
         }
         return true;
     }
@@ -1108,44 +1263,52 @@ fn match_pseudo_class(
         // ── Structural ──
         PseudoClass::Root => path.is_empty(),
         PseudoClass::Scope => path.is_empty(),
-        PseudoClass::Empty => {
-            node.children.is_empty()
-        }
+        PseudoClass::Empty => node.children.is_empty(),
         PseudoClass::FirstChild => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             first_element_child_index(parent) == Some(my_idx)
         }
         PseudoClass::LastChild => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             last_element_child_index(parent) == Some(my_idx)
         }
         PseudoClass::OnlyChild => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             first_element_child_index(parent) == Some(my_idx)
                 && last_element_child_index(parent) == Some(my_idx)
         }
         PseudoClass::NthChild(formula, of_sel) => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             let pos = match of_sel {
                 None => element_position_1based(parent, my_idx),
                 Some(sel) => {
-                    let parent_path = &path[..path.len()-1];
+                    let parent_path = &path[..path.len() - 1];
                     element_position_1based_of(root, parent, parent_path, my_idx, sel, ctx)
                 }
             };
             pos.is_some_and(|p| formula.matches(p))
         }
         PseudoClass::NthLastChild(formula) => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             if let Some(pos) = element_position_from_end_1based(parent, my_idx) {
                 formula.matches(pos)
@@ -1154,22 +1317,28 @@ fn match_pseudo_class(
             }
         }
         PseudoClass::FirstOfType => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             let tag = node.element.tag_name();
             first_of_type_index(parent, tag) == Some(my_idx)
         }
         PseudoClass::LastOfType => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             let tag = node.element.tag_name();
             last_of_type_index(parent, tag) == Some(my_idx)
         }
         PseudoClass::NthOfType(formula) => {
-            if path.is_empty() { return false; }
-            let parent = node_at_path(root, &path[..path.len()-1]).unwrap();
+            if path.is_empty() {
+                return false;
+            }
+            let parent = node_at_path(root, &path[..path.len() - 1]).unwrap();
             let my_idx = *path.last().unwrap();
             let tag = node.element.tag_name();
             if let Some(pos) = nth_of_type_position(parent, tag, my_idx) {
@@ -1191,42 +1360,54 @@ fn match_pseudo_class(
 
         // ── Interaction ──
         PseudoClass::Hover => {
-            let Some(ia) = ctx.interaction else { return false };
+            let Some(ia) = ctx.interaction else {
+                return false;
+            };
             ia.hover_path.as_ref().is_some_and(|hp| hp == path)
         }
         PseudoClass::Focus => {
-            let Some(ia) = ctx.interaction else { return false };
+            let Some(ia) = ctx.interaction else {
+                return false;
+            };
             ia.focus_path.as_ref().is_some_and(|fp| fp == path)
         }
         PseudoClass::Active => {
-            let Some(ia) = ctx.interaction else { return false };
+            let Some(ia) = ctx.interaction else {
+                return false;
+            };
             ia.active_path.as_ref().is_some_and(|ap| ap == path)
         }
         PseudoClass::FocusWithin => {
-            let Some(ia) = ctx.interaction else { return false };
-            let Some(fp) = &ia.focus_path else { return false };
+            let Some(ia) = ctx.interaction else {
+                return false;
+            };
+            let Some(fp) = &ia.focus_path else {
+                return false;
+            };
             // Match if focus_path starts with `path` (i.e. focus is inside).
             fp.len() >= path.len() && &fp[..path.len()] == path
         }
 
         // ── Lang / Dir ──
-        PseudoClass::Lang(lang_arg) => {
-            match_lang(root, path, lang_arg)
-        }
-        PseudoClass::Dir(dir_arg) => {
-            match_dir(root, path, dir_arg)
-        }
+        PseudoClass::Lang(lang_arg) => match_lang(root, path, lang_arg),
+        PseudoClass::Dir(dir_arg) => match_dir(root, path, dir_arg),
     }
 }
 
 // ── Structural helpers ──────────────────────────────────────────────────────
 
 fn first_element_child_index(parent: &Node) -> Option<usize> {
-    parent.children.iter().position(|c| !matches!(c.element, Element::Text(_)))
+    parent
+        .children
+        .iter()
+        .position(|c| !matches!(c.element, Element::Text(_)))
 }
 
 fn last_element_child_index(parent: &Node) -> Option<usize> {
-    parent.children.iter().rposition(|c| !matches!(c.element, Element::Text(_)))
+    parent
+        .children
+        .iter()
+        .rposition(|c| !matches!(c.element, Element::Text(_)))
 }
 
 fn element_position_1based(parent: &Node, idx: usize) -> Option<i32> {
@@ -1235,9 +1416,13 @@ fn element_position_1based(parent: &Node, idx: usize) -> Option<i32> {
     }
     let mut pos = 0i32;
     for (i, c) in parent.children.iter().enumerate() {
-        if matches!(c.element, Element::Text(_)) { continue; }
+        if matches!(c.element, Element::Text(_)) {
+            continue;
+        }
         pos += 1;
-        if i == idx { return Some(pos); }
+        if i == idx {
+            return Some(pos);
+        }
     }
     None
 }
@@ -1255,12 +1440,20 @@ fn element_position_1based_of(
     }
     let mut pos = 0i32;
     for (i, c) in parent.children.iter().enumerate() {
-        if matches!(c.element, Element::Text(_)) { continue; }
+        if matches!(c.element, Element::Text(_)) {
+            continue;
+        }
         // Check if this child matches the `of` selector.
-        let child_path: Vec<usize> = parent_path.iter().copied().chain(std::iter::once(i)).collect();
+        let child_path: Vec<usize> = parent_path
+            .iter()
+            .copied()
+            .chain(std::iter::once(i))
+            .collect();
         if sel.matches_in_tree(root, &child_path, ctx) {
             pos += 1;
-            if i == idx { return Some(pos); }
+            if i == idx {
+                return Some(pos);
+            }
         }
     }
     None
@@ -1272,19 +1465,29 @@ fn element_position_from_end_1based(parent: &Node, idx: usize) -> Option<i32> {
     }
     let mut pos = 0i32;
     for (i, c) in parent.children.iter().enumerate().rev() {
-        if matches!(c.element, Element::Text(_)) { continue; }
+        if matches!(c.element, Element::Text(_)) {
+            continue;
+        }
         pos += 1;
-        if i == idx { return Some(pos); }
+        if i == idx {
+            return Some(pos);
+        }
     }
     None
 }
 
 fn first_of_type_index(parent: &Node, tag: &str) -> Option<usize> {
-    parent.children.iter().position(|c| c.element.tag_name().eq_ignore_ascii_case(tag))
+    parent
+        .children
+        .iter()
+        .position(|c| c.element.tag_name().eq_ignore_ascii_case(tag))
 }
 
 fn last_of_type_index(parent: &Node, tag: &str) -> Option<usize> {
-    parent.children.iter().rposition(|c| c.element.tag_name().eq_ignore_ascii_case(tag))
+    parent
+        .children
+        .iter()
+        .rposition(|c| c.element.tag_name().eq_ignore_ascii_case(tag))
 }
 
 fn nth_of_type_position(parent: &Node, tag: &str, idx: usize) -> Option<i32> {
@@ -1292,7 +1495,9 @@ fn nth_of_type_position(parent: &Node, tag: &str, idx: usize) -> Option<i32> {
     for (i, c) in parent.children.iter().enumerate() {
         if c.element.tag_name().eq_ignore_ascii_case(tag) {
             pos += 1;
-            if i == idx { return Some(pos); }
+            if i == idx {
+                return Some(pos);
+            }
         }
     }
     None
@@ -1316,8 +1521,12 @@ fn el_is_disabled(el: &Element) -> bool {
 fn el_is_enableable(el: &Element) -> bool {
     matches!(
         el,
-        Element::Input(_) | Element::Textarea(_) | Element::Select(_)
-            | Element::Button(_) | Element::Optgroup(_) | Element::OptionElement(_)
+        Element::Input(_)
+            | Element::Textarea(_)
+            | Element::Select(_)
+            | Element::Button(_)
+            | Element::Optgroup(_)
+            | Element::OptionElement(_)
             | Element::Fieldset(_)
     )
 }
@@ -1340,7 +1549,10 @@ fn el_is_required(el: &Element) -> bool {
 }
 
 fn el_is_optionable(el: &Element) -> bool {
-    matches!(el, Element::Input(_) | Element::Textarea(_) | Element::Select(_))
+    matches!(
+        el,
+        Element::Input(_) | Element::Textarea(_) | Element::Select(_)
+    )
 }
 
 fn el_is_read_only(node: &Node) -> bool {
@@ -1367,7 +1579,10 @@ fn el_placeholder_shown(node: &Node) -> bool {
         }
         Element::Textarea(e) => {
             e.placeholder.is_some()
-                && !node.children.iter().any(|c| matches!(&c.element, Element::Text(t) if !t.is_empty()))
+                && !node
+                    .children
+                    .iter()
+                    .any(|c| matches!(&c.element, Element::Text(t) if !t.is_empty()))
         }
         _ => false,
     }
@@ -1384,14 +1599,18 @@ fn match_lang(root: &Node, path: &[usize], lang_arg: &str) -> bool {
                 return lang_dash_matches(&lang_val, lang_arg);
             }
         }
-        if p.is_empty() { break; }
+        if p.is_empty() {
+            break;
+        }
         p.pop();
     }
     false
 }
 
 fn lang_dash_matches(lang: &str, prefix: &str) -> bool {
-    if lang.eq_ignore_ascii_case(prefix) { return true; }
+    if lang.eq_ignore_ascii_case(prefix) {
+        return true;
+    }
     if lang.len() > prefix.len()
         && lang.as_bytes()[prefix.len()] == b'-'
         && lang[..prefix.len()].eq_ignore_ascii_case(prefix)
@@ -1414,7 +1633,12 @@ fn match_dir(root: &Node, path: &[usize], dir_arg: &str) -> bool {
 
 // ── :has() matching ─────────────────────────────────────────────────────────
 
-fn match_has(root: &Node, subject_path: &[usize], has_sels: &[HasSelector], ctx: &MatchContext) -> bool {
+fn match_has(
+    root: &Node,
+    subject_path: &[usize],
+    has_sels: &[HasSelector],
+    ctx: &MatchContext,
+) -> bool {
     for hs in has_sels {
         if match_one_has(root, subject_path, hs, ctx) {
             return true;
@@ -1423,7 +1647,12 @@ fn match_has(root: &Node, subject_path: &[usize], has_sels: &[HasSelector], ctx:
     false
 }
 
-fn match_one_has(root: &Node, subject_path: &[usize], hs: &HasSelector, ctx: &MatchContext) -> bool {
+fn match_one_has(
+    root: &Node,
+    subject_path: &[usize],
+    hs: &HasSelector,
+    ctx: &MatchContext,
+) -> bool {
     match hs.leading_combinator {
         Combinator::Descendant => {
             // Any descendant of subject matches the inner complex selector.
@@ -1434,8 +1663,14 @@ fn match_one_has(root: &Node, subject_path: &[usize], hs: &HasSelector, ctx: &Ma
             // Direct children of subject.
             let subject = node_at_path(root, subject_path).unwrap();
             for ci in 0..subject.children.len() {
-                if matches!(subject.children[ci].element, Element::Text(_)) { continue; }
-                let child_path: Vec<usize> = subject_path.iter().copied().chain(std::iter::once(ci)).collect();
+                if matches!(subject.children[ci].element, Element::Text(_)) {
+                    continue;
+                }
+                let child_path: Vec<usize> = subject_path
+                    .iter()
+                    .copied()
+                    .chain(std::iter::once(ci))
+                    .collect();
                 if has_match_from(root, &child_path, hs, ctx) {
                     return true;
                 }
@@ -1443,25 +1678,39 @@ fn match_one_has(root: &Node, subject_path: &[usize], hs: &HasSelector, ctx: &Ma
             false
         }
         Combinator::NextSibling => {
-            if subject_path.is_empty() { return false; }
+            if subject_path.is_empty() {
+                return false;
+            }
             let idx = *subject_path.last().unwrap();
-            let parent_path = &subject_path[..subject_path.len()-1];
+            let parent_path = &subject_path[..subject_path.len() - 1];
             let parent = node_at_path(root, parent_path).unwrap();
             if let Some(next) = next_element_sibling(parent, idx) {
-                let sib_path: Vec<usize> = parent_path.iter().copied().chain(std::iter::once(next)).collect();
+                let sib_path: Vec<usize> = parent_path
+                    .iter()
+                    .copied()
+                    .chain(std::iter::once(next))
+                    .collect();
                 has_match_from(root, &sib_path, hs, ctx)
             } else {
                 false
             }
         }
         Combinator::SubsequentSibling => {
-            if subject_path.is_empty() { return false; }
+            if subject_path.is_empty() {
+                return false;
+            }
             let idx = *subject_path.last().unwrap();
-            let parent_path = &subject_path[..subject_path.len()-1];
+            let parent_path = &subject_path[..subject_path.len() - 1];
             let parent = node_at_path(root, parent_path).unwrap();
             for si in (idx + 1)..parent.children.len() {
-                if matches!(parent.children[si].element, Element::Text(_)) { continue; }
-                let sib_path: Vec<usize> = parent_path.iter().copied().chain(std::iter::once(si)).collect();
+                if matches!(parent.children[si].element, Element::Text(_)) {
+                    continue;
+                }
+                let sib_path: Vec<usize> = parent_path
+                    .iter()
+                    .copied()
+                    .chain(std::iter::once(si))
+                    .collect();
                 if has_match_from(root, &sib_path, hs, ctx) {
                     return true;
                 }
@@ -1473,9 +1722,16 @@ fn match_one_has(root: &Node, subject_path: &[usize], hs: &HasSelector, ctx: &Ma
 
 /// Check if the node at `candidate_path` matches the has-selector's inner complex
 /// (compounds + combinators, where the candidate is treated as the first compound).
-fn has_match_from(root: &Node, candidate_path: &[usize], hs: &HasSelector, ctx: &MatchContext) -> bool {
+fn has_match_from(
+    root: &Node,
+    candidate_path: &[usize],
+    hs: &HasSelector,
+    ctx: &MatchContext,
+) -> bool {
     // The first compound must match the candidate.
-    if hs.compounds.is_empty() { return false; }
+    if hs.compounds.is_empty() {
+        return false;
+    }
     if !hs.compounds[0].matches_in_tree(root, candidate_path, ctx) {
         return false;
     }
@@ -1486,7 +1742,13 @@ fn has_match_from(root: &Node, candidate_path: &[usize], hs: &HasSelector, ctx: 
     has_match_rest(root, candidate_path, hs, 0, ctx)
 }
 
-fn has_match_rest(root: &Node, current_path: &[usize], hs: &HasSelector, compound_idx: usize, ctx: &MatchContext) -> bool {
+fn has_match_rest(
+    root: &Node,
+    current_path: &[usize],
+    hs: &HasSelector,
+    compound_idx: usize,
+    ctx: &MatchContext,
+) -> bool {
     if compound_idx + 1 >= hs.compounds.len() {
         return true;
     }
@@ -1495,40 +1757,65 @@ fn has_match_rest(root: &Node, current_path: &[usize], hs: &HasSelector, compoun
     match comb {
         Combinator::Descendant => {
             let node = node_at_path(root, current_path).unwrap();
-            has_forward_walk(root, current_path, node, next_compound, hs, compound_idx + 1, ctx)
+            has_forward_walk(
+                root,
+                current_path,
+                node,
+                next_compound,
+                hs,
+                compound_idx + 1,
+                ctx,
+            )
         }
         Combinator::Child => {
             let node = node_at_path(root, current_path).unwrap();
             for ci in 0..node.children.len() {
-                if matches!(node.children[ci].element, Element::Text(_)) { continue; }
-                let cp: Vec<usize> = current_path.iter().copied().chain(std::iter::once(ci)).collect();
-                if next_compound.matches_in_tree(root, &cp, ctx) && has_match_rest(root, &cp, hs, compound_idx + 1, ctx) {
+                if matches!(node.children[ci].element, Element::Text(_)) {
+                    continue;
+                }
+                let cp: Vec<usize> = current_path
+                    .iter()
+                    .copied()
+                    .chain(std::iter::once(ci))
+                    .collect();
+                if next_compound.matches_in_tree(root, &cp, ctx)
+                    && has_match_rest(root, &cp, hs, compound_idx + 1, ctx)
+                {
                     return true;
                 }
             }
             false
         }
         Combinator::NextSibling => {
-            if current_path.is_empty() { return false; }
+            if current_path.is_empty() {
+                return false;
+            }
             let idx = *current_path.last().unwrap();
-            let pp = &current_path[..current_path.len()-1];
+            let pp = &current_path[..current_path.len() - 1];
             let parent = node_at_path(root, pp).unwrap();
             if let Some(next) = next_element_sibling(parent, idx) {
                 let sp: Vec<usize> = pp.iter().copied().chain(std::iter::once(next)).collect();
-                next_compound.matches_in_tree(root, &sp, ctx) && has_match_rest(root, &sp, hs, compound_idx + 1, ctx)
+                next_compound.matches_in_tree(root, &sp, ctx)
+                    && has_match_rest(root, &sp, hs, compound_idx + 1, ctx)
             } else {
                 false
             }
         }
         Combinator::SubsequentSibling => {
-            if current_path.is_empty() { return false; }
+            if current_path.is_empty() {
+                return false;
+            }
             let idx = *current_path.last().unwrap();
-            let pp = &current_path[..current_path.len()-1];
+            let pp = &current_path[..current_path.len() - 1];
             let parent = node_at_path(root, pp).unwrap();
             for si in (idx + 1)..parent.children.len() {
-                if matches!(parent.children[si].element, Element::Text(_)) { continue; }
+                if matches!(parent.children[si].element, Element::Text(_)) {
+                    continue;
+                }
                 let sp: Vec<usize> = pp.iter().copied().chain(std::iter::once(si)).collect();
-                if next_compound.matches_in_tree(root, &sp, ctx) && has_match_rest(root, &sp, hs, compound_idx + 1, ctx) {
+                if next_compound.matches_in_tree(root, &sp, ctx)
+                    && has_match_rest(root, &sp, hs, compound_idx + 1, ctx)
+                {
                     return true;
                 }
             }
@@ -1537,13 +1824,33 @@ fn has_match_rest(root: &Node, current_path: &[usize], hs: &HasSelector, compoun
     }
 }
 
-fn has_forward_walk(root: &Node, _parent_path: &[usize], parent: &Node, compound: &CompoundSelector, hs: &HasSelector, cidx: usize, ctx: &MatchContext) -> bool {
+fn has_forward_walk(
+    root: &Node,
+    _parent_path: &[usize],
+    parent: &Node,
+    compound: &CompoundSelector,
+    hs: &HasSelector,
+    cidx: usize,
+    ctx: &MatchContext,
+) -> bool {
     // Walk all descendants of parent looking for a match.
-    fn walk(root: &Node, path: &mut Vec<usize>, parent: &Node, compound: &CompoundSelector, hs: &HasSelector, cidx: usize, ctx: &MatchContext) -> bool {
+    fn walk(
+        root: &Node,
+        path: &mut Vec<usize>,
+        parent: &Node,
+        compound: &CompoundSelector,
+        hs: &HasSelector,
+        cidx: usize,
+        ctx: &MatchContext,
+    ) -> bool {
         for ci in 0..parent.children.len() {
-            if matches!(parent.children[ci].element, Element::Text(_)) { continue; }
+            if matches!(parent.children[ci].element, Element::Text(_)) {
+                continue;
+            }
             path.push(ci);
-            if compound.matches_in_tree(root, path, ctx) && has_match_rest(root, path, hs, cidx, ctx) {
+            if compound.matches_in_tree(root, path, ctx)
+                && has_match_rest(root, path, hs, cidx, ctx)
+            {
                 path.pop();
                 return true;
             }
@@ -1559,10 +1866,24 @@ fn has_forward_walk(root: &Node, _parent_path: &[usize], parent: &Node, compound
     walk(root, &mut path, parent, compound, hs, cidx, ctx)
 }
 
-fn has_walk_descendants(root: &Node, subject_path: &[usize], subject: &Node, hs: &HasSelector, ctx: &MatchContext) -> bool {
-    fn walk(root: &Node, path: &mut Vec<usize>, node: &Node, hs: &HasSelector, ctx: &MatchContext) -> bool {
+fn has_walk_descendants(
+    root: &Node,
+    subject_path: &[usize],
+    subject: &Node,
+    hs: &HasSelector,
+    ctx: &MatchContext,
+) -> bool {
+    fn walk(
+        root: &Node,
+        path: &mut Vec<usize>,
+        node: &Node,
+        hs: &HasSelector,
+        ctx: &MatchContext,
+    ) -> bool {
         for ci in 0..node.children.len() {
-            if matches!(node.children[ci].element, Element::Text(_)) { continue; }
+            if matches!(node.children[ci].element, Element::Text(_)) {
+                continue;
+            }
             path.push(ci);
             if has_match_from(root, path, hs, ctx) {
                 path.pop();
@@ -1591,11 +1912,14 @@ fn node_at_path<'a>(root: &'a Node, path: &[usize]) -> Option<&'a Node> {
 }
 
 fn previous_element_sibling(parent: &Node, idx: usize) -> Option<usize> {
-    (0..idx).rev().find(|&j| !matches!(parent.children[j].element, Element::Text(_)))
+    (0..idx)
+        .rev()
+        .find(|&j| !matches!(parent.children[j].element, Element::Text(_)))
 }
 
 fn next_element_sibling(parent: &Node, idx: usize) -> Option<usize> {
-    ((idx + 1)..parent.children.len()).find(|&j| !matches!(parent.children[j].element, Element::Text(_)))
+    ((idx + 1)..parent.children.len())
+        .find(|&j| !matches!(parent.children[j].element, Element::Text(_)))
 }
 
 // ── Complex / SelectorList matching ─────────────────────────────────────────
@@ -1603,11 +1927,15 @@ fn next_element_sibling(parent: &Node, idx: usize) -> Option<usize> {
 impl ComplexSelector {
     fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
         let n = self.compounds.len();
-        if n == 0 { return false; }
+        if n == 0 {
+            return false;
+        }
         if !self.compounds[n - 1].matches_in_tree(root, path, ctx) {
             return false;
         }
-        if n == 1 { return true; }
+        if n == 1 {
+            return true;
+        }
 
         let mut current: Vec<usize> = path.to_vec();
         for k in (0..n - 1).rev() {
@@ -1623,26 +1951,44 @@ impl ComplexSelector {
                             break;
                         }
                     }
-                    if !found { return false; }
+                    if !found {
+                        return false;
+                    }
                 }
                 Combinator::Child => {
-                    if current.is_empty() { return false; }
+                    if current.is_empty() {
+                        return false;
+                    }
                     current.pop();
-                    if !prev.matches_in_tree(root, &current, ctx) { return false; }
+                    if !prev.matches_in_tree(root, &current, ctx) {
+                        return false;
+                    }
                 }
                 Combinator::NextSibling => {
-                    let Some(idx) = current.last().copied() else { return false };
+                    let Some(idx) = current.last().copied() else {
+                        return false;
+                    };
                     let parent_path = current[..current.len() - 1].to_vec();
-                    let Some(parent) = node_at_path(root, &parent_path) else { return false };
-                    let Some(sib) = previous_element_sibling(parent, idx) else { return false };
+                    let Some(parent) = node_at_path(root, &parent_path) else {
+                        return false;
+                    };
+                    let Some(sib) = previous_element_sibling(parent, idx) else {
+                        return false;
+                    };
                     current.truncate(current.len() - 1);
                     current.push(sib);
-                    if !prev.matches_in_tree(root, &current, ctx) { return false; }
+                    if !prev.matches_in_tree(root, &current, ctx) {
+                        return false;
+                    }
                 }
                 Combinator::SubsequentSibling => {
-                    let Some(idx) = current.last().copied() else { return false };
+                    let Some(idx) = current.last().copied() else {
+                        return false;
+                    };
                     let parent_path = current[..current.len() - 1].to_vec();
-                    let Some(parent) = node_at_path(root, &parent_path) else { return false };
+                    let Some(parent) = node_at_path(root, &parent_path) else {
+                        return false;
+                    };
                     let mut found = None;
                     let mut j = idx;
                     while let Some(prev_j) = previous_element_sibling(parent, j) {
@@ -1665,7 +2011,9 @@ impl ComplexSelector {
 
 impl SelectorList {
     fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
-        self.selectors.iter().any(|sel| sel.matches_in_tree(root, path, ctx))
+        self.selectors
+            .iter()
+            .any(|sel| sel.matches_in_tree(root, path, ctx))
     }
 }
 
@@ -1678,11 +2026,19 @@ fn collect_matching_paths(root: &Node, sel: &SelectorList, ctx: &MatchContext) -
     out
 }
 
-fn walk_collect(root: &Node, sel: &SelectorList, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>, ctx: &MatchContext) {
+fn walk_collect(
+    root: &Node,
+    sel: &SelectorList,
+    path: &mut Vec<usize>,
+    out: &mut Vec<Vec<usize>>,
+    ctx: &MatchContext,
+) {
     if sel.matches_in_tree(root, path, ctx) {
         out.push(path.clone());
     }
-    let Some(node) = node_at_path(root, path) else { return };
+    let Some(node) = node_at_path(root, path) else {
+        return;
+    };
     let n = node.children.len();
     for i in 0..n {
         path.push(i);
@@ -1704,7 +2060,9 @@ fn rec_first(root: &Node, sel: &SelectorList, path: &mut Vec<usize>, ctx: &Match
     if sel.matches_in_tree(root, path, ctx) {
         return true;
     }
-    let Some(node) = node_at_path(root, path) else { return false };
+    let Some(node) = node_at_path(root, path) else {
+        return false;
+    };
     let n = node.children.len();
     for i in 0..n {
         path.push(i);
@@ -1765,14 +2123,18 @@ impl Node {
 
 impl Tree {
     pub fn query_selector_path(&self, sel: impl Into<SelectorList>) -> Option<Vec<usize>> {
-        let ctx = MatchContext { interaction: Some(&self.interaction) };
+        let ctx = MatchContext {
+            interaction: Some(&self.interaction),
+        };
         first_match_path(self.root.as_ref()?, &sel.into(), &ctx)
     }
 
     pub fn query_selector_all_paths(&self, sel: impl Into<SelectorList>) -> Vec<Vec<usize>> {
         match self.root.as_ref() {
             Some(root) => {
-                let ctx = MatchContext { interaction: Some(&self.interaction) };
+                let ctx = MatchContext {
+                    interaction: Some(&self.interaction),
+                };
                 collect_matching_paths(root, &sel.into(), &ctx)
             }
             None => Vec::new(),
@@ -1780,7 +2142,9 @@ impl Tree {
     }
 
     pub fn query_selector(&mut self, sel: impl Into<SelectorList>) -> Option<&mut Node> {
-        let ctx = MatchContext { interaction: Some(&self.interaction) };
+        let ctx = MatchContext {
+            interaction: Some(&self.interaction),
+        };
         let sel = sel.into();
         let path = first_match_path(self.root.as_ref()?, &sel, &ctx)?;
         self.root.as_mut()?.at_path_mut(&path)
@@ -1791,13 +2155,17 @@ impl Tree {
         // Collect paths using a shared borrow first.
         let paths = match self.root.as_ref() {
             Some(root) => {
-                let ctx = MatchContext { interaction: Some(&self.interaction) };
+                let ctx = MatchContext {
+                    interaction: Some(&self.interaction),
+                };
                 collect_matching_paths(root, &sel, &ctx)
             }
             None => return Vec::new(),
         };
         // Now resolve paths to &mut references.
-        let Some(root) = self.root.as_mut() else { return Vec::new() };
+        let Some(root) = self.root.as_mut() else {
+            return Vec::new();
+        };
         let mut out: Vec<&mut Node> = Vec::with_capacity(paths.len());
         unsafe {
             let root_ptr: *mut Node = root as *mut Node;
@@ -1876,10 +2244,18 @@ mod tests {
         let list = SelectorList::parse("[a][b=v][c~=v][d|=en][e^=p][f$=q][g*=r]").unwrap();
         let cs = &list.selectors[0].compounds[0];
         let ops: Vec<_> = cs.attrs.iter().map(|f| f.op).collect();
-        assert_eq!(ops, vec![
-            AttrOp::Exists, AttrOp::Equals, AttrOp::Includes,
-            AttrOp::DashMatch, AttrOp::Prefix, AttrOp::Suffix, AttrOp::Substring,
-        ]);
+        assert_eq!(
+            ops,
+            vec![
+                AttrOp::Exists,
+                AttrOp::Equals,
+                AttrOp::Includes,
+                AttrOp::DashMatch,
+                AttrOp::Prefix,
+                AttrOp::Suffix,
+                AttrOp::Substring,
+            ]
+        );
     }
 
     #[test]
@@ -1911,8 +2287,7 @@ mod tests {
         e.lang = Some("en-US".to_owned());
         let mut e2 = m::Div::default();
         e2.lang = Some("english".to_owned());
-        let body = Node::new(m::Body::default())
-            .with_children(vec![Node::new(e), Node::new(e2)]);
+        let body = Node::new(m::Body::default()).with_children(vec![Node::new(e), Node::new(e2)]);
         let mut tree = Tree::new(body);
         let hits = tree.query_selector_all_paths("[lang|=en]");
         assert_eq!(hits, vec![vec![0]]);
@@ -1926,13 +2301,25 @@ mod tests {
         a2.href = Some("/local".to_owned());
         let mut a3 = m::A::default();
         a3.href = Some("https://example.com/file.pdf".to_owned());
-        let body = Node::new(m::Body::default())
-            .with_children(vec![Node::new(a1), Node::new(a2), Node::new(a3)]);
+        let body = Node::new(m::Body::default()).with_children(vec![
+            Node::new(a1),
+            Node::new(a2),
+            Node::new(a3),
+        ]);
         let mut tree = Tree::new(body);
 
-        assert_eq!(tree.query_selector_all_paths("a[href^=\"https://\"]"), vec![vec![0], vec![2]]);
-        assert_eq!(tree.query_selector_all_paths("a[href$=\".pdf\"]"), vec![vec![2]]);
-        assert_eq!(tree.query_selector_all_paths("a[href*=\"example\"]"), vec![vec![0], vec![2]]);
+        assert_eq!(
+            tree.query_selector_all_paths("a[href^=\"https://\"]"),
+            vec![vec![0], vec![2]]
+        );
+        assert_eq!(
+            tree.query_selector_all_paths("a[href$=\".pdf\"]"),
+            vec![vec![2]]
+        );
+        assert_eq!(
+            tree.query_selector_all_paths("a[href*=\"example\"]"),
+            vec![vec![0], vec![2]]
+        );
     }
 
     #[test]

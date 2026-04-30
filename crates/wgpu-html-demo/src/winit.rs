@@ -229,14 +229,16 @@ fn spawn_stdin_listener(commands: CommandQueue, window: Arc<Window>) {
                 "help" | "?" => {
                     println!("commands:");
                     println!("  make_screenshot              capture the full viewport");
-                    println!("  make_screenshot <selector>   capture the node matching the selector");
+                    println!(
+                        "  make_screenshot <selector>   capture the node matching the selector"
+                    );
                     println!("  dump_tree                    dump the full DOM tree as JSON");
-                    println!("  dump_tree <selector>         dump the subtree matching the selector");
+                    println!(
+                        "  dump_tree <selector>         dump the subtree matching the selector"
+                    );
                 }
                 _ => {
-                    eprintln!(
-                        "demo: unknown command `{cmd}` (try `help` for a list)"
-                    );
+                    eprintln!("demo: unknown command `{cmd}` (try `help` for a list)");
                 }
             }
         }
@@ -294,10 +296,7 @@ impl DemoHook {
             });
         }
         // Register the Lucide icon font for devtools as well.
-        devtools.register_font(FontFace::regular(
-            "lucide",
-            Arc::from(LUCIDE_FONT),
-        ));
+        devtools.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
@@ -320,8 +319,7 @@ impl DemoHook {
     fn run_command(&mut self, ctx: &mut HookContext<'_>, cmd: DemoCommand) {
         match cmd {
             DemoCommand::Screenshot { selector: None } => {
-                let path: PathBuf =
-                    format!("screenshot-viewport-{}.png", timestamp()).into();
+                let path: PathBuf = format!("screenshot-viewport-{}.png", timestamp()).into();
                 ctx.renderer.capture_next_frame_to(path.clone());
                 ctx.window.request_redraw();
                 println!("demo: queued viewport screenshot → {}", path.display());
@@ -362,9 +360,7 @@ impl DemoHook {
                         "demo: saved screenshot of `{sel}` at path {path_indices:?} → {}",
                         out_path.display()
                     ),
-                    Err(e) => eprintln!(
-                        "demo: screenshot for `{sel}` failed: {e}"
-                    ),
+                    Err(e) => eprintln!("demo: screenshot for `{sel}` failed: {e}"),
                 }
             }
         }
@@ -441,7 +437,9 @@ fn write_cascaded_json(out: &mut String, node: &wgpu_html_style::CascadedNode, d
     if !node.children.is_empty() {
         let _ = write!(out, ",\n{inner}\"children\": [\n");
         for (i, child) in node.children.iter().enumerate() {
-            if i > 0 { out.push_str(",\n"); }
+            if i > 0 {
+                out.push_str(",\n");
+            }
             write_cascaded_json(out, child, depth + 2);
         }
         let _ = write!(out, "\n{inner}]");
@@ -454,18 +452,36 @@ fn write_cascaded_json(out: &mut String, node: &wgpu_html_style::CascadedNode, d
 fn write_attrs(out: &mut String, el: &wgpu_html_tree::Element, indent: &str) {
     use std::fmt::Write;
     let names = [
-        "type", "name", "value", "placeholder", "href", "src", "alt",
-        "disabled", "checked", "required", "readonly", "hidden",
-        "tabindex", "lang", "dir", "role", "style",
+        "type",
+        "name",
+        "value",
+        "placeholder",
+        "href",
+        "src",
+        "alt",
+        "disabled",
+        "checked",
+        "required",
+        "readonly",
+        "hidden",
+        "tabindex",
+        "lang",
+        "dir",
+        "role",
+        "style",
     ];
     let mut attrs: Vec<(&str, String)> = Vec::new();
     for n in &names {
-        if let Some(v) = el.attr(n) { attrs.push((n, v)); }
+        if let Some(v) = el.attr(n) {
+            attrs.push((n, v));
+        }
     }
     if !attrs.is_empty() {
         let _ = write!(out, ",\n{indent}\"attrs\": {{");
         for (i, (k, v)) in attrs.iter().enumerate() {
-            if i > 0 { out.push(','); }
+            if i > 0 {
+                out.push(',');
+            }
             let _ = write!(out, "\n{}  {}: {}", indent, json_str(k), json_str(v));
         }
         let _ = write!(out, "\n{indent}}}");
@@ -476,20 +492,34 @@ fn write_computed_style(out: &mut String, s: &wgpu_html_models::Style, indent: &
     use std::fmt::Write;
     let mut props: Vec<(&str, String)> = Vec::new();
     macro_rules! p {
-        ($n:literal, $f:expr) => { if let Some(v) = &$f { props.push(($n, format!("{v:?}"))); } };
+        ($n:literal, $f:expr) => {
+            if let Some(v) = &$f {
+                props.push(($n, format!("{v:?}")));
+            }
+        };
     }
     p!("display", s.display);
     p!("position", s.position);
-    p!("top", s.top); p!("right", s.right); p!("bottom", s.bottom); p!("left", s.left);
-    p!("width", s.width); p!("height", s.height);
-    p!("min-width", s.min_width); p!("min-height", s.min_height);
-    p!("max-width", s.max_width); p!("max-height", s.max_height);
+    p!("top", s.top);
+    p!("right", s.right);
+    p!("bottom", s.bottom);
+    p!("left", s.left);
+    p!("width", s.width);
+    p!("height", s.height);
+    p!("min-width", s.min_width);
+    p!("min-height", s.min_height);
+    p!("max-width", s.max_width);
+    p!("max-height", s.max_height);
     p!("margin", s.margin);
-    p!("margin-top", s.margin_top); p!("margin-right", s.margin_right);
-    p!("margin-bottom", s.margin_bottom); p!("margin-left", s.margin_left);
+    p!("margin-top", s.margin_top);
+    p!("margin-right", s.margin_right);
+    p!("margin-bottom", s.margin_bottom);
+    p!("margin-left", s.margin_left);
     p!("padding", s.padding);
-    p!("padding-top", s.padding_top); p!("padding-right", s.padding_right);
-    p!("padding-bottom", s.padding_bottom); p!("padding-left", s.padding_left);
+    p!("padding-top", s.padding_top);
+    p!("padding-right", s.padding_right);
+    p!("padding-bottom", s.padding_bottom);
+    p!("padding-left", s.padding_left);
     p!("box-sizing", s.box_sizing);
     p!("color", s.color);
     p!("background", s.background);
@@ -500,47 +530,85 @@ fn write_computed_style(out: &mut String, s: &wgpu_html_models::Style, indent: &
     p!("background-repeat", s.background_repeat);
     p!("background-clip", s.background_clip);
     p!("border", s.border);
-    p!("border-top-width", s.border_top_width); p!("border-right-width", s.border_right_width);
-    p!("border-bottom-width", s.border_bottom_width); p!("border-left-width", s.border_left_width);
-    p!("border-top-style", s.border_top_style); p!("border-right-style", s.border_right_style);
-    p!("border-bottom-style", s.border_bottom_style); p!("border-left-style", s.border_left_style);
-    p!("border-top-color", s.border_top_color); p!("border-right-color", s.border_right_color);
-    p!("border-bottom-color", s.border_bottom_color); p!("border-left-color", s.border_left_color);
+    p!("border-top-width", s.border_top_width);
+    p!("border-right-width", s.border_right_width);
+    p!("border-bottom-width", s.border_bottom_width);
+    p!("border-left-width", s.border_left_width);
+    p!("border-top-style", s.border_top_style);
+    p!("border-right-style", s.border_right_style);
+    p!("border-bottom-style", s.border_bottom_style);
+    p!("border-left-style", s.border_left_style);
+    p!("border-top-color", s.border_top_color);
+    p!("border-right-color", s.border_right_color);
+    p!("border-bottom-color", s.border_bottom_color);
+    p!("border-left-color", s.border_left_color);
     p!("border-top-left-radius", s.border_top_left_radius);
     p!("border-top-right-radius", s.border_top_right_radius);
     p!("border-bottom-right-radius", s.border_bottom_right_radius);
     p!("border-bottom-left-radius", s.border_bottom_left_radius);
-    p!("font-family", s.font_family); p!("font-size", s.font_size);
-    p!("font-weight", s.font_weight); p!("font-style", s.font_style);
-    p!("line-height", s.line_height); p!("letter-spacing", s.letter_spacing);
-    p!("text-align", s.text_align); p!("text-decoration", s.text_decoration);
-    p!("text-transform", s.text_transform); p!("white-space", s.white_space);
-    p!("overflow", s.overflow); p!("overflow-x", s.overflow_x); p!("overflow-y", s.overflow_y);
-    p!("opacity", s.opacity); p!("visibility", s.visibility); p!("z-index", s.z_index);
-    p!("box-shadow", s.box_shadow); p!("cursor", s.cursor);
-    p!("pointer-events", s.pointer_events); p!("user-select", s.user_select);
-    p!("flex-direction", s.flex_direction); p!("flex-wrap", s.flex_wrap);
-    p!("justify-content", s.justify_content); p!("align-items", s.align_items);
-    p!("align-content", s.align_content); p!("align-self", s.align_self);
-    p!("order", s.order); p!("gap", s.gap); p!("row-gap", s.row_gap); p!("column-gap", s.column_gap);
-    p!("flex", s.flex); p!("flex-grow", s.flex_grow); p!("flex-shrink", s.flex_shrink);
+    p!("font-family", s.font_family);
+    p!("font-size", s.font_size);
+    p!("font-weight", s.font_weight);
+    p!("font-style", s.font_style);
+    p!("line-height", s.line_height);
+    p!("letter-spacing", s.letter_spacing);
+    p!("text-align", s.text_align);
+    p!("text-decoration", s.text_decoration);
+    p!("text-transform", s.text_transform);
+    p!("white-space", s.white_space);
+    p!("overflow", s.overflow);
+    p!("overflow-x", s.overflow_x);
+    p!("overflow-y", s.overflow_y);
+    p!("opacity", s.opacity);
+    p!("visibility", s.visibility);
+    p!("z-index", s.z_index);
+    p!("box-shadow", s.box_shadow);
+    p!("cursor", s.cursor);
+    p!("pointer-events", s.pointer_events);
+    p!("user-select", s.user_select);
+    p!("flex-direction", s.flex_direction);
+    p!("flex-wrap", s.flex_wrap);
+    p!("justify-content", s.justify_content);
+    p!("align-items", s.align_items);
+    p!("align-content", s.align_content);
+    p!("align-self", s.align_self);
+    p!("order", s.order);
+    p!("gap", s.gap);
+    p!("row-gap", s.row_gap);
+    p!("column-gap", s.column_gap);
+    p!("flex", s.flex);
+    p!("flex-grow", s.flex_grow);
+    p!("flex-shrink", s.flex_shrink);
     p!("flex-basis", s.flex_basis);
-    p!("grid-template-columns", s.grid_template_columns); p!("grid-template-rows", s.grid_template_rows);
-    p!("grid-auto-columns", s.grid_auto_columns); p!("grid-auto-rows", s.grid_auto_rows);
+    p!("grid-template-columns", s.grid_template_columns);
+    p!("grid-template-rows", s.grid_template_rows);
+    p!("grid-auto-columns", s.grid_auto_columns);
+    p!("grid-auto-rows", s.grid_auto_rows);
     p!("grid-auto-flow", s.grid_auto_flow);
-    p!("grid-column", s.grid_column); p!("grid-column-start", s.grid_column_start);
+    p!("grid-column", s.grid_column);
+    p!("grid-column-start", s.grid_column_start);
     p!("grid-column-end", s.grid_column_end);
-    p!("grid-row", s.grid_row); p!("grid-row-start", s.grid_row_start);
+    p!("grid-row", s.grid_row);
+    p!("grid-row-start", s.grid_row_start);
     p!("grid-row-end", s.grid_row_end);
-    p!("justify-items", s.justify_items); p!("justify-self", s.justify_self);
-    p!("transform", s.transform); p!("transform-origin", s.transform_origin);
-    p!("transition", s.transition); p!("animation", s.animation);
-    for (k, v) in &s.custom_properties { props.push((k, v.clone())); }
-    for (k, v) in &s.deferred_longhands { props.push((k, v.clone())); }
+    p!("justify-items", s.justify_items);
+    p!("justify-self", s.justify_self);
+    p!("transform", s.transform);
+    p!("transform-origin", s.transform_origin);
+    p!("transition", s.transition);
+    p!("animation", s.animation);
+    for (k, v) in &s.custom_properties {
+        props.push((k, v.clone()));
+    }
+    for (k, v) in &s.deferred_longhands {
+        props.push((k, v.clone()));
+    }
     if !props.is_empty() {
         let _ = write!(out, ",\n{indent}\"computedStyle\": {{");
         for (i, (k, v)) in props.iter().enumerate() {
-            if i > 0 { out.push(','); }
+            if i > 0 {
+                out.push(',');
+            }
             let _ = write!(out, "\n{}  {}: {}", indent, json_str(k), json_str(v));
         }
         let _ = write!(out, "\n{indent}}}");
