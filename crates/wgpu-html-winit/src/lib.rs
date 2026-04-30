@@ -39,7 +39,7 @@ mod window;
 
 pub use fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use window::{
-    AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
+    AppHook, EventResponse, FrameTimings, HookContext, HtmlWindow, WgpuHtmlWindow, create_window,
 };
 
 use wgpu_html_tree::{Modifier, MouseButton, Tree};

@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use arboard::Clipboard;
 use wgpu_html::interactivity;
 use wgpu_html::layout::LayoutBox;
-use wgpu_html::renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
+use wgpu_html::renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html::scroll::{
     clamp_scroll_y, paint_viewport_scrollbar, rect_contains, scroll_element_at,
     scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
@@ -137,6 +137,78 @@ pub struct FrameTimings {
     pub layout_ms: f64,
     pub paint_ms: f64,
     pub render_ms: f64,
+}
+
+// ── Reusable secondary window ────────────────────────────────────────────────
+
+/// A lightweight window + renderer pair for rendering an HTML tree.
+///
+/// Unlike [`WgpuHtmlWindow`] this does NOT own an event loop — it
+/// is designed to be created inside an existing loop (e.g. from an
+/// [`AppHook`] callback) and driven externally.
+///
+/// Used by devtools and any other secondary panel that needs to
+/// render a [`Tree`] in its own OS window.
+pub struct HtmlWindow {
+    window: Arc<Window>,
+    renderer: Renderer,
+}
+
+impl HtmlWindow {
+    /// Create a new OS window + wgpu renderer.
+    pub fn new(event_loop: &ActiveEventLoop, title: &str, width: u32, height: u32) -> Self {
+        let attrs = Window::default_attributes()
+            .with_title(title)
+            .with_inner_size(PhysicalSize::new(width, height));
+        let window = Arc::new(
+            event_loop
+                .create_window(attrs)
+                .expect("HtmlWindow: failed to create window"),
+        );
+        let size = window.inner_size();
+        let renderer =
+            pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
+        Self { window, renderer }
+    }
+
+    pub fn window(&self) -> &Arc<Window> {
+        &self.window
+    }
+
+    pub fn window_id(&self) -> WindowId {
+        self.window.id()
+    }
+
+    pub fn scale_factor(&self) -> f32 {
+        self.window.scale_factor() as f32
+    }
+
+    pub fn inner_size(&self) -> (u32, u32) {
+        let s = self.window.inner_size();
+        (s.width, s.height)
+    }
+
+    pub fn request_redraw(&self) {
+        self.window.request_redraw();
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.renderer.resize(width, height);
+    }
+
+    /// Render a display list and upload glyphs in one call.
+    pub fn render(&mut self, list: &DisplayList, text_ctx: &mut TextContext) {
+        text_ctx
+            .atlas
+            .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
+        match self.renderer.render(list) {
+            FrameOutcome::Presented | FrameOutcome::Skipped => {}
+            FrameOutcome::Reconfigure => {
+                let size = self.window.inner_size();
+                self.renderer.resize(size.width, size.height);
+            }
+        }
+    }
 }
 
 // ── Builder ─────────────────────────────────────────────────────────────────

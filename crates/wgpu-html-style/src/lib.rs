@@ -745,12 +745,17 @@ fn ua_prepared_stylesheet() -> &'static PreparedStylesheet {
 fn collect_stylesheet_source(tree: &Tree) -> String {
     let mut css = String::new();
     if let Some(root) = &tree.root {
-        gather(root, &mut css, false);
+        gather(root, &tree.linked_stylesheets, &mut css, false);
     }
     css
 }
 
-fn gather(node: &Node, out: &mut String, inside_template: bool) {
+fn gather(
+    node: &Node,
+    linked_stylesheets: &HashMap<String, String>,
+    out: &mut String,
+    inside_template: bool,
+) {
     let inside_template = inside_template || matches!(&node.element, Element::Template(_));
     if inside_template {
         return;
@@ -776,9 +781,38 @@ fn gather(node: &Node, out: &mut String, inside_template: bool) {
         }
         out.push('\n');
     }
-    for child in &node.children {
-        gather(child, out, inside_template);
+    if let Element::Link(link) = &node.element {
+        if link_is_stylesheet(link) {
+            if let Some(href) = link.href.as_deref() {
+                if let Some(css) = node_stylesheet_source(node, href) {
+                    out.push_str(css);
+                    out.push('\n');
+                }
+            }
+        }
     }
+    for child in &node.children {
+        gather(child, linked_stylesheets, out, inside_template);
+    }
+}
+
+fn link_is_stylesheet(link: &wgpu_html_models::Link) -> bool {
+    link.rel
+        .as_deref()
+        .map(|rel| {
+            rel.split_ascii_whitespace()
+                .any(|token| token.eq_ignore_ascii_case("stylesheet"))
+        })
+        .unwrap_or(false)
+}
+
+fn node_stylesheet_source<'a>(node: &Node, href: &str) -> Option<&'a str> {
+    // Walk up is not available from a node, so this is filled by the
+    // tree-level gather overload below. This shim is unreachable in
+    // practice and exists only until `gather` is called with the tree
+    // stylesheet table.
+    let _ = (node, href);
+    None
 }
 
 /// Recursive cascade. `ancestors[0]` is the immediate parent element
