@@ -81,6 +81,10 @@ impl TreeBuilder {
                             self.push_node(Node::new(el));
                         }
                         // Unknown void → silently dropped.
+                    } else if name == "body" && self.has_body_on_stack() {
+                        // HTML spec: a second <body> is ignored.
+                    } else if name == "html" && self.has_html_on_stack() {
+                        // HTML spec: a second <html> is ignored.
                     } else {
                         // Auto-close certain elements before opening a new one.
                         self.auto_close_before(&name);
@@ -136,6 +140,26 @@ impl TreeBuilder {
             }
         }
         // If not found, silently ignore the orphan closing tag.
+    }
+
+    /// Whether a `<body>` element is already open on the stack
+    /// or in the document roots.
+    fn has_body_on_stack(&self) -> bool {
+        self.stack.iter().any(|(tag, _, _)| tag == "body")
+            || self
+                .document
+                .iter()
+                .any(|n| matches!(&n.element, Element::Body(_)))
+    }
+
+    /// Whether an `<html>` element is already open on the stack
+    /// or in the document roots.
+    fn has_html_on_stack(&self) -> bool {
+        self.stack.iter().any(|(tag, _, _)| tag == "html")
+            || self
+                .document
+                .iter()
+                .any(|n| matches!(&n.element, Element::Html(_)))
     }
 
     /// Auto-close certain elements based on HTML nesting rules
@@ -275,5 +299,23 @@ mod tests {
         assert!(matches!(p.element, Element::P(_)));
         assert_eq!(p.children.len(), 1);
         assert!(matches!(p.children[0].element, Element::Text(_)));
+    }
+
+    #[test]
+    fn second_body_is_ignored() {
+        // HTML spec: a second <body> tag is dropped; content goes
+        // into the first <body>.
+        let tree = build(tokenize("<body><p>a</p></body><body><p>b</p></body>"));
+        let body = tree.root.as_ref().expect("root");
+        assert!(matches!(body.element, Element::Body(_)));
+        // Both <p> elements end up in the single <body>.
+        assert_eq!(body.children.len(), 2);
+    }
+
+    #[test]
+    fn second_html_is_ignored() {
+        let tree = build(tokenize("<html><body><p>ok</p></body></html><html></html>"));
+        let html = tree.root.as_ref().expect("root");
+        assert!(matches!(html.element, Element::Html(_)));
     }
 }
