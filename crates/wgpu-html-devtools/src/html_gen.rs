@@ -113,8 +113,8 @@ fn emit_node(
                 let mut row = tree_row(depth, path, selected_path, click_sink);
                 push_open_tag(&mut row, node, tag);
 
-                if let Some(txt) = single_text_child(node) {
-                    row.push(span("text-node", &truncate(txt, 40)));
+                if let Some(txt) = text_only_content(node) {
+                    row.push(span("text-node", &truncate(&txt, 40)));
                 }
 
                 row.push(span("bracket", "</"));

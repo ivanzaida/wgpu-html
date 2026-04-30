@@ -138,9 +138,13 @@ pub fn make_decl(prop: &str, value: &str) -> Node {
 
 // ── Utilities ───────────────────────────────────────────────────
 
+/// Whether the node has visible *element* children that warrant an
+/// expanded (multi-row) tree display. Nodes whose only children
+/// are text nodes are rendered inline on one row, matching browser
+/// devtools behaviour (`<h1>My App</h1>` on a single line).
 pub fn has_visible_children(node: &Node) -> bool {
     node.children.iter().any(|c| match &c.element {
-        wgpu_html_tree::Element::Text(t) => !t.trim().is_empty(),
+        wgpu_html_tree::Element::Text(_) => false,
         _ => !matches!(
             c.element.tag_name(),
             "style" | "script" | "meta" | "link" | "title"
@@ -148,16 +152,23 @@ pub fn has_visible_children(node: &Node) -> bool {
     })
 }
 
-pub fn single_text_child(node: &Node) -> Option<&str> {
-    if node.children.len() == 1 {
-        if let wgpu_html_tree::Element::Text(t) = &node.children[0].element {
-            let trimmed = t.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed);
-            }
+/// Return the combined text content when a node's children are all
+/// text nodes. Used to display the content inline on the same row
+/// as the tag (`<h1>My App</h1>`).
+pub fn text_only_content(node: &Node) -> Option<String> {
+    if node.children.is_empty() {
+        return None;
+    }
+    let mut buf = String::new();
+    for c in &node.children {
+        if let wgpu_html_tree::Element::Text(t) = &c.element {
+            buf.push_str(t);
+        } else {
+            return None;
         }
     }
-    None
+    let trimmed = buf.trim();
+    if trimmed.is_empty() { None } else { Some(trimmed.to_owned()) }
 }
 
 pub fn truncate(s: &str, max: usize) -> String {
