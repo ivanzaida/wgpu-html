@@ -707,6 +707,14 @@ impl AppHook for DemoHook {
                     && !key_ev.repeat
                     && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
                 {
+                    // Copy fonts before first open so text renders.
+                    if !self.devtools_meta.is_enabled() {
+                        for (_h, face) in self.devtools.tree().fonts.iter() {
+                            self.devtools_meta.register_font(face.clone());
+                        }
+                        self.devtools_meta
+                            .update_inspected_tree(self.devtools.tree());
+                    }
                     self.devtools_meta.toggle(_ctx.event_loop);
                     return true;
                 }
