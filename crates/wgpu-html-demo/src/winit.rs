@@ -275,20 +275,16 @@ struct DemoHook {
     profiler: Profiler,
     commands: CommandQueue,
     devtools: Devtools,
-    /// 2nd-level devtools inspecting the 1st devtools' tree.
-    devtools_meta: Devtools,
     stdin_started: bool,
 }
 
 impl DemoHook {
     fn new(profiling_enabled: bool, devtools: Devtools) -> Self {
-        let devtools_meta = Devtools::new();
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
             commands: Arc::new(Mutex::new(VecDeque::new())),
             devtools,
-            devtools_meta,
             stdin_started: false,
         }
     }
@@ -657,15 +653,8 @@ impl AppHook for DemoHook {
         }
         self.drain_commands(&mut ctx);
 
-        // Devtools: poll for inspected tree changes, re-render.
         if self.devtools.is_enabled() {
             self.devtools.poll_and_redraw();
-            // Feed the devtools tree into the meta-devtools.
-            if self.devtools_meta.is_enabled() {
-                self.devtools_meta
-                    .update_inspected_tree(self.devtools.tree());
-                self.devtools_meta.poll_and_redraw();
-            }
         }
 
         if !self.enabled {
@@ -679,7 +668,6 @@ impl AppHook for DemoHook {
 
     fn on_idle(&mut self) {
         self.devtools.flush();
-        self.devtools_meta.flush();
     }
 
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
@@ -695,30 +683,7 @@ impl AppHook for DemoHook {
         window_id: WindowId,
         event: &WindowEvent,
     ) -> bool {
-        // Meta-devtools (no further nesting).
-        if self.devtools_meta.owns_window(window_id) {
-            self.devtools_meta.handle_window_event(event);
-            return true;
-        }
-        // Primary devtools — F11 toggles meta-devtools.
         if self.devtools.owns_window(window_id) {
-            if let WindowEvent::KeyboardInput { event: key_ev, .. } = event {
-                if key_ev.state == ElementState::Pressed
-                    && !key_ev.repeat
-                    && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
-                {
-                    // Copy fonts before first open so text renders.
-                    if !self.devtools_meta.is_enabled() {
-                        for (_h, face) in self.devtools.tree().fonts.iter() {
-                            self.devtools_meta.register_font(face.clone());
-                        }
-                        self.devtools_meta
-                            .update_inspected_tree(self.devtools.tree());
-                    }
-                    self.devtools_meta.toggle(_ctx.event_loop);
-                    return true;
-                }
-            }
             self.devtools.handle_window_event(event);
             return true;
         }
