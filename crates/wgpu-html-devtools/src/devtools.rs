@@ -24,6 +24,9 @@ use winit::window::WindowId;
 
 use crate::html_gen;
 
+/// Lucide icon font embedded at compile time (ISC license).
+static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
+
 // ── TreeHook for auto-snapshot ────────────────────────────────────
 
 struct SharedSnapshot {
@@ -104,7 +107,14 @@ impl Devtools {
     /// The host must call [`update_inspected_tree`] manually.
     pub fn new() -> Self {
         let click_sink = Arc::new(Mutex::new(None));
-        let tree = html_gen::build(None, None, &click_sink);
+        let mut tree = html_gen::build(None, None, &click_sink);
+        // Register the Lucide icon font so the devtools UI renders
+        // icons regardless of what fonts the host has registered.
+        let lucide = wgpu_html_tree::FontFace::regular(
+            "lucide",
+            Arc::from(LUCIDE_FONT),
+        );
+        tree.register_font(lucide.clone());
         let mut cache = PipelineCache::new();
         cache.paint_only_pseudo_rules = true;
         Self {
@@ -112,7 +122,7 @@ impl Devtools {
             text_ctx: TextContext::new(wgpu_html_renderer::GLYPH_ATLAS_SIZE),
             image_cache: wgpu_html::layout::ImageCache::new(),
             cache,
-            fonts: Vec::new(),
+            fonts: vec![lucide],
             selected_path: None,
             click_sink,
             inspected_root: None,
