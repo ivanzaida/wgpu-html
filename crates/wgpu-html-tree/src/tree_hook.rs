@@ -4,7 +4,7 @@
 //! should call those tree methods at integration boundaries instead of calling
 //! hook trait methods directly.
 
-use crate::{MouseEvent as TreeMouseEvent, Tree};
+use crate::{MouseEvent as TreeMouseEvent, Node, Tree};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use wgpu_html_events::{HtmlEvent, events};
@@ -382,7 +382,11 @@ pub trait TreeHook {
         TreeHookResponse::Continue
     }
 
-    fn on_drag_event(&mut self, tree: &mut Tree, event: &mut events::DragEvent) -> TreeHookResponse {
+    fn on_drag_event(
+        &mut self,
+        tree: &mut Tree,
+        event: &mut events::DragEvent,
+    ) -> TreeHookResponse {
         TreeHookResponse::Continue
     }
 
@@ -451,6 +455,24 @@ pub trait TreeHook {
     }
 
     fn on_generic_event(&mut self, tree: &mut Tree, event: &mut events::Event) -> TreeHookResponse {
+        TreeHookResponse::Continue
+    }
+
+    /// Called when a node has been added to the tree.
+    ///
+    /// The `element` reference points to the node **before** it is
+    /// inserted (the caller emits this just before or just after
+    /// pushing it into the tree, depending on which avoids borrow
+    /// conflicts in the host code).
+    fn on_element_added(&mut self, tree: &mut Tree, element: &Node) -> TreeHookResponse {
+        TreeHookResponse::Continue
+    }
+
+    /// Called when a node has been removed from the tree.
+    ///
+    /// The `element` reference points to the node that was just
+    /// removed. It is no longer reachable through the tree's root.
+    fn on_element_removed(&mut self, tree: &mut Tree, element: &Node) -> TreeHookResponse {
         TreeHookResponse::Continue
     }
 }
@@ -526,6 +548,16 @@ impl Tree {
         self.emit_hooks(|hook, tree| hook.on_mouse_event(tree, event))
     }
 
+    /// Notify hooks that a node was added to the tree.
+    pub fn emit_element_added(&mut self, element: &Node) -> TreeHookResponse {
+        self.emit_hooks(|hook, tree| hook.on_element_added(tree, element))
+    }
+
+    /// Notify hooks that a node was removed from the tree.
+    pub fn emit_element_removed(&mut self, element: &Node) -> TreeHookResponse {
+        self.emit_hooks(|hook, tree| hook.on_element_removed(tree, element))
+    }
+
     fn emit_hooks(
         &mut self,
         mut emit: impl FnMut(&mut HookObject, &mut Tree) -> TreeHookResponse,
@@ -555,7 +587,11 @@ mod tests {
     }
 
     impl TreeHook for CountingHook {
-        fn on_render(&mut self, _tree: &mut Tree, _event: &TreeRenderEvent<'_>) -> TreeHookResponse {
+        fn on_render(
+            &mut self,
+            _tree: &mut Tree,
+            _event: &TreeRenderEvent<'_>,
+        ) -> TreeHookResponse {
             self.count.fetch_add(1, Ordering::Relaxed);
             if self.stop {
                 TreeHookResponse::Stop
