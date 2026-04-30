@@ -184,6 +184,12 @@ impl Devtools {
         self.enabled
     }
 
+    /// Borrow the devtools UI tree, if the window is open. Useful
+    /// for feeding it into a second-level devtools instance.
+    pub fn tree(&self) -> Option<&Tree> {
+        self.window_state.as_ref().map(|s| &s.tree)
+    }
+
     /// Register a font face for the devtools UI. Can be called
     /// before `enable()` — the fonts are applied when the window
     /// is created.

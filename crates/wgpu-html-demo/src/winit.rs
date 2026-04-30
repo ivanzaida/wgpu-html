@@ -275,6 +275,9 @@ struct DemoHook {
     profiler: Profiler,
     commands: CommandQueue,
     devtools: Devtools,
+    /// 2nd-level devtools that inspects the 1st devtools' own tree.
+    /// Opened with F11 while the devtools window is focused.
+    devtools_meta: Devtools,
     /// Set to `true` after the first `on_frame` has run, at which
     /// point we have an `Arc<Window>` and can spawn the stdin
     /// reader. Doing this lazily (rather than before `run_app`)
@@ -297,11 +300,25 @@ impl DemoHook {
         }
         // Register the Lucide icon font for devtools as well.
         devtools.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
+
+        // 2nd-level devtools (inspects the 1st devtools).
+        let mut devtools_meta = Devtools::new();
+        for v in system_font_variants() {
+            devtools_meta.register_font(wgpu_html_tree::FontFace {
+                family: "DemoSans".to_owned(),
+                weight: v.weight,
+                style: v.style,
+                data: v.data.clone(),
+            });
+        }
+        devtools_meta.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
+
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
             commands: Arc::new(Mutex::new(VecDeque::new())),
             devtools,
+            devtools_meta,
             stdin_started: false,
         }
     }
@@ -687,6 +704,13 @@ impl AppHook for DemoHook {
         // Feed the live DOM into the devtools panel.
         if self.devtools.is_enabled() {
             self.devtools.update_inspected_tree(ctx.tree);
+
+            // Feed the devtools' own tree into the 2nd-level devtools.
+            if self.devtools_meta.is_enabled() {
+                if let Some(dt_tree) = self.devtools.tree().cloned() {
+                    self.devtools_meta.update_inspected_tree(&dt_tree);
+                }
+            }
         }
 
         if !self.enabled {
@@ -700,6 +724,7 @@ impl AppHook for DemoHook {
 
     fn on_idle(&mut self) {
         self.devtools.flush();
+        self.devtools_meta.flush();
     }
 
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
@@ -715,7 +740,24 @@ impl AppHook for DemoHook {
         window_id: WindowId,
         event: &WindowEvent,
     ) -> bool {
+        // 2nd-level meta-devtools — handle its events but never
+        // open a 3rd level.
+        if self.devtools_meta.owns_window(window_id) {
+            self.devtools_meta.handle_window_event(event);
+            return true;
+        }
+
+        // 1st-level devtools — F11 toggles the meta-devtools.
         if self.devtools.owns_window(window_id) {
+            if let WindowEvent::KeyboardInput { event: key_ev, .. } = event {
+                if key_ev.state == ElementState::Pressed
+                    && !key_ev.repeat
+                    && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
+                {
+                    self.devtools_meta.toggle(_ctx.event_loop);
+                    return true;
+                }
+            }
             self.devtools.handle_window_event(event);
             return true;
         }
