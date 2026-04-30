@@ -476,26 +476,16 @@ impl Devtools {
                     hw.resize(size.width, size.height);
                 }
                 self.resize(size.width as f32, size.height as f32, scale);
-                if let Some(hw) = &self.html_window {
-                    hw.request_redraw();
-                }
             }
             WindowEvent::RedrawRequested => {
                 self.render_to_window();
+                return; // paint clears needs_redraw, skip the check below
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.pointer_move(position.x as f32, position.y as f32);
-                if self.needs_redraw {
-                    if let Some(hw) = &self.html_window {
-                        hw.request_redraw();
-                    }
-                }
             }
             WindowEvent::CursorLeft { .. } => {
                 self.pointer_leave();
-                if let Some(hw) = &self.html_window {
-                    hw.request_redraw();
-                }
             }
             WindowEvent::MouseInput {
                 state: button_state,
@@ -512,9 +502,6 @@ impl Devtools {
                         self.mouse_up(pos.0, pos.1, mb);
                     }
                 }
-                if let Some(hw) = &self.html_window {
-                    hw.request_redraw();
-                }
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let dy = match delta {
@@ -522,13 +509,15 @@ impl Devtools {
                     MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
                 };
                 let pos = self.cursor_pos;
-                if self.scroll(pos.0, pos.1, dy) {
-                    if let Some(hw) = &self.html_window {
-                        hw.request_redraw();
-                    }
-                }
+                self.scroll(pos.0, pos.1, dy);
             }
             _ => {}
+        }
+        // Single redraw check for all event types.
+        if self.needs_redraw {
+            if let Some(hw) = &self.html_window {
+                hw.request_redraw();
+            }
         }
     }
 
