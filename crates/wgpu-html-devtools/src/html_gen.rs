@@ -16,17 +16,33 @@ const MAX_DEPTH: usize = 32;
 
 // ── Public API ──────────────────────────────────────────────────
 
-/// Parse the static devtools shell and populate the dynamic
-/// containers with content derived from the inspected tree.
+/// Parse the static devtools shell with empty containers.
+pub fn build_shell() -> wgpu_html_tree::Tree {
+    let mut tree = wgpu_html_parser::parse(SHELL_HTML);
+    tree.register_linked_stylesheet("devtools.css", CSS);
+    tree
+}
+
+/// Full build (shell + all containers). Convenience for initial setup.
 pub fn build(
     inspected_root: Option<&Node>,
     selected_path: Option<&[usize]>,
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
 ) -> wgpu_html_tree::Tree {
-    let mut tree = wgpu_html_parser::parse(SHELL_HTML);
-    tree.register_linked_stylesheet("devtools.css", CSS);
+    let mut tree = build_shell();
+    update_tree_rows(&mut tree, inspected_root, selected_path, click_sink);
+    update_breadcrumb(&mut tree, inspected_root, selected_path);
+    update_styles(&mut tree, inspected_root, selected_path);
+    tree
+}
 
-    // ── Tree rows ───────────────────────────────────────────
+/// Rebuild only the element tree rows (inspected DOM changed).
+pub fn update_tree_rows(
+    tree: &mut wgpu_html_tree::Tree,
+    inspected_root: Option<&Node>,
+    selected_path: Option<&[usize]>,
+    click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
+) {
     if let Some(container) = tree.get_element_by_id("tree-rows") {
         container.children.clear();
         if let Some(root) = inspected_root {
@@ -34,14 +50,26 @@ pub fn build(
             emit_node(container, root, 0, &mut path, selected_path, click_sink);
         }
     }
+}
 
-    // ── Breadcrumb ──────────────────────────────────────────
+/// Rebuild only the breadcrumb bar (selection changed).
+pub fn update_breadcrumb(
+    tree: &mut wgpu_html_tree::Tree,
+    inspected_root: Option<&Node>,
+    selected_path: Option<&[usize]>,
+) {
     if let Some(container) = tree.get_element_by_id("breadcrumb") {
         container.children.clear();
         populate_breadcrumb(container, inspected_root, selected_path);
     }
+}
 
-    // ── Styles content ──────────────────────────────────────
+/// Rebuild only the styles panel (selection changed).
+pub fn update_styles(
+    tree: &mut wgpu_html_tree::Tree,
+    inspected_root: Option<&Node>,
+    selected_path: Option<&[usize]>,
+) {
     if let Some(container) = tree.get_element_by_id("styles-content") {
         container.children.clear();
         let selected_node = selected_path.and_then(|path| {
@@ -54,8 +82,6 @@ pub fn build(
         });
         populate_styles(container, selected_node);
     }
-
-    tree
 }
 
 // ── Tree rows ───────────────────────────────────────────────────

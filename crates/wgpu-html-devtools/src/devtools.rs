@@ -6,7 +6,6 @@
 
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Instant;
 
 use wgpu_html_tree::{Node, Profiler, Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
 use wgpu_html_winit::HtmlWindow;
@@ -156,7 +155,9 @@ impl Devtools {
     // ── Polling ─────────────────────────────────────────────
 
     /// Check for tree changes (from the auto-snapshot hook) and
-    /// pending click selections. Rebuilds the UI if needed.
+    /// pending click selections. Updates only the affected parts
+    /// of the UI tree (tree-rows on DOM change; breadcrumb +
+    /// styles on selection change).
     pub fn poll(&mut self) {
         let mut dom_changed = false;
         if let Some(shared) = &self.snapshot {
@@ -179,8 +180,11 @@ impl Devtools {
             })
             .is_some();
 
-        if dom_changed || selection_changed {
-            self.rebuild_ui();
+        if dom_changed {
+            self.update_tree_rows();
+        }
+        if selection_changed {
+            self.update_selection();
         }
     }
 
@@ -191,6 +195,7 @@ impl Devtools {
         if dom_changed {
             self.inspected_root = inspected.root.clone();
             self.last_inspected_gen = Some(inspected_gen);
+            self.update_tree_rows();
         }
 
         let selection_changed = self
@@ -203,28 +208,43 @@ impl Devtools {
             })
             .is_some();
 
-        if dom_changed || selection_changed {
-            self.rebuild_ui();
+        if selection_changed {
+            self.update_selection();
         }
     }
 
-    // ── Internal ────────────────────────────────────────────
+    // ── Internal: incremental tree updates ───────────────────
 
-    fn rebuild_ui(&mut self) {
-        let t0 = Instant::now();
-        let mut tree = html_gen::build(
+    /// Rebuild only the tree-rows container (inspected DOM changed).
+    fn update_tree_rows(&mut self) {
+        html_gen::update_tree_rows(
+            &mut self.tree,
             self.inspected_root.as_ref(),
             self.selected_path.as_deref(),
             &self.click_sink,
         );
-        for (_handle, face) in self.tree.fonts.iter() {
-            tree.register_font(face.clone());
-        }
-        let _build_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        self.needs_redraw = true;
+    }
 
-        std::mem::swap(&mut tree.interaction, &mut self.tree.interaction);
-        tree.profiler = self.tree.profiler.take();
-        self.tree = tree;
+    /// Update breadcrumb + styles panel (selection changed).
+    fn update_selection(&mut self) {
+        html_gen::update_breadcrumb(
+            &mut self.tree,
+            self.inspected_root.as_ref(),
+            self.selected_path.as_deref(),
+        );
+        html_gen::update_styles(
+            &mut self.tree,
+            self.inspected_root.as_ref(),
+            self.selected_path.as_deref(),
+        );
+        // Also update tree rows to reflect the new selection highlight.
+        html_gen::update_tree_rows(
+            &mut self.tree,
+            self.inspected_root.as_ref(),
+            self.selected_path.as_deref(),
+            &self.click_sink,
+        );
         self.needs_redraw = true;
     }
 
@@ -310,7 +330,7 @@ impl Devtools {
             let clicked = self.click_sink.lock().unwrap().take();
             if let Some(path) = clicked {
                 self.selected_path = Some(path);
-                self.rebuild_ui();
+                self.update_selection();
             }
         }
         if needs_redraw || self.needs_redraw {
