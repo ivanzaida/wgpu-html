@@ -2111,12 +2111,17 @@ fn hit_glyph_boundary(b: &LayoutBox, run: &ShapedRun, point: (f32, f32)) -> usiz
     for (idx, g) in &line {
         let mid = g.x + g.w * 0.5;
         if local_x < mid {
-            return *idx;
+            // Return the character position of this glyph (cursor
+            // is placed *before* it).
+            return run.glyph_to_char_index(*idx);
         }
     }
 
+    // Cursor is past all rendered glyphs on this line → place it
+    // after the last glyph's character.
     let max_idx = line.iter().map(|(idx, _)| *idx).max().unwrap_or(0);
-    (max_idx + 1).min(run.glyphs.len())
+    let after_char = run.glyph_to_char_index(max_idx) + 1;
+    after_char.min(run.text.chars().count())
 }
 
 fn nearest_line(local_y: f32, lines: &[ShapedLine]) -> ShapedLine {
@@ -3278,7 +3283,7 @@ fn shape_text_run(
     };
 
     let size_css = font_size_px(style).unwrap_or(16.0);
-    let line_h_css = line_height_px(style, size_css);
+    let line_h_css = line_height_px_for_font(style, size_css, &ctx.text.ctx, handle);
     let size_px = size_css * ctx.scale;
     let line_height = line_h_css * ctx.scale;
     let letter_spacing = letter_spacing_px(style, size_css) * ctx.scale;
@@ -4743,6 +4748,7 @@ fn layout_inline_paragraph(
 
     let run = ShapedRun {
         glyphs: positioned,
+        glyph_chars: vec![], // IFC paragraph path: identity fallback
         lines: para
             .lines
             .iter()
@@ -4904,13 +4910,36 @@ pub(crate) fn font_size_px(style: &Style) -> Option<f32> {
 /// (multiplier of font size); we currently parse line-height as
 /// `CssLength`, so a `Px` value is the literal height and `Em` /
 /// `Rem` multiply against `font_size_px`. Falls back to 1.25× the
-/// font size.
+/// font size when no font metrics are available.
 pub(crate) fn line_height_px(style: &Style, font_size: f32) -> f32 {
     use wgpu_html_models::common::css_enums::CssLength;
     match style.line_height.as_ref() {
         Some(CssLength::Px(v)) => *v,
         Some(CssLength::Em(v)) | Some(CssLength::Rem(v)) => v * font_size,
         _ => font_size * 1.25,
+    }
+}
+
+/// Like [`line_height_px`] but derives the `normal` default from the
+/// actual font metrics (hhea ascender − descender + lineGap) instead
+/// of the hardcoded 1.25× multiplier. This matches browser behaviour
+/// for CSS `line-height: normal`.
+fn line_height_px_for_font(
+    style: &Style,
+    font_size: f32,
+    text_ctx: &wgpu_html_text::TextContext,
+    handle: wgpu_html_text::FontHandle,
+) -> f32 {
+    use wgpu_html_models::common::css_enums::CssLength;
+    match style.line_height.as_ref() {
+        Some(CssLength::Px(v)) => *v,
+        Some(CssLength::Em(v)) | Some(CssLength::Rem(v)) => v * font_size,
+        _ => {
+            let multiplier = text_ctx
+                .normal_line_height_multiplier(handle)
+                .unwrap_or(1.25);
+            font_size * multiplier
+        }
     }
 }
 

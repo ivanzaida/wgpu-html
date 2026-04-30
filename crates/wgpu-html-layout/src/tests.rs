@@ -1545,6 +1545,7 @@ fn synthetic_text_layout() -> LayoutBox {
                 height: 20.0,
                 glyph_range: (0, 3),
             }],
+            glyph_chars: vec![],
             text: "abc".to_string(),
             byte_boundaries: wgpu_html_text::utf8_boundaries("abc"),
             width: 30.0,

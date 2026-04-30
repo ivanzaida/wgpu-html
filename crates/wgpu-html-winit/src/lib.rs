@@ -34,10 +34,9 @@
 //! lives in `wgpu-html`; the harness uses those wrappers
 //! internally.
 
-mod fonts;
 mod window;
 
-pub use fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
+pub use wgpu_html_tree::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use window::{
     AppHook, EventResponse, FrameTimings, HookContext, HtmlWindow, WgpuHtmlWindow, create_window,
 };

@@ -248,6 +248,7 @@ struct RuntimeState {
     cursor_pos: Option<(f32, f32)>,
     scroll_y: f32,
     scrollbar_drag: Option<ScrollbarDrag>,
+    last_click: Option<ClickTracker>,
     /// Lazy clipboard handle. `arboard` connects on first use.
     clipboard: Option<Clipboard>,
     started_at: Instant,
@@ -260,6 +261,15 @@ struct RuntimeState {
     /// only calls `request_redraw` after this instant passes, so
     /// the loop doesn't spin between blink toggles.
     caret_blink_deadline: Option<Instant>,
+}
+
+#[derive(Debug, Clone)]
+struct ClickTracker {
+    at: Instant,
+    pos: (f32, f32),
+    button: wgpu_html_tree::MouseButton,
+    target_path: Option<Vec<usize>>,
+    count: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -419,6 +429,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             cursor_pos: None,
             scroll_y: 0.0,
             scrollbar_drag: None,
+            last_click: None,
             clipboard: None,
             started_at: Instant::now(),
             last_render_at: None,
@@ -616,14 +627,30 @@ impl<'tree> WgpuHtmlWindow<'tree> {
 
         let doc_pos = viewport_to_document(pos, state.scroll_y);
         let btn = crate::mouse_button(button);
-        let Some(layout) = state.last_layout.as_ref() else {
-            return;
-        };
         match btn_state {
             ElementState::Pressed => {
-                interactivity::mouse_down(self.tree, layout, doc_pos, btn);
+                let target_path = {
+                    let Some(layout) = state.last_layout.as_ref() else {
+                        return;
+                    };
+                    layout.hit_path_scrolled(doc_pos, &self.tree.interaction.scroll_offsets_y)
+                };
+                let click_count = next_click_count(state, btn, doc_pos, target_path);
+                let Some(layout) = state.last_layout.as_ref() else {
+                    return;
+                };
+                interactivity::mouse_down_with_click_count(
+                    self.tree,
+                    layout,
+                    doc_pos,
+                    btn,
+                    click_count,
+                );
             }
             ElementState::Released => {
+                let Some(layout) = state.last_layout.as_ref() else {
+                    return;
+                };
                 interactivity::mouse_up(self.tree, layout, doc_pos, btn);
             }
         }
@@ -991,6 +1018,40 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             }
         }
     }
+}
+
+fn next_click_count(
+    state: &mut RuntimeState,
+    button: wgpu_html_tree::MouseButton,
+    pos: (f32, f32),
+    target_path: Option<Vec<usize>>,
+) -> u8 {
+    const MULTI_CLICK_MAX_MS: u128 = 500;
+    const MULTI_CLICK_MAX_DIST: f32 = 5.0;
+
+    let now = Instant::now();
+    let count = state
+        .last_click
+        .as_ref()
+        .filter(|last| last.button == button)
+        .filter(|last| last.target_path == target_path)
+        .filter(|last| now.duration_since(last.at).as_millis() <= MULTI_CLICK_MAX_MS)
+        .filter(|last| {
+            let dx = last.pos.0 - pos.0;
+            let dy = last.pos.1 - pos.1;
+            dx * dx + dy * dy <= MULTI_CLICK_MAX_DIST * MULTI_CLICK_MAX_DIST
+        })
+        .map(|last| last.count.saturating_add(1).min(3))
+        .unwrap_or(1);
+
+    state.last_click = Some(ClickTracker {
+        at: now,
+        pos,
+        button,
+        target_path,
+        count,
+    });
+    count
 }
 
 /// Hit-test scrollbars (element first, then viewport) and start a

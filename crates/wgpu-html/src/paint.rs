@@ -379,7 +379,7 @@ fn paint_box_in_clip(
         let selected_range = if b.text_unselectable {
             None
         } else {
-            selection_range_for_path(selection, path, run.glyphs.len())
+            selection_range_for_path(selection, path, run)
         };
 
         // Decorations sit relative to the run's baseline, behind the
@@ -563,7 +563,7 @@ fn paint_box_in_clip(
 fn selection_range_for_path(
     selection: Option<&TextSelection>,
     path: &[usize],
-    glyph_count: usize,
+    run: &wgpu_html_text::ShapedRun,
 ) -> Option<(usize, usize)> {
     let sel = selection?;
     if sel.is_collapsed() {
@@ -576,18 +576,28 @@ fn selection_range_for_path(
         return None;
     }
 
-    let from = if path == start.path.as_slice() {
-        start.glyph_index.min(glyph_count)
+    let char_count = run.char_count();
+
+    // glyph_index is a character position (cursor boundary).
+    let from_char = if path == start.path.as_slice() {
+        start.glyph_index.min(char_count)
     } else {
         0
     };
-    let to = if path == end.path.as_slice() {
-        end.glyph_index.min(glyph_count)
+    let to_char = if path == end.path.as_slice() {
+        end.glyph_index.min(char_count)
     } else {
-        glyph_count
+        char_count
     };
 
-    (from < to).then_some((from, to))
+    if from_char >= to_char {
+        return None;
+    }
+
+    // Convert char positions to glyph indices for rendering.
+    let from_glyph = run.char_to_glyph_index(from_char);
+    let to_glyph = run.char_to_glyph_index(to_char);
+    (from_glyph < to_glyph).then_some((from_glyph, to_glyph))
 }
 
 fn paint_selection_background(
@@ -648,7 +658,11 @@ fn paint_selection_background(
 }
 
 fn ordered_cursors<'a>(a: &'a TextCursor, b: &'a TextCursor) -> (&'a TextCursor, &'a TextCursor) {
-    if cursor_leq(a, b) { (a, b) } else { (b, a) }
+    if cursor_leq(a, b) {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }
 
 fn cursor_leq(a: &TextCursor, b: &TextCursor) -> bool {
@@ -1260,6 +1274,7 @@ mod tests {
                     height: 22.0,
                     glyph_range: (0, 3),
                 }],
+                glyph_chars: vec![],
                 text: "abc".to_string(),
                 byte_boundaries: wgpu_html_text::utf8_boundaries("abc"),
                 width: 24.0,
@@ -1626,6 +1641,7 @@ mod tests {
                     height: 22.0,
                     glyph_range: (0, 1),
                 }],
+                glyph_chars: vec![],
                 text: "A".to_string(),
                 byte_boundaries: wgpu_html_text::utf8_boundaries("A"),
                 width: 8.0,

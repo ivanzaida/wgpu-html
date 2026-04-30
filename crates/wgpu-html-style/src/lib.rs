@@ -784,9 +784,8 @@ fn gather(
     if let Element::Link(link) = &node.element {
         if link_is_stylesheet(link) {
             if let Some(href) = link.href.as_deref() {
-                if let Some(css) = node_stylesheet_source(node, href) {
-                    out.push_str(css);
-                    out.push('\n');
+                if let Some(css) = linked_stylesheets.get(href) {
+                    append_stylesheet_source(out, css, link.media.as_deref());
                 }
             }
         }
@@ -806,13 +805,18 @@ fn link_is_stylesheet(link: &wgpu_html_models::Link) -> bool {
         .unwrap_or(false)
 }
 
-fn node_stylesheet_source<'a>(node: &Node, href: &str) -> Option<&'a str> {
-    // Walk up is not available from a node, so this is filled by the
-    // tree-level gather overload below. This shim is unreachable in
-    // practice and exists only until `gather` is called with the tree
-    // stylesheet table.
-    let _ = (node, href);
-    None
+fn append_stylesheet_source(out: &mut String, css: &str, media: Option<&str>) {
+    let media = media.map(str::trim).filter(|s| !s.is_empty());
+    if let Some(media) = media {
+        out.push_str("@media ");
+        out.push_str(media);
+        out.push_str(" {\n");
+    }
+    out.push_str(css);
+    if media.is_some() {
+        out.push_str("\n}\n");
+    }
+    out.push('\n');
 }
 
 /// Recursive cascade. `ancestors[0]` is the immediate parent element

@@ -18,7 +18,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use wgpu_html_tree::{FontFace, FontStyleAxis, Tree};
+use crate::{FontFace, FontStyleAxis, Tree};
 
 /// One font family's worth of system-font paths: regular, bold,
 /// italic, bold-italic. Empty path = "this variant isn't on disk

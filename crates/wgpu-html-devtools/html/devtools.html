@@ -134,3 +134,82 @@
         );
     });
 </script>
+
+<script>
+    // loading lucide font from ../fonts/lucide.ttf
+    const font = new FontFace('Lucide', 'url(../fonts/lucide.ttf)');
+    font.load().then(() => {
+        document.fonts.add(font);
+    })
+</script>
+
+
+<script>
+    // handle selection/unselection of a row
+    // also handle child clicks
+    document.addEventListener('click', e => {
+        const target = e.target;
+        if (target.classList.contains('tree-row')) {
+            const rows = document.querySelectorAll('.tree-row');
+            rows.forEach(r => r.classList.remove('tree-row-selected'));
+            target.classList.add('tree-row-selected');
+        } else if (target.classList.contains('tree-row-child')) {
+            target.parentElement.classList.toggle('tree-row-expanded');
+        }
+    })
+</script>
+
+
+<script>
+    // handle DevTools-like item selection
+    document.addEventListener('click', e => {
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+
+        const selectable = target.closest(
+            '.tree-row, .rule, .decl, .tab, .ss-btn'
+        );
+
+        if (!selectable) return;
+
+        if (selectable.classList.contains('tree-row')) {
+            document
+                .querySelectorAll('.tree-row-selected')
+                .forEach(el => el.classList.remove('tree-row-selected'));
+
+            selectable.classList.add('tree-row-selected');
+            return;
+        }
+
+        if (selectable.classList.contains('rule')) {
+            document
+                .querySelectorAll('.rule-selected')
+                .forEach(el => el.classList.remove('rule-selected'));
+
+            selectable.classList.add('rule-selected');
+            return;
+        }
+
+        if (selectable.classList.contains('decl')) {
+            document
+                .querySelectorAll('.decl-selected')
+                .forEach(el => el.classList.remove('decl-selected'));
+
+            selectable.classList.add('decl-selected');
+            return;
+        }
+
+        if (selectable.classList.contains('tab')) {
+            document
+                .querySelectorAll('.tab-active')
+                .forEach(el => el.classList.remove('tab-active'));
+
+            selectable.classList.add('tab-active');
+            return;
+        }
+
+        if (selectable.classList.contains('ss-btn')) {
+            selectable.classList.toggle('ss-btn-active');
+        }
+    });
+</script>

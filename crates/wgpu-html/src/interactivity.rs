@@ -52,38 +52,39 @@ pub fn mouse_down(
     pos: (f32, f32),
     button: MouseButton,
 ) -> bool {
+    mouse_down_with_click_count(tree, layout, pos, button, 1)
+}
+
+/// Like [`mouse_down`], but lets hosts pass an already-detected click
+/// count. `2` selects the word/token under the pointer, `3+` selects
+/// the shaped line.
+pub fn mouse_down_with_click_count(
+    tree: &mut Tree,
+    layout: &LayoutBox,
+    pos: (f32, f32),
+    button: MouseButton,
+    click_count: u8,
+) -> bool {
     let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
     let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
-    let result = tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor);
+    let result = tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor.clone());
 
     // After focus is set on a form control, position the edit caret
     // at the clicked glyph. Walk the layout tree to find the form
     // control's text run and convert glyph_index → byte_offset.
     if button == MouseButton::Primary {
-        if let Some(focus_path) = tree.interaction.focus_path.as_deref() {
-            if tree.interaction.edit_cursor.is_some() {
+        if tree.interaction.edit_cursor.is_some() {
+            if let Some(focus_path) = tree.interaction.focus_path.clone() {
                 // Read the actual value length to distinguish
                 // placeholder (empty value) from typed content.
-                let value_len = tree
-                    .root
-                    .as_ref()
-                    .and_then(|r| r.at_path(focus_path))
-                    .and_then(|node| match &node.element {
-                        wgpu_html_tree::Element::Input(inp) => {
-                            Some(inp.value.as_deref().unwrap_or("").len())
-                        }
-                        wgpu_html_tree::Element::Textarea(ta) => {
-                            Some(ta.value.as_deref().unwrap_or("").len())
-                        }
-                        _ => None,
-                    })
-                    .unwrap_or(0);
+                let value = field_value(tree, &focus_path).unwrap_or_default();
+                let value_len = value.len();
 
                 let byte_offset = if value_len == 0 {
                     // Field is empty (showing placeholder) — caret
                     // goes to position 0, not inside the placeholder.
                     0
-                } else if let Some(text_box) = crate::layout_at_path(layout, focus_path) {
+                } else if let Some(text_box) = crate::layout_at_path(layout, &focus_path) {
                     if let Some(run) = &text_box.text_run {
                         let click_x = pos.0 - text_box.content_rect.x;
                         let glyph_idx = run
@@ -102,14 +103,110 @@ pub fn mouse_down(
                 } else {
                     0
                 };
-                tree.interaction.edit_cursor =
-                    Some(wgpu_html_tree::EditCursor::collapsed(byte_offset));
+                tree.interaction.edit_cursor = Some(edit_cursor_for_click_count(
+                    &value,
+                    byte_offset,
+                    click_count,
+                ));
                 tree.interaction.caret_blink_epoch = std::time::Instant::now();
+            }
+        } else if let Some(cursor) = cursor.as_ref() {
+            if click_count >= 3 {
+                crate::select_line_at_cursor(tree, layout, cursor);
+            } else if click_count == 2 {
+                crate::select_word_at_cursor(tree, layout, cursor);
             }
         }
     }
 
     result
+}
+
+fn field_value(tree: &Tree, focus_path: &[usize]) -> Option<String> {
+    tree.root
+        .as_ref()
+        .and_then(|r| r.at_path(focus_path))
+        .and_then(|node| match &node.element {
+            wgpu_html_tree::Element::Input(inp) => Some(inp.value.clone().unwrap_or_default()),
+            wgpu_html_tree::Element::Textarea(ta) => Some(ta.value.clone().unwrap_or_default()),
+            _ => None,
+        })
+}
+
+fn edit_cursor_for_click_count(
+    value: &str,
+    byte_offset: usize,
+    click_count: u8,
+) -> wgpu_html_tree::EditCursor {
+    if click_count >= 3 {
+        let (start, end) = line_byte_range(value, byte_offset);
+        wgpu_html_tree::EditCursor {
+            cursor: end,
+            selection_anchor: Some(start),
+        }
+    } else if click_count == 2 {
+        let (start, end) = word_byte_range(value, byte_offset);
+        wgpu_html_tree::EditCursor {
+            cursor: end,
+            selection_anchor: Some(start),
+        }
+    } else {
+        wgpu_html_tree::EditCursor::collapsed(byte_offset)
+    }
+}
+
+fn word_byte_range(value: &str, byte_offset: usize) -> (usize, usize) {
+    let chars: Vec<(usize, usize, char)> = value
+        .char_indices()
+        .map(|(start, ch)| (start, start + ch.len_utf8(), ch))
+        .collect();
+    if chars.is_empty() {
+        return (0, 0);
+    }
+    let mut idx = chars
+        .iter()
+        .position(|(_, end, _)| *end >= byte_offset)
+        .unwrap_or(chars.len() - 1);
+    if idx > 0 && chars[idx].0 >= byte_offset {
+        idx -= 1;
+    }
+    let kind = edit_token_kind(chars[idx].2);
+    let mut start = idx;
+    while start > 0 && edit_token_kind(chars[start - 1].2) == kind {
+        start -= 1;
+    }
+    let mut end = idx + 1;
+    while end < chars.len() && edit_token_kind(chars[end].2) == kind {
+        end += 1;
+    }
+    (chars[start].0, chars[end - 1].1)
+}
+
+fn line_byte_range(value: &str, byte_offset: usize) -> (usize, usize) {
+    let pos = byte_offset.min(value.len());
+    let start = value[..pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let end = value[pos..]
+        .find('\n')
+        .map(|i| pos + i)
+        .unwrap_or(value.len());
+    (start, end)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditTokenKind {
+    Word,
+    Whitespace,
+    Punctuation(char),
+}
+
+fn edit_token_kind(ch: char) -> EditTokenKind {
+    if ch.is_alphanumeric() || ch == '_' {
+        EditTokenKind::Word
+    } else if ch.is_whitespace() {
+        EditTokenKind::Whitespace
+    } else {
+        EditTokenKind::Punctuation(ch)
+    }
 }
 
 /// Mouse-up at `pos`. Fires `on_mouse_up`; then, if `button` is
@@ -130,9 +227,9 @@ mod tests {
     //! mapping).
 
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::sync::Mutex;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use wgpu_html_tree::{Node, SelectionColors};
     // `Modifiers` is no longer plumbed through the dispatch API —
     // these tests rely on the tree's default (all keys up) state.
@@ -186,6 +283,7 @@ mod tests {
                     height: 16.0,
                     glyph_range: (0, 3),
                 }],
+                glyph_chars: vec![],
                 text: "abc".to_string(),
                 byte_boundaries: wgpu_html_text::utf8_boundaries("abc"),
                 width: 30.0,
@@ -238,6 +336,29 @@ mod tests {
         mouse_up(&mut tree, &lay, (1.0, 4.0), MouseButton::Primary);
 
         assert_eq!(counter.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn double_click_selects_word() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let mut tree = make_tree(counter);
+        let lay = synthetic_text_layout();
+
+        mouse_down_with_click_count(&mut tree, &lay, (11.0, 4.0), MouseButton::Primary, 2);
+
+        let sel = tree.interaction.selection.expect("selection");
+        assert_eq!(sel.anchor.glyph_index, 0);
+        assert_eq!(sel.focus.glyph_index, 3);
+        assert!(!tree.interaction.selecting_text);
+    }
+
+    #[test]
+    fn edit_double_click_selects_word_and_triple_click_selects_line() {
+        let cursor = edit_cursor_for_click_count("one two\nthree", 5, 2);
+        assert_eq!(cursor.selection_range(), (4, 7));
+
+        let cursor = edit_cursor_for_click_count("one two\nthree", 5, 3);
+        assert_eq!(cursor.selection_range(), (0, 7));
     }
 
     #[test]

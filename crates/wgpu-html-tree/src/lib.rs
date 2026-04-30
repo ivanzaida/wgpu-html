@@ -7,6 +7,7 @@
 //! Models stay pure data. Composition lives here.
 
 use std::collections::HashMap;
+use std::ops::Range;
 use std::time::Duration;
 use wgpu_html_models as m;
 
@@ -15,6 +16,7 @@ mod events;
 mod focus;
 mod fonts;
 mod query;
+mod system_fonts;
 pub mod text_edit;
 pub mod tree_hook;
 
@@ -34,6 +36,7 @@ pub use focus::{
     prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
+pub use system_fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use tree_hook::{
     TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase,
     TreeLifecycleStage, TreeRenderEvent, TreeRenderViewport,
@@ -74,6 +77,12 @@ pub struct Tree {
     /// once at startup via [`Tree::preload_asset`] and forget about
     /// it.
     pub preload_queue: Vec<String>,
+    /// Stylesheet sources resolved by the host for
+    /// `<link rel="stylesheet" href="...">` elements. The engine does
+    /// not fetch CSS by itself; integrations can register local,
+    /// embedded, or already-fetched stylesheets here, keyed by the
+    /// exact `href` used in the document.
+    pub linked_stylesheets: HashMap<String, String>,
     /// Host hooks registered on this document. Integration crates emit through
     /// `Tree::emit_*` methods so hook dispatch stays owned by this crate.
     pub hooks: Vec<TreeHookHandle>,
@@ -93,6 +102,7 @@ impl Tree {
             dpi_scale_override: None,
             asset_cache_ttl: None,
             preload_queue: Vec::new(),
+            linked_stylesheets: HashMap::new(),
             hooks: Vec::new(),
             generation: 0,
         }
@@ -160,6 +170,29 @@ impl Tree {
         self.preload_queue.push(s);
     }
 
+    /// Register CSS text for a document stylesheet link.
+    ///
+    /// This resolves links by exact `href` string. Relative paths,
+    /// filesystem lookup, package embeds, and network fetching remain
+    /// host responsibilities so the core renderer stays deterministic.
+    pub fn register_linked_stylesheet(&mut self, href: impl Into<String>, css: impl Into<String>) {
+        let href = href.into();
+        if href.trim().is_empty() {
+            return;
+        }
+        self.linked_stylesheets.insert(href, css.into());
+        self.generation += 1;
+    }
+
+    /// Remove a previously registered linked stylesheet.
+    pub fn remove_linked_stylesheet(&mut self, href: &str) -> Option<String> {
+        let removed = self.linked_stylesheets.remove(href);
+        if removed.is_some() {
+            self.generation += 1;
+        }
+        removed
+    }
+
     /// Return an immutable reference to the currently focused element,
     /// or `None` if nothing is focused or the focus path is stale.
     ///
@@ -190,6 +223,60 @@ impl Tree {
     /// ```
     pub fn get_element_by_id(&mut self, id: &str) -> Option<&mut Node> {
         self.root.as_mut()?.find_by_id_mut(id)
+    }
+
+    /// Clone the child nodes held by a `<template id="...">`.
+    ///
+    /// Template contents remain inert while they stay inside the
+    /// template. Cloning returns detached nodes that callers can
+    /// insert into the live tree with [`Tree::insert_template_content`]
+    /// or regular `Node` mutation APIs.
+    pub fn clone_template_content_by_id(&self, template_id: &str) -> Option<Vec<Node>> {
+        let node = self.root.as_ref()?.find_by_id(template_id)?;
+        matches!(node.element, Element::Template(_)).then(|| node.children.clone())
+    }
+
+    /// Clone a template's content and insert it into the node at
+    /// `parent_path` before `index`.
+    ///
+    /// Returns the inserted child index range on success. `index` may
+    /// equal the current child count to append; larger indices fail
+    /// without mutating the tree.
+    pub fn insert_template_content(
+        &mut self,
+        template_id: &str,
+        parent_path: &[usize],
+        index: usize,
+    ) -> Option<Range<usize>> {
+        let content = self.clone_template_content_by_id(template_id)?;
+        let count = content.len();
+        let parent = self.root.as_mut()?.at_path_mut(parent_path)?;
+        if index > parent.children.len() {
+            return None;
+        }
+        parent.children.splice(index..index, content);
+        if count > 0 {
+            self.generation += 1;
+        }
+        Some(index..index + count)
+    }
+
+    /// Clone a template's content and append it to the first element
+    /// with `parent_id`.
+    pub fn append_template_content_to_id(
+        &mut self,
+        template_id: &str,
+        parent_id: &str,
+    ) -> Option<Range<usize>> {
+        let content = self.clone_template_content_by_id(template_id)?;
+        let count = content.len();
+        let parent = self.root.as_mut()?.find_by_id_mut(parent_id)?;
+        let start = parent.children.len();
+        parent.children.extend(content);
+        if count > 0 {
+            self.generation += 1;
+        }
+        Some(start..start + count)
     }
 
     /// Override the colors used when painting selected text.
@@ -329,6 +416,20 @@ impl Node {
     /// walk the cascade or ancestors).
     pub fn custom_property(&self, name: &str) -> Option<&str> {
         self.custom_properties.get(name).map(|s| s.as_str())
+    }
+
+    /// Depth-first search for a descendant (or `self`) whose `id`
+    /// attribute equals `id`. Document order; first match wins.
+    pub fn find_by_id(&self, id: &str) -> Option<&Node> {
+        if self.element.id() == Some(id) {
+            return Some(self);
+        }
+        for child in &self.children {
+            if let Some(found) = child.find_by_id(id) {
+                return Some(found);
+            }
+        }
+        None
     }
 
     /// Depth-first search for a descendant (or `self`) whose `id`
@@ -1154,5 +1255,69 @@ mod tests {
         let body_node = tree.root.as_ref().unwrap();
         assert!(body_node.children[0].on_click.is_some());
         assert!(body_node.children[1].on_click.is_none());
+    }
+
+    #[test]
+    fn template_content_can_be_cloned_and_appended_by_id() {
+        let mut template = m::Template::default();
+        template.id = Some("tpl".to_owned());
+        let body = Node::new(m::Body::default()).with_children(vec![
+            Node::new(template).with_children(vec![Node::new(div_with_id("from-template"))]),
+            Node::new(div_with_id("host")),
+        ]);
+        let mut tree = Tree::new(body);
+
+        let cloned = tree
+            .clone_template_content_by_id("tpl")
+            .expect("template content");
+        assert_eq!(cloned.len(), 1);
+        assert_eq!(cloned[0].element.id(), Some("from-template"));
+
+        let before = tree.generation;
+        let inserted = tree
+            .append_template_content_to_id("tpl", "host")
+            .expect("inserted range");
+        assert_eq!(inserted, 0..1);
+        assert_eq!(tree.generation, before + 1);
+
+        let root = tree.root.as_ref().unwrap();
+        let template_node = root.children[0].find_by_id("from-template").unwrap();
+        assert_eq!(template_node.element.id(), Some("from-template"));
+        let host = root.find_by_id("host").unwrap();
+        assert_eq!(host.children.len(), 1);
+        assert_eq!(host.children[0].element.id(), Some("from-template"));
+    }
+
+    #[test]
+    fn template_content_can_be_inserted_at_path_index() {
+        let mut template = m::Template::default();
+        template.id = Some("tpl".to_owned());
+        let body = Node::new(m::Body::default()).with_children(vec![
+            Node::new(template).with_children(vec![Node::new(div_with_id("inserted"))]),
+            Node::new(div_with_id("host")).with_children(vec![
+                Node::new(div_with_id("before")),
+                Node::new(div_with_id("after")),
+            ]),
+        ]);
+        let mut tree = Tree::new(body);
+
+        let inserted = tree
+            .insert_template_content("tpl", &[1], 1)
+            .expect("inserted range");
+        assert_eq!(inserted, 1..2);
+        let host = tree
+            .root
+            .as_ref()
+            .unwrap()
+            .children[1]
+            .find_by_id("host")
+            .unwrap();
+        let ids: Vec<_> = host.children.iter().map(|child| child.element.id()).collect();
+        assert_eq!(
+            ids,
+            vec![Some("before"), Some("inserted"), Some("after")]
+        );
+
+        assert!(tree.insert_template_content("tpl", &[1], 99).is_none());
     }
 }

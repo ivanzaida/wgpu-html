@@ -4,6 +4,7 @@
     --bg-tertiary: #35363A;
     --bg-hover: #3C4043;
     --bg-selected: #073655;
+    --bg-selected-hover: #0A4166;
     --border: #3C4043;
     --divider: #5F6368;
     --text-primary: #E8EAED;
@@ -19,6 +20,11 @@
     --unit: #FDD663;
 }
 
+html,
+body {
+    height: 100%;
+}
+
 body {
     margin: 0;
     font-family: DemoSans, Inter, Arial, sans-serif;
@@ -27,7 +33,7 @@ body {
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
-    height: 100%;
+    overflow: hidden;
 }
 
 .toolbar {
@@ -49,6 +55,7 @@ body {
     color: var(--accent-blue);
     font-size: 14px;
     font-family: lucide;
+    cursor: pointer;
 }
 
 .tb-divider {
@@ -79,33 +86,6 @@ body {
     font-size: 11px;
 }
 
-.tab-bar {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    height: 28px;
-    padding: 0 12px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-
-.tab {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    padding: 0 4px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.tab-active {
-    color: var(--text-primary);
-    font-weight: 600;
-    border-bottom: 2px solid var(--accent-blue);
-}
-
 .main {
     display: flex;
     flex-grow: 1;
@@ -126,7 +106,7 @@ body {
     display: flex;
     flex-direction: column;
     padding: 8px 0;
-    overflow: scroll;
+    overflow: auto;
     min-width: 0;
 }
 
@@ -138,6 +118,7 @@ body {
     padding-right: 8px;
     white-space: nowrap;
     overflow: hidden;
+    cursor: default;
 }
 
 .tree-row:hover {
@@ -149,7 +130,7 @@ body {
 }
 
 .tree-row-selected:hover {
-    background-color: var(--bg-selected);
+    background-color: var(--bg-selected-hover);
 }
 
 .chevron {
@@ -158,6 +139,7 @@ body {
     font-size: 10px;
     width: 12px;
     margin-right: 2px;
+    flex-shrink: 0;
 }
 
 .tag {
@@ -169,6 +151,7 @@ body {
 }
 
 .attr-n {
+    margin-left: 4px;
     color: var(--attr-name);
 }
 
@@ -209,6 +192,39 @@ body {
     min-width: 0;
 }
 
+.tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 28px;
+    padding: 0 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.tab {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: default;
+    border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+    color: var(--text-primary);
+}
+
+.tab-active {
+    color: var(--text-primary);
+    font-weight: 600;
+    border-bottom-color: var(--accent-blue);
+}
+
 .style-search {
     display: flex;
     align-items: center;
@@ -236,24 +252,44 @@ body {
     align-items: center;
     color: var(--text-secondary);
     font-size: 10px;
+    border-radius: 3px;
+    cursor: default;
+}
+
+.ss-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .ss-btn-active {
     background: var(--bg-tertiary);
-    border-radius: 3px;
+    color: var(--accent-blue);
 }
 
 .styles-content {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    overflow: scroll;
+    overflow: auto;
 }
 
 .rule {
     display: flex;
     flex-direction: column;
     border-bottom: 1px solid var(--border);
+    cursor: default;
+}
+
+.rule:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.rule-selected {
+    background: var(--bg-selected);
+}
+
+.rule-selected:hover {
+    background: var(--bg-selected-hover);
 }
 
 .rule-header {
@@ -289,6 +325,19 @@ body {
     padding: 0 12px 0 28px;
     white-space: nowrap;
     overflow: hidden;
+    cursor: default;
+}
+
+.decl:hover {
+    background: var(--bg-hover);
+}
+
+.decl-selected {
+    background: var(--bg-selected);
+}
+
+.decl-selected:hover {
+    background: var(--bg-selected-hover);
 }
 
 .cb {

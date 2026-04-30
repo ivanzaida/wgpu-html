@@ -524,6 +524,72 @@ pub fn selected_text(tree: &Tree, layout: &LayoutBox) -> Option<String> {
     selected_text_for_selection(layout, selection)
 }
 
+/// Select the word-like token at a text cursor.
+///
+/// Word characters (`char::is_alphanumeric` and `_`) group together;
+/// whitespace groups together; punctuation groups by exact character.
+/// Returns `false` if the cursor does not point into a selectable text
+/// run.
+pub fn select_word_at_cursor(tree: &mut Tree, layout: &LayoutBox, cursor: &TextCursor) -> bool {
+    let Some(text_box) = layout_at_path(layout, &cursor.path) else {
+        return false;
+    };
+    if text_box.text_unselectable {
+        return false;
+    }
+    let Some(run) = text_box.text_run.as_ref() else {
+        return false;
+    };
+    let Some((start, end)) = word_boundaries_for_cursor(run, cursor.glyph_index) else {
+        return false;
+    };
+    tree.interaction.selection = Some(TextSelection {
+        anchor: TextCursor {
+            path: cursor.path.clone(),
+            glyph_index: start,
+        },
+        focus: TextCursor {
+            path: cursor.path.clone(),
+            glyph_index: end,
+        },
+    });
+    tree.interaction.selecting_text = false;
+    true
+}
+
+/// Select the shaped line at a text cursor.
+///
+/// This is the document-level equivalent of browser triple-click line
+/// selection. If the run has no line metadata, the whole run is
+/// selected.
+pub fn select_line_at_cursor(tree: &mut Tree, layout: &LayoutBox, cursor: &TextCursor) -> bool {
+    let Some(text_box) = layout_at_path(layout, &cursor.path) else {
+        return false;
+    };
+    if text_box.text_unselectable {
+        return false;
+    }
+    let Some(run) = text_box.text_run.as_ref() else {
+        return false;
+    };
+    if run.text.is_empty() && run.glyphs.is_empty() {
+        return false;
+    }
+    let (start, end) = line_boundaries_for_cursor(run, cursor.glyph_index);
+    tree.interaction.selection = Some(TextSelection {
+        anchor: TextCursor {
+            path: cursor.path.clone(),
+            glyph_index: start,
+        },
+        focus: TextCursor {
+            path: cursor.path.clone(),
+            glyph_index: end,
+        },
+    });
+    tree.interaction.selecting_text = false;
+    true
+}
+
 fn selected_text_for_selection(layout: &LayoutBox, selection: &TextSelection) -> Option<String> {
     if selection.is_collapsed() {
         return None;
@@ -583,7 +649,7 @@ fn last_text_cursor_inner(layout: &LayoutBox, path: &mut Vec<usize>) -> Option<T
     let run = layout.text_run.as_ref()?;
     (!run.text.is_empty() || !run.glyphs.is_empty()).then(|| TextCursor {
         path: path.clone(),
-        glyph_index: run.glyphs.len(),
+        glyph_index: run.char_count(),
     })
 }
 
@@ -630,7 +696,11 @@ fn collect_selected_text(
 }
 
 fn ordered_cursors<'a>(a: &'a TextCursor, b: &'a TextCursor) -> (&'a TextCursor, &'a TextCursor) {
-    if cursor_leq(a, b) { (a, b) } else { (b, a) }
+    if cursor_leq(a, b) {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }
 
 fn cursor_leq(a: &TextCursor, b: &TextCursor) -> bool {
@@ -643,6 +713,104 @@ fn cursor_leq(a: &TextCursor, b: &TextCursor) -> bool {
 
 fn path_less(a: &[usize], b: &[usize]) -> bool {
     a.cmp(b).is_lt()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextTokenKind {
+    Word,
+    Whitespace,
+    Punctuation(char),
+}
+
+fn word_boundaries_for_cursor(
+    run: &wgpu_html_text::ShapedRun,
+    glyph_index: usize,
+) -> Option<(usize, usize)> {
+    let chars: Vec<(usize, usize, char)> = run
+        .text
+        .char_indices()
+        .map(|(start, ch)| (start, start + ch.len_utf8(), ch))
+        .collect();
+    if chars.is_empty() {
+        return None;
+    }
+
+    let boundary = glyph_index.min(chars.len());
+    let mut char_idx = if boundary == 0 { 0 } else { boundary - 1 };
+    if char_idx >= chars.len() {
+        char_idx = chars.len() - 1;
+    }
+    let kind = token_kind(chars[char_idx].2);
+
+    let mut start = char_idx;
+    while start > 0 && token_kind(chars[start - 1].2) == kind {
+        start -= 1;
+    }
+    let mut end = char_idx + 1;
+    while end < chars.len() && token_kind(chars[end].2) == kind {
+        end += 1;
+    }
+
+    Some((
+        boundary_index_for_byte(run, chars[start].0),
+        boundary_index_for_byte(run, chars[end - 1].1),
+    ))
+}
+
+fn token_kind(ch: char) -> TextTokenKind {
+    if ch.is_alphanumeric() || ch == '_' {
+        TextTokenKind::Word
+    } else if ch.is_whitespace() {
+        TextTokenKind::Whitespace
+    } else {
+        TextTokenKind::Punctuation(ch)
+    }
+}
+
+fn line_boundaries_for_cursor(
+    run: &wgpu_html_text::ShapedRun,
+    glyph_index: usize,
+) -> (usize, usize) {
+    let char_count = run.char_count();
+    if run.lines.is_empty() {
+        return (0, char_count);
+    }
+    // glyph_index is a char position; convert to glyph index to find
+    // which line the cursor is on.
+    let char_idx = glyph_index.min(char_count);
+    let glyph_idx = run.char_to_glyph_index(char_idx).min(run.glyphs.len());
+    for (line_idx, line) in run.lines.iter().enumerate() {
+        let is_last = line_idx + 1 == run.lines.len();
+        if glyph_idx >= line.glyph_range.0 && (glyph_idx < line.glyph_range.1 || is_last) {
+            // Convert glyph range back to char positions.
+            let start_char = run.glyph_to_char_index(line.glyph_range.0);
+            let end_char = if line.glyph_range.1 >= run.glyphs.len() {
+                char_count
+            } else {
+                run.glyph_to_char_index(line.glyph_range.1)
+            };
+            return (start_char, end_char);
+        }
+    }
+    run.lines
+        .last()
+        .map(|line| {
+            let start_char = run.glyph_to_char_index(line.glyph_range.0);
+            let end_char = if line.glyph_range.1 >= run.glyphs.len() {
+                char_count
+            } else {
+                run.glyph_to_char_index(line.glyph_range.1)
+            };
+            (start_char, end_char)
+        })
+        .unwrap_or((0, char_count))
+}
+
+fn boundary_index_for_byte(run: &wgpu_html_text::ShapedRun, byte: usize) -> usize {
+    run.byte_boundaries
+        .iter()
+        .position(|b| *b >= byte)
+        .unwrap_or_else(|| run.byte_boundaries.len().saturating_sub(1))
 }
 
 #[cfg(test)]
@@ -678,6 +846,7 @@ mod tests {
             kind: wgpu_html_layout::BoxKind::Text,
             text_run: Some(wgpu_html_text::ShapedRun {
                 glyphs,
+                glyph_chars: vec![],
                 lines: vec![wgpu_html_text::ShapedLine {
                     top: 0.0,
                     height: 20.0,
@@ -744,6 +913,135 @@ mod tests {
         );
         assert!(layout_at_path(&root, &[2]).is_none());
         assert!(layout_at_path(&root, &[0, 0]).is_none());
+    }
+
+    #[test]
+    fn select_word_at_cursor_selects_token() {
+        let layout = text_box("hello, world", 0.0);
+        let mut tree = Tree::new(wgpu_html_tree::Node::new("hello, world"));
+        let cursor = TextCursor {
+            path: vec![],
+            glyph_index: 8,
+        };
+
+        assert!(select_word_at_cursor(&mut tree, &layout, &cursor));
+        assert_eq!(selected_text(&tree, &layout).as_deref(), Some("world"));
+        assert!(!tree.interaction.selecting_text);
+    }
+
+    /// Build a LayoutBox whose ShapedRun has `glyph_chars` set so that
+    /// only the non-space visible glyphs appear (simulating real shaping
+    /// where spaces are invisible and not pushed to `glyphs`).
+    fn text_box_with_spaces(text: &str, x: f32) -> LayoutBox {
+        let r = wgpu_html_layout::Rect::new(x, 0.0, 500.0, 20.0);
+        // Only render non-space characters (like real shaping).
+        let mut glyph_x = 0.0;
+        let mut glyphs = Vec::new();
+        let mut glyph_chars = Vec::new();
+        for (char_idx, ch) in text.chars().enumerate() {
+            if ch == ' ' {
+                glyph_x += 4.0; // advance but no glyph
+                continue;
+            }
+            glyphs.push(wgpu_html_text::PositionedGlyph {
+                x: glyph_x,
+                y: 0.0,
+                w: 8.0,
+                h: 16.0,
+                uv_min: [0.0, 0.0],
+                uv_max: [1.0, 1.0],
+                color: [0.0, 0.0, 0.0, 1.0],
+            });
+            glyph_chars.push(char_idx);
+            glyph_x += 8.0;
+        }
+        LayoutBox {
+            margin_rect: r,
+            border_rect: r,
+            content_rect: r,
+            background: None,
+            background_rect: r,
+            background_radii: wgpu_html_layout::CornerRadii::zero(),
+            border: wgpu_html_layout::Insets::zero(),
+            border_colors: wgpu_html_layout::BorderColors::default(),
+            border_styles: wgpu_html_layout::BorderStyles::default(),
+            border_radius: wgpu_html_layout::CornerRadii::zero(),
+            kind: wgpu_html_layout::BoxKind::Text,
+            text_run: Some(wgpu_html_text::ShapedRun {
+                glyphs,
+                glyph_chars,
+                lines: vec![wgpu_html_text::ShapedLine {
+                    top: 0.0,
+                    height: 20.0,
+                    glyph_range: (0, text.chars().filter(|&c| c != ' ').count()),
+                }],
+                text: text.to_owned(),
+                byte_boundaries: wgpu_html_text::utf8_boundaries(text),
+                width: glyph_x,
+                height: 20.0,
+                ascent: 14.0,
+            }),
+            text_color: Some([0.0, 0.0, 0.0, 1.0]),
+            text_unselectable: false,
+            text_decorations: Vec::new(),
+            overflow: wgpu_html_layout::OverflowAxes::visible(),
+            opacity: 1.0,
+            image: None,
+            background_image: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// Regression: double-clicking a word after spaces must select that
+    /// word, not the word before the space. This exercises the
+    /// glyph_chars fix where run.glyphs skips invisible chars (spaces)
+    /// but glyph_index must still be a char-position cursor.
+    #[test]
+    fn select_word_skips_invisible_chars_correctly() {
+        // "amet, consectetur" — "consectetur" starts at char 7 (0-based).
+        // Glyph positions: a(0),m(1),e(2),t(3),,(4), (skip space at5), c(6)…
+        let text = "amet, consectetur";
+        let layout = text_box_with_spaces(text, 0.0);
+        let mut tree = Tree::new(wgpu_html_tree::Node::new(text));
+
+        // Cursor placed at glyph 6 (first visible glyph of "consectetur",
+        // i.e. just before 'c'). Before the fix this returned glyph_index=6
+        // which was misread as char 5 (',') or char 4 ('t') instead of
+        // looking at char 6 ('c').
+        let cursor = TextCursor {
+            path: vec![],
+            glyph_index: 6, // char position 6 = ',' — first glyph after space
+        };
+        // glyph_index=6 → char_idx=5 = ',' → Punctuation → selects ","
+        // That's correct for a cursor precisely at char 6 (the ',').
+        // Let's place cursor at char 7 which is 'c' of "consectetur".
+        let cursor_c = TextCursor {
+            path: vec![],
+            glyph_index: 7, // char position 7 = 'c' of "consectetur"
+        };
+        assert!(select_word_at_cursor(&mut tree, &layout, &cursor_c));
+        assert_eq!(
+            selected_text(&tree, &layout).as_deref(),
+            Some("consectetur"),
+            "double-click on 'c' of 'consectetur' must select the whole word"
+        );
+    }
+
+    #[test]
+    fn select_line_at_cursor_selects_line() {
+        let layout = text_box("hello, world", 0.0);
+        let mut tree = Tree::new(wgpu_html_tree::Node::new("hello, world"));
+        let cursor = TextCursor {
+            path: vec![],
+            glyph_index: 4,
+        };
+
+        assert!(select_line_at_cursor(&mut tree, &layout, &cursor));
+        assert_eq!(
+            selected_text(&tree, &layout).as_deref(),
+            Some("hello, world")
+        );
+        assert!(!tree.interaction.selecting_text);
     }
 
     #[test]

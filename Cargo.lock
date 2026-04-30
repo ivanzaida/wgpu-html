@@ -4016,6 +4016,7 @@ dependencies = [
  "egui",
  "pollster",
  "wgpu-html",
+ "wgpu-html-devtools",
  "wgpu-html-egui",
  "wgpu-html-models",
  "wgpu-html-style",
@@ -4035,6 +4036,8 @@ dependencies = [
  "wgpu-html-renderer",
  "wgpu-html-text",
  "wgpu-html-tree",
+ "wgpu-html-winit",
+ "winit",
 ]
 
 [[package]]
@@ -4120,7 +4123,6 @@ dependencies = [
  "arboard",
  "pollster",
  "wgpu-html",
- "wgpu-html-devtools",
  "wgpu-html-text",
  "wgpu-html-tree",
  "winit",

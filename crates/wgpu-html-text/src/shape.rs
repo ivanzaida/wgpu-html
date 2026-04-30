@@ -94,6 +94,11 @@ pub struct ShapedLine {
 #[derive(Debug, Clone, Default)]
 pub struct ShapedRun {
     pub glyphs: Vec<PositionedGlyph>,
+    /// For each entry in `glyphs`, the 0-based character index of that
+    /// glyph in `text`. Length equals `glyphs.len()`. Empty on
+    /// synthetic (test-built) runs — callers fall back to identity
+    /// mapping (`glyph_idx == char_idx`) when this is empty.
+    pub glyph_chars: Vec<usize>,
     pub lines: Vec<ShapedLine>,
     /// Visible text that produced this run after whitespace collapse /
     /// text-transform / rich-text flattening.
@@ -114,6 +119,44 @@ impl ShapedRun {
         }
         let idx = glyph_index.min(self.byte_boundaries.len().saturating_sub(1));
         self.byte_boundaries[idx]
+    }
+
+    /// Total number of characters in `text` (one more than the last
+    /// valid cursor position).
+    pub fn char_count(&self) -> usize {
+        self.byte_boundaries.len().saturating_sub(1)
+    }
+
+    /// Convert a glyph index (index into `self.glyphs`) to its
+    /// corresponding character position in `self.text`.
+    /// Falls back to identity when `glyph_chars` is empty (synthetic runs).
+    pub fn glyph_to_char_index(&self, glyph_idx: usize) -> usize {
+        if self.glyph_chars.is_empty() {
+            return glyph_idx;
+        }
+        self.glyph_chars.get(glyph_idx).copied().unwrap_or_else(|| {
+            // Past the last glyph: char after the last mapped char.
+            self.glyph_chars
+                .last()
+                .copied()
+                .map(|c| c + 1)
+                .unwrap_or(glyph_idx)
+        })
+    }
+
+    /// Convert a character position (index into `byte_boundaries`) to
+    /// the nearest glyph index in `self.glyphs`.
+    /// Returns the index of the first rendered glyph whose char index
+    /// is >= `char_idx`, or `glyphs.len()` if none qualifies.
+    /// Falls back to identity when `glyph_chars` is empty.
+    pub fn char_to_glyph_index(&self, char_idx: usize) -> usize {
+        if self.glyph_chars.is_empty() {
+            return char_idx.min(self.glyphs.len());
+        }
+        self.glyph_chars
+            .iter()
+            .position(|&c| c >= char_idx)
+            .unwrap_or(self.glyphs.len())
     }
 }
 
@@ -317,6 +360,16 @@ impl TextContext {
         face.families.first().map(|(name, _)| name.clone())
     }
 
+    /// CSS `line-height: normal` multiplier for the given font face.
+    ///
+    /// Computed as `(hhea.ascender - hhea.descender + hhea.lineGap) /
+    /// units_per_em`, matching the browser formula for the `normal`
+    /// keyword. Returns `None` when the handle has no loaded data.
+    pub fn normal_line_height_multiplier(&self, handle: FontHandle) -> Option<f32> {
+        let face_data = self.fonts.get(handle)?;
+        parse_line_height_multiplier(&face_data.data)
+    }
+
     /// Shape `text` using the registered face `font`, at `size_px`
     /// font size, with `line_height_px` total line box height,
     /// `letter_spacing_px` extra advance after each glyph, and
@@ -409,12 +462,15 @@ impl TextContext {
         );
         buffer.shape_until_scroll(self.font_db.font_system_mut(), false);
 
+        // Pre-compute byte→char boundary table for glyph_chars mapping.
+        let bb = utf8_boundaries(text);
+
         // Snapshot every layout run (one per line). We keep the
-        // (physical, x, w, line_y, line_h) tuples up-front so the
-        // glyph loop below can borrow `&mut self.font_db` /
+        // (physical, x, w, byte_start, line_y, line_h) tuples up-front
+        // so the glyph loop below can borrow `&mut self.font_db` /
         // `&mut self.swash` without colliding with the `Buffer`'s
         // outstanding `&mut FontSystem`.
-        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32)>, f32, f32, f32)> =
+        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32, usize)>, f32, f32, f32)> =
             buffer
                 .layout_runs()
                 .map(|run| {
@@ -424,7 +480,7 @@ impl TextContext {
                     let glyphs: Vec<_> = run
                         .glyphs
                         .iter()
-                        .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w))
+                        .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w, g.start))
                         .collect();
                     (glyphs, line_top, line_y, line_h)
                 })
@@ -439,6 +495,7 @@ impl TextContext {
 
         let glyph_capacity: usize = layout_lines.iter().map(|(g, _, _, _)| g.len()).sum();
         let mut glyphs: Vec<PositionedGlyph> = Vec::with_capacity(glyph_capacity);
+        let mut glyph_chars: Vec<usize> = Vec::with_capacity(glyph_capacity);
         let mut lines: Vec<ShapedLine> = Vec::with_capacity(layout_lines.len());
         let mut max_x: f32 = 0.0;
         let (atlas_w, atlas_h) = self.atlas.dimensions();
@@ -446,7 +503,7 @@ impl TextContext {
         for (line_glyphs, line_top, line_y, line_h) in &layout_lines {
             let line_glyph_start = glyphs.len();
             let baseline_y = *line_y;
-            for (glyph_index, (physical, layout_x, layout_w)) in line_glyphs.iter().enumerate() {
+            for (glyph_index, (physical, layout_x, layout_w, g_start)) in line_glyphs.iter().enumerate() {
                 // Cumulative `letter-spacing` offset for this glyph (zero
                 // for the first one, then `letter_spacing_px` per logical
                 // glyph step).
@@ -523,6 +580,10 @@ impl TextContext {
                         uv_max,
                         color,
                     });
+                    // Map this glyph's byte start → char index.
+                    let char_idx = bb.partition_point(|&b| b < *g_start)
+                        .min(bb.len().saturating_sub(1));
+                    glyph_chars.push(char_idx);
                 }
 
                 // The line's used width is the right edge of the last
@@ -540,20 +601,20 @@ impl TextContext {
             });
         }
 
-        // Expand height to cover every rasterised glyph. Cosmic-text
-        // centres the font's content area (ascender + descender) inside
-        // the CSS line-height, so when font metrics exceed the line-
-        // height, glyph bitmaps can land below `line_top + line_height`.
-        // The box must be tall enough to contain them or paint will
-        // overflow the layout rect.
-        let actual_bottom = glyphs.iter().map(|g| g.y + g.h).fold(0.0_f32, f32::max);
-        let total_height = total_height.max(actual_bottom);
+        // The box height is determined by the line-height, not by glyph
+        // extents. In CSS the line box is never expanded for descenders
+        // or ascender overshoot — glyphs are allowed to paint outside
+        // the line box. Expanding the box based on actual glyph bounds
+        // makes the height content-dependent: a span with descenders
+        // would get a taller box than one without, causing flex
+        // `align-items: center` to place them at different offsets.
 
         let run = ShapedRun {
             glyphs,
+            glyph_chars,
             lines,
             text: text.to_owned(),
-            byte_boundaries: utf8_boundaries(text),
+            byte_boundaries: bb,
             width: max_x,
             height: total_height,
             ascent: ascent_px,
@@ -841,10 +902,8 @@ impl TextContext {
             total_height = (line.top + line.height).max(total_height);
         }
 
-        // Same expansion as `shape_and_pack`: ensure reported height
-        // covers every rasterised glyph.
-        let actual_bottom = all_glyphs.iter().map(|g| g.y + g.h).fold(0.0_f32, f32::max);
-        let total_height = total_height.max(actual_bottom);
+        // Height is determined by line-heights, not glyph extents.
+        // Glyphs may overflow above/below — CSS allows this.
 
         let first_line_ascent = lines_meta[0].baseline - lines_meta[0].top;
 
@@ -861,28 +920,90 @@ impl TextContext {
     }
 }
 
+/// Parse `line-height: normal` multiplier from raw font bytes.
+///
+/// Reads the hhea table's ascender, descender, and lineGap fields
+/// plus the head table's unitsPerEm. The formula
+/// `(ascender - descender + lineGap) / unitsPerEm` matches what
+/// browsers use for CSS `line-height: normal`.
+///
+/// Returns `None` if the tables can't be located (not a valid
+/// TrueType / OpenType font).
+pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
+    // For TTC (font collections), use the first offset table.
+    let offset_table_start = if data.len() >= 12 && &data[0..4] == b"ttcf" {
+        let n = u32::from_be_bytes(data[8..12].try_into().ok()?) as usize;
+        if n == 0 || data.len() < 16 {
+            return None;
+        }
+        u32::from_be_bytes(data[12..16].try_into().ok()?) as usize
+    } else {
+        0
+    };
+
+    // Read number of tables from the offset table.
+    let d = &data[offset_table_start..];
+    if d.len() < 12 {
+        return None;
+    }
+    let num_tables = u16::from_be_bytes(d[4..6].try_into().ok()?) as usize;
+
+    // Scan the table directory for `head` and `hhea`.
+    let mut head_off = None;
+    let mut hhea_off = None;
+    for i in 0..num_tables {
+        let rec = 12 + i * 16;
+        if rec + 16 > d.len() {
+            break;
+        }
+        let tag = &d[rec..rec + 4];
+        let off = u32::from_be_bytes(d[rec + 8..rec + 12].try_into().ok()?) as usize;
+        if tag == b"head" {
+            head_off = Some(off);
+        } else if tag == b"hhea" {
+            hhea_off = Some(off);
+        }
+    }
+
+    let head = head_off?;
+    let hhea = hhea_off?;
+
+    // head: unitsPerEm is at offset 18 (uint16).
+    if head + 20 > data.len() {
+        return None;
+    }
+    let upem = u16::from_be_bytes(data[head + 18..head + 20].try_into().ok()?) as f32;
+    if upem == 0.0 {
+        return None;
+    }
+
+    // hhea: ascender (int16 @ 4), descender (int16 @ 6), lineGap (int16 @ 8).
+    if hhea + 10 > data.len() {
+        return None;
+    }
+    let ascender = i16::from_be_bytes(data[hhea + 4..hhea + 6].try_into().ok()?) as f32;
+    let descender = i16::from_be_bytes(data[hhea + 6..hhea + 8].try_into().ok()?) as f32;
+    let line_gap = i16::from_be_bytes(data[hhea + 8..hhea + 10].try_into().ok()?) as f32;
+
+    Some((ascender - descender + line_gap) / upem)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
 
     fn system_font_bytes() -> Option<Arc<[u8]>> {
-        let candidates = [
-            "C:\\Windows\\Fonts\\segoeui.ttf",
-            "C:\\Windows\\Fonts\\arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        ];
-        for path in candidates {
-            if let Ok(bytes) = std::fs::read(path) {
-                return Some(Arc::from(bytes.into_boxed_slice()));
-            }
-        }
-        None
+        let variants = wgpu_html_tree::system_font_variants();
+        variants.first().map(|v| v.data.clone())
     }
 
+    /// The run height must always equal the requested line-height.
+    /// Glyph bitmaps may overflow above or below (CSS allows this —
+    /// the line box is never grown for descenders). The key invariant
+    /// is that the height is deterministic and content-independent.
     #[test]
-    fn glyph_positions_within_run_height() {
+    fn run_height_equals_line_height() {
         let Some(font_data) = system_font_bytes() else {
             eprintln!("skipping: no system font found");
             return;
@@ -914,30 +1035,64 @@ mod tests {
                 )
                 .expect("shaped");
 
-            let mut min_y = f32::INFINITY;
-            let mut max_bottom = f32::NEG_INFINITY;
-            for g in &run.glyphs {
-                min_y = min_y.min(g.y);
-                max_bottom = max_bottom.max(g.y + g.h);
-            }
-
             eprintln!(
-                "size={:.0} lh={:.1} run.h={:.1} ascent={:.1} y_range=[{:.1}, {:.1}]",
-                size, line_h, run.height, run.ascent, min_y, max_bottom,
+                "size={:.0} lh={:.1} run.h={:.1} ascent={:.1}",
+                size, line_h, run.height, run.ascent,
             );
 
-            // Every glyph must sit within the reported run height.
-            assert!(
-                min_y >= -0.5,
-                "size={size}: glyph extends above run (min_y={min_y:.1})"
-            );
-            assert!(
-                max_bottom <= run.height + 0.5,
-                "size={size}: glyph extends below run by {:.1}px \
-                 (max_bottom={max_bottom:.1}, run.h={:.1})",
-                max_bottom - run.height,
-                run.height,
+            assert_eq!(
+                run.height, line_h,
+                "size={size}: run height ({:.1}) must equal line-height ({:.1})",
+                run.height, line_h,
             );
         }
+    }
+
+    /// Run height must NOT depend on which characters appear in the
+    /// text. CSS line-height determines the box height; glyphs are
+    /// allowed to overflow (browsers never expand the line box for
+    /// descenders). If heights differ, flex `align-items: center`
+    /// places items at different offsets depending on content.
+    #[test]
+    fn run_height_independent_of_glyph_content() {
+        let Some(font_data) = system_font_bytes() else {
+            eprintln!("skipping: no system font found");
+            return;
+        };
+
+        let mut registry = FontRegistry::new();
+        registry.register(wgpu_html_tree::FontFace::regular("test", font_data));
+
+        let mut ctx = TextContext::new(2048);
+        ctx.sync_fonts(&registry);
+
+        let handle = ctx
+            .pick_font(&["test"], 400, FontStyleAxis::Normal)
+            .expect("font registered");
+
+        let size = 16.0;
+        let line_h = size * 1.25; // 20.0
+
+        let no_descenders = ctx
+            .shape_and_pack("<", handle, size, line_h, 0.0, 400, FontStyleAxis::Normal, None, [0.0; 4])
+            .expect("shaped");
+
+        let with_descenders = ctx
+            .shape_and_pack("body", handle, size, line_h, 0.0, 400, FontStyleAxis::Normal, None, [0.0; 4])
+            .expect("shaped");
+
+        eprintln!(
+            "no_desc h={:.1}  with_desc h={:.1}  line_h={:.1}",
+            no_descenders.height, with_descenders.height, line_h,
+        );
+
+        assert_eq!(
+            no_descenders.height, with_descenders.height,
+            "run height must equal line-height regardless of glyph content \
+             (no_desc={:.1}, with_desc={:.1}, line_h={:.1})",
+            no_descenders.height,
+            with_descenders.height,
+            line_h,
+        );
     }
 }

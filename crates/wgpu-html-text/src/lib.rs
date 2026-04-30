@@ -22,7 +22,7 @@ pub use atlas::{Atlas, AtlasEntry, AtlasRect};
 pub use font_db::FontDb;
 pub use shape::{
     LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, PositionedGlyph, ShapedLine,
-    ShapedRun, TextContext, utf8_boundaries,
+    ShapedRun, TextContext, parse_line_height_multiplier, utf8_boundaries,
 };
 
 // Re-export the host-facing font types so callers don't need to depend

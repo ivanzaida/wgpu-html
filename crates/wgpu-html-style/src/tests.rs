@@ -401,6 +401,80 @@ fn stylesheet_collection_skips_template_contents() {
 }
 
 #[test]
+fn linked_stylesheet_applies_when_host_registered() {
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <link rel="stylesheet" href="devtools.css">
+        <div id="box"></div>
+        "#,
+    );
+    tree.register_linked_stylesheet("devtools.css", "#box { width: 42px; }");
+
+    let cascaded = cascade(&tree);
+    let root = cascaded.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(matches!(div.width, Some(CssLength::Px(v)) if (v - 42.0).abs() < 0.01));
+}
+
+#[test]
+fn linked_stylesheet_media_attribute_gates_source() {
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <link rel="stylesheet" href="narrow.css" media="(max-width: 500px)">
+        <div id="box"></div>
+        "#,
+    );
+    tree.register_linked_stylesheet("narrow.css", "#box { width: 64px; }");
+
+    let small = cascade_with_media(&tree, &MediaContext::screen(400.0, 800.0, 1.0));
+    let root = small.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(matches!(div.width, Some(CssLength::Px(v)) if (v - 64.0).abs() < 0.01));
+
+    let large = cascade_with_media(&tree, &MediaContext::screen(900.0, 800.0, 1.0));
+    let root = large.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(div.width.is_none());
+}
+
+#[test]
+fn inserted_template_content_participates_in_cascade() {
+    let mut tree = wgpu_html_parser::parse(
+        r#"
+        <style>.card { width: 77px; }</style>
+        <template id="tpl"><div class="card"></div></template>
+        <div id="host"></div>
+        "#,
+    );
+    tree.append_template_content_to_id("tpl", "host")
+        .expect("template inserted");
+
+    let cascaded = cascade(&tree);
+    let root = cascaded.root.as_ref().unwrap();
+    let host = root
+        .children
+        .iter()
+        .find(|node| matches!(&node.element, Element::Div(d) if d.id.as_deref() == Some("host")))
+        .expect("host");
+    assert_eq!(host.children.len(), 1);
+    assert!(
+        matches!(host.children[0].style.width, Some(CssLength::Px(v)) if (v - 77.0).abs() < 0.01)
+    );
+}
+
+#[test]
 fn media_query_rules_match_viewport_context() {
     let tree = wgpu_html_parser::parse(
         r#"
