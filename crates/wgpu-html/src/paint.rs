@@ -59,7 +59,17 @@ pub fn paint_tree_with_text(
     for url in &tree.preload_queue {
         image_cache.preload(url);
     }
-    let cascaded = wgpu_html_style::cascade(tree);
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let media = wgpu_html_style::MediaContext::screen(
+        (viewport_w / scale).max(0.0),
+        (viewport_h / scale).max(0.0),
+        scale,
+    );
+    let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
     let mut list = DisplayList::new();
     if let Some(root) = wgpu_html_layout::layout_with_text(
         &cascaded,

@@ -10,5 +10,3 @@ wgpu-html-parser.workspace = true
 wgpu-html-tree.workspace = true
 wgpu-html-renderer.workspace = true
 wgpu-html-text.workspace = true
-winit.workspace = true
-pollster.workspace = true

@@ -198,9 +198,10 @@ pub(crate) fn layout_flex_children(
     // item (or stretch later) is honored by the block layout itself.
     // ----------------------------------------------------------------
     for item in &mut items {
+        let override_main = main_axis_size.is_some() || item.has_resolved_flex_basis;
         let overrides = if is_row {
             BlockOverrides {
-                width: Some(item.resolved_main),
+                width: override_main.then_some(item.resolved_main),
                 height: None,
                 ignore_style_width: false,
                 ignore_style_height: item.ignore_unresolved_percent_cross_size,
@@ -208,7 +209,7 @@ pub(crate) fn layout_flex_children(
         } else {
             BlockOverrides {
                 width: None,
-                height: Some(item.resolved_main),
+                height: override_main.then_some(item.resolved_main),
                 ignore_style_width: item.ignore_unresolved_percent_cross_size,
                 ignore_style_height: false,
             }
@@ -227,6 +228,13 @@ pub(crate) fn layout_flex_children(
         } else {
             laid.content_rect.w
         };
+        if main_axis_size.is_none() && !item.has_resolved_flex_basis {
+            item.resolved_main = if is_row {
+                laid.content_rect.w
+            } else {
+                laid.content_rect.h
+            };
+        }
         item.box_ = Some(laid);
     }
 
@@ -572,6 +580,9 @@ struct FlexItem<'a> {
     /// (`width` for column, `height` for row), disabling the
     /// `align-self: stretch` re-layout.
     has_explicit_cross_size: bool,
+    /// True when `flex-basis` resolved to a definite main-axis length
+    /// even though the flex container's main size may be indefinite.
+    has_resolved_flex_basis: bool,
     /// A percentage cross size with an indefinite flex-container
     /// cross size disables stretch, but it cannot resolve for the
     /// item's own layout. Treat that style size as auto for the
@@ -709,6 +720,10 @@ fn build_item<'a>(
     // Explicit basis: from `flex-basis` (when not `auto`) or the
     // matching main-size property. This value comes from CSS and is
     // interpreted via `box-sizing`.
+    let flex_basis_is_definite = matches!(
+        style.flex_basis.as_ref(),
+        Some(v) if !matches!(v, CssLength::Auto | CssLength::Percent(_))
+    ) || matches!(style.flex_basis.as_ref(), Some(CssLength::Percent(_)) if parent_inner_main.is_some());
     let basis_explicit = match style.flex_basis.as_ref() {
         Some(CssLength::Auto) | None => resolve_axis_length(main_size_prop, parent_inner_main, ctx),
         other => resolve_axis_length(other, parent_inner_main, ctx),
@@ -781,6 +796,7 @@ fn build_item<'a>(
         auto_cross_start,
         auto_cross_end,
         has_explicit_cross_size,
+        has_resolved_flex_basis: flex_basis_is_definite && basis_explicit.is_some(),
         ignore_unresolved_percent_cross_size,
         measured_cross_inner: 0.0,
         box_: None,

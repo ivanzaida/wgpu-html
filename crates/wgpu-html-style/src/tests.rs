@@ -401,6 +401,69 @@ fn stylesheet_collection_skips_template_contents() {
 }
 
 #[test]
+fn media_query_rules_match_viewport_context() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style>
+            #box { width: 100px; }
+            @media screen and (max-width: 500px) {
+                #box { width: 200px; }
+            }
+        </style>
+        <div id="box"></div>
+        "#,
+    );
+
+    let small = cascade_with_media(&tree, &MediaContext::screen(400.0, 800.0, 1.0));
+    let root = small.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(matches!(div.width, Some(CssLength::Px(v)) if (v - 200.0).abs() < 0.01));
+
+    let large = cascade_with_media(&tree, &MediaContext::screen(900.0, 800.0, 1.0));
+    let root = large.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(matches!(div.width, Some(CssLength::Px(v)) if (v - 100.0).abs() < 0.01));
+}
+
+#[test]
+fn style_media_attribute_gates_whole_style_block() {
+    let tree = wgpu_html_parser::parse(
+        r#"
+        <style media="(orientation: landscape)">
+            #box { height: 40px; }
+        </style>
+        <div id="box"></div>
+        "#,
+    );
+
+    let landscape = cascade_with_media(&tree, &MediaContext::screen(800.0, 400.0, 1.0));
+    let root = landscape.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(matches!(div.height, Some(CssLength::Px(v)) if (v - 40.0).abs() < 0.01));
+
+    let portrait = cascade_with_media(&tree, &MediaContext::screen(400.0, 800.0, 1.0));
+    let root = portrait.root.as_ref().unwrap();
+    let div = find_style(
+        root,
+        &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("box")),
+    )
+    .unwrap();
+    assert!(div.height.is_none());
+}
+
+#[test]
 fn ua_attribute_selectors_apply() {
     let tree = wgpu_html_parser::parse(
         r#"

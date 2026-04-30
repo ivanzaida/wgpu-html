@@ -22,7 +22,10 @@ pub use css_parser::{
 pub use style_props::{
     apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords,
 };
-pub use stylesheet::{PseudoClass, Rule, Selector, Stylesheet, parse_stylesheet};
+pub use stylesheet::{
+    MediaFeature, MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule, Selector, Stylesheet,
+    parse_media_query_list, parse_stylesheet,
+};
 pub use tokenizer::Token;
 
 use wgpu_html_tree::Tree;

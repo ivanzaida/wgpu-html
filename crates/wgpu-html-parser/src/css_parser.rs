@@ -3409,7 +3409,7 @@ fn apply_flex_shorthand(value: &str, style: &mut Style) {
             if is_number(t) {
                 grow = t.parse().ok();
                 shrink = Some(1.0);
-                basis = Some(CssLength::Px(0.0));
+                basis = Some(CssLength::Percent(0.0));
             } else if let Some(b) = parse_css_length(t) {
                 grow = Some(1.0);
                 shrink = Some(1.0);
@@ -3421,7 +3421,7 @@ fn apply_flex_shorthand(value: &str, style: &mut Style) {
             if is_number(a) && is_number(b) {
                 grow = a.parse().ok();
                 shrink = b.parse().ok();
-                basis = Some(CssLength::Px(0.0));
+                basis = Some(CssLength::Percent(0.0));
             } else if is_number(a) {
                 grow = a.parse().ok();
                 shrink = Some(1.0);
@@ -3630,10 +3630,12 @@ mod tests {
     fn flex_shorthand_extracts_flex_grow() {
         let s = parse_inline_style("flex: 1;");
         assert_eq!(s.flex_grow, Some(1.0));
+        assert!(matches!(s.flex_basis, Some(CssLength::Percent(v)) if (v - 0.0).abs() < 0.01));
         assert_eq!(s.flex.as_deref(), Some("1"));
 
         let s = parse_inline_style("flex: 2.5;");
         assert_eq!(s.flex_grow, Some(2.5));
+        assert!(matches!(s.flex_basis, Some(CssLength::Percent(v)) if (v - 0.0).abs() < 0.01));
 
         let s = parse_inline_style("flex: auto;");
         assert_eq!(s.flex_grow, Some(1.0));

@@ -873,6 +873,27 @@ fn flex_shorthand_one_value_is_grow_with_zero_basis() {
 }
 
 #[test]
+fn flex_column_auto_height_flex_one_keeps_content_height() {
+    // `flex: 1` expands to a 0% basis. In an auto-height column flex
+    // container that percentage is indefinite, so the item must keep
+    // its natural content height instead of receiving a 0px height
+    // override from flex layout.
+    let tree = make(
+        r#"<body style="margin: 0; display: flex; flex-direction: column; width: 120px;">
+            <div style="flex: 1; padding: 10px;">
+                <div style="height: 40px;"></div>
+            </div>
+            <div style="height: 20px;"></div>
+        </body>"#,
+    );
+    let body = layout(&tree, 800.0, 600.0).unwrap();
+    let first = &body.children[0];
+    let second = &body.children[1];
+    assert!((first.border_rect.h - 60.0).abs() < 0.01);
+    assert!((second.margin_rect.y - 60.0).abs() < 0.01);
+}
+
+#[test]
 fn flex_shrink_reduces_overflowing_items() {
     // Three items 100px each in a 200px container with shrink=1
     // (default). Total would be 300; each item shrinks by 100/300 of

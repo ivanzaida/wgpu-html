@@ -21,6 +21,7 @@ pub use paint::{paint_tree, paint_tree_with_text};
 
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_renderer::{DisplayList, Renderer, ScreenshotError};
+use wgpu_html_style::MediaContext;
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{InteractionSnapshot, TextCursor, TextSelection, Tree};
 
@@ -69,7 +70,8 @@ pub fn compute_layout_profiled(
     }
 
     let cascade_t0 = Instant::now();
-    let cascaded = wgpu_html_style::cascade(tree);
+    let media = media_context(viewport_w, viewport_h, scale);
+    let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
     let cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
     let layout_t0 = Instant::now();
@@ -290,7 +292,8 @@ pub fn paint_tree_cached<'c>(
             }
 
             let cascade_t0 = Instant::now();
-            let cascaded = wgpu_html_style::cascade(tree);
+            let media = media_context(viewport_w, viewport_h, scale);
+            let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
             timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
             let layout_t0 = Instant::now();
@@ -315,8 +318,14 @@ pub fn paint_tree_cached<'c>(
         PipelineAction::PartialCascade => {
             let cascade_t0 = Instant::now();
             let old_snapshot = cache.snapshot.clone();
+            let media = media_context(viewport_w, viewport_h, scale);
             let changed = if let Some(cascaded) = &mut cache.cascaded {
-                wgpu_html_style::cascade_incremental(tree, cascaded, &old_snapshot)
+                wgpu_html_style::cascade_incremental_with_media(
+                    tree,
+                    cascaded,
+                    &old_snapshot,
+                    &media,
+                )
             } else {
                 false
             };
@@ -379,6 +388,19 @@ pub fn paint_tree_cached<'c>(
     timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
 
     (list, cache.layout.as_ref(), timings)
+}
+
+fn media_context(viewport_w: f32, viewport_h: f32, scale: f32) -> MediaContext {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    MediaContext::screen(
+        (viewport_w / scale).max(0.0),
+        (viewport_h / scale).max(0.0),
+        scale,
+    )
 }
 
 /// Walk a child-index path through a layout tree, starting at `root`,

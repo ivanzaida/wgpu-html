@@ -18,8 +18,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use wgpu_html_models::Style;
 use wgpu_html_parser::{
-    CssWideKeyword, PseudoClass, Rule, Selector, Stylesheet, parse_inline_style_decls,
-    parse_stylesheet,
+    CssWideKeyword, MediaFeature, MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule,
+    Selector, Stylesheet, parse_inline_style_decls, parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
@@ -34,6 +34,34 @@ pub struct MatchContext {
     pub is_root: bool,
     pub is_first_child: bool,
     pub is_last_child: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MediaContext {
+    /// Viewport width in CSS pixels.
+    pub viewport_width: f32,
+    /// Viewport height in CSS pixels.
+    pub viewport_height: f32,
+    /// CSS-px to physical-px scale. Used for resolution queries.
+    pub scale: f32,
+    pub media_type: MediaType,
+}
+
+impl MediaContext {
+    pub fn screen(viewport_width: f32, viewport_height: f32, scale: f32) -> Self {
+        Self {
+            viewport_width,
+            viewport_height,
+            scale,
+            media_type: MediaType::Screen,
+        }
+    }
+}
+
+impl Default for MediaContext {
+    fn default() -> Self {
+        Self::screen(f32::INFINITY, f32::INFINITY, 1.0)
+    }
 }
 
 impl MatchContext {
@@ -378,6 +406,10 @@ impl CascadeContext {
 ///    resolved style (CSS-Cascade-3 §3.3 — `color`, font-related
 ///    properties, line-height, text-align, etc.).
 pub fn cascade(tree: &Tree) -> CascadedTree {
+    cascade_with_media(tree, &MediaContext::default())
+}
+
+pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
     // UA defaults sit before author rules, so on a specificity tie
     // the author rule wins on source order.
     let author = collect_prepared_stylesheet_cached(tree);
@@ -399,6 +431,7 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
                 &mut decl_cache,
                 None, // root has no siblings
                 &cascade_ctx,
+                media,
             )
         }),
     }
@@ -416,6 +449,15 @@ pub fn cascade_incremental(
     tree: &Tree,
     cached: &mut CascadedTree,
     old_snapshot: &wgpu_html_tree::InteractionSnapshot,
+) -> bool {
+    cascade_incremental_with_media(tree, cached, old_snapshot, &MediaContext::default())
+}
+
+pub fn cascade_incremental_with_media(
+    tree: &Tree,
+    cached: &mut CascadedTree,
+    old_snapshot: &wgpu_html_tree::InteractionSnapshot,
+    media: &MediaContext,
 ) -> bool {
     let new_snapshot = tree.interaction.cascade_snapshot();
     if *old_snapshot == new_snapshot {
@@ -516,6 +558,7 @@ pub fn cascade_incremental(
         &dirty_subtrees,
         None,
         &cascade_ctx,
+        media,
     );
     true
 }
@@ -572,6 +615,7 @@ fn re_cascade_dirty(
     dirty_subtrees: &HashSet<Vec<usize>>,
     sibling_count: Option<usize>,
     cascade_ctx: &CascadeContext,
+    media: &MediaContext,
 ) {
     let is_dirty = dirty.contains(path.as_slice());
     let subtree_dirty = dirty_subtrees
@@ -593,6 +637,7 @@ fn re_cascade_dirty(
                     &element_ctx,
                     sheets,
                     ancestors,
+                    media,
                 );
                 decl_cache.insert(key, computed.clone());
                 computed
@@ -653,6 +698,7 @@ fn re_cascade_dirty(
                 dirty_subtrees,
                 Some(child_count),
                 cascade_ctx,
+                media,
             );
             path.pop();
         }
@@ -709,11 +755,24 @@ fn gather(node: &Node, out: &mut String, inside_template: bool) {
     if inside_template {
         return;
     }
-    if matches!(&node.element, Element::StyleElement(_)) {
+    if let Element::StyleElement(style_el) = &node.element {
+        let media = style_el
+            .media
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        if let Some(media) = media {
+            out.push_str("@media ");
+            out.push_str(media);
+            out.push_str(" {\n");
+        }
         for child in &node.children {
             if let Element::Text(t) = &child.element {
                 out.push_str(t);
             }
+        }
+        if media.is_some() {
+            out.push_str("\n}\n");
         }
         out.push('\n');
     }
@@ -740,6 +799,7 @@ fn cascade_node(
     decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
     sibling_count: Option<usize>,
     cascade_ctx: &CascadeContext,
+    media: &MediaContext,
 ) -> CascadedNode {
     let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
     let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
@@ -754,6 +814,7 @@ fn cascade_node(
                 &element_ctx,
                 sheets,
                 ancestors,
+                media,
             );
             decl_cache.insert(key, computed.clone());
             computed
@@ -811,6 +872,7 @@ fn cascade_node(
                 decl_cache,
                 Some(child_count),
                 cascade_ctx,
+                media,
             );
             path.pop();
             cn
@@ -999,6 +1061,7 @@ pub fn computed_decls_in_tree_with_context(
         element_ctx,
         &[&prepared],
         ancestors,
+        &MediaContext::default(),
     )
 }
 
@@ -1007,6 +1070,7 @@ fn computed_decls_in_prepared_stylesheets_with_context(
     element_ctx: &MatchContext,
     sheets: &[&PreparedStylesheet],
     ancestors: &[(&Element, MatchContext)],
+    media: &MediaContext,
 ) -> (Style, HashMap<String, CssWideKeyword>) {
     let mut values = Style::default();
     let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
@@ -1019,20 +1083,29 @@ fn computed_decls_in_prepared_stylesheets_with_context(
         .iter()
         .enumerate()
         .flat_map(|(sheet_idx, sheet)| {
-            matching_rules_for_element(sheet, element, element_ctx, ancestors, tag, id, class_attr)
-                .into_iter()
-                .map(
-                    move |(spec, rule_idx, rule, normal_nonempty, important_nonempty)| {
-                        (
-                            spec,
-                            sheet_idx,
-                            rule_idx,
-                            rule,
-                            normal_nonempty,
-                            important_nonempty,
-                        )
-                    },
-                )
+            matching_rules_for_element(
+                sheet,
+                element,
+                element_ctx,
+                ancestors,
+                tag,
+                id,
+                class_attr,
+                media,
+            )
+            .into_iter()
+            .map(
+                move |(spec, rule_idx, rule, normal_nonempty, important_nonempty)| {
+                    (
+                        spec,
+                        sheet_idx,
+                        rule_idx,
+                        rule,
+                        normal_nonempty,
+                        important_nonempty,
+                    )
+                },
+            )
         })
         .collect();
     matched_rules
@@ -1097,6 +1170,7 @@ fn matching_rules_for_element<'a>(
     tag: Option<&str>,
     id: Option<&str>,
     class_attr: Option<&str>,
+    media: &MediaContext,
 ) -> Vec<(u32, usize, &'a Rule, bool, bool)> {
     let mut selector_entries = Vec::new();
     let mut push_entries = |entries: &[SelectorRuleRef]| {
@@ -1133,6 +1207,9 @@ fn matching_rules_for_element<'a>(
         let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else {
             continue;
         };
+        if !rule_media_matches(rule, media) {
+            continue;
+        }
         let Some(selector) = rule.selectors.get(entry.selector_idx) else {
             continue;
         };
@@ -1168,6 +1245,46 @@ fn matching_rules_for_element<'a>(
             Some((spec, rule_idx, rule, normal_nonempty, important_nonempty))
         })
         .collect()
+}
+
+fn rule_media_matches(rule: &Rule, media: &MediaContext) -> bool {
+    rule.media
+        .iter()
+        .all(|query_list| media_query_list_matches(query_list, media))
+}
+
+fn media_query_list_matches(list: &MediaQueryList, ctx: &MediaContext) -> bool {
+    list.queries
+        .iter()
+        .any(|query| media_query_matches(query, ctx))
+}
+
+fn media_query_matches(query: &MediaQuery, ctx: &MediaContext) -> bool {
+    let type_matches =
+        matches!(query.media_type, MediaType::All) || query.media_type == ctx.media_type;
+    let features_match = query
+        .features
+        .iter()
+        .all(|feature| media_feature_matches(*feature, ctx));
+    let matches = type_matches && features_match;
+    if query.not { !matches } else { matches }
+}
+
+fn media_feature_matches(feature: MediaFeature, ctx: &MediaContext) -> bool {
+    match feature {
+        MediaFeature::Width(v) => approx_eq(ctx.viewport_width, v),
+        MediaFeature::MinWidth(v) => ctx.viewport_width >= v,
+        MediaFeature::MaxWidth(v) => ctx.viewport_width <= v,
+        MediaFeature::Height(v) => approx_eq(ctx.viewport_height, v),
+        MediaFeature::MinHeight(v) => ctx.viewport_height >= v,
+        MediaFeature::MaxHeight(v) => ctx.viewport_height <= v,
+        MediaFeature::OrientationPortrait => ctx.viewport_height >= ctx.viewport_width,
+        MediaFeature::OrientationLandscape => ctx.viewport_width > ctx.viewport_height,
+    }
+}
+
+fn approx_eq(a: f32, b: f32) -> bool {
+    (a - b).abs() <= 0.01
 }
 
 fn selector_subject_might_match(

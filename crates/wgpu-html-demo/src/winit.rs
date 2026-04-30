@@ -20,11 +20,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowId};
+use winit::window::Window;
 
-use wgpu_html_devtools::Devtools;
 use wgpu_html_tree::{FontFace, Tree};
 use wgpu_html_winit::{
     AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
@@ -274,10 +273,6 @@ struct DemoHook {
     enabled: bool,
     profiler: Profiler,
     commands: CommandQueue,
-    devtools: Devtools,
-    /// 2nd-level devtools that inspects the 1st devtools' own tree.
-    /// Opened with F11 while the devtools window is focused.
-    devtools_meta: Devtools,
     /// Set to `true` after the first `on_frame` has run, at which
     /// point we have an `Arc<Window>` and can spawn the stdin
     /// reader. Doing this lazily (rather than before `run_app`)
@@ -288,37 +283,10 @@ struct DemoHook {
 
 impl DemoHook {
     fn new(profiling_enabled: bool) -> Self {
-        let mut devtools = Devtools::new();
-        // Pre-register system fonts so the devtools UI can render text.
-        for v in system_font_variants() {
-            devtools.register_font(wgpu_html_tree::FontFace {
-                family: "DemoSans".to_owned(),
-                weight: v.weight,
-                style: v.style,
-                data: v.data.clone(),
-            });
-        }
-        // Register the Lucide icon font for devtools as well.
-        devtools.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
-
-        // 2nd-level devtools (inspects the 1st devtools).
-        let mut devtools_meta = Devtools::new();
-        for v in system_font_variants() {
-            devtools_meta.register_font(wgpu_html_tree::FontFace {
-                family: "DemoSans".to_owned(),
-                weight: v.weight,
-                style: v.style,
-                data: v.data.clone(),
-            });
-        }
-        devtools_meta.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
-
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
             commands: Arc::new(Mutex::new(VecDeque::new())),
-            devtools,
-            devtools_meta,
             stdin_started: false,
         }
     }
@@ -654,7 +622,7 @@ fn json_str(s: &str) -> String {
 }
 
 impl AppHook for DemoHook {
-    fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+    fn on_key(&mut self, _ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
         if event.state == ElementState::Pressed && !event.repeat {
             if let PhysicalKey::Code(code) = event.physical_key {
                 match code {
@@ -667,18 +635,6 @@ impl AppHook for DemoHook {
                         if !self.enabled {
                             self.profiler.reset();
                         }
-                        return EventResponse::Stop;
-                    }
-                    KeyCode::F11 => {
-                        self.devtools.toggle(ctx.event_loop);
-                        println!(
-                            "demo: devtools {}",
-                            if self.devtools.is_enabled() {
-                                "opened"
-                            } else {
-                                "closed"
-                            }
-                        );
                         return EventResponse::Stop;
                     }
                     _ => {}
@@ -701,18 +657,6 @@ impl AppHook for DemoHook {
         // against the just-painted layout in `ctx.last_layout`.
         self.drain_commands(&mut ctx);
 
-        // Feed the live DOM into the devtools panel.
-        if self.devtools.is_enabled() {
-            self.devtools.update_inspected_tree(ctx.tree);
-
-            // Feed the devtools' own tree into the 2nd-level devtools.
-            if self.devtools_meta.is_enabled() {
-                if let Some(dt_tree) = self.devtools.tree().cloned() {
-                    self.devtools_meta.update_inspected_tree(&dt_tree);
-                }
-            }
-        }
-
         if !self.enabled {
             return;
         }
@@ -722,10 +666,7 @@ impl AppHook for DemoHook {
         }
     }
 
-    fn on_idle(&mut self) {
-        self.devtools.flush();
-        self.devtools_meta.flush();
-    }
+    fn on_idle(&mut self) {}
 
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
         if !self.enabled {
@@ -734,35 +675,6 @@ impl AppHook for DemoHook {
         self.profiler.add_pointer_move(pointer_move_ms, changed);
     }
 
-    fn on_window_event(
-        &mut self,
-        _ctx: HookContext<'_>,
-        window_id: WindowId,
-        event: &WindowEvent,
-    ) -> bool {
-        // 2nd-level meta-devtools — handle its events but never
-        // open a 3rd level.
-        if self.devtools_meta.owns_window(window_id) {
-            self.devtools_meta.handle_window_event(event);
-            return true;
-        }
-
-        // 1st-level devtools — F11 toggles the meta-devtools.
-        if self.devtools.owns_window(window_id) {
-            if let WindowEvent::KeyboardInput { event: key_ev, .. } = event {
-                if key_ev.state == ElementState::Pressed
-                    && !key_ev.repeat
-                    && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
-                {
-                    self.devtools_meta.toggle(_ctx.event_loop);
-                    return true;
-                }
-            }
-            self.devtools.handle_window_event(event);
-            return true;
-        }
-        false
-    }
 }
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -806,6 +718,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
         .with_title(format!("wgpu-html demo: {doc_source}"))
         .with_size(1280, 720)
         .with_hook(hook)
+        .with_devtools()
         .run();
 
     match result {
