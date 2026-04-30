@@ -2043,6 +2043,25 @@ impl LayoutBox {
         })
     }
 
+    /// Return the cursor position relative to the element at
+    /// `path`, or `None` if the cursor is not over that element.
+    /// The returned coordinates are relative to the element's
+    /// `border_rect` origin.
+    ///
+    /// `tree` provides the current cursor position and hover path.
+    pub fn cursor_position_in(
+        &self,
+        tree: &wgpu_html_tree::Tree,
+        path: &[usize],
+    ) -> Option<(f32, f32)> {
+        let pos = tree.cursor_position()?;
+        if !tree.is_hovered(path) {
+            return None;
+        }
+        let b = self.box_at_path(path)?;
+        Some((pos.0 - b.border_rect.x, pos.1 - b.border_rect.y))
+    }
+
     /// Return the box at `path` (empty path means `self`).
     pub fn box_at_path(&self, path: &[usize]) -> Option<&LayoutBox> {
         let mut cursor = self;

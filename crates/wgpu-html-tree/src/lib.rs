@@ -205,6 +205,28 @@ impl Tree {
         self.interaction.selection = None;
         self.interaction.selecting_text = false;
     }
+
+    /// Return the current cursor position in document space, or
+    /// `None` if the pointer is outside the window / surface.
+    pub fn cursor_position(&self) -> Option<(f32, f32)> {
+        self.interaction.pointer_pos
+    }
+
+    /// Return the deepest hovered element, or `None` if nothing is
+    /// hovered or the hover path is stale.
+    pub fn hovered_element(&self) -> Option<&Node> {
+        let path = self.interaction.hover_path.as_deref()?;
+        self.root.as_ref()?.at_path(path)
+    }
+
+    /// Check whether the element at `path` is in the current hover
+    /// chain (i.e. `path` is a prefix of the deepest hover path).
+    pub fn is_hovered(&self, path: &[usize]) -> bool {
+        self.interaction
+            .hover_path
+            .as_deref()
+            .is_some_and(|hp| hp.len() >= path.len() && &hp[..path.len()] == path)
+    }
 }
 
 #[derive(Clone)]
