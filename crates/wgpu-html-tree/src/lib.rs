@@ -286,6 +286,58 @@ impl Tree {
         Some(start..start + count)
     }
 
+    /// Insert a node into the tree at `parent_path[index]`.
+    ///
+    /// Bumps `generation` and fires `on_element_added` hooks.
+    /// Returns `true` on success.
+    pub fn insert_node(&mut self, parent_path: &[usize], index: usize, node: Node) -> bool {
+        let node_for_hook = node.clone();
+        let Some(parent) = self.root.as_mut().and_then(|r| r.at_path_mut(parent_path)) else {
+            return false;
+        };
+        if index > parent.children.len() {
+            return false;
+        }
+        parent.children.insert(index, node);
+        self.generation += 1;
+        self.emit_element_added(&node_for_hook);
+        true
+    }
+
+    /// Append a node to the children of the node at `parent_path`.
+    ///
+    /// Bumps `generation` and fires `on_element_added` hooks.
+    /// Returns the index of the appended child.
+    pub fn append_node(&mut self, parent_path: &[usize], node: Node) -> Option<usize> {
+        let node_for_hook = node.clone();
+        let parent = self.root.as_mut()?.at_path_mut(parent_path)?;
+        let index = parent.children.len();
+        parent.children.push(node);
+        self.generation += 1;
+        self.emit_element_added(&node_for_hook);
+        Some(index)
+    }
+
+    /// Remove the node at `path` from the tree.
+    ///
+    /// Bumps `generation` and fires `on_element_removed` hooks.
+    /// Returns the removed node on success.
+    pub fn remove_node(&mut self, path: &[usize]) -> Option<Node> {
+        if path.is_empty() {
+            return None;
+        }
+        let parent_path = &path[..path.len() - 1];
+        let child_index = *path.last()?;
+        let parent = self.root.as_mut()?.at_path_mut(parent_path)?;
+        if child_index >= parent.children.len() {
+            return None;
+        }
+        let removed = parent.children.remove(child_index);
+        self.generation += 1;
+        self.emit_element_removed(&removed);
+        Some(removed)
+    }
+
     /// Override the colors used when painting selected text.
     pub fn set_selection_colors(&mut self, background: [f32; 4], foreground: [f32; 4]) {
         self.interaction.selection_colors = SelectionColors {
