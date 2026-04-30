@@ -22,9 +22,8 @@ use wgpu_html::interactivity;
 use wgpu_html::layout::LayoutBox;
 use wgpu_html::renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html::scroll::{
-    clamp_scroll_y, deepest_element_scrollbar_at, paint_viewport_scrollbar, rect_contains,
-    scroll_element_at, scroll_element_thumb_to, scroll_y_from_thumb_top, scrollbar_geometry,
-    translate_display_list_y, viewport_to_document,
+    clamp_scroll_y, paint_viewport_scrollbar, rect_contains, scroll_element_at,
+    scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
 };
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{Tree, TreeHook, TreeLifecycleStage, TreeRenderEvent, TreeRenderViewport};
@@ -191,15 +190,9 @@ struct RuntimeState {
 }
 
 #[derive(Debug, Clone)]
-struct ScrollbarDrag {
-    target: ScrollTarget,
-    grab_offset_y: f32,
-}
-
-#[derive(Debug, Clone)]
-enum ScrollTarget {
-    Viewport,
-    Element(Vec<usize>),
+enum ScrollbarDrag {
+    Viewport { grab_offset_y: f32 },
+    Element(wgpu_html::scroll::ElementScrollbarDrag),
 }
 
 impl<'tree> WgpuHtmlWindow<'tree> {
@@ -470,23 +463,18 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         if let Some(drag) = state.scrollbar_drag.clone() {
             if let Some(layout) = state.last_layout.as_ref() {
                 let size = state.window.inner_size();
-                match drag.target {
-                    ScrollTarget::Viewport => {
+                match &drag {
+                    ScrollbarDrag::Viewport { grab_offset_y } => {
                         state.scroll_y = scroll_y_from_thumb_top(
-                            pos.1 - drag.grab_offset_y,
+                            pos.1 - grab_offset_y,
                             layout,
                             size.width as f32,
                             size.height as f32,
                         );
                     }
-                    ScrollTarget::Element(path) => {
+                    ScrollbarDrag::Element(el_drag) => {
                         let doc_pos = viewport_to_document(pos, state.scroll_y);
-                        scroll_element_thumb_to(
-                            self.tree,
-                            layout,
-                            path,
-                            doc_pos.1 - drag.grab_offset_y,
-                        );
+                        el_drag.update(layout, self.tree, doc_pos.1);
                     }
                 }
                 window.request_redraw();
@@ -940,42 +928,12 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
     let size = state.window.inner_size();
     let doc_pos = viewport_to_document(pos, state.scroll_y);
 
-    // Element-level scrollbars first.
-    if let Some((path, geom)) = deepest_element_scrollbar_at(
-        layout,
-        doc_pos,
-        &tree.interaction.scroll_offsets_y,
-        &mut Vec::new(),
-    ) {
-        if rect_contains(geom.thumb, doc_pos) {
-            state.scrollbar_drag = Some(ScrollbarDrag {
-                target: ScrollTarget::Element(path),
-                grab_offset_y: doc_pos.1 - geom.thumb.y,
-            });
-            return true;
-        }
-        if rect_contains(geom.track, doc_pos) {
-            let thumb_top = doc_pos.1 - geom.thumb.h * 0.5;
-            scroll_element_thumb_to(tree, layout, path.clone(), thumb_top);
-            // Recompute the geometry now that scroll has moved.
-            if let Some(box_) = layout.box_at_path(&path) {
-                let new_scroll = tree
-                    .interaction
-                    .scroll_offsets_y
-                    .get(&path)
-                    .copied()
-                    .unwrap_or(0.0);
-                if let Some(updated) =
-                    wgpu_html::scroll::element_scrollbar_geometry(box_, new_scroll)
-                {
-                    state.scrollbar_drag = Some(ScrollbarDrag {
-                        target: ScrollTarget::Element(path),
-                        grab_offset_y: doc_pos.1 - updated.thumb.y,
-                    });
-                }
-            }
-            return true;
-        }
+    // Element-level scrollbars first (shared implementation).
+    if let Some(el_drag) =
+        wgpu_html::scroll::ElementScrollbarDrag::try_start(layout, doc_pos, tree)
+    {
+        state.scrollbar_drag = Some(ScrollbarDrag::Element(el_drag));
+        return true;
     }
 
     // Viewport scrollbar.
@@ -988,8 +946,7 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
         return false;
     };
     if rect_contains(geom.thumb, pos) {
-        state.scrollbar_drag = Some(ScrollbarDrag {
-            target: ScrollTarget::Viewport,
+        state.scrollbar_drag = Some(ScrollbarDrag::Viewport {
             grab_offset_y: pos.1 - geom.thumb.y,
         });
         return true;
@@ -1004,8 +961,7 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
             size.height as f32,
             state.scroll_y,
         ) {
-            state.scrollbar_drag = Some(ScrollbarDrag {
-                target: ScrollTarget::Viewport,
+            state.scrollbar_drag = Some(ScrollbarDrag::Viewport {
                 grab_offset_y: pos.1 - updated.thumb.y,
             });
         }

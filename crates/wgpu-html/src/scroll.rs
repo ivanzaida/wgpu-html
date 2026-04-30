@@ -303,6 +303,64 @@ pub fn deepest_element_scrollbar_at(
     (rect_contains(geom.track, pos) || rect_contains(geom.thumb, pos)).then(|| (path.clone(), geom))
 }
 
+// ── Element scrollbar drag ───────────────────────────────────────────────────
+
+/// Reusable state for an in-progress scrollbar thumb drag on an
+/// `overflow:scroll` element. Hosts store this while the drag is
+/// active and call [`ElementScrollbarDrag::update`] on cursor-move.
+#[derive(Debug, Clone)]
+pub struct ElementScrollbarDrag {
+    /// Tree path to the scrollable element.
+    pub path: Vec<usize>,
+    /// Offset from the thumb's top edge to the initial grab point
+    /// so the thumb doesn't jump on the first move.
+    pub grab_offset_y: f32,
+}
+
+impl ElementScrollbarDrag {
+    /// Hit-test element scrollbars at `pos` and start a drag if one
+    /// was hit. Returns `Some(drag)` if a scrollbar was clicked
+    /// (consuming the mouse-down), `None` otherwise.
+    ///
+    /// If the click lands on the thumb, the offset is recorded. If
+    /// it lands on the track (but not the thumb), the thumb is
+    /// teleported to the click position first.
+    pub fn try_start(layout: &LayoutBox, pos: (f32, f32), tree: &mut Tree) -> Option<Self> {
+        let hit = deepest_element_scrollbar_at(
+            layout,
+            pos,
+            &tree.interaction.scroll_offsets_y,
+            &mut Vec::new(),
+        )?;
+        let (path, geom) = hit;
+
+        if rect_contains(geom.thumb, pos) {
+            Some(Self {
+                path,
+                grab_offset_y: pos.1 - geom.thumb.y,
+            })
+        } else {
+            // Track click — teleport thumb, then drag from centre.
+            scroll_element_thumb_to(tree, layout, path.clone(), pos.1);
+            Some(Self {
+                path,
+                grab_offset_y: 0.0,
+            })
+        }
+    }
+
+    /// Continue the drag: move the thumb to track the cursor at
+    /// `cursor_y`.
+    pub fn update(&self, layout: &LayoutBox, tree: &mut Tree, cursor_y: f32) {
+        scroll_element_thumb_to(
+            tree,
+            layout,
+            self.path.clone(),
+            cursor_y - self.grab_offset_y,
+        );
+    }
+}
+
 /// Apply `delta_y` (positive = scroll down) to the deepest
 /// `overflow:scroll` container under `doc_pos`. Returns `true` if
 /// any scroll offset actually changed.

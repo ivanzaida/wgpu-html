@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use wgpu_html::PipelineCache;
-use wgpu_html::layout::{LayoutBox, Rect};
 use wgpu_html_renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Node, Tree};
@@ -115,16 +113,6 @@ impl DevtoolsProfiler {
     }
 }
 
-/// Active scrollbar drag state for an inner overflow container.
-#[derive(Clone)]
-struct ScrollbarDrag {
-    /// Tree path of the scrollable element being dragged.
-    path: Vec<usize>,
-    /// Offset from the thumb top to the grab point so the thumb
-    /// doesn't jump on the first move.
-    grab_offset_y: f32,
-}
-
 /// Runtime state for the devtools window.
 struct WindowState {
     window: Arc<Window>,
@@ -138,7 +126,7 @@ struct WindowState {
     /// Last known cursor position in viewport space.
     cursor_pos: (f32, f32),
     /// Active scrollbar thumb drag, if any.
-    scrollbar_drag: Option<ScrollbarDrag>,
+    scrollbar_drag: Option<wgpu_html::scroll::ElementScrollbarDrag>,
     profiler: DevtoolsProfiler,
 }
 
@@ -371,29 +359,20 @@ impl Devtools {
                 let state = self.window_state.as_mut().unwrap();
                 state.cursor_pos = (position.x as f32, position.y as f32);
                 if let Some(layout) = state.cache.layout() {
-                    // Scrollbar drag in progress — update the scroll
-                    // position and skip normal pointer dispatch.
-                    if let Some(drag) = state.scrollbar_drag.clone() {
-                        wgpu_html::scroll::scroll_element_thumb_to(
-                            &mut state.tree,
-                            layout,
-                            drag.path,
-                            state.cursor_pos.1 - drag.grab_offset_y,
-                        );
+                    // Scrollbar drag in progress — update scroll
+                    // and skip normal pointer dispatch.
+                    if let Some(drag) = &state.scrollbar_drag {
+                        drag.update(layout, &mut state.tree, state.cursor_pos.1);
                         state.window.request_redraw();
                         return;
                     }
 
                     let t0 = Instant::now();
-                    let target = hit_path_scrolled(
+                    let changed = wgpu_html::interactivity::pointer_move(
+                        &mut state.tree,
                         layout,
                         state.cursor_pos,
-                        &state.tree.interaction.scroll_offsets_y,
                     );
-                    let changed =
-                        state
-                            .tree
-                            .dispatch_pointer_move(target.as_deref(), state.cursor_pos, None);
                     let ms = t0.elapsed().as_secs_f64() * 1000.0;
                     state.profiler.add_pointer_move(ms, changed);
                     if changed {
@@ -426,28 +405,41 @@ impl Devtools {
                 }
 
                 // ── Mouse down: start scrollbar drag? ───────────
-                if *button_state == ElementState::Pressed
-                    && mb == MouseButton::Primary
-                    && Self::try_start_scrollbar_drag(ws)
-                {
-                    return;
+                if *button_state == ElementState::Pressed && mb == MouseButton::Primary {
+                    // Two-phase borrow: hit-test immutably, then
+                    // start the drag mutably.
+                    let drag = ws.cache.layout().and_then(|layout| {
+                        wgpu_html::scroll::ElementScrollbarDrag::try_start(
+                            layout,
+                            ws.cursor_pos,
+                            &mut ws.tree,
+                        )
+                    });
+                    if let Some(d) = drag {
+                        ws.scrollbar_drag = Some(d);
+                        ws.window.request_redraw();
+                        return;
+                    }
                 }
 
                 // ── Normal DOM dispatch ─────────────────────────
                 if let Some(layout) = ws.cache.layout() {
-                    let target = hit_path_scrolled(
-                        layout,
-                        ws.cursor_pos,
-                        &ws.tree.interaction.scroll_offsets_y,
-                    );
                     match button_state {
                         ElementState::Pressed => {
-                            ws.tree
-                                .dispatch_mouse_down(target.as_deref(), ws.cursor_pos, mb, None);
+                            wgpu_html::interactivity::mouse_down(
+                                &mut ws.tree,
+                                layout,
+                                ws.cursor_pos,
+                                mb,
+                            );
                         }
                         ElementState::Released => {
-                            ws.tree
-                                .dispatch_mouse_up(target.as_deref(), ws.cursor_pos, mb, None);
+                            wgpu_html::interactivity::mouse_up(
+                                &mut ws.tree,
+                                layout,
+                                ws.cursor_pos,
+                                mb,
+                            );
                         }
                     }
                     ws.window.request_redraw();
@@ -471,63 +463,15 @@ impl Devtools {
                 if let Some(layout) = ws.cache.layout() {
                     if wgpu_html::scroll::scroll_element_at(&mut ws.tree, layout, ws.cursor_pos, dy)
                     {
+                        // Re-dispatch hover after scroll so the
+                        // cursor tracks the content that moved.
+                        wgpu_html::interactivity::pointer_move(&mut ws.tree, layout, ws.cursor_pos);
                         ws.window.request_redraw();
                     }
                 }
             }
             _ => {}
         }
-    }
-
-    /// Check if the cursor is over an element scrollbar. If so,
-    /// start a drag and return `true` (consuming the mouse-down).
-    fn try_start_scrollbar_drag(ws: &mut WindowState) -> bool {
-        use wgpu_html::scroll::{
-            deepest_element_scrollbar_at, rect_contains, scroll_element_thumb_to,
-        };
-        let pos = ws.cursor_pos;
-
-        // Phase 1: hit-test (immutable borrow of cache + tree).
-        let hit = {
-            let Some(layout) = ws.cache.layout() else {
-                return false;
-            };
-            deepest_element_scrollbar_at(
-                layout,
-                pos,
-                &ws.tree.interaction.scroll_offsets_y,
-                &mut Vec::new(),
-            )
-        };
-        // Immutable borrow released here.
-
-        let Some((path, geom)) = hit else {
-            return false;
-        };
-
-        // Phase 2: mutate (mutable borrow of tree + cache).
-        if rect_contains(geom.thumb, pos) {
-            ws.scrollbar_drag = Some(ScrollbarDrag {
-                path,
-                grab_offset_y: pos.1 - geom.thumb.y,
-            });
-        } else {
-            // Track click — teleport thumb, then drag from centre.
-            if let Some(layout) = ws.cache.layout() {
-                scroll_element_thumb_to(
-                    &mut ws.tree,
-                    layout,
-                    path.clone(),
-                    pos.1,
-                );
-            }
-            ws.scrollbar_drag = Some(ScrollbarDrag {
-                path,
-                grab_offset_y: 0.0,
-            });
-        }
-        ws.window.request_redraw();
-        true
     }
 
     /// Actually drop any window state that was deferred from a
@@ -605,95 +549,4 @@ fn to_mouse_button(b: winit::event::MouseButton) -> Option<MouseButton> {
         winit::event::MouseButton::Middle => Some(MouseButton::Middle),
         _ => None,
     }
-}
-
-// ── Scroll-aware hit-testing ─────────────────────────────────────
-//
-// The standard `LayoutBox::hit_path` does not compensate for
-// per-element scroll offsets stored in `InteractionState`. These
-// helpers adjust the test point as they descend through scrollable
-// containers so that rows scrolled into view are properly hit.
-
-fn hit_path_scrolled(
-    root: &LayoutBox,
-    point: (f32, f32),
-    scroll_offsets: &BTreeMap<Vec<usize>, f32>,
-) -> Option<Vec<usize>> {
-    let mut path = Vec::new();
-    collect_hit_scrolled(root, point.0, point.1, scroll_offsets, &mut path, None)
-}
-
-fn collect_hit_scrolled(
-    b: &LayoutBox,
-    x: f32,
-    y: f32,
-    scroll_offsets: &BTreeMap<Vec<usize>, f32>,
-    path: &mut Vec<usize>,
-    clip: Option<Rect>,
-) -> Option<Vec<usize>> {
-    // Respect parent clip.
-    if let Some(c) = clip {
-        if !c.contains(x, y) {
-            return None;
-        }
-    }
-
-    // Compute the clip region this element imposes on its children.
-    let next_clip = if b.overflow.clips_any() {
-        let pad = padding_box(b);
-        Some(match clip {
-            Some(c) => intersect_rects(c, pad),
-            None => pad,
-        })
-    } else {
-        clip
-    };
-
-    // Compensate for this element's scroll offset so children are
-    // tested at their true layout positions.  The clip region must
-    // shift by the same amount — otherwise children scrolled into
-    // view past the original padding box boundary are rejected.
-    let own_scroll = scroll_offsets.get(path.as_slice()).copied().unwrap_or(0.0);
-    let child_y = y + own_scroll;
-    let child_clip = if own_scroll != 0.0 {
-        next_clip.map(|c| Rect::new(c.x, c.y + own_scroll, c.w, c.h))
-    } else {
-        next_clip
-    };
-
-    // Walk children last-to-first (topmost painted wins).
-    for (i, child) in b.children.iter().enumerate().rev() {
-        path.push(i);
-        if let Some(result) =
-            collect_hit_scrolled(child, x, child_y, scroll_offsets, path, child_clip)
-        {
-            path.pop();
-            return Some(result);
-        }
-        path.pop();
-    }
-
-    // Self.
-    if b.border_rect.contains(x, y) {
-        Some(path.clone())
-    } else {
-        None
-    }
-}
-
-fn padding_box(b: &LayoutBox) -> Rect {
-    Rect::new(
-        b.border_rect.x + b.border.left,
-        b.border_rect.y + b.border.top,
-        (b.border_rect.w - b.border.horizontal()).max(0.0),
-        (b.border_rect.h - b.border.vertical()).max(0.0),
-    )
-}
-
-fn intersect_rects(a: Rect, b: Rect) -> Rect {
-    let x1 = a.x.max(b.x);
-    let y1 = a.y.max(b.y);
-    let x2 = (a.x + a.w).min(b.x + b.w);
-    let y2 = (a.y + a.h).min(b.y + b.h);
-    Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0))
 }

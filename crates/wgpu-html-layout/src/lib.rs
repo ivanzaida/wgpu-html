@@ -13,6 +13,7 @@
 //!   come in later milestones.
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
+use std::collections::BTreeMap;
 use wgpu_html_models::Style;
 use wgpu_html_models::common::css_enums::{
     BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, WhiteSpace,
@@ -1944,6 +1945,40 @@ impl LayoutBox {
         collect_hit_path(self, x, y, None)
     }
 
+    /// Like [`hit_path`] but compensates for per-element scroll
+    /// offsets. Each `overflow:scroll` / `overflow:auto` container
+    /// shifts the test point by its scroll offset so children
+    /// scrolled into view are correctly matched.
+    ///
+    /// `scroll_offsets` is the same map stored in
+    /// `InteractionState::scroll_offsets_y`.
+    pub fn hit_path_scrolled(
+        &self,
+        point: (f32, f32),
+        scroll_offsets: &BTreeMap<Vec<usize>, f32>,
+    ) -> Option<Vec<usize>> {
+        let mut path = Vec::new();
+        collect_hit_path_scrolled(self, point.0, point.1, scroll_offsets, &mut path, None)
+    }
+
+    /// Like [`hit_text_cursor`] but scroll-aware.
+    pub fn hit_text_cursor_scrolled(
+        &self,
+        point: (f32, f32),
+        scroll_offsets: &BTreeMap<Vec<usize>, f32>,
+    ) -> Option<TextCursor> {
+        let path = self.hit_path_scrolled(point, scroll_offsets)?;
+        let text_box = self.box_at_path(&path)?;
+        if text_box.text_unselectable {
+            return None;
+        }
+        let run = text_box.text_run.as_ref()?;
+        Some(TextCursor {
+            path,
+            glyph_index: hit_glyph_boundary(text_box, run, point),
+        })
+    }
+
     /// Hit-test the layout at `point` and return a mutable reference
     /// to the matching element node in `tree`. Use this to read or
     /// modify the source element (style, text, attributes, etc.).
@@ -2107,6 +2142,50 @@ fn collect_hit_path(
     }
 
     b.border_rect.contains(x, y).then(Vec::new)
+}
+
+/// Scroll-aware variant of [`collect_hit_path`].  For each element
+/// that has a scroll offset in `offsets`, the test `y` and the clip
+/// region are shifted by the offset so children scrolled into view
+/// are correctly matched.
+fn collect_hit_path_scrolled(
+    b: &LayoutBox,
+    x: f32,
+    y: f32,
+    offsets: &BTreeMap<Vec<usize>, f32>,
+    path: &mut Vec<usize>,
+    clip: Option<Rect>,
+) -> Option<Vec<usize>> {
+    if clip.is_some_and(|c| !c.contains(x, y)) {
+        return None;
+    }
+
+    let next_clip = overflow_hit_clip(b, clip);
+
+    let own_scroll = offsets.get(path.as_slice()).copied().unwrap_or(0.0);
+    let child_y = y + own_scroll;
+    let child_clip = if own_scroll != 0.0 {
+        next_clip.map(|c| Rect::new(c.x, c.y + own_scroll, c.w, c.h))
+    } else {
+        next_clip
+    };
+
+    for (i, child) in b.children.iter().enumerate().rev() {
+        path.push(i);
+        if let Some(result) =
+            collect_hit_path_scrolled(child, x, child_y, offsets, path, child_clip)
+        {
+            path.pop();
+            return Some(result);
+        }
+        path.pop();
+    }
+
+    if b.border_rect.contains(x, y) {
+        Some(path.clone())
+    } else {
+        None
+    }
 }
 
 fn overflow_hit_clip(b: &LayoutBox, parent_clip: Option<Rect>) -> Option<Rect> {

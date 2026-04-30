@@ -36,8 +36,8 @@ pub use wgpu_html_tree::{
 /// Modifier state is read from `tree.interaction.modifiers`;
 /// keep it in sync with [`Tree::set_modifier`].
 pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> bool {
-    let target = layout.hit_path(pos);
-    let cursor = layout.hit_text_cursor(pos);
+    let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
+    let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
     tree.dispatch_pointer_move(target.as_deref(), pos, cursor)
 }
 
@@ -52,8 +52,8 @@ pub fn mouse_down(
     pos: (f32, f32),
     button: MouseButton,
 ) -> bool {
-    let target = layout.hit_path(pos);
-    let cursor = layout.hit_text_cursor(pos);
+    let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
+    let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
     let result = tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor);
 
     // After focus is set on a form control, position the edit caret
@@ -116,8 +116,8 @@ pub fn mouse_down(
 /// `Primary` and the release path shares its root with the press
 /// path, synthesises a click and fires `on_click` bubbling.
 pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool {
-    let target = layout.hit_path(pos);
-    let cursor = layout.hit_text_cursor(pos);
+    let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
+    let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
     tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)
 }
 
