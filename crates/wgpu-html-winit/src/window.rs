@@ -140,7 +140,9 @@ pub struct FrameTimings {
 
 // ── Reusable secondary window ────────────────────────────────────────────────
 
-/// A lightweight window + renderer pair for rendering an HTML tree.
+/// A fully managed window + renderer that handles event forwarding,
+/// scroll, scrollbar drag, click tracking, pipeline caching, text
+/// shaping, and rendering.
 ///
 /// Unlike [`WgpuHtmlWindow`] this does NOT own an event loop — it
 /// is designed to be created inside an existing loop (e.g. from an
@@ -151,10 +153,19 @@ pub struct FrameTimings {
 pub struct HtmlWindow {
     window: Arc<Window>,
     renderer: Renderer,
+    text_ctx: TextContext,
+    image_cache: wgpu_html::layout::ImageCache,
+    pipeline_cache: wgpu_html::PipelineCache,
+    cursor_pos: Option<(f32, f32)>,
+    scroll_y: f32,
+    scrollbar_drag: Option<ScrollbarDrag>,
+    last_click: Option<ClickTracker>,
+    last_layout: Option<LayoutBox>,
 }
 
 impl HtmlWindow {
-    /// Create a new OS window + wgpu renderer.
+    /// Create a new OS window + wgpu renderer with its own text
+    /// context, image cache, and pipeline cache.
     pub fn new(event_loop: &ActiveEventLoop, title: &str, width: u32, height: u32) -> Self {
         let attrs = Window::default_attributes()
             .with_title(title)
@@ -166,7 +177,19 @@ impl HtmlWindow {
         );
         let size = window.inner_size();
         let renderer = pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
-        Self { window, renderer }
+        let text_ctx = TextContext::new(GLYPH_ATLAS_SIZE);
+        Self {
+            window,
+            renderer,
+            text_ctx,
+            image_cache: wgpu_html::layout::ImageCache::new(),
+            pipeline_cache: wgpu_html::PipelineCache::new(),
+            cursor_pos: None,
+            scroll_y: 0.0,
+            scrollbar_drag: None,
+            last_click: None,
+            last_layout: None,
+        }
     }
 
     pub fn window(&self) -> &Arc<Window> {
@@ -194,7 +217,28 @@ impl HtmlWindow {
         self.renderer.resize(width, height);
     }
 
+    /// Mutable access to the internal text context. Consumers that
+    /// re-run layout externally (e.g. screenshot capture) need this.
+    pub fn text_ctx(&mut self) -> &mut TextContext {
+        &mut self.text_ctx
+    }
+
+    /// Mutable access to the internal image cache.
+    pub fn image_cache(&mut self) -> &mut wgpu_html::layout::ImageCache {
+        &mut self.image_cache
+    }
+
+    /// The most recent layout box, populated after at least one
+    /// frame has been rendered. `None` before the first redraw or
+    /// when the document collapsed to nothing during cascade.
+    pub fn layout(&self) -> Option<&LayoutBox> {
+        self.last_layout.as_ref()
+    }
+
     /// Render a display list and upload glyphs in one call.
+    ///
+    /// This is the legacy render path — prefer [`Self::render_frame`]
+    /// which runs the full cascade-layout-paint-GPU pipeline.
     pub fn render(&mut self, list: &DisplayList, text_ctx: &mut TextContext) {
         text_ctx
             .atlas
@@ -206,6 +250,290 @@ impl HtmlWindow {
                 self.renderer.resize(size.width, size.height);
             }
         }
+    }
+
+    /// Forward a winit `WindowEvent` to the tree. Handles pointer,
+    /// mouse, scroll, keyboard, resize. Returns `true` if a redraw
+    /// is needed.
+    pub fn handle_event(&mut self, tree: &mut Tree, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::Resized(size) => {
+                self.renderer.resize(size.width, size.height);
+                if let Some(layout) = self.last_layout.as_ref() {
+                    self.scroll_y =
+                        clamp_scroll_y(self.scroll_y, layout, size.height as f32);
+                }
+                self.scrollbar_drag = None;
+                true
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let pos = (position.x as f32, position.y as f32);
+                self.cursor_pos = Some(pos);
+                // Handle scrollbar drag continuation
+                if let Some(drag) = self.scrollbar_drag.clone() {
+                    if let Some(layout) = self.last_layout.as_ref() {
+                        let size = self.window.inner_size();
+                        match &drag {
+                            ScrollbarDrag::Viewport { grab_offset_y } => {
+                                self.scroll_y = scroll_y_from_thumb_top(
+                                    pos.1 - grab_offset_y,
+                                    layout,
+                                    size.width as f32,
+                                    size.height as f32,
+                                );
+                            }
+                            ScrollbarDrag::Element(el_drag) => {
+                                let doc_pos = viewport_to_document(pos, self.scroll_y);
+                                el_drag.update(layout, tree, doc_pos.1);
+                            }
+                        }
+                        return true;
+                    }
+                }
+                // Normal pointer move
+                if let Some(layout) = self.last_layout.as_ref() {
+                    let doc_pos = viewport_to_document(pos, self.scroll_y);
+                    let changed = interactivity::pointer_move(tree, layout, doc_pos);
+                    changed || tree.interaction.selecting_text
+                } else {
+                    false
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.cursor_pos = None;
+                tree.pointer_leave();
+                true
+            }
+            WindowEvent::MouseInput {
+                state: btn_state,
+                button,
+                ..
+            } => {
+                let Some(pos) = self.cursor_pos else {
+                    return false;
+                };
+                // Scrollbar drag start/end
+                if *button == WinitMouseButton::Left {
+                    match btn_state {
+                        ElementState::Pressed => {
+                            if self.start_scrollbar_drag(tree, pos) {
+                                return true;
+                            }
+                        }
+                        ElementState::Released => {
+                            if self.scrollbar_drag.take().is_some() {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                let doc_pos = viewport_to_document(pos, self.scroll_y);
+                let btn = crate::mouse_button(*button);
+                match btn_state {
+                    ElementState::Pressed => {
+                        let target_path = {
+                            let Some(layout) = self.last_layout.as_ref() else {
+                                return false;
+                            };
+                            layout.hit_path_scrolled(
+                                doc_pos,
+                                &tree.interaction.scroll_offsets_y,
+                            )
+                        };
+                        let click_count = self.next_click_count(btn, doc_pos, target_path);
+                        let Some(layout) = self.last_layout.as_ref() else {
+                            return false;
+                        };
+                        interactivity::mouse_down_with_click_count(
+                            tree,
+                            layout,
+                            doc_pos,
+                            btn,
+                            click_count,
+                        );
+                    }
+                    ElementState::Released => {
+                        let Some(layout) = self.last_layout.as_ref() else {
+                            return false;
+                        };
+                        interactivity::mouse_up(tree, layout, doc_pos, btn);
+                    }
+                }
+                true
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let Some(layout) = self.last_layout.as_ref() else {
+                    return false;
+                };
+                let Some(pos) = self.cursor_pos else {
+                    return false;
+                };
+                let scale =
+                    tree.effective_dpi_scale(self.window.scale_factor() as f32);
+                let dy = scroll_delta_to_pixels(*delta, scale);
+                let doc_pos = viewport_to_document(pos, self.scroll_y);
+                if scroll_element_at(tree, layout, doc_pos, dy) {
+                    interactivity::pointer_move(tree, layout, doc_pos);
+                    return true;
+                }
+                // Viewport scroll
+                let size = self.window.inner_size();
+                self.scroll_y = clamp_scroll_y(
+                    self.scroll_y + dy,
+                    layout,
+                    size.height as f32,
+                );
+                let new_doc_pos = viewport_to_document(pos, self.scroll_y);
+                if let Some(layout) = self.last_layout.as_ref() {
+                    interactivity::pointer_move(tree, layout, new_doc_pos);
+                }
+                true
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                crate::handle_keyboard(tree, event);
+                event.state == ElementState::Pressed
+            }
+            _ => false,
+        }
+    }
+
+    /// Run the full cascade, layout, paint, GPU render pipeline.
+    /// Returns pipeline timings.
+    pub fn render_frame(&mut self, tree: &Tree) -> wgpu_html::PipelineTimings {
+        self.text_ctx.sync_fonts(&tree.fonts);
+        let size = self.window.inner_size();
+        let scale = tree.effective_dpi_scale(self.window.scale_factor() as f32);
+
+        let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
+            tree,
+            &mut self.text_ctx,
+            &mut self.image_cache,
+            size.width as f32,
+            size.height as f32,
+            scale,
+            &mut self.pipeline_cache,
+        );
+
+        if let Some(layout) = layout {
+            self.scroll_y =
+                clamp_scroll_y(self.scroll_y, layout, size.height as f32);
+            translate_display_list_y(&mut list, -self.scroll_y);
+            paint_viewport_scrollbar(
+                &mut list,
+                layout,
+                size.width as f32,
+                size.height as f32,
+                self.scroll_y,
+            );
+        } else {
+            self.scroll_y = 0.0;
+        }
+        self.last_layout = self.pipeline_cache.layout().cloned();
+
+        // Upload glyphs + GPU render
+        self.text_ctx
+            .atlas
+            .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
+        match self.renderer.render(&list) {
+            FrameOutcome::Presented | FrameOutcome::Skipped => {}
+            FrameOutcome::Reconfigure => {
+                let size = self.window.inner_size();
+                self.renderer.resize(size.width, size.height);
+            }
+        }
+        timings
+    }
+
+    /// Determine the click count (single / double / triple) based
+    /// on timing, position, and target path relative to the
+    /// previous click.
+    fn next_click_count(
+        &mut self,
+        button: wgpu_html_tree::MouseButton,
+        pos: (f32, f32),
+        target_path: Option<Vec<usize>>,
+    ) -> u8 {
+        const MULTI_CLICK_MAX_MS: u128 = 500;
+        const MULTI_CLICK_MAX_DIST: f32 = 5.0;
+
+        let now = Instant::now();
+        let count = self
+            .last_click
+            .as_ref()
+            .filter(|last| last.button == button)
+            .filter(|last| last.target_path == target_path)
+            .filter(|last| now.duration_since(last.at).as_millis() <= MULTI_CLICK_MAX_MS)
+            .filter(|last| {
+                let dx = last.pos.0 - pos.0;
+                let dy = last.pos.1 - pos.1;
+                dx * dx + dy * dy <= MULTI_CLICK_MAX_DIST * MULTI_CLICK_MAX_DIST
+            })
+            .map(|last| last.count.saturating_add(1).min(3))
+            .unwrap_or(1);
+
+        self.last_click = Some(ClickTracker {
+            at: now,
+            pos,
+            button,
+            target_path,
+            count,
+        });
+        count
+    }
+
+    /// Hit-test scrollbars (element first, then viewport) and start
+    /// a drag if the press is on a thumb or track.
+    fn start_scrollbar_drag(&mut self, tree: &mut Tree, pos: (f32, f32)) -> bool {
+        let Some(layout) = self.last_layout.as_ref() else {
+            return false;
+        };
+        let size = self.window.inner_size();
+        let doc_pos = viewport_to_document(pos, self.scroll_y);
+
+        // Element-level scrollbars first (shared implementation).
+        if let Some(el_drag) =
+            wgpu_html::scroll::ElementScrollbarDrag::try_start(layout, doc_pos, tree)
+        {
+            self.scrollbar_drag = Some(ScrollbarDrag::Element(el_drag));
+            return true;
+        }
+
+        // Viewport scrollbar.
+        let Some(geom) = scrollbar_geometry(
+            layout,
+            size.width as f32,
+            size.height as f32,
+            self.scroll_y,
+        ) else {
+            return false;
+        };
+        if rect_contains(geom.thumb, pos) {
+            self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
+                grab_offset_y: pos.1 - geom.thumb.y,
+            });
+            return true;
+        }
+        if rect_contains(geom.track, pos) {
+            let thumb_top = pos.1 - geom.thumb.h * 0.5;
+            self.scroll_y = scroll_y_from_thumb_top(
+                thumb_top,
+                layout,
+                size.width as f32,
+                size.height as f32,
+            );
+            if let Some(updated) = scrollbar_geometry(
+                layout,
+                size.width as f32,
+                size.height as f32,
+                self.scroll_y,
+            ) {
+                self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
+                    grab_offset_y: pos.1 - updated.thumb.y,
+                });
+            }
+            return true;
+        }
+        false
     }
 }
 

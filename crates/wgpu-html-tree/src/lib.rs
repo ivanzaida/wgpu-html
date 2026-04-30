@@ -15,6 +15,7 @@ mod dispatch;
 mod events;
 mod focus;
 mod fonts;
+mod profiler;
 mod query;
 mod system_fonts;
 pub mod text_edit;
@@ -36,6 +37,7 @@ pub use focus::{
     prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
+pub use profiler::{ProfileEntry, Profiler};
 pub use system_fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use tree_hook::{
     TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase,
@@ -91,6 +93,10 @@ pub struct Tree {
     /// values, etc.). The pipeline cache compares this against its
     /// stored value to detect mutations that require re-cascade + relayout.
     pub generation: u64,
+    /// Optional per-frame profiler. When `Some`, the cascade → layout
+    /// → paint pipeline records each stage's wall-clock duration.
+    /// Cleared at the start of every frame.
+    pub profiler: Option<Profiler>,
 }
 
 impl Tree {
@@ -105,6 +111,7 @@ impl Tree {
             linked_stylesheets: HashMap::new(),
             hooks: Vec::new(),
             generation: 0,
+            profiler: None,
         }
     }
 

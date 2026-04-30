@@ -16,9 +16,9 @@ use std::time::Instant;
 use wgpu_html::{PipelineCache, PipelineTimings};
 use wgpu_html_renderer::DisplayList;
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::{MouseButton, Node, Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
+use wgpu_html_tree::{MouseButton, Node, Profiler, Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
 use wgpu_html_winit::HtmlWindow;
-use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
@@ -98,18 +98,24 @@ pub struct Devtools {
     enabled: bool,
 }
 
+
+
 impl Devtools {
     /// Create a devtools instance without attaching to a tree.
     /// The host must call [`update_inspected_tree`] manually.
-    pub fn new() -> Self {
+    pub fn new(enable_profiler: bool) -> Self {
         let click_sink = Arc::new(Mutex::new(None));
         let mut tree = html_gen::build(None, None, &click_sink);
         // Register the Lucide icon font so the devtools UI renders
         // icons regardless of what fonts the host has registered.
         let lucide = wgpu_html_tree::FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
         tree.register_font(lucide.clone());
-        let mut cache = PipelineCache::new();
-        cache.paint_only_pseudo_rules = true;
+
+        if enable_profiler {
+            tree.profiler = Some(Profiler::tagged("devtools"));
+        }
+
+        let cache = PipelineCache::new();
         Self {
             tree,
             text_ctx: TextContext::new(wgpu_html_renderer::GLYPH_ATLAS_SIZE),
@@ -139,7 +145,7 @@ impl Devtools {
     /// [`update_inspected_tree`] calls needed.
     ///
     /// Copies the tree's registered fonts into the devtools.
-    pub fn attach(tree: &mut Tree) -> Self {
+    pub fn attach(tree: &mut Tree, enable_profiler: bool) -> Self {
         let shared = Arc::new(Mutex::new(SharedSnapshot {
             root: tree.root.clone(),
             generation: tree.generation,
@@ -149,7 +155,13 @@ impl Devtools {
             shared: shared.clone(),
         });
 
-        let mut devtools = Self::new();
+        // Enable profiling on the host tree so the cascade → layout →
+        // paint pipeline records and auto-flushes timings.
+        if enable_profiler && tree.profiler.is_none() {
+            tree.profiler = Some(Profiler::tagged("host"));
+        }
+
+        let mut devtools = Self::new(enable_profiler);
         devtools.inspected_root = tree.root.clone();
         devtools.last_inspected_gen = Some(tree.generation);
         devtools.snapshot = Some(shared);
@@ -460,64 +472,34 @@ impl Devtools {
     }
 
     /// Handle a winit `WindowEvent` for the devtools window.
+    /// Delegates all event→tree forwarding (pointer, mouse, scroll,
+    /// keyboard, resize) to `HtmlWindow::handle_event`.
     pub fn handle_window_event(&mut self, event: &WindowEvent) {
-        if self.html_window.is_none() {
+        let Some(hw) = self.html_window.as_mut() else {
             return;
-        }
+        };
         match event {
             WindowEvent::CloseRequested => {
                 self.enabled = false;
                 self.pending_drop = self.html_window.take();
-            }
-            WindowEvent::Resized(size) => {
-                let scale = self
-                    .html_window
-                    .as_ref()
-                    .map(|hw| hw.scale_factor())
-                    .unwrap_or(1.0);
-                if let Some(hw) = self.html_window.as_mut() {
-                    hw.resize(size.width, size.height);
-                }
-                self.resize(size.width as f32, size.height as f32, scale);
+                return;
             }
             WindowEvent::RedrawRequested => {
                 self.render_to_window();
-                return; // paint clears needs_redraw, skip the check below
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.pointer_move(position.x as f32, position.y as f32);
-            }
-            WindowEvent::CursorLeft { .. } => {
-                self.pointer_leave();
-            }
-            WindowEvent::MouseInput {
-                state: button_state,
-                button,
-                ..
-            } => {
-                let mb = wgpu_html_winit::mouse_button(*button);
-                let pos = self.cursor_pos;
-                match button_state {
-                    ElementState::Pressed => {
-                        self.mouse_down(pos.0, pos.1, mb);
-                    }
-                    ElementState::Released => {
-                        self.mouse_up(pos.0, pos.1, mb);
-                    }
-                }
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let dy = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => -*y * 40.0,
-                    MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
-                };
-                let pos = self.cursor_pos;
-                self.scroll(pos.0, pos.1, dy);
+                return;
             }
             _ => {}
         }
-        // Single redraw check for all event types.
-        if self.needs_redraw {
+        let needs_redraw = hw.handle_event(&mut self.tree, event);
+        // Check if a tree-row click produced a selection.
+        if matches!(event, WindowEvent::MouseInput { state: ElementState::Released, .. }) {
+            let clicked = self.click_sink.lock().unwrap().take();
+            if let Some(path) = clicked {
+                self.selected_path = Some(path);
+                self.rebuild_ui();
+            }
+        }
+        if needs_redraw || self.needs_redraw {
             if let Some(hw) = &self.html_window {
                 hw.request_redraw();
             }
@@ -535,9 +517,79 @@ impl Devtools {
     }
 
     fn render_to_window(&mut self) {
-        let (list, _timings) = self.paint();
         if let Some(hw) = self.html_window.as_mut() {
-            hw.render(&list, &mut self.text_ctx);
+            hw.render_frame(&self.tree);
         }
+        self.needs_redraw = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn first_path_with_class(node: &Node, class: &str, path: &mut Vec<usize>) -> Option<Vec<usize>> {
+        if node
+            .element
+            .class()
+            .is_some_and(|classes| classes.split_ascii_whitespace().any(|c| c == class))
+        {
+            return Some(path.clone());
+        }
+
+        for (idx, child) in node.children.iter().enumerate() {
+            path.push(idx);
+            let found = first_path_with_class(child, class, path);
+            path.pop();
+            if found.is_some() {
+                return found;
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn pointer_hover_repaints_tree_row_background() {
+        let inspected = Tree::new(Node::new(wgpu_html_models::Div {
+            id: Some("app".to_owned()),
+            ..Default::default()
+        }));
+        let mut devtools = Devtools::new(false);
+        devtools.resize(800.0, 600.0, 1.0);
+        devtools.update_inspected_tree(&inspected);
+        if wgpu_html_tree::register_system_fonts(&mut devtools.tree, "DemoSans") == 0 {
+            return;
+        }
+
+        devtools.paint();
+
+        let row_path = first_path_with_class(
+            devtools.tree.root.as_ref().expect("devtools root"),
+            "tree-row",
+            &mut Vec::new(),
+        )
+        .expect("tree row path");
+
+        let row_rect = {
+            let layout = devtools.cache.layout().expect("initial layout");
+            let row = wgpu_html::layout_at_path(layout, &row_path).expect("row layout");
+            assert!(
+                row.background.is_none(),
+                "tree row should not have a background before hover"
+            );
+            row.border_rect
+        };
+
+        let changed = devtools.pointer_move(row_rect.x + 4.0, row_rect.y + row_rect.h * 0.5);
+        assert!(changed, "pointer move should update hover path");
+
+        devtools.paint();
+
+        let layout = devtools.cache.layout().expect("hover layout");
+        let row = wgpu_html::layout_at_path(layout, &row_path).expect("row layout after hover");
+        assert!(
+            row.background.is_some(),
+            "hovered tree row should have the :hover background after repaint"
+        );
     }
 }

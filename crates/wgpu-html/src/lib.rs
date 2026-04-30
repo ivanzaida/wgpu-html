@@ -61,6 +61,10 @@ pub fn compute_layout_profiled(
     viewport_h: f32,
     scale: f32,
 ) -> (Option<LayoutBox>, PipelineTimings) {
+    if let Some(prof) = &tree.profiler {
+        prof.clear();
+    }
+
     text_ctx.sync_fonts(&tree.fonts);
     if let Some(ttl) = tree.asset_cache_ttl {
         image_cache.set_ttl(Some(ttl));
@@ -74,6 +78,10 @@ pub fn compute_layout_profiled(
     let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
     let cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
+    if let Some(prof) = &tree.profiler {
+        prof.record("cascade", cascade_t0.elapsed());
+    }
+
     let layout_t0 = Instant::now();
     let layout = wgpu_html_layout::layout_with_text(
         &cascaded,
@@ -84,6 +92,11 @@ pub fn compute_layout_profiled(
         scale,
     );
     let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+
+    if let Some(prof) = &tree.profiler {
+        prof.record("layout", layout_t0.elapsed());
+        prof.flush();
+    }
 
     (
         layout,
@@ -159,6 +172,10 @@ pub fn paint_tree_returning_layout_profiled(
         list.finalize();
     }
     timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
+    if let Some(prof) = &tree.profiler {
+        prof.record("paint", paint_t0.elapsed());
+        prof.flush();
+    }
     (list, layout, timings)
 }
 
@@ -277,6 +294,10 @@ pub fn paint_tree_cached<'c>(
     scale: f32,
     cache: &'c mut PipelineCache,
 ) -> (DisplayList, Option<&'c LayoutBox>, PipelineTimings) {
+    if let Some(prof) = &tree.profiler {
+        prof.clear();
+    }
+
     let action = classify_frame(tree, cache, image_cache, viewport_w, viewport_h, scale);
 
     let mut timings = PipelineTimings::default();
@@ -295,6 +316,9 @@ pub fn paint_tree_cached<'c>(
             let media = media_context(viewport_w, viewport_h, scale);
             let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
             timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
+            if let Some(prof) = &tree.profiler {
+                prof.record("cascade", cascade_t0.elapsed());
+            }
 
             let layout_t0 = Instant::now();
             let layout = wgpu_html_layout::layout_with_text(
@@ -306,6 +330,9 @@ pub fn paint_tree_cached<'c>(
                 scale,
             );
             timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+            if let Some(prof) = &tree.profiler {
+                prof.record("layout", layout_t0.elapsed());
+            }
 
             cache.layout = layout;
             cache.cascaded = Some(cascaded);
@@ -330,6 +357,9 @@ pub fn paint_tree_cached<'c>(
                 false
             };
             timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
+            if let Some(prof) = &tree.profiler {
+                prof.record("cascade_incremental", cascade_t0.elapsed());
+            }
 
             // Re-layout if cascade changed any styles — unless the
             // caller has declared that pseudo-class rules are
@@ -348,6 +378,9 @@ pub fn paint_tree_cached<'c>(
                     );
                 }
                 timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+                if let Some(prof) = &tree.profiler {
+                    prof.record("layout", layout_t0.elapsed());
+                }
             }
             cache.snapshot = tree.interaction.cascade_snapshot();
         }
@@ -386,6 +419,10 @@ pub fn paint_tree_cached<'c>(
         list.finalize();
     }
     timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
+    if let Some(prof) = &tree.profiler {
+        prof.record("paint", paint_t0.elapsed());
+        prof.flush();
+    }
 
     (list, cache.layout.as_ref(), timings)
 }
