@@ -669,10 +669,7 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
         );
     }
 
-    tree.emit_active_element_changed(
-        old_path.as_deref(),
-        new_path.as_deref(),
-    );
+    tree.emit_active_element_changed(old_path.as_deref(), new_path.as_deref());
 
     true
 }

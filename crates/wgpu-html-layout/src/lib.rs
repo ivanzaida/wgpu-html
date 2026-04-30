@@ -26,6 +26,7 @@ mod color;
 mod flex;
 mod grid;
 mod length;
+mod svg;
 
 pub use color::{Color, resolve_color};
 
@@ -2408,7 +2409,21 @@ fn layout_block(
     };
     let (html_img_width, html_img_height) = match &node.element {
         Element::Img(img) => (img.width.map(|v| v as f32), img.height.map(|v| v as f32)),
+        // For <svg>, use the element's own width/height attrs as intrinsic size.
+        Element::Svg(_) => {
+            let (w, h) = svg::svg_intrinsic_css_size(match &node.element {
+                Element::Svg(s) => s,
+                _ => unreachable!(),
+            });
+            (w, h)
+        }
         _ => (None, None),
+    };
+    // SVG serialisation string, used after the size is known.
+    let svg_xml = if matches!(&node.element, Element::Svg(_)) {
+        Some(svg::serialize_svg_node(node))
+    } else {
+        None
     };
 
     let style = &node.style;
@@ -2554,86 +2569,99 @@ fn layout_block(
     } else {
         containing_block
     };
-    let (children, content_h_from_children) = match display {
-        Display::Flex | Display::InlineFlex => {
-            let (kids, _content_w_used, content_h_used) = flex::layout_flex_children(
-                node,
-                style,
-                content_x,
-                content_y_top,
-                inner_width,
-                inner_height_explicit,
-                ctx,
-            );
-            (kids, content_h_used)
-        }
-        Display::Grid | Display::InlineGrid => {
-            let (kids, _content_w_used, content_h_used) = grid::layout_grid_children(
-                node,
-                style,
-                content_x,
-                content_y_top,
-                inner_width,
-                inner_height_explicit,
-                ctx,
-            );
-            (kids, content_h_used)
-        }
-        _ => {
-            // Inline formatting context: when every child of this
-            // block is inline-level (text, <strong>, <em>, …), pack
-            // them onto a single line box at the parent's content
-            // origin. Otherwise fall back to the block flow that
-            // stacks children vertically.
-            if all_children_inline_level(node) {
-                let (kids, _w_used, h_used) =
-                    layout_inline_block_children(node, content_x, content_y_top, inner_width, ctx);
-                (kids, h_used)
-            } else {
-                let mut children = Vec::with_capacity(node.children.len());
-                let mut cursor = 0.0_f32;
-                for child in &node.children {
-                    let child_position = child.style.position.clone().unwrap_or(Position::Static);
-                    let mut child_box = if is_out_of_flow_position(child_position.clone()) {
-                        layout_out_of_flow_block(
-                            child,
-                            content_x,
-                            content_y_top + cursor,
-                            inner_width,
-                            container_h,
-                            child_containing_block,
-                            ctx,
-                        )
-                    } else {
-                        layout_block(
-                            child,
-                            content_x,
-                            content_y_top + cursor,
-                            inner_width,
-                            container_h,
-                            child_containing_block,
-                            BlockOverrides::default(),
-                            ctx,
-                        )
-                    };
-                    if matches!(child_position, Position::Relative | Position::Sticky) {
-                        apply_relative_position(
-                            &mut child_box,
-                            &child.style,
-                            inner_width,
-                            container_h,
-                            ctx,
-                        );
-                    }
-                    if !is_out_of_flow_position(child_position) {
-                        cursor += child_box.margin_rect.h;
-                    }
-                    children.push(child_box);
-                }
-                (children, cursor)
+    // <svg> is treated as a replaced element: its children (<path>, <circle>, …)
+    // were already serialised by serialize_svg_node() and will be rasterised;
+    // they must not be recursively laid out as block/inline content.
+    let (children, content_h_from_children) = if matches!(&node.element, Element::Svg(_)) {
+        (Vec::new(), 0.0_f32)
+    } else {
+        match display {
+            Display::Flex | Display::InlineFlex => {
+                let (kids, _content_w_used, content_h_used) = flex::layout_flex_children(
+                    node,
+                    style,
+                    content_x,
+                    content_y_top,
+                    inner_width,
+                    inner_height_explicit,
+                    ctx,
+                );
+                (kids, content_h_used)
             }
-        }
-    };
+            Display::Grid | Display::InlineGrid => {
+                let (kids, _content_w_used, content_h_used) = grid::layout_grid_children(
+                    node,
+                    style,
+                    content_x,
+                    content_y_top,
+                    inner_width,
+                    inner_height_explicit,
+                    ctx,
+                );
+                (kids, content_h_used)
+            }
+            _ => {
+                // Inline formatting context: when every child of this
+                // block is inline-level (text, <strong>, <em>, …), pack
+                // them onto a single line box at the parent's content
+                // origin. Otherwise fall back to the block flow that
+                // stacks children vertically.
+                if all_children_inline_level(node) {
+                    let (kids, _w_used, h_used) = layout_inline_block_children(
+                        node,
+                        content_x,
+                        content_y_top,
+                        inner_width,
+                        ctx,
+                    );
+                    (kids, h_used)
+                } else {
+                    let mut children = Vec::with_capacity(node.children.len());
+                    let mut cursor = 0.0_f32;
+                    for child in &node.children {
+                        let child_position =
+                            child.style.position.clone().unwrap_or(Position::Static);
+                        let mut child_box = if is_out_of_flow_position(child_position.clone()) {
+                            layout_out_of_flow_block(
+                                child,
+                                content_x,
+                                content_y_top + cursor,
+                                inner_width,
+                                container_h,
+                                child_containing_block,
+                                ctx,
+                            )
+                        } else {
+                            layout_block(
+                                child,
+                                content_x,
+                                content_y_top + cursor,
+                                inner_width,
+                                container_h,
+                                child_containing_block,
+                                BlockOverrides::default(),
+                                ctx,
+                            )
+                        };
+                        if matches!(child_position, Position::Relative | Position::Sticky) {
+                            apply_relative_position(
+                                &mut child_box,
+                                &child.style,
+                                inner_width,
+                                container_h,
+                                ctx,
+                            );
+                        }
+                        if !is_out_of_flow_position(child_position) {
+                            cursor += child_box.margin_rect.h;
+                        }
+                        children.push(child_box);
+                    }
+                    (children, cursor)
+                }
+            }
+        } // end of else branch for non-SVG children
+    }; // end of (children, content_h_from_children)
 
     // Final inner height: explicit / override wins; otherwise content
     // size, then clamped by min/max (so a too-short content can be
@@ -2739,6 +2767,17 @@ fn layout_block(
 
     let background_image = resolve_background_image(style, background_rect, ctx.images);
 
+    // For <svg> nodes, rasterise the serialised SVG at the final
+    // content-box pixel dimensions. We prefer img_data (if somehow
+    // set) over svg rasterization so normal <img> is unaffected.
+    let svg_img_data = svg_xml.and_then(|xml| {
+        // content_rect is already in physical pixels (CSS px × ctx.scale).
+        let w = content_rect.w.round() as u32;
+        let h = content_rect.h.round() as u32;
+        svg::make_svg_image_data(&xml, w.max(1), h.max(1))
+    });
+    let effective_image = img_data.or(svg_img_data);
+
     // For form controls without a value/content, shape the
     // `placeholder` attribute as the box's text run so the empty
     // input shows the hint text (HTML's `:placeholder-shown`
@@ -2771,7 +2810,7 @@ fn layout_block(
         text_decorations: Vec::new(),
         overflow: effective_overflow(style),
         opacity: resolved_opacity(style),
-        image: img_data,
+        image: effective_image,
         background_image,
         children,
     }

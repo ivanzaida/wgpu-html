@@ -696,11 +696,7 @@ fn collect_selected_text(
 }
 
 fn ordered_cursors<'a>(a: &'a TextCursor, b: &'a TextCursor) -> (&'a TextCursor, &'a TextCursor) {
-    if cursor_leq(a, b) {
-        (a, b)
-    } else {
-        (b, a)
-    }
+    if cursor_leq(a, b) { (a, b) } else { (b, a) }
 }
 
 fn cursor_leq(a: &TextCursor, b: &TextCursor) -> bool {

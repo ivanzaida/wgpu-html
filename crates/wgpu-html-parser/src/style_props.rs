@@ -392,6 +392,18 @@ style_props! {
     opacity => "opacity";
     z_index => "z-index";
 
+    // SVG presentation properties (inherited within SVG subtrees) -----
+    svg_fill => "fill" ,inherited;
+    svg_fill_opacity => "fill-opacity" ,inherited;
+    svg_fill_rule => "fill-rule" ,inherited;
+    svg_stroke => "stroke" ,inherited;
+    svg_stroke_width => "stroke-width" ,inherited;
+    svg_stroke_opacity => "stroke-opacity" ,inherited;
+    svg_stroke_linecap => "stroke-linecap" ,inherited;
+    svg_stroke_linejoin => "stroke-linejoin" ,inherited;
+    svg_stroke_dasharray => "stroke-dasharray" ,inherited;
+    svg_stroke_dashoffset => "stroke-dashoffset" ,inherited;
+
     // Flex / grid / gap -----------------------------------------------
     flex_direction => "flex-direction";
     flex_wrap => "flex-wrap";

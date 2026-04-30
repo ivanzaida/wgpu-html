@@ -40,11 +40,7 @@ struct DevtoolsHook {
 }
 
 impl TreeHook for DevtoolsHook {
-    fn on_render(
-        &mut self,
-        tree: &mut Tree,
-        _event: &TreeRenderEvent<'_>,
-    ) -> TreeHookResponse {
+    fn on_render(&mut self, tree: &mut Tree, _event: &TreeRenderEvent<'_>) -> TreeHookResponse {
         let mut shared = self.shared.lock().unwrap();
         if tree.generation != shared.generation {
             shared.root = tree.root.clone();
@@ -110,10 +106,7 @@ impl Devtools {
         let mut tree = html_gen::build(None, None, &click_sink);
         // Register the Lucide icon font so the devtools UI renders
         // icons regardless of what fonts the host has registered.
-        let lucide = wgpu_html_tree::FontFace::regular(
-            "lucide",
-            Arc::from(LUCIDE_FONT),
-        );
+        let lucide = wgpu_html_tree::FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
         tree.register_font(lucide.clone());
         let mut cache = PipelineCache::new();
         cache.paint_only_pseudo_rules = true;

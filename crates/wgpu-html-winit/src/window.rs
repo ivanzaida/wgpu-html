@@ -37,7 +37,6 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-
 // ── Hook trait ──────────────────────────────────────────────────────────────
 
 /// Extension hook invoked at well-known points in the harness's
@@ -166,8 +165,7 @@ impl HtmlWindow {
                 .expect("HtmlWindow: failed to create window"),
         );
         let size = window.inner_size();
-        let renderer =
-            pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
+        let renderer = pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
         Self { window, renderer }
     }
 
@@ -984,7 +982,6 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         }
         self.hook = hook;
 
-
         // Schedule the next wake-up. Priority order:
         // 1. Pending async images → poll every 100ms until loaded
         // 2. Active GIF/WebP animations → poll every 50ms for frame advance
@@ -1064,8 +1061,7 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
     let doc_pos = viewport_to_document(pos, state.scroll_y);
 
     // Element-level scrollbars first (shared implementation).
-    if let Some(el_drag) =
-        wgpu_html::scroll::ElementScrollbarDrag::try_start(layout, doc_pos, tree)
+    if let Some(el_drag) = wgpu_html::scroll::ElementScrollbarDrag::try_start(layout, doc_pos, tree)
     {
         state.scrollbar_drag = Some(ScrollbarDrag::Element(el_drag));
         return true;

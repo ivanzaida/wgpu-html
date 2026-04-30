@@ -731,7 +731,7 @@ fn build_item<'a>(
     // Intrinsic basis: max-content of the item's content. Already
     // content-box (no padding/border), so it bypasses the box-sizing
     // conversion and is used as-is when no explicit basis is set.
-    let intrinsic_main = replaced_intrinsic_main(node, is_row, ctx.images)
+    let intrinsic_main = replaced_intrinsic_main(node, is_row, ctx)
         .or_else(|| text_intrinsic_main(node, is_row, ctx));
     let mut base_size = match basis_explicit {
         Some(v) => match box_sizing {
@@ -804,23 +804,24 @@ fn build_item<'a>(
 }
 
 /// Intrinsic main-axis size (in physical pixels) for replaced flex
-/// items. Currently covers `<img>` only — HTML `width`/`height`
+/// items. Covers `<img>` and inline `<svg>`; HTML/SVG `width`/`height`
 /// attributes are preferred over decoded dimensions, mirroring
 /// [`crate::load_image`]. Returns `None` for non-replaced elements
 /// and for images whose fetch hasn't completed yet, in which case the
 /// flex algorithm falls back to its previous "0 base size" behaviour.
-fn replaced_intrinsic_main(
-    node: &CascadedNode,
-    is_row: bool,
-    images: &mut crate::ImageCache,
-) -> Option<f32> {
+fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Option<f32> {
     match &node.element {
         Element::Img(img) => {
-            let loaded = images.load(img);
+            let loaded = ctx.images.load(img);
             let w = img.width.or_else(|| loaded.as_ref().map(|d| d.width));
             let h = img.height.or_else(|| loaded.as_ref().map(|d| d.height));
             let main = if is_row { w } else { h };
-            main.map(|v| v as f32)
+            main.map(|v| v as f32 * ctx.scale)
+        }
+        Element::Svg(svg) => {
+            let (w, h) = crate::svg::svg_intrinsic_css_size(svg);
+            let main = if is_row { w } else { h };
+            main.map(|v| v * ctx.scale)
         }
         _ => None,
     }

@@ -470,6 +470,38 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
         "opacity" => style.opacity = value.parse().ok(),
         "visibility" => style.visibility = parse_visibility(value),
         "z-index" => style.z_index = value.parse().ok(),
+
+        // SVG presentation properties ------------------------------------
+        "fill" => style.svg_fill = parse_css_color(value),
+        "fill-opacity" => style.svg_fill_opacity = value.trim().parse().ok(),
+        "fill-rule" => {
+            let v = value.trim();
+            if matches!(v, "nonzero" | "evenodd") {
+                style.svg_fill_rule = Some(v.to_string());
+            }
+        }
+        "stroke" => style.svg_stroke = parse_css_color(value),
+        "stroke-width" => style.svg_stroke_width = parse_css_length(value),
+        "stroke-opacity" => style.svg_stroke_opacity = value.trim().parse().ok(),
+        "stroke-linecap" => {
+            let v = value.trim();
+            if matches!(v, "butt" | "round" | "square") {
+                style.svg_stroke_linecap = Some(v.to_string());
+            }
+        }
+        "stroke-linejoin" => {
+            let v = value.trim();
+            if matches!(v, "miter" | "round" | "bevel" | "arcs" | "miter-clip") {
+                style.svg_stroke_linejoin = Some(v.to_string());
+            }
+        }
+        "stroke-dasharray" => {
+            let v = value.trim();
+            if v != "none" {
+                style.svg_stroke_dasharray = Some(v.to_string());
+            }
+        }
+        "stroke-dashoffset" => style.svg_stroke_dashoffset = parse_css_length(value),
         "flex-direction" => style.flex_direction = parse_flex_direction(value),
         "flex-wrap" => style.flex_wrap = parse_flex_wrap(value),
         "justify-content" => style.justify_content = parse_justify_content(value),

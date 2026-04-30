@@ -193,6 +193,9 @@ pub use canvas::Canvas;
 pub mod svg;
 pub use svg::Svg;
 
+pub mod path;
+pub use path::SvgPath;
+
 pub mod table;
 pub use table::Table;
 

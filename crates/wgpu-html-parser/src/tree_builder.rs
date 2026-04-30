@@ -339,7 +339,9 @@ mod tests {
     fn style_plus_body_adopts_into_body() {
         // A <style> sibling at top-level should be adopted into the
         // existing <body>, not wrapped in a second synthetic <body>.
-        let tree = build(tokenize("<style>h1{color:red}</style><body><p>hi</p></body>"));
+        let tree = build(tokenize(
+            "<style>h1{color:red}</style><body><p>hi</p></body>",
+        ));
         let body = tree.root.as_ref().expect("root");
         assert!(matches!(body.element, Element::Body(_)));
         // <style> is adopted before <body>'s own children.

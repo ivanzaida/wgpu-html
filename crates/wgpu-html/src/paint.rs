@@ -658,11 +658,7 @@ fn paint_selection_background(
 }
 
 fn ordered_cursors<'a>(a: &'a TextCursor, b: &'a TextCursor) -> (&'a TextCursor, &'a TextCursor) {
-    if cursor_leq(a, b) {
-        (a, b)
-    } else {
-        (b, a)
-    }
+    if cursor_leq(a, b) { (a, b) } else { (b, a) }
 }
 
 fn cursor_leq(a: &TextCursor, b: &TextCursor) -> bool {
@@ -1750,6 +1746,104 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn svg_test_demo_paints_svg_images() {
+        let tree = wgpu_html_parser::parse(include_str!("../../wgpu-html-demo/html/svg-test.html"));
+        fn count_svg_nodes(node: &wgpu_html_tree::Node) -> usize {
+            let own = matches!(node.element, wgpu_html_tree::Element::Svg(_)) as usize;
+            own + node.children.iter().map(count_svg_nodes).sum::<usize>()
+        }
+        assert_eq!(
+            tree.root.as_ref().map(count_svg_nodes).unwrap_or(0),
+            8,
+            "svg-test.html should parse all inline SVG elements"
+        );
+        let mut text_ctx = TextContext::new(64);
+        let mut image_cache = wgpu_html_layout::ImageCache::new();
+        let layout = wgpu_html_layout::layout_with_text(
+            &wgpu_html_style::cascade(&tree),
+            &mut text_ctx,
+            &mut image_cache,
+            1920.0,
+            1080.0,
+            1.0,
+        )
+        .expect("layout");
+        fn count_layout_images(b: &LayoutBox) -> usize {
+            (b.image.is_some() && b.content_rect.w > 0.0 && b.content_rect.h > 0.0) as usize
+                + b.children.iter().map(count_layout_images).sum::<usize>()
+        }
+        fn collect_image_rects(b: &LayoutBox, out: &mut Vec<(f32, f32, f32, f32)>) {
+            if b.image.is_some() {
+                let r = b.content_rect;
+                out.push((r.x, r.y, r.w, r.h));
+            }
+            for child in &b.children {
+                collect_image_rects(child, out);
+            }
+        }
+        let mut image_rects = Vec::new();
+        collect_image_rects(&layout, &mut image_rects);
+        assert_eq!(
+            count_layout_images(&layout),
+            8,
+            "layout should attach visible rasterized image data to each SVG: {image_rects:?}"
+        );
+        assert!(
+            image_rects
+                .iter()
+                .all(|(_, _, w, h)| (*w - 160.0).abs() < 0.01 && (*h - 160.0).abs() < 0.01),
+            "each SVG should keep its authored 160x160 content box: {image_rects:?}"
+        );
+        let mut scaled_text_ctx = TextContext::new(64);
+        let mut scaled_image_cache = wgpu_html_layout::ImageCache::new();
+        let scaled_layout = wgpu_html_layout::layout_with_text(
+            &wgpu_html_style::cascade(&tree),
+            &mut scaled_text_ctx,
+            &mut scaled_image_cache,
+            1920.0,
+            1080.0,
+            1.5,
+        )
+        .expect("scaled layout");
+        let mut scaled_image_rects = Vec::new();
+        collect_image_rects(&scaled_layout, &mut scaled_image_rects);
+        assert!(
+            scaled_image_rects
+                .iter()
+                .all(|(_, _, w, h)| (*w - 240.0).abs() < 0.01 && (*h - 240.0).abs() < 0.01),
+            "scaled SVG content boxes should apply scale once: {scaled_image_rects:?}"
+        );
+        let mut direct = DisplayList::new();
+        paint_layout(&layout, &mut direct);
+        assert_eq!(
+            direct.images.len(),
+            8,
+            "painting the computed layout should emit image quads"
+        );
+        let list = paint_tree(&tree, 1920.0, 1080.0);
+
+        assert_eq!(
+            list.images.len(),
+            8,
+            "svg-test.html should emit one image quad for each inline SVG"
+        );
+        for (idx, img) in list.images.iter().enumerate() {
+            assert!(
+                img.data.chunks_exact(4).any(|px| px[3] > 0),
+                "SVG image {idx} must contain at least one visible pixel"
+            );
+        }
+        assert!(
+            list.commands
+                .iter()
+                .filter(|cmd| cmd.kind == wgpu_html_renderer::DisplayCommandKind::Image)
+                .count()
+                == 8,
+            "every SVG image should have an ordered image command"
+        );
     }
 
     #[test]

@@ -470,21 +470,25 @@ impl TextContext {
         // so the glyph loop below can borrow `&mut self.font_db` /
         // `&mut self.swash` without colliding with the `Buffer`'s
         // outstanding `&mut FontSystem`.
-        let layout_lines: Vec<(Vec<(cosmic_text::PhysicalGlyph, f32, f32, usize)>, f32, f32, f32)> =
-            buffer
-                .layout_runs()
-                .map(|run| {
-                    let line_top = run.line_top;
-                    let line_y = run.line_y;
-                    let line_h = run.line_height;
-                    let glyphs: Vec<_> = run
-                        .glyphs
-                        .iter()
-                        .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w, g.start))
-                        .collect();
-                    (glyphs, line_top, line_y, line_h)
-                })
-                .collect();
+        let layout_lines: Vec<(
+            Vec<(cosmic_text::PhysicalGlyph, f32, f32, usize)>,
+            f32,
+            f32,
+            f32,
+        )> = buffer
+            .layout_runs()
+            .map(|run| {
+                let line_top = run.line_top;
+                let line_y = run.line_y;
+                let line_h = run.line_height;
+                let glyphs: Vec<_> = run
+                    .glyphs
+                    .iter()
+                    .map(|g| (g.physical((0.0, 0.0), 1.0), g.x, g.w, g.start))
+                    .collect();
+                (glyphs, line_top, line_y, line_h)
+            })
+            .collect();
 
         let first_line = layout_lines.first()?;
         let ascent_px = first_line.2;
@@ -503,7 +507,9 @@ impl TextContext {
         for (line_glyphs, line_top, line_y, line_h) in &layout_lines {
             let line_glyph_start = glyphs.len();
             let baseline_y = *line_y;
-            for (glyph_index, (physical, layout_x, layout_w, g_start)) in line_glyphs.iter().enumerate() {
+            for (glyph_index, (physical, layout_x, layout_w, g_start)) in
+                line_glyphs.iter().enumerate()
+            {
                 // Cumulative `letter-spacing` offset for this glyph (zero
                 // for the first one, then `letter_spacing_px` per logical
                 // glyph step).
@@ -581,7 +587,8 @@ impl TextContext {
                         color,
                     });
                     // Map this glyph's byte start → char index.
-                    let char_idx = bb.partition_point(|&b| b < *g_start)
+                    let char_idx = bb
+                        .partition_point(|&b| b < *g_start)
                         .min(bb.len().saturating_sub(1));
                     glyph_chars.push(char_idx);
                 }
@@ -991,18 +998,14 @@ pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
             let use_typo_metrics = fs_selection & (1 << 7) != 0;
 
             if use_typo_metrics {
-                let typo_asc =
-                    i16::from_be_bytes(data[os2 + 68..os2 + 70].try_into().ok()?) as f32;
+                let typo_asc = i16::from_be_bytes(data[os2 + 68..os2 + 70].try_into().ok()?) as f32;
                 let typo_desc =
                     i16::from_be_bytes(data[os2 + 70..os2 + 72].try_into().ok()?) as f32;
-                let typo_gap =
-                    i16::from_be_bytes(data[os2 + 72..os2 + 74].try_into().ok()?) as f32;
+                let typo_gap = i16::from_be_bytes(data[os2 + 72..os2 + 74].try_into().ok()?) as f32;
                 return Some((typo_asc - typo_desc + typo_gap) / upem);
             } else {
-                let win_asc =
-                    u16::from_be_bytes(data[os2 + 74..os2 + 76].try_into().ok()?) as f32;
-                let win_desc =
-                    u16::from_be_bytes(data[os2 + 76..os2 + 78].try_into().ok()?) as f32;
+                let win_asc = u16::from_be_bytes(data[os2 + 74..os2 + 76].try_into().ok()?) as f32;
+                let win_desc = u16::from_be_bytes(data[os2 + 76..os2 + 78].try_into().ok()?) as f32;
                 return Some((win_asc + win_desc) / upem);
             }
         }
@@ -1106,11 +1109,31 @@ mod tests {
         let line_h = size * 1.25; // 20.0
 
         let no_descenders = ctx
-            .shape_and_pack("<", handle, size, line_h, 0.0, 400, FontStyleAxis::Normal, None, [0.0; 4])
+            .shape_and_pack(
+                "<",
+                handle,
+                size,
+                line_h,
+                0.0,
+                400,
+                FontStyleAxis::Normal,
+                None,
+                [0.0; 4],
+            )
             .expect("shaped");
 
         let with_descenders = ctx
-            .shape_and_pack("body", handle, size, line_h, 0.0, 400, FontStyleAxis::Normal, None, [0.0; 4])
+            .shape_and_pack(
+                "body",
+                handle,
+                size,
+                line_h,
+                0.0,
+                400,
+                FontStyleAxis::Normal,
+                None,
+                [0.0; 4],
+            )
             .expect("shaped");
 
         eprintln!(
@@ -1122,9 +1145,7 @@ mod tests {
             no_descenders.height, with_descenders.height,
             "run height must equal line-height regardless of glyph content \
              (no_desc={:.1}, with_desc={:.1}, line_h={:.1})",
-            no_descenders.height,
-            with_descenders.height,
-            line_h,
+            no_descenders.height, with_descenders.height, line_h,
         );
     }
 

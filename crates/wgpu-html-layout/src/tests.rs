@@ -2314,3 +2314,76 @@ fn flex_wrap_no_height_does_not_apply_align_content() {
     assert_eq!(body.children[0].margin_rect.y, 0.0);
     assert_eq!(body.children[1].margin_rect.y, 40.0);
 }
+
+#[test]
+fn svg_replaced_element_size_from_attributes() {
+    // <svg width="100px" height="80px"> should produce a 100×80 layout box
+    // and have image data attached (rasterised from the path child).
+    let tree = make(
+        r#"<body style="margin: 0;">
+            <svg width="100px" height="80px" viewBox="0 0 100 80">
+              <path d="M0 0 L100 80" fill="black"/>
+            </svg>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    let svg_box = &root.children[0];
+    assert_eq!(svg_box.border_rect.w, 100.0, "SVG width");
+    assert_eq!(svg_box.border_rect.h, 80.0, "SVG height");
+    // Should have rasterised image data attached.
+    assert!(svg_box.image.is_some(), "SVG should produce image data");
+    let img = svg_box.image.as_ref().unwrap();
+    assert_eq!(img.width, 100, "raster width matches layout width");
+    assert_eq!(img.height, 80, "raster height matches layout height");
+}
+
+#[test]
+fn svg_inside_flex_card_has_image() {
+    // Mirror the demo: SVG inside a flex-column card, with CSS fill targeting path.
+    let tree = make(
+        r#"<body style="margin: 0;">
+          <style>
+            .card { display: flex; flex-direction: column; align-items: center; width: 180px; padding: 16px; }
+            .fill-orange path { fill: #e07b39; }
+          </style>
+          <div class="card">
+            <svg class="fill-orange" width="160" height="160" viewBox="0 0 1200 1200">
+              <path d="M0 0 L1200 1200 L0 1200 Z"/>
+            </svg>
+          </div>
+        </body>"#,
+    );
+    let root = layout(&tree, 800.0, 600.0).unwrap();
+    // root(body) → [style, div.card]; style element has no box
+    let card = root
+        .children
+        .iter()
+        .find(|c| c.border_rect.w > 0.0)
+        .expect("card");
+    let svg_box = &card.children[0];
+    assert!(svg_box.border_rect.w > 0.0, "SVG border_rect has width");
+    assert!(svg_box.border_rect.h > 0.0, "SVG border_rect has height");
+    // paint.rs checks content_rect, not border_rect
+    assert!(
+        svg_box.content_rect.w > 0.0,
+        "SVG content_rect has width (paint needs this)"
+    );
+    assert!(
+        svg_box.content_rect.h > 0.0,
+        "SVG content_rect has height (paint needs this)"
+    );
+    assert!(
+        svg_box.image.is_some(),
+        "SVG inside flex card must produce image data; border={:?} content={:?}",
+        svg_box.border_rect,
+        svg_box.content_rect
+    );
+    // Verify the rasterized image has non-zero content (not all alpha=0)
+    let img = svg_box.image.as_ref().unwrap();
+    assert!(img.width > 0 && img.height > 0, "image has dimensions");
+    let has_opaque = img.data.chunks_exact(4).any(|p| p[3] > 0);
+    assert!(
+        has_opaque,
+        "rasterised SVG must have at least one non-transparent pixel"
+    );
+}

@@ -168,7 +168,11 @@ pub fn text_only_content(node: &Node) -> Option<String> {
         }
     }
     let trimmed = buf.trim();
-    if trimmed.is_empty() { None } else { Some(trimmed.to_owned()) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
 }
 
 pub fn truncate(s: &str, max: usize) -> String {

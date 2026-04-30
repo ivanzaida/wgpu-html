@@ -572,6 +572,7 @@ pub enum Element {
     Iframe(m::Iframe),
     Canvas(m::Canvas),
     Svg(m::Svg),
+    SvgPath(m::SvgPath),
 
     Table(m::Table),
     Caption(m::Caption),
@@ -660,7 +661,7 @@ element_from! {
 
     Img => m::Img, Picture => m::Picture, Source => m::Source, Video => m::Video,
     Audio => m::Audio, Track => m::Track, Iframe => m::Iframe, Canvas => m::Canvas,
-    Svg => m::Svg,
+    Svg => m::Svg, SvgPath => m::SvgPath,
 
     Table => m::Table, Caption => m::Caption, Thead => m::Thead, Tbody => m::Tbody,
     Tfoot => m::Tfoot, Tr => m::Tr, Th => m::Th, Td => m::Td,
@@ -747,6 +748,7 @@ macro_rules! all_element_variants {
             Iframe,
             Canvas,
             Svg,
+            SvgPath,
             Table,
             Caption,
             Thead,
@@ -1122,6 +1124,7 @@ impl Element {
             Element::Iframe(_) => "iframe",
             Element::Canvas(_) => "canvas",
             Element::Svg(_) => "svg",
+            Element::SvgPath(_) => "path",
             Element::Table(_) => "table",
             Element::Caption(_) => "caption",
             Element::Thead(_) => "thead",
@@ -1305,18 +1308,15 @@ mod tests {
             .insert_template_content("tpl", &[1], 1)
             .expect("inserted range");
         assert_eq!(inserted, 1..2);
-        let host = tree
-            .root
-            .as_ref()
-            .unwrap()
-            .children[1]
+        let host = tree.root.as_ref().unwrap().children[1]
             .find_by_id("host")
             .unwrap();
-        let ids: Vec<_> = host.children.iter().map(|child| child.element.id()).collect();
-        assert_eq!(
-            ids,
-            vec![Some("before"), Some("inserted"), Some("after")]
-        );
+        let ids: Vec<_> = host
+            .children
+            .iter()
+            .map(|child| child.element.id())
+            .collect();
+        assert_eq!(ids, vec![Some("before"), Some("inserted"), Some("after")]);
 
         assert!(tree.insert_template_content("tpl", &[1], 99).is_none());
     }

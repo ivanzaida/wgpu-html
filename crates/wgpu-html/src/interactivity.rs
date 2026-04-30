@@ -227,9 +227,9 @@ mod tests {
     //! mapping).
 
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use wgpu_html_tree::{Node, SelectionColors};
     // `Modifiers` is no longer plumbed through the dispatch API —
     // these tests rely on the tree's default (all keys up) state.

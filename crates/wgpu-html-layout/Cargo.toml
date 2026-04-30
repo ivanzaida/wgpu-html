@@ -10,6 +10,7 @@ wgpu-html-text.workspace   = true
 wgpu-html-tree.workspace   = true
 image.workspace             = true
 ureq.workspace              = true
+resvg.workspace             = true
 
 [dev-dependencies]
 wgpu-html-parser.workspace = true

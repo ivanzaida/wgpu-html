@@ -198,9 +198,9 @@ section and known deprecated legacy aliases.
 | `dynamic-range-limit` | No | HDR output handling not modeled. |
 | `empty-cells` | No | Table layout not implemented. |
 | `field-sizing` | No | Form intrinsic sizing behavior not modeled. |
-| `fill` | No | SVG paint property not modeled. |
-| `fill-opacity` | No | SVG paint property not modeled. |
-| `fill-rule` | No | SVG fill rule not modeled. |
+| `fill` | Yes | SVG paint; cascaded + inherited. Serialised into rasterised SVG. |
+| `fill-opacity` | Yes | SVG paint; cascaded + inherited. |
+| `fill-rule` | Yes | `nonzero` / `evenodd`; cascaded + inherited. |
 | `filter` | No | Filter effects not modeled. |
 | `flex` | Yes | Shorthand consumed by flex layout. |
 | `flex-basis` | Yes | Consumed by flex layout. |
@@ -450,14 +450,14 @@ section and known deprecated legacy aliases.
 | `speak-as` | No | Speech/CSS counter style output not modeled. |
 | `stop-color` | No | SVG gradient property not modeled. |
 | `stop-opacity` | No | SVG gradient property not modeled. |
-| `stroke` | No | SVG stroke property not modeled. |
-| `stroke-dasharray` | No | SVG stroke property not modeled. |
-| `stroke-dashoffset` | No | SVG stroke property not modeled. |
-| `stroke-linecap` | No | SVG stroke property not modeled. |
-| `stroke-linejoin` | No | SVG stroke property not modeled. |
+| `stroke` | Yes | SVG paint; cascaded + inherited. |
+| `stroke-dasharray` | Yes | SVG stroke; cascaded + inherited. |
+| `stroke-dashoffset` | Yes | SVG stroke; cascaded + inherited. |
+| `stroke-linecap` | Yes | `butt` / `round` / `square`; cascaded + inherited. |
+| `stroke-linejoin` | Yes | `miter` / `round` / `bevel`; cascaded + inherited. |
 | `stroke-miterlimit` | No | SVG stroke property not modeled. |
-| `stroke-opacity` | No | SVG stroke property not modeled. |
-| `stroke-width` | No | SVG stroke property not modeled. |
+| `stroke-opacity` | Yes | SVG stroke; cascaded + inherited. |
+| `stroke-width` | Yes | SVG stroke; cascaded + inherited. |
 | `tab-size` | No | Tab stop sizing not modeled. |
 | `table-layout` | No | Table layout not implemented. |
 | `text-align` | Yes | Consumed by text/line layout. |

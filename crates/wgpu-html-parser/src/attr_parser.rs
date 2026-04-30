@@ -525,6 +525,23 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
             }
             Element::Svg(el)
         }
+        "path" => {
+            let mut el = html::SvgPath::default();
+            for (n, v) in attrs {
+                match n.as_str() {
+                    "id" => el.id = Some(v.clone()),
+                    "d" => el.d = Some(v.clone()),
+                    "fill" => el.fill = Some(v.clone()),
+                    "stroke" => el.stroke = Some(v.clone()),
+                    "stroke-width" => el.stroke_width = Some(v.clone()),
+                    "fill-rule" => el.fill_rule = Some(v.clone()),
+                    "opacity" => el.opacity = Some(v.clone()),
+                    "transform" => el.transform = Some(v.clone()),
+                    _ => {}
+                }
+            }
+            Element::SvgPath(el)
+        }
         "table" => {
             let mut el = html::Table::default();
             set_global!(el, attrs);

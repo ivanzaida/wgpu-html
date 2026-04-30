@@ -122,6 +122,29 @@ pub struct Style {
     pub visibility: Option<Visibility>,
     // css property: z-index
     pub z_index: Option<i32>,
+
+    // SVG presentation properties (also valid as CSS properties on SVG elements).
+    // All are inherited within SVG, matching the SVG specification.
+    // css property: fill
+    pub svg_fill: Option<CssColor>,
+    // css property: fill-opacity
+    pub svg_fill_opacity: Option<f32>,
+    // css property: fill-rule  ("nonzero" | "evenodd")
+    pub svg_fill_rule: Option<String>,
+    // css property: stroke
+    pub svg_stroke: Option<CssColor>,
+    // css property: stroke-width
+    pub svg_stroke_width: Option<CssLength>,
+    // css property: stroke-opacity
+    pub svg_stroke_opacity: Option<f32>,
+    // css property: stroke-linecap  ("butt" | "round" | "square")
+    pub svg_stroke_linecap: Option<String>,
+    // css property: stroke-linejoin ("miter" | "round" | "bevel")
+    pub svg_stroke_linejoin: Option<String>,
+    // css property: stroke-dasharray
+    pub svg_stroke_dasharray: Option<String>,
+    // css property: stroke-dashoffset
+    pub svg_stroke_dashoffset: Option<CssLength>,
     // css property: flex-direction
     pub flex_direction: Option<FlexDirection>,
     // css property: flex-wrap
