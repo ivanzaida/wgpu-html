@@ -554,15 +554,22 @@ fn collect_hit_scrolled(
     };
 
     // Compensate for this element's scroll offset so children are
-    // tested at their true layout positions.
+    // tested at their true layout positions.  The clip region must
+    // shift by the same amount — otherwise children scrolled into
+    // view past the original padding box boundary are rejected.
     let own_scroll = scroll_offsets.get(path.as_slice()).copied().unwrap_or(0.0);
     let child_y = y + own_scroll;
+    let child_clip = if own_scroll != 0.0 {
+        next_clip.map(|c| Rect::new(c.x, c.y + own_scroll, c.w, c.h))
+    } else {
+        next_clip
+    };
 
     // Walk children last-to-first (topmost painted wins).
     for (i, child) in b.children.iter().enumerate().rev() {
         path.push(i);
         if let Some(result) =
-            collect_hit_scrolled(child, x, child_y, scroll_offsets, path, next_clip)
+            collect_hit_scrolled(child, x, child_y, scroll_offsets, path, child_clip)
         {
             path.pop();
             return Some(result);
