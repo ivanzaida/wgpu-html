@@ -643,12 +643,16 @@ impl AppHook for DemoHook {
 
     fn on_window_event(
         &mut self,
-        _ctx: HookContext<'_>,
+        ctx: HookContext<'_>,
         window_id: WindowId,
         event: &WindowEvent,
     ) -> bool {
         if self.devtools.owns_window(window_id) {
-            self.devtools.handle_window_event(event);
+            if self.devtools.handle_window_event(event) {
+                // Selection changed — trigger on_frame so the
+                // devtools tree is rebuilt with the new highlight.
+                ctx.window.request_redraw();
+            }
             return true;
         }
         false

@@ -320,10 +320,15 @@ impl Devtools {
     /// Handle a winit `WindowEvent` for the devtools window.
     /// The caller should only forward events whose `WindowId`
     /// matches [`Devtools::owns_window`].
-    pub fn handle_window_event(&mut self, event: &WindowEvent) {
+    ///
+    /// Returns `true` when the devtools needs the host to call
+    /// [`update_inspected_tree`] again (e.g. after a click changed
+    /// the selected element). The host should request a redraw on
+    /// the **main** window so that `on_frame` runs.
+    pub fn handle_window_event(&mut self, event: &WindowEvent) -> bool {
         // Swallow events for a window that is pending drop.
         if self.window_state.is_none() {
-            return;
+            return false;
         }
         match event {
             WindowEvent::CloseRequested => {
@@ -374,7 +379,7 @@ impl Devtools {
                 ..
             } => {
                 let Some(mb) = to_mouse_button(*button) else {
-                    return;
+                    return false;
                 };
                 let ws = self.window_state.as_mut().unwrap();
                 if let Some(layout) = ws.cache.layout() {
@@ -403,10 +408,13 @@ impl Devtools {
                     }
                     ws.window.request_redraw();
                 }
-                // Check if a tree row was clicked (callback fires
-                // synchronously during dispatch_mouse_up).
-                if let Some(path) = self.click_sink.lock().unwrap().take() {
-                    self.selected_path = Some(path);
+                // If a tree row was clicked (callback fires
+                // synchronously during dispatch_mouse_up), signal
+                // the host to call update_inspected_tree so the
+                // selection can be applied. The click_sink is
+                // consumed there, not here.
+                if self.click_sink.lock().unwrap().is_some() {
+                    return true;
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -428,6 +436,7 @@ impl Devtools {
             }
             _ => {}
         }
+        false
     }
 
     /// Actually drop any window state that was deferred from a
