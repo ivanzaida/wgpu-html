@@ -663,11 +663,16 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
             new,
             ev::HtmlEventType::FOCUSIN,
             /*bubbles*/ true,
-            old_path,
+            old_path.clone(),
             time_stamp,
             FocusBubbleKind::Bubble,
         );
     }
+
+    tree.emit_active_element_changed(
+        old_path.as_deref(),
+        new_path.as_deref(),
+    );
 
     true
 }

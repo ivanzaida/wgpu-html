@@ -475,6 +475,21 @@ pub trait TreeHook {
     fn on_element_removed(&mut self, tree: &mut Tree, element: &Node) -> TreeHookResponse {
         TreeHookResponse::Continue
     }
+
+    /// Called when the focused (active) element changes.
+    ///
+    /// `old_path` is the path to the previously focused element
+    /// (`None` if nothing was focused). `new_path` is the path to
+    /// the newly focused element (`None` if focus was cleared).
+    /// Use `tree.root.as_ref()?.at_path(path)` to look up nodes.
+    fn on_active_element_changed(
+        &mut self,
+        tree: &mut Tree,
+        old_path: Option<&[usize]>,
+        new_path: Option<&[usize]>,
+    ) -> TreeHookResponse {
+        TreeHookResponse::Continue
+    }
 }
 
 impl Tree {
@@ -556,6 +571,15 @@ impl Tree {
     /// Notify hooks that a node was removed from the tree.
     pub fn emit_element_removed(&mut self, element: &Node) -> TreeHookResponse {
         self.emit_hooks(|hook, tree| hook.on_element_removed(tree, element))
+    }
+
+    /// Notify hooks that the focused (active) element changed.
+    pub fn emit_active_element_changed(
+        &mut self,
+        old_path: Option<&[usize]>,
+        new_path: Option<&[usize]>,
+    ) -> TreeHookResponse {
+        self.emit_hooks(|hook, tree| hook.on_active_element_changed(tree, old_path, new_path))
     }
 
     fn emit_hooks(
