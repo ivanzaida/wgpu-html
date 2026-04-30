@@ -29,7 +29,30 @@ pub fn build(tokens: Vec<Token>) -> Tree {
     let root = match roots.len() {
         0 => None,
         1 => Some(roots.pop().unwrap()),
-        _ => Some(Node::new(Element::Body(wgpu_html_models::Body::default())).with_children(roots)),
+        _ => {
+            // If one of the top-level nodes is already a <body>,
+            // adopt the siblings into it instead of wrapping
+            // everything in a second synthetic <body>.
+            if let Some(body_idx) = roots
+                .iter()
+                .position(|n| matches!(&n.element, Element::Body(_)))
+            {
+                let mut body = roots.remove(body_idx);
+                // Prepend siblings that came before <body>, append
+                // those that came after.
+                let mut merged = roots.drain(..body_idx).collect::<Vec<_>>();
+                let after = roots;
+                merged.append(&mut body.children);
+                merged.extend(after);
+                body.children = merged;
+                Some(body)
+            } else {
+                Some(
+                    Node::new(Element::Body(wgpu_html_models::Body::default()))
+                        .with_children(roots),
+                )
+            }
+        }
     };
     Tree {
         root,
@@ -310,6 +333,18 @@ mod tests {
         assert!(matches!(body.element, Element::Body(_)));
         // Both <p> elements end up in the single <body>.
         assert_eq!(body.children.len(), 2);
+    }
+
+    #[test]
+    fn style_plus_body_adopts_into_body() {
+        // A <style> sibling at top-level should be adopted into the
+        // existing <body>, not wrapped in a second synthetic <body>.
+        let tree = build(tokenize("<style>h1{color:red}</style><body><p>hi</p></body>"));
+        let body = tree.root.as_ref().expect("root");
+        assert!(matches!(body.element, Element::Body(_)));
+        // <style> is adopted before <body>'s own children.
+        assert!(matches!(body.children[0].element, Element::StyleElement(_)));
+        assert!(matches!(body.children[1].element, Element::P(_)));
     }
 
     #[test]
