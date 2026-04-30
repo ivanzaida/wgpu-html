@@ -20,10 +20,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use winit::event::{ElementState, KeyEvent};
+use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::Window;
+use winit::window::{Window, WindowId};
 
+use wgpu_html_devtools::Devtools;
 use wgpu_html_tree::{FontFace, Tree};
 use wgpu_html_winit::{
     AppHook, EventResponse, FrameTimings, HookContext, WgpuHtmlWindow, create_window,
@@ -273,20 +274,21 @@ struct DemoHook {
     enabled: bool,
     profiler: Profiler,
     commands: CommandQueue,
-    /// Set to `true` after the first `on_frame` has run, at which
-    /// point we have an `Arc<Window>` and can spawn the stdin
-    /// reader. Doing this lazily (rather than before `run_app`)
-    /// avoids needing to pass a window handle through the builder
-    /// API.
+    devtools: Devtools,
+    /// 2nd-level devtools inspecting the 1st devtools' tree.
+    devtools_meta: Devtools,
     stdin_started: bool,
 }
 
 impl DemoHook {
-    fn new(profiling_enabled: bool) -> Self {
+    fn new(profiling_enabled: bool, devtools: Devtools) -> Self {
+        let devtools_meta = Devtools::new();
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
             commands: Arc::new(Mutex::new(VecDeque::new())),
+            devtools,
+            devtools_meta,
             stdin_started: false,
         }
     }
@@ -622,7 +624,7 @@ fn json_str(s: &str) -> String {
 }
 
 impl AppHook for DemoHook {
-    fn on_key(&mut self, _ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+    fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
         if event.state == ElementState::Pressed && !event.repeat {
             if let PhysicalKey::Code(code) = event.physical_key {
                 match code {
@@ -637,6 +639,10 @@ impl AppHook for DemoHook {
                         }
                         return EventResponse::Stop;
                     }
+                    KeyCode::F11 => {
+                        self.devtools.toggle(ctx.event_loop);
+                        return EventResponse::Stop;
+                    }
                     _ => {}
                 }
             }
@@ -645,17 +651,22 @@ impl AppHook for DemoHook {
     }
 
     fn on_frame(&mut self, mut ctx: HookContext<'_>, timings: &FrameTimings) {
-        // Lazy stdin reader: needs a `Send` window handle, which
-        // first becomes available here.
         if !self.stdin_started {
             self.stdin_started = true;
             spawn_stdin_listener(self.commands.clone(), Arc::clone(ctx.window));
         }
-
-        // Drain any commands queued by the stdin thread since the
-        // previous frame. Doing this here means commands always run
-        // against the just-painted layout in `ctx.last_layout`.
         self.drain_commands(&mut ctx);
+
+        // Devtools: poll for inspected tree changes, re-render.
+        if self.devtools.is_enabled() {
+            self.devtools.poll_and_redraw();
+            // Feed the devtools tree into the meta-devtools.
+            if self.devtools_meta.is_enabled() {
+                self.devtools_meta
+                    .update_inspected_tree(self.devtools.tree());
+                self.devtools_meta.poll_and_redraw();
+            }
+        }
 
         if !self.enabled {
             return;
@@ -666,7 +677,10 @@ impl AppHook for DemoHook {
         }
     }
 
-    fn on_idle(&mut self) {}
+    fn on_idle(&mut self) {
+        self.devtools.flush();
+        self.devtools_meta.flush();
+    }
 
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
         if !self.enabled {
@@ -675,6 +689,33 @@ impl AppHook for DemoHook {
         self.profiler.add_pointer_move(pointer_move_ms, changed);
     }
 
+    fn on_window_event(
+        &mut self,
+        _ctx: HookContext<'_>,
+        window_id: WindowId,
+        event: &WindowEvent,
+    ) -> bool {
+        // Meta-devtools (no further nesting).
+        if self.devtools_meta.owns_window(window_id) {
+            self.devtools_meta.handle_window_event(event);
+            return true;
+        }
+        // Primary devtools — F11 toggles meta-devtools.
+        if self.devtools.owns_window(window_id) {
+            if let WindowEvent::KeyboardInput { event: key_ev, .. } = event {
+                if key_ev.state == ElementState::Pressed
+                    && !key_ev.repeat
+                    && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
+                {
+                    self.devtools_meta.toggle(_ctx.event_loop);
+                    return true;
+                }
+            }
+            self.devtools.handle_window_event(event);
+            return true;
+        }
+        false
+    }
 }
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -712,13 +753,13 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     tree.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
     install_demo_callbacks(&mut tree, &click_count);
 
-    let hook = DemoHook::new(profiling_enabled);
+    let devtools = Devtools::attach(&mut tree);
+    let hook = DemoHook::new(profiling_enabled, devtools);
 
     let result = create_window(&mut tree)
         .with_title(format!("wgpu-html demo: {doc_source}"))
-        .with_size(1280, 720)
+        .with_size(1920, 1080)
         .with_hook(hook)
-        .with_devtools()
         .run();
 
     match result {

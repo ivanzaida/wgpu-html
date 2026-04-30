@@ -14,9 +14,13 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use wgpu_html::{PipelineCache, PipelineTimings};
-use wgpu_html_renderer::DisplayList;
+use wgpu_html_renderer::{DisplayList, FrameOutcome, Renderer};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Node, Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
+use winit::dpi::PhysicalSize;
+use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
+use winit::event_loop::ActiveEventLoop;
+use winit::window::{Window, WindowId};
 
 use crate::html_gen;
 
@@ -85,9 +89,15 @@ pub struct Devtools {
     viewport_h: f32,
     scale: f32,
 
-    /// Set to `true` whenever the UI needs a repaint (tree
-    /// rebuilt, hover changed, scroll moved, etc.).
+    /// Set to `true` whenever the UI needs a repaint.
     needs_redraw: bool,
+
+    // ── Window (managed by devtools itself) ──────────────────
+    window: Option<Arc<Window>>,
+    renderer: Option<Renderer>,
+    /// Deferred window drop (must happen outside WndProc).
+    pending_drop: Option<(Arc<Window>, Renderer)>,
+    enabled: bool,
 }
 
 impl Devtools {
@@ -115,6 +125,10 @@ impl Devtools {
             viewport_h: 600.0,
             scale: 1.0,
             needs_redraw: true,
+            window: None,
+            renderer: None,
+            pending_drop: None,
+            enabled: false,
         }
     }
 
@@ -382,5 +396,195 @@ impl Devtools {
         self.tree = tree;
         self.cache.invalidate();
         self.needs_redraw = true;
+    }
+
+    // ── Window lifecycle ────────────────────────────────────
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Open the devtools window.
+    pub fn enable(&mut self, event_loop: &ActiveEventLoop) {
+        if self.enabled {
+            return;
+        }
+        self.enabled = true;
+        let attrs = Window::default_attributes()
+            .with_title("DevTools")
+            .with_inner_size(PhysicalSize::new(800u32, 600));
+        let window = Arc::new(
+            event_loop
+                .create_window(attrs)
+                .expect("wgpu-html-devtools: failed to create window"),
+        );
+        let size = window.inner_size();
+        let renderer =
+            pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
+        let scale = window.scale_factor() as f32;
+        self.resize(size.width as f32, size.height as f32, scale);
+        window.request_redraw();
+        self.window = Some(window);
+        self.renderer = Some(renderer);
+    }
+
+    /// Close the devtools window. Actual drop is deferred to
+    /// [`flush`] (must run outside WndProc).
+    pub fn disable(&mut self) {
+        if !self.enabled {
+            return;
+        }
+        self.enabled = false;
+        if let (Some(w), Some(r)) = (self.window.take(), self.renderer.take()) {
+            self.pending_drop = Some((w, r));
+        }
+    }
+
+    /// Toggle devtools on/off.
+    pub fn toggle(&mut self, event_loop: &ActiveEventLoop) {
+        if self.enabled {
+            self.disable();
+        } else {
+            self.enable(event_loop);
+        }
+    }
+
+    /// Drop the window state deferred from [`disable`] or close.
+    /// Must be called from `about_to_wait` / `on_idle`.
+    pub fn flush(&mut self) {
+        self.pending_drop = None;
+    }
+
+    /// The `WindowId` of the devtools window, if open.
+    pub fn window_id(&self) -> Option<WindowId> {
+        self.window.as_ref().map(|w| w.id())
+    }
+
+    /// Whether `id` matches the devtools window (including one
+    /// that is pending deferred drop).
+    pub fn owns_window(&self, id: WindowId) -> bool {
+        self.window_id() == Some(id)
+            || self
+                .pending_drop
+                .as_ref()
+                .is_some_and(|(w, _)| w.id() == id)
+    }
+
+    /// Handle a winit `WindowEvent` for the devtools window.
+    pub fn handle_window_event(&mut self, event: &WindowEvent) {
+        if self.window.is_none() {
+            return;
+        }
+        match event {
+            WindowEvent::CloseRequested => {
+                self.enabled = false;
+                if let (Some(w), Some(r)) = (self.window.take(), self.renderer.take()) {
+                    self.pending_drop = Some((w, r));
+                }
+            }
+            WindowEvent::Resized(size) => {
+                if let Some(r) = self.renderer.as_mut() {
+                    r.resize(size.width, size.height);
+                }
+                let scale = self
+                    .window
+                    .as_ref()
+                    .map(|w| w.scale_factor() as f32)
+                    .unwrap_or(1.0);
+                self.resize(size.width as f32, size.height as f32, scale);
+                if let Some(w) = &self.window {
+                    w.request_redraw();
+                }
+            }
+            WindowEvent::RedrawRequested => {
+                self.render_to_window();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                if self.pointer_move(position.x as f32, position.y as f32) {
+                    if let Some(w) = &self.window {
+                        w.request_redraw();
+                    }
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.pointer_leave();
+                if let Some(w) = &self.window {
+                    w.request_redraw();
+                }
+            }
+            WindowEvent::MouseInput {
+                state: button_state,
+                button,
+                ..
+            } => {
+                let Some(mb) = winit_to_mouse_button(*button) else {
+                    return;
+                };
+                let pos = self.cursor_pos;
+                match button_state {
+                    ElementState::Pressed => {
+                        self.mouse_down(pos.0, pos.1, mb);
+                    }
+                    ElementState::Released => {
+                        self.mouse_up(pos.0, pos.1, mb);
+                    }
+                }
+                if let Some(w) = &self.window {
+                    w.request_redraw();
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let dy = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => -*y * 40.0,
+                    MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
+                };
+                let pos = self.cursor_pos;
+                if self.scroll(pos.0, pos.1, dy) {
+                    if let Some(w) = &self.window {
+                        w.request_redraw();
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Poll for changes and request a redraw if needed.
+    /// Call this from the host's per-frame callback.
+    pub fn poll_and_redraw(&mut self) {
+        self.poll();
+        if self.needs_redraw {
+            if let Some(w) = &self.window {
+                w.request_redraw();
+            }
+        }
+    }
+
+    fn render_to_window(&mut self) {
+        let (list, _timings) = self.paint();
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        self.text_ctx
+            .atlas
+            .upload(&renderer.queue, renderer.glyph_atlas_texture());
+        match renderer.render(&list) {
+            FrameOutcome::Presented | FrameOutcome::Skipped => {}
+            FrameOutcome::Reconfigure => {
+                if let Some(w) = &self.window {
+                    let size = w.inner_size();
+                    renderer.resize(size.width, size.height);
+                }
+            }
+        }
+    }
+}
+
+fn winit_to_mouse_button(b: winit::event::MouseButton) -> Option<MouseButton> {
+    match b {
+        winit::event::MouseButton::Left => Some(MouseButton::Primary),
+        winit::event::MouseButton::Right => Some(MouseButton::Secondary),
+        winit::event::MouseButton::Middle => Some(MouseButton::Middle),
+        _ => None,
     }
 }

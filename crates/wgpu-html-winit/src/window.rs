@@ -37,132 +37,6 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-// ── Devtools window adapter ──────────────────────────────────────
-
-/// Wraps a platform-agnostic [`Devtools`] with a winit window +
-/// wgpu renderer. Created lazily by [`WgpuHtmlWindow`] when
-/// `.with_devtools()` is used and F11 is pressed.
-struct DevtoolsWindow {
-    inner: wgpu_html_devtools::Devtools,
-    window: Arc<Window>,
-    renderer: Renderer,
-    pending_close: bool,
-}
-
-impl DevtoolsWindow {
-    fn open(devtools: &mut wgpu_html_devtools::Devtools, event_loop: &ActiveEventLoop) -> Self {
-        let attrs = Window::default_attributes()
-            .with_title("DevTools")
-            .with_inner_size(PhysicalSize::new(800u32, 600));
-        let window = Arc::new(
-            event_loop
-                .create_window(attrs)
-                .expect("failed to create devtools window"),
-        );
-        let size = window.inner_size();
-        let renderer = pollster::block_on(Renderer::new(window.clone(), size.width, size.height));
-        let scale = window.scale_factor() as f32;
-        devtools.resize(size.width as f32, size.height as f32, scale);
-        window.request_redraw();
-        Self {
-            inner: std::mem::replace(devtools, wgpu_html_devtools::Devtools::new()),
-            window,
-            renderer,
-            pending_close: false,
-        }
-    }
-
-    fn window_id(&self) -> WindowId {
-        self.window.id()
-    }
-
-    fn handle_event(&mut self, event: &WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested => {
-                self.pending_close = true;
-            }
-            WindowEvent::Resized(size) => {
-                self.renderer.resize(size.width, size.height);
-                let scale = self.window.scale_factor() as f32;
-                self.inner.resize(size.width as f32, size.height as f32, scale);
-                self.window.request_redraw();
-            }
-            WindowEvent::RedrawRequested => {
-                self.render();
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                if self.inner.pointer_move(position.x as f32, position.y as f32) {
-                    self.window.request_redraw();
-                }
-            }
-            WindowEvent::CursorLeft { .. } => {
-                self.inner.pointer_leave();
-                self.window.request_redraw();
-            }
-            WindowEvent::MouseInput {
-                state: button_state,
-                button,
-                ..
-            } => {
-                let Some(mb) = winit_to_mouse_button(*button) else {
-                    return;
-                };
-                let pos = self.inner.cursor_pos();
-                match button_state {
-                    ElementState::Pressed => {
-                        self.inner.mouse_down(pos.0, pos.1, mb);
-                    }
-                    ElementState::Released => {
-                        self.inner.mouse_up(pos.0, pos.1, mb);
-                    }
-                }
-                self.window.request_redraw();
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let dy = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => -*y * 40.0,
-                    MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
-                };
-                let pos = self.inner.cursor_pos();
-                if self.inner.scroll(pos.0, pos.1, dy) {
-                    self.window.request_redraw();
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn render(&mut self) {
-        let (list, _timings) = self.inner.paint();
-        self.inner
-            .text_ctx()
-            .atlas
-            .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
-        match self.renderer.render(&list) {
-            FrameOutcome::Presented | FrameOutcome::Skipped => {}
-            FrameOutcome::Reconfigure => {
-                let size = self.window.inner_size();
-                self.renderer.resize(size.width, size.height);
-            }
-        }
-    }
-
-    fn poll_and_redraw(&mut self) {
-        self.inner.poll();
-        if self.inner.needs_redraw() {
-            self.window.request_redraw();
-        }
-    }
-}
-
-fn winit_to_mouse_button(b: WinitMouseButton) -> Option<wgpu_html_tree::MouseButton> {
-    match b {
-        WinitMouseButton::Left => Some(wgpu_html_tree::MouseButton::Primary),
-        WinitMouseButton::Right => Some(wgpu_html_tree::MouseButton::Secondary),
-        WinitMouseButton::Middle => Some(wgpu_html_tree::MouseButton::Middle),
-        _ => None,
-    }
-}
 
 // ── Hook trait ──────────────────────────────────────────────────────────────
 
@@ -291,10 +165,6 @@ pub struct WgpuHtmlWindow<'tree> {
     screenshot_key: Option<KeyCode>,
     hook: Option<Box<dyn AppHook>>,
     state: Option<RuntimeState>,
-    devtools: Option<wgpu_html_devtools::Devtools>,
-    devtools_window: Option<DevtoolsWindow>,
-    /// 2nd-level devtools that inspects the 1st devtools' own tree.
-    meta_devtools_window: Option<DevtoolsWindow>,
 }
 
 struct RuntimeState {
@@ -340,9 +210,6 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             screenshot_key: Some(KeyCode::F12),
             hook: None,
             state: None,
-            devtools: None,
-            devtools_window: None,
-            meta_devtools_window: None,
         }
     }
 
@@ -384,14 +251,6 @@ impl<'tree> WgpuHtmlWindow<'tree> {
     /// timings, and pointer-move dispatches.
     pub fn with_hook(mut self, hook: impl AppHook + 'static) -> Self {
         self.hook = Some(Box::new(hook));
-        self
-    }
-
-    /// Attach a devtools inspector. Press F11 at runtime to
-    /// toggle the devtools window. The devtools auto-updates
-    /// whenever the tree changes — no manual wiring needed.
-    pub fn with_devtools(mut self) -> Self {
-        self.devtools = Some(wgpu_html_devtools::Devtools::attach(self.tree));
         self
     }
 
@@ -448,24 +307,6 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
         if let Some(h) = self.hook.as_mut() {
             h.on_idle();
         }
-        // Drop devtools windows if they were closed.
-        if self
-            .meta_devtools_window
-            .as_ref()
-            .is_some_and(|w| w.pending_close)
-        {
-            self.meta_devtools_window = None;
-        }
-        if self
-            .devtools_window
-            .as_ref()
-            .is_some_and(|w| w.pending_close)
-        {
-            self.meta_devtools_window = None; // close meta too
-            if let Some(dw) = self.devtools_window.take() {
-                self.devtools = Some(dw.inner);
-            }
-        }
         // Caret blink: request a redraw only after the deadline has
         // actually passed. This avoids a tight loop — render_frame
         // sets WaitUntil(deadline), about_to_wait fires immediately
@@ -520,43 +361,8 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             return;
         };
 
-        // Route events for secondary windows (devtools / meta-devtools).
+        // Route events for secondary windows to the hook.
         if id != window.id() {
-            // 2nd-level meta-devtools — no further nesting.
-            if let Some(mw) = self.meta_devtools_window.as_mut() {
-                if mw.window_id() == id {
-                    mw.handle_event(&event);
-                    return;
-                }
-            }
-            // 1st-level devtools — F11 toggles meta-devtools.
-            if let Some(dw) = self.devtools_window.as_mut() {
-                if dw.window_id() == id {
-                    if let WindowEvent::KeyboardInput { event: key_ev, .. } = &event {
-                        if key_ev.state == ElementState::Pressed
-                            && !key_ev.repeat
-                            && key_ev.physical_key == PhysicalKey::Code(KeyCode::F11)
-                        {
-                            if self.meta_devtools_window.is_some() {
-                                self.meta_devtools_window = None;
-                            } else {
-                                let mut meta =
-                                    wgpu_html_devtools::Devtools::new();
-                                // Copy fonts from the primary devtools.
-                                for (_h, face) in dw.inner.tree().fonts.iter() {
-                                    meta.register_font(face.clone());
-                                }
-                                meta.update_inspected_tree(dw.inner.tree());
-                                self.meta_devtools_window =
-                                    Some(DevtoolsWindow::open(&mut meta, event_loop));
-                            }
-                            return;
-                        }
-                    }
-                    dw.handle_event(&event);
-                    return;
-                }
-            }
             let mut hook = self.hook.take();
             if let Some(h) = hook.as_mut() {
                 if let Some(state) = self.state.as_mut() {
@@ -832,19 +638,6 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 }
                 return;
             }
-            if key == KeyCode::F11 {
-                if self.devtools_window.is_some() {
-                    // Close the devtools window.
-                    if let Some(dw) = self.devtools_window.take() {
-                        self.devtools = Some(dw.inner);
-                    }
-                } else if let Some(mut dt) = self.devtools.take() {
-                    // Open the devtools window.
-                    self.devtools_window =
-                        Some(DevtoolsWindow::open(&mut dt, event_loop));
-                }
-                return;
-            }
             if self.enable_clipboard && self.tree.modifiers().ctrl {
                 if self.tree.interaction.edit_cursor.is_some() {
                     // Form-control-level clipboard shortcuts.
@@ -1092,15 +885,6 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         }
         self.hook = hook;
 
-        // Devtools: poll for tree changes and re-render if needed.
-        if let Some(dw) = self.devtools_window.as_mut() {
-            dw.poll_and_redraw();
-            // Feed the devtools' own tree into the meta-devtools.
-            if let Some(mw) = self.meta_devtools_window.as_mut() {
-                mw.inner.update_inspected_tree(dw.inner.tree());
-                mw.poll_and_redraw();
-            }
-        }
 
         // Schedule the next wake-up. Priority order:
         // 1. Pending async images → poll every 100ms until loaded

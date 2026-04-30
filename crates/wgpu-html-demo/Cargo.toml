@@ -10,6 +10,7 @@ wgpu-html-style.workspace = true
 wgpu-html-text.workspace  = true
 wgpu-html-tree.workspace  = true
 wgpu-html-winit.workspace    = true
+wgpu-html-devtools.workspace = true
 wgpu-html-egui.workspace  = true
 winit.workspace           = true
 egui.workspace            = true
