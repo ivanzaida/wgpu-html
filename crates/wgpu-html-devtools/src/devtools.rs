@@ -223,6 +223,7 @@ impl Devtools {
         let _build_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         std::mem::swap(&mut tree.interaction, &mut self.tree.interaction);
+        tree.profiler = self.tree.profiler.take();
         self.tree = tree;
         self.needs_redraw = true;
     }
