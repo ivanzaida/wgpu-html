@@ -285,9 +285,9 @@ fn physical_to_pos(p: PhysicalPosition<f64>) -> (f32, f32) {
 
 /// Convert winit's wheel delta into vertical pixels. Positive =
 /// content moves up (i.e. user scrolled down).
-fn scroll_delta_to_pixels(delta: MouseScrollDelta) -> f32 {
+fn scroll_delta_to_pixels(delta: MouseScrollDelta, scale: f32) -> f32 {
     match delta {
-        MouseScrollDelta::LineDelta(_, y) => -y * 48.0,
+        MouseScrollDelta::LineDelta(_, y) => -y * 48.0 * scale,
         MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,
     }
 }
@@ -424,7 +424,10 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
-                let dy = scroll_delta_to_pixels(delta);
+                let dy = scroll_delta_to_pixels(
+                    delta,
+                    self.tree.effective_dpi_scale(window.scale_factor() as f32),
+                );
                 self.handle_wheel(dy, &window);
             }
 
@@ -434,6 +437,14 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
 
             WindowEvent::RedrawRequested => {
                 self.render_frame(event_loop);
+            }
+
+            WindowEvent::ScaleFactorChanged { .. } => {
+                if let Some(state) = self.state.as_mut() {
+                    state.pipeline_cache.invalidate();
+                    state.scrollbar_drag = None;
+                }
+                window.request_redraw();
             }
 
             _ => {}
@@ -700,12 +711,8 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             .and_then(|r| r.at_path(focus_path))
             .map(|n| &n.element)
         {
-            Some(wgpu_html_tree::Element::Input(inp)) => {
-                inp.value.clone().unwrap_or_default()
-            }
-            Some(wgpu_html_tree::Element::Textarea(ta)) => {
-                ta.value.clone().unwrap_or_default()
-            }
+            Some(wgpu_html_tree::Element::Input(inp)) => inp.value.clone().unwrap_or_default(),
+            Some(wgpu_html_tree::Element::Textarea(ta)) => ta.value.clone().unwrap_or_default(),
             _ => return,
         };
         let (start, end) = ec.selection_range();
@@ -776,6 +783,9 @@ impl<'tree> WgpuHtmlWindow<'tree> {
         let frame_t0 = Instant::now();
         self.tree.emit_lifecycle_begin(TreeLifecycleStage::Frame);
         let size = state.window.inner_size();
+        let scale = self
+            .tree
+            .effective_dpi_scale(state.window.scale_factor() as f32);
 
         let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
             self.tree,
@@ -783,7 +793,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             &mut state.image_cache,
             size.width as f32,
             size.height as f32,
-            1.0,
+            scale,
             &mut state.pipeline_cache,
         );
         self.tree.emit_lifecycle_end(
@@ -849,7 +859,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             .with_viewport(TreeRenderViewport::new(
                 size.width as f32,
                 size.height as f32,
-                1.0,
+                scale,
             ))
             .with_frame_duration(frame_duration)
             .with_pipeline_durations(
@@ -903,8 +913,12 @@ impl<'tree> WgpuHtmlWindow<'tree> {
                 state.caret_blink_deadline = Some(deadline);
                 event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
             } else if self.tree.interaction.edit_cursor.is_some() {
-                let elapsed_ms =
-                    self.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
+                let elapsed_ms = self
+                    .tree
+                    .interaction
+                    .caret_blink_epoch
+                    .elapsed()
+                    .as_millis() as u64;
                 let next_toggle_ms = 500u64.saturating_sub(elapsed_ms % 500).max(16);
                 let deadline = Instant::now() + Duration::from_millis(next_toggle_ms);
                 state.caret_blink_deadline = Some(deadline);

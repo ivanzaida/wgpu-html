@@ -35,7 +35,7 @@ pub use focus::{
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 pub use tree_hook::{
-    TreeHook, TreeHookResponse, TreeHookHandle, TreeLifecycleEvent, TreeLifecyclePhase,
+    TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase,
     TreeLifecycleStage, TreeRenderEvent, TreeRenderViewport,
 };
 
@@ -52,6 +52,12 @@ pub struct Tree {
     /// `tree.key_down(…)`, `tree.dispatch_mouse_down(…)`, etc.); the
     /// cascade and paint passes read it but never write.
     pub interaction: InteractionState,
+    /// Optional document-local override for the host DPI scale.
+    /// When unset, integrations should use the window/system scale
+    /// factor they receive from the host toolkit. When set, this
+    /// value is used instead, after clamping invalid/non-positive
+    /// inputs back to the host scale.
+    pub dpi_scale_override: Option<f32>,
     /// How long to keep decoded images in memory after their last use
     /// before reclaiming. `None` leaves the engine default in place
     /// (5 minutes); `Some(d)` overrides it on the next layout pass.
@@ -84,11 +90,28 @@ impl Tree {
             root: Some(root),
             fonts: FontRegistry::new(),
             interaction: InteractionState::default(),
+            dpi_scale_override: None,
             asset_cache_ttl: None,
             preload_queue: Vec::new(),
             hooks: Vec::new(),
             generation: 0,
         }
+    }
+
+    /// Override this tree's CSS-pixel to physical-pixel scale.
+    /// Pass `None` to return to the host/window scale factor.
+    pub fn set_dpi_scale_override(&mut self, scale: Option<f32>) {
+        self.dpi_scale_override = scale.filter(|s| s.is_finite() && *s > 0.0);
+    }
+
+    /// Resolve the scale this tree should use for layout and paint.
+    /// The host scale normally comes from `window.scale_factor()` or
+    /// the embedding toolkit's equivalent.
+    pub fn effective_dpi_scale(&self, host_scale: f32) -> f32 {
+        self.dpi_scale_override
+            .filter(|s| s.is_finite() && *s > 0.0)
+            .or_else(|| (host_scale.is_finite() && host_scale > 0.0).then_some(host_scale))
+            .unwrap_or(1.0)
     }
 
     /// Set a CSS custom property on the document root. Shorthand for
@@ -1047,6 +1070,21 @@ mod tests {
         assert!(tree.get_element_by_id("outer").is_some());
         assert!(tree.get_element_by_id("inner").is_some());
         assert!(tree.get_element_by_id("missing").is_none());
+    }
+
+    #[test]
+    fn dpi_scale_override_falls_back_to_host_scale() {
+        let mut tree = Tree::new(Node::new(m::Body::default()));
+        assert_eq!(tree.effective_dpi_scale(1.5), 1.5);
+
+        tree.set_dpi_scale_override(Some(2.0));
+        assert_eq!(tree.effective_dpi_scale(1.5), 2.0);
+
+        tree.set_dpi_scale_override(Some(0.0));
+        assert_eq!(tree.effective_dpi_scale(1.5), 1.5);
+
+        tree.set_dpi_scale_override(None);
+        assert_eq!(tree.effective_dpi_scale(f32::NAN), 1.0);
     }
 
     #[test]

@@ -8,6 +8,20 @@ fn make(html: &str) -> CascadedTree {
     wgpu_html_style::cascade(&wgpu_html_parser::parse(html))
 }
 
+fn layout_scaled(tree: &CascadedTree, viewport_w: f32, viewport_h: f32, scale: f32) -> LayoutBox {
+    let mut text_ctx = wgpu_html_text::TextContext::new(64);
+    let mut image_cache = ImageCache::new();
+    layout_with_text(
+        tree,
+        &mut text_ctx,
+        &mut image_cache,
+        viewport_w,
+        viewport_h,
+        scale,
+    )
+    .unwrap()
+}
+
 #[test]
 fn empty_tree_has_no_layout() {
     let tree = make("");
@@ -31,6 +45,27 @@ fn explicit_size_used_verbatim() {
     let root = layout(&tree, 800.0, 600.0).unwrap();
     assert_eq!(root.border_rect.w, 400.0);
     assert_eq!(root.border_rect.h, 200.0);
+}
+
+#[test]
+fn explicit_css_px_scale_to_physical_pixels() {
+    let tree = make(r#"<body style="margin: 0; width: 400px; height: 200px;"></body>"#);
+    let root = layout_scaled(&tree, 1600.0, 1200.0, 2.0);
+    assert_eq!(root.border_rect.w, 800.0);
+    assert_eq!(root.border_rect.h, 400.0);
+}
+
+#[test]
+fn percentages_resolve_against_scaled_parent() {
+    let tree = make(
+        r#"<body style="margin: 0; width: 400px;">
+            <div style="width: 50%; height: 10px;"></div>
+        </body>"#,
+    );
+    let root = layout_scaled(&tree, 1600.0, 1200.0, 2.0);
+    assert_eq!(root.border_rect.w, 800.0);
+    assert_eq!(first_child(&root).border_rect.w, 400.0);
+    assert_eq!(first_child(&root).border_rect.h, 20.0);
 }
 
 #[test]
@@ -2006,8 +2041,8 @@ fn input_with_placeholder_attaches_placeholder_run() {
         </body>"#,
     );
     let body = layout(&tree, 800.0, 600.0).unwrap();
-    let input = first_box_with_placeholder(&body)
-        .expect("input box should carry placeholder color");
+    let input =
+        first_box_with_placeholder(&body).expect("input box should carry placeholder color");
     let color = input.text_color.unwrap();
     assert_eq!(color, [0.0, 0.0, 0.0, 0.5]);
 }
@@ -2156,25 +2191,27 @@ fn placeholder_respects_user_padding_shorthand() {
         </body>"#,
     );
     let body = layout(&tree, 800.0, 600.0).unwrap();
-    let input =
-        first_box_with_placeholder(&body).expect("input box should carry a placeholder");
+    let input = first_box_with_placeholder(&body).expect("input box should carry a placeholder");
     let cr = input.content_rect;
     let br = input.border_rect;
     // border = 0, padding = 8 vertical / 10 horizontal.
     assert!(
         (cr.x - (br.x + 10.0)).abs() < 0.01,
         "left padding 10px not applied: cr.x={} br.x={}",
-        cr.x, br.x
+        cr.x,
+        br.x
     );
     assert!(
         (cr.y - (br.y + 8.0)).abs() < 0.01,
         "top padding 8px not applied: cr.y={} br.y={}",
-        cr.y, br.y
+        cr.y,
+        br.y
     );
     assert!(
         (cr.w - (br.w - 20.0)).abs() < 0.01,
         "horizontal padding 20px (10+10) not applied: cr.w={} br.w={}",
-        cr.w, br.w
+        cr.w,
+        br.w
     );
 }
 
@@ -2189,8 +2226,8 @@ fn placeholder_color_uses_cascaded_color_with_half_alpha() {
         </body>"#,
     );
     let body = layout(&tree, 800.0, 600.0).unwrap();
-    let input = first_box_with_placeholder(&body)
-        .expect("input box should carry placeholder color");
+    let input =
+        first_box_with_placeholder(&body).expect("input box should carry placeholder color");
     let color = input.text_color.unwrap();
     assert!(
         (color[3] - 0.5).abs() < 1e-4,

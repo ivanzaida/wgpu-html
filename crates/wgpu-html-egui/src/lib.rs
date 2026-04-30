@@ -70,7 +70,7 @@ impl HtmlState {
         }
         self.forward_pointer(ui, tree, rect);
 
-        let scale = ui.ctx().pixels_per_point();
+        let scale = tree.effective_dpi_scale(ui.ctx().pixels_per_point());
         let viewport_w = (rect.width() * scale).max(1.0);
         let viewport_h = (rect.height() * scale).max(1.0);
         let (list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
@@ -131,7 +131,7 @@ impl HtmlState {
     }
 
     fn forward_pointer(&mut self, ui: &Ui, tree: &mut Tree, rect: EguiRect) {
-        let scale = ui.ctx().pixels_per_point();
+        let scale = tree.effective_dpi_scale(ui.ctx().pixels_per_point());
         let sample = ui.input(|input| {
             input.pointer.hover_pos().map(|pos| {
                 (

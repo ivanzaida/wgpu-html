@@ -189,12 +189,9 @@ pub fn has_pending_images() -> bool {
 /// redraws so frames advance.
 pub fn has_animated_images() -> bool {
     if let Ok(cache) = raw_cache().lock() {
-        cache.values().any(|e| {
-            matches!(
-                e.value,
-                RawState::Ready(DecodedAsset::Animated { .. })
-            )
-        })
+        cache
+            .values()
+            .any(|e| matches!(e.value, RawState::Ready(DecodedAsset::Animated { .. })))
     } else {
         false
     }
@@ -1583,7 +1580,11 @@ fn compute_bg_tiles(
 /// into a [`BackgroundImagePaint`] positioned within `bg`. Returns
 /// `None` when there's no supported image reference, the image hasn't
 /// finished loading yet, or the resolved tile size collapses to zero.
-fn resolve_background_image(style: &Style, bg: Rect, images: &mut ImageCache) -> Option<BackgroundImagePaint> {
+fn resolve_background_image(
+    style: &Style,
+    bg: Rect,
+    images: &mut ImageCache,
+) -> Option<BackgroundImagePaint> {
     use wgpu_html_models::common::css_enums::BackgroundRepeat as BR;
     let url = match style.background_image.as_ref()? {
         CssImage::Url(url) => url,
@@ -2187,7 +2188,14 @@ pub fn layout_with_text(
 pub fn layout(tree: &CascadedTree, viewport_w: f32, viewport_h: f32) -> Option<LayoutBox> {
     let mut text_ctx = TextContext::new(64);
     let mut image_cache = ImageCache::new();
-    layout_with_text(tree, &mut text_ctx, &mut image_cache, viewport_w, viewport_h, 1.0)
+    layout_with_text(
+        tree,
+        &mut text_ctx,
+        &mut image_cache,
+        viewport_w,
+        viewport_h,
+        1.0,
+    )
 }
 
 pub(crate) struct Ctx<'a> {
@@ -2339,9 +2347,9 @@ fn layout_block(
                     // then decoded intrinsic width when no CSS width is
                     // specified.
                     if let Some(w) = html_img_width {
-                        w
+                        w * ctx.scale
                     } else if let Some(ref id) = img_data {
-                        id.width as f32
+                        id.width as f32 * ctx.scale
                     } else {
                         (container_w - frame_w).max(0.0)
                     }
@@ -2410,8 +2418,8 @@ fn layout_block(
             // intrinsic height, but does not force a CPU resize.
             let css_h = length::resolve(style_height, container_h, ctx);
             let effective_h = css_h
-                .or(html_img_height)
-                .or_else(|| img_data.as_ref().map(|id| id.height as f32));
+                .or_else(|| html_img_height.map(|h| h * ctx.scale))
+                .or_else(|| img_data.as_ref().map(|id| id.height as f32 * ctx.scale));
             effective_h.map(|specified| {
                 let raw = match box_sizing {
                     BoxSizing::ContentBox => specified,
@@ -2548,7 +2556,7 @@ fn layout_block(
     // and the input visually matches typed content height.
     if inner_height_explicit.is_none() && form_control_default_line_height(node) {
         let font_size = font_size_px(style).unwrap_or(16.0);
-        let line_h = line_height_px(style, font_size);
+        let line_h = line_height_px(style, font_size) * ctx.scale;
         if inner_height < line_h {
             inner_height = line_h;
         }
@@ -3190,11 +3198,7 @@ fn shape_text_run(
         letter_spacing,
         weight,
         axis,
-        if wrap_enabled {
-            max_width_px.map(|w| w * ctx.scale)
-        } else {
-            None
-        },
+        if wrap_enabled { max_width_px } else { None },
         color,
     ) {
         Some(run) => {
@@ -3802,7 +3806,7 @@ fn layout_atomic_inline_subtree(
     // need once value rendering lands.
     if specified_h.is_none() && form_control_default_line_height(node) {
         let font_size = font_size_px(style).unwrap_or(16.0);
-        let line_h = line_height_px(style, font_size);
+        let line_h = line_height_px(style, font_size) * ctx.scale;
         if inner_height < line_h {
             inner_height = line_h;
         }
@@ -4130,7 +4134,7 @@ fn layout_inline_mixed_children(
         }
         if wrap && !current.items.is_empty() && matches!(&child.element, Element::Text(_)) {
             let remaining = (container_w - current.width).max(0.0);
-            let min_inline_room = font_size_px(&child.style).unwrap_or(font_px);
+            let min_inline_room = font_size_px(&child.style).unwrap_or(font_px) * ctx.scale;
             if remaining < min_inline_room {
                 let line_h = (current.ascent + current.descent).max(hard_break_height);
                 cursor_y += line_h;
