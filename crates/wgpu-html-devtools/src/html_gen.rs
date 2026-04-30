@@ -10,6 +10,17 @@ const CSS: &str = include_str!("../html/devtools.css");
 /// Maximum tree depth rendered.
 const MAX_DEPTH: usize = 32;
 
+// ── Lucide icon codepoints (PUA) ────────────────────────────────
+
+const ICON_INSPECT: &str = "\u{e202}";
+const ICON_CHEVRON_DOWN: &str = "\u{e06d}";
+#[allow(dead_code)]
+const ICON_CHEVRON_RIGHT: &str = "\u{e06f}";
+const ICON_FILTER: &str = "\u{e0dc}";
+const ICON_PLUS: &str = "\u{e13d}";
+#[allow(dead_code)]
+const ICON_CODE: &str = "\u{e093}";
+
 // ── Helpers ─────────────────────────────────────────────────────
 
 fn div(class: &str) -> Node {
@@ -47,14 +58,13 @@ pub fn build(
     selected_path: Option<&[usize]>,
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
 ) -> wgpu_html_tree::Tree {
-    let style = Node::new(wgpu_html_models::StyleElement::default())
-        .with_children(vec![text(CSS)]);
+    let style = Node::new(wgpu_html_models::StyleElement::default()).with_children(vec![text(CSS)]);
 
     let toolbar = build_toolbar();
     let main = build_main(inspected_root, selected_path, click_sink);
 
-    let body = Node::new(wgpu_html_models::Body::default())
-        .with_children(vec![style, toolbar, main]);
+    let body =
+        Node::new(wgpu_html_models::Body::default()).with_children(vec![style, toolbar, main]);
 
     wgpu_html_tree::Tree::new(body)
 }
@@ -63,9 +73,12 @@ pub fn build(
 
 fn build_toolbar() -> Node {
     div("toolbar").with_children(vec![
-        span("pick-btn", "\u{25B6}"),
+        span("pick-btn", ICON_INSPECT),
         div("tb-divider"),
-        div("filter").with_children(vec![span("filter-text", "Filter")]),
+        div("filter").with_children(vec![
+            span("filter-icon", ICON_FILTER),
+            span("filter-text", "Filter"),
+        ]),
     ])
 }
 
@@ -130,9 +143,7 @@ fn emit_node(
             }
             let display = truncate(trimmed, 60);
             let row = tree_row(depth, path, selected_path, click_sink)
-                .with_children(vec![
-                    span("text-node", &format!("\"{display}\"")),
-                ]);
+                .with_children(vec![span("text-node", &format!("\"{display}\""))]);
             parent.push(row);
         }
         _ => {
@@ -146,7 +157,7 @@ fn emit_node(
             if has_vis {
                 // Open tag row
                 let mut row = tree_row(depth, path, selected_path, click_sink);
-                row.push(span("chevron", "\u{25BC}"));
+                row.push(span("chevron", ICON_CHEVRON_DOWN));
                 push_open_tag(&mut row, node, tag);
                 parent.push(row);
 
@@ -310,7 +321,7 @@ fn build_styles_panel(selected_node: Option<&Node>) -> Node {
         div("ss-spacer"),
         span("ss-btn ss-btn-active", ":hov"),
         span("ss-btn", ".cls"),
-        span("ss-btn", "+"),
+        span("ss-btn icon", ICON_PLUS),
     ]);
 
     let mut content = div("styles-content");
@@ -318,12 +329,10 @@ fn build_styles_panel(selected_node: Option<&Node>) -> Node {
     if let Some(node) = selected_node {
         // ── element.style rule ──
         let mut element_style = div("rule");
-        element_style.push(
-            div("rule-header").with_children(vec![
-                span("selector-text", "element.style"),
-                span("brace", " {"),
-            ]),
-        );
+        element_style.push(div("rule-header").with_children(vec![
+            span("selector-text", "element.style"),
+            span("brace", " {"),
+        ]));
         if let Some(style_str) = node.element.attr("style") {
             for decl in style_str.split(';') {
                 let decl = decl.trim();
@@ -335,9 +344,7 @@ fn build_styles_panel(selected_node: Option<&Node>) -> Node {
                 }
             }
         }
-        element_style.push(
-            div("rule-end").with_children(vec![text("}")]),
-        );
+        element_style.push(div("rule-end").with_children(vec![text("}")]));
         content.push(element_style);
 
         // ── Element info ──
@@ -353,17 +360,14 @@ fn build_styles_panel(selected_node: Option<&Node>) -> Node {
         let info_text = info_parts.join("  ");
 
         let mut info_rule = div("rule");
-        info_rule.push(
-            div("rule-header").with_children(vec![
-                span("selector-text", &info_text),
-            ]),
-        );
+        info_rule.push(div("rule-header").with_children(vec![span("selector-text", &info_text)]));
         content.push(info_rule);
     } else {
         // No selection — placeholder.
-        let placeholder = div_style("rule", "padding: 12px;").with_children(vec![
-            span("text-node", "Select an element to inspect its styles"),
-        ]);
+        let placeholder = div_style("rule", "padding: 12px;").with_children(vec![span(
+            "text-node",
+            "Select an element to inspect its styles",
+        )]);
         content.push(placeholder);
     }
 

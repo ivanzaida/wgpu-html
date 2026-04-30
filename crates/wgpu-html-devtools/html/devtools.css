@@ -37,13 +37,15 @@ body {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.pick-btn { color: var(--accent-blue); font-size: 14px; }
+.icon { font-family: lucide; }
+.pick-btn { color: var(--accent-blue); font-size: 14px; font-family: lucide; }
 .tb-divider { width: 1px; height: 16px; background: var(--divider); }
 .filter {
   display: flex; align-items: center; gap: 6px;
   height: 22px; padding: 0 8px;
   background: var(--bg-tertiary); border-radius: 3px; width: 200px;
 }
+.filter-icon { color: var(--text-muted); font-family: lucide; font-size: 12px; }
 .filter-text { color: var(--text-muted); font-size: 11px; }
 
 .tab-bar {
@@ -89,7 +91,7 @@ body {
   background-color: var(--bg-selected);
 }
 
-.chevron { color: var(--text-secondary); font-size: 10px; width: 12px; }
+.chevron { color: var(--text-secondary); font-family: lucide; font-size: 10px; width: 12px; }
 .tag { color: var(--tag-color); }
 .bracket { color: var(--text-secondary); }
 .attr-n { color: var(--attr-name); }
