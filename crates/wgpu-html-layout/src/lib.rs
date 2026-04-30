@@ -4924,6 +4924,10 @@ pub(crate) fn line_height_px(style: &Style, font_size: f32) -> f32 {
 /// actual font metrics (hhea ascender − descender + lineGap) instead
 /// of the hardcoded 1.25× multiplier. This matches browser behaviour
 /// for CSS `line-height: normal`.
+///
+/// The multiplier is clamped to at least 1.2 so icon fonts with
+/// degenerate metrics (e.g. ascender=1000, descender=0 → 1.0×)
+/// don't collapse the line-height and shift the baseline.
 fn line_height_px_for_font(
     style: &Style,
     font_size: f32,
@@ -4937,7 +4941,8 @@ fn line_height_px_for_font(
         _ => {
             let multiplier = text_ctx
                 .normal_line_height_multiplier(handle)
-                .unwrap_or(1.25);
+                .unwrap_or(1.2)
+                .max(1.2);
             font_size * multiplier
         }
     }
