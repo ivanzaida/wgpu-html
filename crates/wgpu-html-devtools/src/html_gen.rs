@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use wgpu_html_tree::{Element, Node, Tree};
+use wgpu_html_tree::{Element, Node};
 
 const CSS: &str = include_str!("../html/devtools.css");
 
@@ -41,22 +41,22 @@ fn text(s: &str) -> Node {
 
 // ── Public API ──────────────────────────────────────────────────
 
-/// Build a complete devtools UI tree from the inspected tree.
+/// Build a complete devtools UI tree from the inspected root node.
 pub fn build(
-    inspected: &Tree,
+    inspected_root: Option<&Node>,
     selected_path: Option<&[usize]>,
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
-) -> Tree {
+) -> wgpu_html_tree::Tree {
     let style = Node::new(wgpu_html_models::StyleElement::default())
         .with_children(vec![text(CSS)]);
 
     let toolbar = build_toolbar();
-    let main = build_main(inspected, selected_path, click_sink);
+    let main = build_main(inspected_root, selected_path, click_sink);
 
     let body = Node::new(wgpu_html_models::Body::default())
         .with_children(vec![style, toolbar, main]);
 
-    Tree::new(body)
+    wgpu_html_tree::Tree::new(body)
 }
 
 // ── Toolbar ─────────────────────────────────────────────────────
@@ -72,15 +72,15 @@ fn build_toolbar() -> Node {
 // ── Main area ───────────────────────────────────────────────────
 
 fn build_main(
-    inspected: &Tree,
+    inspected_root: Option<&Node>,
     selected_path: Option<&[usize]>,
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
 ) -> Node {
-    let tree_panel = build_tree_panel(inspected, selected_path, click_sink);
+    let tree_panel = build_tree_panel(inspected_root, selected_path, click_sink);
 
     // Look up the selected node for the styles panel.
     let selected_node = selected_path.and_then(|path| {
-        let root = inspected.root.as_ref()?;
+        let root = inspected_root?;
         if path.is_empty() {
             Some(root)
         } else {
@@ -95,17 +95,17 @@ fn build_main(
 // ── Tree panel ──────────────────────────────────────────────────
 
 fn build_tree_panel(
-    inspected: &Tree,
+    inspected_root: Option<&Node>,
     selected_path: Option<&[usize]>,
     click_sink: &Arc<Mutex<Option<Vec<usize>>>>,
 ) -> Node {
     let mut rows = div("tree-rows");
-    if let Some(root) = &inspected.root {
+    if let Some(root) = inspected_root {
         let mut path = Vec::new();
         emit_node(&mut rows, root, 0, &mut path, selected_path, click_sink);
     }
 
-    let breadcrumb = build_breadcrumb(inspected, selected_path);
+    let breadcrumb = build_breadcrumb(inspected_root, selected_path);
 
     div("tree-panel").with_children(vec![rows, breadcrumb])
 }
@@ -244,10 +244,10 @@ fn push_open_tag(row: &mut Node, node: &Node, tag: &str) {
 
 // ── Breadcrumb ──────────────────────────────────────────────────
 
-fn build_breadcrumb(inspected: &Tree, selected_path: Option<&[usize]>) -> Node {
+fn build_breadcrumb(inspected_root: Option<&Node>, selected_path: Option<&[usize]>) -> Node {
     let mut items: Vec<Node> = Vec::new();
 
-    if let (Some(root), Some(path)) = (&inspected.root, selected_path) {
+    if let (Some(root), Some(path)) = (inspected_root, selected_path) {
         let mut current = root;
         let len = path.len();
 

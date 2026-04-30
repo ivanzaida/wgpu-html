@@ -7,7 +7,7 @@ use wgpu_html::layout::{LayoutBox, Rect};
 use wgpu_html::PipelineCache;
 use wgpu_html_renderer::{FrameOutcome, GLYPH_ATLAS_SIZE, Renderer};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::{MouseButton, Tree};
+use wgpu_html_tree::{MouseButton, Node, Tree};
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
@@ -158,9 +158,11 @@ pub struct Devtools {
     /// Shared sink for click callbacks to communicate selected paths
     /// back from the devtools UI tree.
     click_sink: Arc<Mutex<Option<Vec<usize>>>>,
+    /// Cloned root of the inspected tree — kept so the devtools can
+    /// rebuild its UI on selection changes without waiting for the
+    /// host to call `update_inspected_tree` again.
+    inspected_root: Option<Node>,
     /// Generation of the inspected tree used in the last rebuild.
-    /// Compared on each `update_inspected_tree` call to skip
-    /// redundant rebuilds when the inspected DOM hasn't changed.
     last_inspected_gen: Option<u64>,
 }
 
@@ -173,6 +175,7 @@ impl Devtools {
             fonts: Vec::new(),
             selected_path: None,
             click_sink: Arc::new(Mutex::new(None)),
+            inspected_root: None,
             last_inspected_gen: None,
         }
     }
@@ -237,11 +240,20 @@ impl Devtools {
     /// inspected tree. Call this from `on_frame` whenever the
     /// devtools window is open.
     pub fn update_inspected_tree(&mut self, inspected: &Tree) {
-        let Some(state) = self.window_state.as_mut() else {
+        if self.window_state.is_none() {
             return;
-        };
+        }
 
-        // Check for pending selection from a click event.
+        // Store the inspected root so click-selection can rebuild
+        // without waiting for the next host on_frame call.
+        let inspected_gen = inspected.generation;
+        let dom_changed = self.last_inspected_gen != Some(inspected_gen);
+        if dom_changed {
+            self.inspected_root = inspected.root.clone();
+            self.last_inspected_gen = Some(inspected_gen);
+        }
+
+        // Drain any pending click selection.
         let selection_changed = self
             .click_sink
             .lock()
@@ -252,19 +264,21 @@ impl Devtools {
             })
             .is_some();
 
-        // Skip a full rebuild when neither the inspected DOM nor the
-        // selected path changed — the cached cascade + layout stay
-        // valid and hover/scroll are handled by PartialCascade /
-        // RepaintOnly.
-        let inspected_gen = inspected.generation;
-        if !selection_changed && self.last_inspected_gen == Some(inspected_gen) {
-            return;
+        if dom_changed || selection_changed {
+            self.rebuild_ui();
         }
-        self.last_inspected_gen = Some(inspected_gen);
+    }
+
+    /// Rebuild the devtools UI tree from the stored inspected root
+    /// and current selection, then invalidate the pipeline cache.
+    fn rebuild_ui(&mut self) {
+        let Some(state) = self.window_state.as_mut() else {
+            return;
+        };
 
         let t0 = Instant::now();
         let mut tree = html_gen::build(
-            inspected,
+            self.inspected_root.as_ref(),
             self.selected_path.as_deref(),
             &self.click_sink,
         );
@@ -320,15 +334,10 @@ impl Devtools {
     /// Handle a winit `WindowEvent` for the devtools window.
     /// The caller should only forward events whose `WindowId`
     /// matches [`Devtools::owns_window`].
-    ///
-    /// Returns `true` when the devtools needs the host to call
-    /// [`update_inspected_tree`] again (e.g. after a click changed
-    /// the selected element). The host should request a redraw on
-    /// the **main** window so that `on_frame` runs.
-    pub fn handle_window_event(&mut self, event: &WindowEvent) -> bool {
+    pub fn handle_window_event(&mut self, event: &WindowEvent) {
         // Swallow events for a window that is pending drop.
         if self.window_state.is_none() {
-            return false;
+            return;
         }
         match event {
             WindowEvent::CloseRequested => {
@@ -379,7 +388,7 @@ impl Devtools {
                 ..
             } => {
                 let Some(mb) = to_mouse_button(*button) else {
-                    return false;
+                    return;
                 };
                 let ws = self.window_state.as_mut().unwrap();
                 if let Some(layout) = ws.cache.layout() {
@@ -409,12 +418,13 @@ impl Devtools {
                     ws.window.request_redraw();
                 }
                 // If a tree row was clicked (callback fires
-                // synchronously during dispatch_mouse_up), signal
-                // the host to call update_inspected_tree so the
-                // selection can be applied. The click_sink is
-                // consumed there, not here.
-                if self.click_sink.lock().unwrap().is_some() {
-                    return true;
+                // synchronously during dispatch_mouse_up), apply
+                // the selection and rebuild immediately from the
+                // stored inspected root.
+                let clicked = self.click_sink.lock().unwrap().take();
+                if let Some(path) = clicked {
+                    self.selected_path = Some(path);
+                    self.rebuild_ui();
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -436,7 +446,6 @@ impl Devtools {
             }
             _ => {}
         }
-        false
     }
 
     /// Actually drop any window state that was deferred from a
