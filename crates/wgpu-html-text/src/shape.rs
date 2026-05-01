@@ -387,6 +387,53 @@ impl TextContext {
     /// (each glyph's `y` is in run-relative coords with line offsets
     /// already applied); `height` is the stacked total, `ascent` is
     /// the first line's baseline, `width` is the widest line.
+    /// Like [`shape_and_pack`] but only returns the metrics (width,
+    /// height, ascent) without cloning the full glyph data. Used by
+    /// flex intrinsic sizing which only needs dimensions. On cache
+    /// miss, shapes the text and caches it (so the subsequent full
+    /// `shape_and_pack` will hit).
+    pub fn measure_only(
+        &mut self,
+        text: &str,
+        font: FontHandle,
+        size_px: f32,
+        line_height_px: f32,
+        letter_spacing_px: f32,
+        weight: u16,
+        axis: FontStyleAxis,
+        max_width_px: Option<f32>,
+    ) -> Option<(f32, f32, f32)> {
+        self.maybe_invalidate_text_caches();
+
+        let cache_key = TextCacheKey {
+            text_hash: hash_str(text),
+            font_handle: font,
+            size_px_bits: size_px.to_bits(),
+            line_height_bits: line_height_px.to_bits(),
+            letter_spacing_bits: letter_spacing_px.to_bits(),
+            weight,
+            style: axis,
+            max_width_bits: max_width_px.map(|w| w.to_bits()),
+        };
+        if let Some(cached) = self.text_cache.get(&cache_key) {
+            return Some((cached.width, cached.height, cached.ascent));
+        }
+        // Cache miss — fall through to full shaping, which will populate
+        // the cache for subsequent calls.
+        let run = self.shape_and_pack(
+            text,
+            font,
+            size_px,
+            line_height_px,
+            letter_spacing_px,
+            weight,
+            axis,
+            max_width_px,
+            [0.0, 0.0, 0.0, 1.0],
+        )?;
+        Some((run.width, run.height, run.ascent))
+    }
+
     pub fn shape_and_pack(
         &mut self,
         text: &str,

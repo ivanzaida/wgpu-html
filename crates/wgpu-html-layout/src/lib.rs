@@ -2187,7 +2187,21 @@ fn collect_hit_path_scrolled(
 
     let next_clip = overflow_hit_clip(b, clip);
 
-    let own_scroll = offsets.get(path.as_slice()).copied().unwrap_or(0.0);
+    // Clamp scroll offset to the element's actual scrollable range
+    // (mirrors paint behaviour). Without this, a stale offset after
+    // resize causes hit-test to target wrong children.
+    let raw_scroll = offsets.get(path.as_slice()).copied().unwrap_or(0.0);
+    let own_scroll = if raw_scroll != 0.0 {
+        let pad = padding_box_rect(b);
+        let content_bottom = b.children.iter().fold(
+            pad.y + pad.h,
+            |acc, child| acc.max(child.margin_rect.y + child.margin_rect.h),
+        );
+        let max_scroll = (content_bottom - pad.y - pad.h).max(0.0);
+        raw_scroll.clamp(0.0, max_scroll)
+    } else {
+        0.0
+    };
     let child_y = y + own_scroll;
     let child_clip = if own_scroll != 0.0 {
         next_clip.map(|c| Rect::new(c.x, c.y + own_scroll, c.w, c.h))
@@ -2266,6 +2280,21 @@ pub fn layout_with_text(
     viewport_h: f32,
     scale: f32,
 ) -> Option<LayoutBox> {
+    layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false)
+}
+
+/// Like [`layout_with_text`] but optionally enables the layout
+/// sub-profiler. When `profile` is true, prints a `[layout-profile]`
+/// summary line to stderr after layout completes.
+pub fn layout_with_text_profiled(
+    tree: &CascadedTree,
+    text_ctx: &mut TextContext,
+    image_cache: &mut ImageCache,
+    viewport_w: f32,
+    viewport_h: f32,
+    scale: f32,
+    profile: bool,
+) -> Option<LayoutBox> {
     let root = tree.root.as_ref()?;
     let mut ctx = Ctx {
         viewport_w,
@@ -2273,8 +2302,12 @@ pub fn layout_with_text(
         scale,
         text: TextCtx { ctx: text_ctx },
         images: image_cache,
+        profiler: if profile {
+            Some(layout_profile::LayoutProfiler::new())
+        } else {
+            None
+        },
     };
-    layout_profile::reset();
     let result = layout_block(
         root,
         0.0,
@@ -2285,119 +2318,72 @@ pub fn layout_with_text(
         BlockOverrides::default(),
         &mut ctx,
     );
-    layout_profile::dump();
+    if let Some(p) = &ctx.profiler {
+        p.dump();
+    }
     Some(result)
 }
 
-/// Lightweight per-frame layout sub-profiler. Thread-local, zero-sync.
+/// Layout sub-profiler. Lives in `Ctx` — zero overhead when `None`.
 pub(crate) mod layout_profile {
-    use std::cell::RefCell;
     use std::time::{Duration, Instant};
 
+    /// Accumulated layout counters. Only populated when profiling is
+    /// enabled (passed as `Some(&mut LayoutProfiler)` in `Ctx`).
     #[derive(Default)]
-    pub struct Counters {
+    pub struct LayoutProfiler {
         pub block_calls: u32,
-        pub block_time: Duration,
         pub flex_calls: u32,
-        pub flex_time: Duration,
         pub grid_calls: u32,
-        pub grid_time: Duration,
         pub inline_para_calls: u32,
-        pub inline_para_time: Duration,
         pub text_shape_calls: u32,
-        pub text_shape_time: Duration,
-        pub text_shape_cache_hits: u32,
         pub para_shape_calls: u32,
-        pub para_shape_time: Duration,
-        pub para_shape_cache_hits: u32,
-        pub collect_spans_calls: u32,
-        pub collect_spans_time: Duration,
-        pub resolve_family_calls: u32,
-        pub resolve_family_time: Duration,
         pub total_nodes: u32,
     }
 
-    thread_local! {
-        pub static COUNTERS: RefCell<Counters> = RefCell::new(Counters::default());
-    }
+    impl LayoutProfiler {
+        pub fn new() -> Self {
+            Self::default()
+        }
 
-    pub fn reset() {
-        COUNTERS.with(|c| *c.borrow_mut() = Counters::default());
-    }
-
-    pub fn dump() {
-        COUNTERS.with(|c| {
-            let c = c.borrow();
-            eprintln!("[layout-profile] nodes={} block={} calls={} | flex={:.2}ms calls={} | grid={:.2}ms calls={} | inline_para={:.2}ms calls={} | text_shape={:.2}ms calls={} hits={} | para_shape={:.2}ms calls={} hits={} | collect_spans={:.2}ms calls={} | resolve_family={:.2}ms calls={}",
-                c.total_nodes,
-                ms(c.block_time), c.block_calls,
-                ms(c.flex_time), c.flex_calls,
-                ms(c.grid_time), c.grid_calls,
-                ms(c.inline_para_time), c.inline_para_calls,
-                ms(c.text_shape_time), c.text_shape_calls, c.text_shape_cache_hits,
-                ms(c.para_shape_time), c.para_shape_calls, c.para_shape_cache_hits,
-                ms(c.collect_spans_time), c.collect_spans_calls,
-                ms(c.resolve_family_time), c.resolve_family_calls,
+        pub fn dump(&self) {
+            eprintln!(
+                "[layout-profile] nodes={} block_calls={} | flex_calls={} | grid_calls={} | inline_para_calls={} | text_shape_calls={} | para_shape_calls={}",
+                self.total_nodes,
+                self.block_calls,
+                self.flex_calls,
+                self.grid_calls,
+                self.inline_para_calls,
+                self.text_shape_calls,
+                self.para_shape_calls,
             );
-        });
-    }
-
-    fn ms(d: Duration) -> f64 {
-        d.as_secs_f64() * 1000.0
-    }
-
-    /// RAII guard that accumulates elapsed time into a counter field.
-    pub struct Timer {
-        start: Instant,
-        field: Field,
-    }
-
-    pub enum Field {
-        Block,
-        Flex,
-        Grid,
-        InlinePara,
-        TextShape,
-        ParaShape,
-        CollectSpans,
-        ResolveFamily,
-    }
-
-    impl Timer {
-        pub fn new(field: Field) -> Self {
-            Self { start: Instant::now(), field }
         }
     }
 
-    impl Drop for Timer {
-        fn drop(&mut self) {
-            let elapsed = self.start.elapsed();
-            COUNTERS.with(|c| {
-                let mut c = c.borrow_mut();
-                match self.field {
-                    Field::Block => { c.block_calls += 1; c.block_time += elapsed; }
-                    Field::Flex => { c.flex_calls += 1; c.flex_time += elapsed; }
-                    Field::Grid => { c.grid_calls += 1; c.grid_time += elapsed; }
-                    Field::InlinePara => { c.inline_para_calls += 1; c.inline_para_time += elapsed; }
-                    Field::TextShape => { c.text_shape_calls += 1; c.text_shape_time += elapsed; }
-                    Field::ParaShape => { c.para_shape_calls += 1; c.para_shape_time += elapsed; }
-                    Field::CollectSpans => { c.collect_spans_calls += 1; c.collect_spans_time += elapsed; }
-                    Field::ResolveFamily => { c.resolve_family_calls += 1; c.resolve_family_time += elapsed; }
-                }
-            });
-        }
+    // Inline helpers — compile to nothing when profiler is None.
+    #[inline(always)]
+    pub fn count_block(p: &mut Option<LayoutProfiler>) {
+        if let Some(p) = p { p.block_calls += 1; p.total_nodes += 1; }
     }
-
-    pub fn count_node() {
-        COUNTERS.with(|c| c.borrow_mut().total_nodes += 1);
+    #[inline(always)]
+    pub fn count_flex(p: &mut Option<LayoutProfiler>) {
+        if let Some(p) = p { p.flex_calls += 1; }
     }
-
-    pub fn count_text_cache_hit() {
-        COUNTERS.with(|c| c.borrow_mut().text_shape_cache_hits += 1);
+    #[inline(always)]
+    pub fn count_grid(p: &mut Option<LayoutProfiler>) {
+        if let Some(p) = p { p.grid_calls += 1; }
     }
-
-    pub fn count_para_cache_hit() {
-        COUNTERS.with(|c| c.borrow_mut().para_shape_cache_hits += 1);
+    #[inline(always)]
+    pub fn count_inline_para(p: &mut Option<LayoutProfiler>) {
+        if let Some(p) = p { p.inline_para_calls += 1; }
+    }
+    #[inline(always)]
+    pub fn count_text_shape(p: &mut Option<LayoutProfiler>) {
+        if let Some(p) = p { p.text_shape_calls += 1; }
+    }
+    #[inline(always)]
+    pub fn count_para_shape(p: &mut Option<LayoutProfiler>) {
+        if let Some(p) = p { p.para_shape_calls += 1; }
     }
 }
 
@@ -2423,6 +2409,7 @@ pub(crate) struct Ctx<'a> {
     pub scale: f32,
     pub text: TextCtx<'a>,
     pub images: &'a mut ImageCache,
+    pub profiler: Option<layout_profile::LayoutProfiler>,
 }
 
 /// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
@@ -2485,8 +2472,7 @@ fn layout_block(
     overrides: BlockOverrides,
     ctx: &mut Ctx,
 ) -> LayoutBox {
-    let _timer = layout_profile::Timer::new(layout_profile::Field::Block);
-    layout_profile::count_node();
+    layout_profile::count_block(&mut ctx.profiler);
 
     // `display: none` removes the element and its subtree from the
     // box tree entirely. Returning a zero-sized box means the parent
@@ -2695,7 +2681,7 @@ fn layout_block(
     } else {
         match display {
             Display::Flex | Display::InlineFlex => {
-                let _ft = layout_profile::Timer::new(layout_profile::Field::Flex);
+                layout_profile::count_flex(&mut ctx.profiler);
                 let (kids, _content_w_used, content_h_used) = flex::layout_flex_children(
                     node,
                     style,
@@ -2708,7 +2694,7 @@ fn layout_block(
                 (kids, content_h_used)
             }
             Display::Grid | Display::InlineGrid => {
-                let _gt = layout_profile::Timer::new(layout_profile::Field::Grid);
+                layout_profile::count_grid(&mut ctx.profiler);
                 let (kids, _content_w_used, content_h_used) = grid::layout_grid_children(
                     node,
                     style,
@@ -3397,7 +3383,7 @@ fn shape_text_run(
     trim_edges: bool,
     ctx: &mut Ctx,
 ) -> (Option<ShapedRun>, f32, f32, f32) {
-    let _timer = layout_profile::Timer::new(layout_profile::Field::TextShape);
+    layout_profile::count_text_shape(&mut ctx.profiler);
     if text.is_empty() {
         return (None, 0.0, 0.0, 0.0);
     }
@@ -3754,8 +3740,53 @@ fn make_text_leaf(
 }
 
 pub(crate) fn measure_text_leaf(text: &str, style: &Style, ctx: &mut Ctx) -> (f32, f32) {
-    let (_run, w, h, _ascent) = shape_text_run(text, style, None, true, ctx);
-    (w, h)
+    layout_profile::count_text_shape(&mut ctx.profiler);
+    if text.is_empty() {
+        return (0.0, 0.0);
+    }
+    // Same text prep as shape_text_run but uses measure_only to avoid
+    // cloning the full ShapedRun (only needs width/height).
+    let mut prev_collapsed_space = false;
+    let normalized = normalize_text_for_style(text, style, Some(&mut prev_collapsed_space));
+    let normalized = if style_collapses_whitespace(style) {
+        trim_collapsed_whitespace_edges(&normalized, true, true).to_string()
+    } else {
+        normalized
+    };
+    if normalized.is_empty() {
+        return (0.0, 0.0);
+    }
+    let transformed = apply_text_transform(&normalized, style.text_transform.as_ref());
+    let display_text: &str = match transformed.as_ref() {
+        Some(s) => s.as_str(),
+        None => &normalized,
+    };
+    let families = parse_family_list(style.font_family.as_deref());
+    let family_refs: Vec<&str> = families.iter().map(String::as_str).collect();
+    let weight = font_weight_value(style.font_weight.as_ref());
+    let axis = font_style_axis(style.font_style.as_ref());
+    let Some(handle) = ctx.text.ctx.pick_font(&family_refs, weight, axis) else {
+        return (0.0, 0.0);
+    };
+    let size_css = font_size_px(style).unwrap_or(16.0);
+    let line_h_css = line_height_px_for_font(style, size_css, &ctx.text.ctx, handle);
+    let size_px = size_css * ctx.scale;
+    let line_height = line_h_css * ctx.scale;
+    let letter_spacing = letter_spacing_px(style, size_css) * ctx.scale;
+    let wrap_enabled = style_wraps_text(style);
+    match ctx.text.ctx.measure_only(
+        display_text,
+        handle,
+        size_px,
+        line_height,
+        letter_spacing,
+        weight,
+        axis,
+        if wrap_enabled { None } else { None },
+    ) {
+        Some((w, h, _ascent)) => (w, h),
+        None => (0.0, 0.0),
+    }
 }
 
 /// Parse the raw `text-decoration` shorthand string into the set of
@@ -4617,7 +4648,7 @@ fn push_paragraph_span(
     let weight = font_weight_value(node.style.font_weight.as_ref());
     let axis = font_style_axis(node.style.font_style.as_ref());
     let family = {
-        let _timer = layout_profile::Timer::new(layout_profile::Field::ResolveFamily);
+        layout_profile::count_text_shape(&mut ctx.profiler); // resolve_family
         ctx.text.ctx.resolve_family(&family_refs, weight, axis).unwrap_or_default()
     };
 
@@ -4653,7 +4684,7 @@ fn collect_paragraph_spans(
     collapse: &mut ParagraphCollapseState,
     inherited_opacity: f32,
 ) {
-    let _timer = layout_profile::Timer::new(layout_profile::Field::CollectSpans);
+    layout_profile::count_text_shape(&mut ctx.profiler); // collect_spans
     if matches!(node.style.display, Some(Display::None)) {
         return;
     }
@@ -4745,7 +4776,7 @@ fn layout_inline_paragraph(
     text_align: Option<&wgpu_html_models::common::css_enums::TextAlign>,
     ctx: &mut Ctx,
 ) -> (Vec<LayoutBox>, f32, f32) {
-    let _timer = layout_profile::Timer::new(layout_profile::Field::InlinePara);
+    layout_profile::count_inline_para(&mut ctx.profiler);
     // 1. Flatten the inline subtree into spans + recorded inline
     //    blocks (the elements with bg / decoration whose per-line
     //    bounds we'll need after shaping).
@@ -4794,7 +4825,7 @@ fn layout_inline_paragraph(
         })
         .collect();
     let para = match {
-        let _pt = layout_profile::Timer::new(layout_profile::Field::ParaShape);
+        layout_profile::count_para_shape(&mut ctx.profiler);
         ctx.text.ctx.shape_paragraph(
             &paragraph_spans,
             if style_wraps_text(&node.style) {

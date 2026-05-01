@@ -54,10 +54,21 @@ pub fn max_scroll_y(layout: &LayoutBox, viewport_h: f32) -> f32 {
 }
 
 /// Bottom edge (in document space) of the deepest descendant.
+/// Stops recursing into children that have overflow clipping
+/// (hidden / auto / scroll), since their visible extent is bounded
+/// by their own border-rect.
 pub fn document_bottom(b: &LayoutBox) -> f32 {
     b.children
         .iter()
-        .map(document_bottom)
+        .map(|child| {
+            use crate::models::common::css_enums::Overflow;
+            if matches!(child.overflow.y, Overflow::Hidden | Overflow::Auto | Overflow::Scroll) {
+                // Clipped container — its visible extent is its own rect.
+                child.margin_rect.y + child.margin_rect.h
+            } else {
+                document_bottom(child)
+            }
+        })
         .fold(b.margin_rect.y + b.margin_rect.h, f32::max)
 }
 
