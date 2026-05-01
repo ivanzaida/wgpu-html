@@ -1,91 +1,112 @@
 <!DOCTYPE html>
 <html>
 <head>
-<style>
-  body {
-    background: #1a1a2e;
-    margin: 0;
-    padding: 20px;
-    font-family: sans-serif;
-    color: #eee;
-  }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  p  { font-size: 13px; color: #aaa; margin: 0 0 18px; }
+    <style>
+        body {
+            background: #1a1a2e;
+            margin: 0;
+            padding: 20px;
+            font-family: sans-serif;
+            color: #eee;
+        }
 
-  .row {
-    display: flex;
-    gap: 24px;
-    flex-wrap: wrap;
-    margin-bottom: 28px;
-  }
-  .card {
-    background: #16213e;
-    border-radius: 10px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    width: 180px;
-  }
-  .label {
-    font-size: 11px;
-    color: #888;
-    text-align: center;
-  }
-  code {
-    font-size: 10px;
-    color: #7ec8e3;
-    background: #0a0a1a;
-    padding: 3px 6px;
-    border-radius: 4px;
-    display: block;
-    white-space: pre;
-  }
+        h1 {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
 
-  /* ── CSS rules targeting SVG paths ─────────────────────────── */
+        p {
+            font-size: 13px;
+            color: #aaa;
+            margin: 0 0 18px;
+        }
 
-  /* 1. fill from CSS class */
-  .fill-orange path { fill: #e07b39; }
+        .row {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+        }
 
-  /* 2. stroke from CSS */
-  .stroke-demo path {
-    fill: none;
-    stroke: #4ac6b7;
-    stroke-width: 30px;
-  }
+        .card {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            width: 180px;
+        }
 
-  /* 3. dashed stroke */
-  .dashed path {
-    fill: none;
-    stroke: #f0c674;
-    stroke-width: 20px;
-    stroke-dasharray: 60 30;
-    stroke-linecap: round;
-  }
+        .label {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+        }
 
-  /* 4. fill + stroke together */
-  .both path {
-    fill: #a855f7;
-    stroke: #f472b6;
-    stroke-width: 18px;
-  }
+        code {
+            font-size: 10px;
+            color: #7ec8e3;
+            background: #0a0a1a;
+            padding: 3px 6px;
+            border-radius: 4px;
+            display: block;
+            white-space: pre;
+        }
 
-  /* 5. fill-rule evenodd — creates hollow effect */
-  .evenodd path { fill: #22d3ee; fill-rule: evenodd; }
+        /* ── CSS rules targeting SVG paths ─────────────────────────── */
 
-  /* 6. opacity */
-  .faded path {
-    fill: #f87171;
-    opacity: 0.35;
-  }
+        /* 1. fill from CSS class */
+        .fill-orange path {
+            fill: #e07b39;
+        }
 
-  /* 7. inherited fill from svg root via CSS */
-  .inherited { fill: #34d399; }
+        /* 2. stroke from CSS */
+        .stroke-demo path {
+            fill: none;
+            stroke: #4ac6b7;
+            stroke-width: 30px;
+        }
 
-  /* 8. original — no CSS override, plain black fill from SVG attr */
-  .original path { fill: #e2e8f0; }
-</style>
+        /* 3. dashed stroke */
+        .dashed path {
+            fill: none;
+            stroke: #f0c674;
+            stroke-width: 20px;
+            stroke-dasharray: 60 30;
+            stroke-linecap: round;
+        }
+
+        /* 4. fill + stroke together */
+        .both path {
+            fill: #a855f7;
+            stroke: #f472b6;
+            stroke-width: 18px;
+        }
+
+        /* 5. fill-rule evenodd — creates hollow effect */
+        .evenodd path {
+            fill: #22d3ee;
+            fill-rule: evenodd;
+        }
+
+        /* 6. opacity */
+        .faded path {
+            fill: #f87171;
+            opacity: 0.35;
+        }
+
+        /* 7. inherited fill from svg root via CSS */
+        .inherited {
+            fill: #34d399;
+        }
+
+        /* 8. original — no CSS override, plain black fill from SVG attr */
+        .original path {
+            fill: #e2e8f0;
+        }
+    </style>
 </head>
 <body>
 
@@ -94,82 +115,82 @@
 
 <div class="row">
 
-  <!-- 1. fill via CSS class -->
-  <div class="card">
-    <svg class="fill-orange" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">fill</span>
-    <code>fill: #e07b39</code>
-  </div>
+    <!-- 1. fill via CSS class -->
+    <div class="card">
+        <svg class="fill-orange" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">fill</span>
+        <code>fill: #e07b39</code>
+    </div>
 
-  <!-- 2. stroke only -->
-  <div class="card">
-    <svg class="stroke-demo" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">stroke (fill: none)</span>
-    <code>stroke: #4ac6b7
-stroke-width: 30px</code>
-  </div>
+    <!-- 2. stroke only -->
+    <div class="card">
+        <svg class="stroke-demo" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">stroke (fill: none)</span>
+        <code>stroke: #4ac6b7
+            stroke-width: 30px</code>
+    </div>
 
-  <!-- 3. dashed stroke -->
-  <div class="card">
-    <svg class="dashed" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">stroke-dasharray</span>
-    <code>stroke-dasharray: 60 30
-stroke-linecap: round</code>
-  </div>
+    <!-- 3. dashed stroke -->
+    <div class="card">
+        <svg class="dashed" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">stroke-dasharray</span>
+        <code>stroke-dasharray: 60 30
+            stroke-linecap: round</code>
+    </div>
 
-  <!-- 4. fill + stroke -->
-  <div class="card">
-    <svg class="both" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">fill + stroke</span>
-    <code>fill: #a855f7
-stroke: #f472b6</code>
-  </div>
+    <!-- 4. fill + stroke -->
+    <div class="card">
+        <svg class="both" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">fill + stroke</span>
+        <code>fill: #a855f7
+            stroke: #f472b6</code>
+    </div>
 
-  <!-- 5. fill-rule evenodd -->
-  <div class="card">
-    <svg class="evenodd" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M600,100 L1100,900 L100,900 Z M600,300 L900,800 L300,800 Z"/>
-    </svg>
-    <span class="label">fill-rule: evenodd</span>
-    <code>fill: #22d3ee
-fill-rule: evenodd</code>
-  </div>
+    <!-- 5. fill-rule evenodd -->
+    <div class="card">
+        <svg class="evenodd" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M600,100 L1100,900 L100,900 Z M600,300 L900,800 L300,800 Z"/>
+        </svg>
+        <span class="label">fill-rule: evenodd</span>
+        <code>fill: #22d3ee
+            fill-rule: evenodd</code>
+    </div>
 
-  <!-- 6. opacity -->
-  <div class="card">
-    <svg class="faded" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">opacity</span>
-    <code>opacity: 0.35</code>
-  </div>
+    <!-- 6. opacity -->
+    <div class="card">
+        <svg class="faded" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">opacity</span>
+        <code>opacity: 0.35</code>
+    </div>
 
-  <!-- 7. inherited fill from svg element via CSS class -->
-  <div class="card">
-    <svg class="inherited" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">inherited fill</span>
-    <code>svg { fill: #34d399 }
-(path inherits)</code>
-  </div>
+    <!-- 7. inherited fill from svg element via CSS class -->
+    <div class="card">
+        <svg class="inherited" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">inherited fill</span>
+        <code>svg { fill: #34d399 }
+            (path inherits)</code>
+    </div>
 
-  <!-- 8. original HTML-attr fill -->
-  <div class="card">
-    <svg class="original" width="160" height="160" viewBox="0 0 1200 1200">
-      <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
-    </svg>
-    <span class="label">CSS fill override</span>
-    <code>path { fill: #e2e8f0 }</code>
-  </div>
+    <!-- 8. original HTML-attr fill -->
+    <div class="card">
+        <svg class="original" width="160" height="160" viewBox="0 0 1200 1200">
+            <path d="M935.926,42.203v186.061H763.958c-54.408,0-114.484,26.559-164.729,77.32c-50.242,50.761-104.842,126.065-191.527,249.904c-87.076,124.394-135.567,199.565-165.807,233.346c-30.24,33.78-25.376,30.882-69.388,30.882H0v147.863h170.427c66.078,0,132.54-27.619,179.515-80.093c46.975-52.475,91.312-125.164,176.742-247.208c85.82-122.601,140.381-195.159,175.512-230.651c35.129-35.491,36.641-33.5,59.685-33.5h171.967v194.147L1200,306.276L935.926,42.203z"/>
+        </svg>
+        <span class="label">CSS fill override</span>
+        <code>path { fill: #e2e8f0 }</code>
+    </div>
 
 </div>
 </body>

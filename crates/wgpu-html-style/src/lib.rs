@@ -138,6 +138,11 @@ struct PseudoClassUsage {
     /// Same for `:focus`.
     has_focus_subject: bool,
     has_focus_ancestor: bool,
+    /// True when ALL pseudo-class rules in this stylesheet only declare
+    /// paint-affecting properties (background-color, color, opacity, etc.)
+    /// and never layout-affecting ones (width, padding, display, etc.).
+    /// When true, the pipeline can skip re-layout on pseudo-class changes.
+    all_pseudo_rules_paint_only: bool,
 }
 
 impl PseudoClassUsage {
@@ -152,6 +157,9 @@ impl PseudoClassUsage {
     }
     fn has_any_ancestor(&self) -> bool {
         self.has_hover_ancestor || self.has_active_ancestor || self.has_focus_ancestor
+    }
+    fn has_any(&self) -> bool {
+        self.has_hover() || self.has_active() || self.has_focus()
     }
 }
 
@@ -194,12 +202,27 @@ impl PreparedStylesheet {
         let mut important_nonempty = Vec::with_capacity(sheet.rules.len());
         let mut relevant = RelevantSelectors::default();
         let mut pseudo_usage = PseudoClassUsage::default();
+        let mut has_any_pseudo_rule = false;
+        let mut all_pseudo_paint_only = true;
         for (rule_idx, rule) in sheet.rules.iter().enumerate() {
             normal_nonempty.push(!rule.keywords.is_empty() || style_has_values(&rule.declarations));
             important_nonempty
                 .push(!rule.important_keywords.is_empty() || style_has_values(&rule.important));
             for (selector_idx, selector) in rule.selectors.iter().enumerate() {
                 collect_relevant_selector_bits(selector, &mut relevant);
+                let has_pseudo = !selector.pseudo_classes.is_empty()
+                    || selector
+                        .ancestors
+                        .iter()
+                        .any(|a| !a.pseudo_classes.is_empty());
+                if has_pseudo {
+                    has_any_pseudo_rule = true;
+                    if style_has_layout_properties(&rule.declarations)
+                        || style_has_layout_properties(&rule.important)
+                    {
+                        all_pseudo_paint_only = false;
+                    }
+                }
                 // Scan subject compound for pseudo-class usage.
                 for pc in &selector.pseudo_classes {
                     match pc {
@@ -235,6 +258,7 @@ impl PreparedStylesheet {
                 }
             }
         }
+        pseudo_usage.all_pseudo_rules_paint_only = has_any_pseudo_rule && all_pseudo_paint_only;
         Self {
             sheet,
             index,
@@ -443,6 +467,19 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
 /// re-cascaded (meaning layout must re-run).
 ///
 /// When no CSS rule uses the changed pseudo-class (e.g. hover changed
+/// Returns `true` when every pseudo-class rule (`:hover`, `:active`,
+/// `:focus`) in the tree's stylesheets only declares paint-affecting
+/// properties (background-color, color, opacity, etc.) and never
+/// layout-affecting ones. When true the pipeline can safely skip
+/// re-layout on interaction state changes.
+pub fn pseudo_rules_are_paint_only(tree: &Tree) -> bool {
+    let author = collect_prepared_stylesheet_cached(tree);
+    let sheets: [&PreparedStylesheet; 2] = [ua_prepared_stylesheet(), author.as_ref()];
+    sheets
+        .iter()
+        .all(|s| s.pseudo_usage.all_pseudo_rules_paint_only || !s.pseudo_usage.has_any())
+}
+
 /// but no `:hover` rules exist), this short-circuits and returns
 /// `false` — the most common case for pages without hover styles.
 pub fn cascade_incremental(
@@ -1528,6 +1565,91 @@ fn style_has_values(style: &Style) -> bool {
         || !style.keyword_reset_properties.is_empty()
         || !style.custom_properties.is_empty()
         || !style.var_properties.is_empty()
+}
+
+/// Returns true if the style declares any property that can affect layout
+/// geometry (sizes, spacing, display mode, font metrics, etc.). Used to
+/// detect whether pseudo-class rules are "paint-only" — if all pseudo
+/// rules only set paint properties, the pipeline can skip re-layout on
+/// hover/active/focus changes.
+fn style_has_layout_properties(style: &Style) -> bool {
+    macro_rules! any_option {
+        ($($field:ident),* $(,)?) => {
+            false $(|| style.$field.is_some())*
+        };
+    }
+    any_option!(
+        display,
+        position,
+        top,
+        right,
+        bottom,
+        left,
+        width,
+        height,
+        min_width,
+        min_height,
+        max_width,
+        max_height,
+        margin,
+        margin_top,
+        margin_right,
+        margin_bottom,
+        margin_left,
+        padding,
+        padding_top,
+        padding_right,
+        padding_bottom,
+        padding_left,
+        border_top_width,
+        border_right_width,
+        border_bottom_width,
+        border_left_width,
+        border_top_style,
+        border_right_style,
+        border_bottom_style,
+        border_left_style,
+        font_family,
+        font_size,
+        font_weight,
+        font_style,
+        line_height,
+        letter_spacing,
+        text_align,
+        text_transform,
+        white_space,
+        overflow,
+        overflow_x,
+        overflow_y,
+        flex_direction,
+        flex_wrap,
+        justify_content,
+        align_items,
+        align_content,
+        align_self,
+        order,
+        gap,
+        row_gap,
+        column_gap,
+        flex,
+        flex_grow,
+        flex_shrink,
+        flex_basis,
+        grid_template_columns,
+        grid_template_rows,
+        grid_auto_columns,
+        grid_auto_rows,
+        grid_auto_flow,
+        grid_column_start,
+        grid_column_end,
+        grid_row_start,
+        grid_row_end,
+        grid_column,
+        grid_row,
+        justify_items,
+        justify_self,
+        box_sizing,
+    )
 }
 
 // ---------------------------------------------------------------------------

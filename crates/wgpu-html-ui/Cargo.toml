@@ -1,0 +1,10 @@
+[package]
+name = "wgpu-html-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu-html-tree.workspace   = true
+wgpu-html-models.workspace = true
+wgpu-html-winit.workspace  = true
+winit.workspace             = true

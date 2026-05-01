@@ -360,7 +360,7 @@ pub(crate) fn layout_flex_children(
         // extent.
         let mut cursor_main = start_main;
         for &i in line {
-            let item = &items[i];
+            let item = &mut items[i];
             let outer_main = item.outer_main();
             // Auto margin contributions on each side.
             let auto_pre = if item.auto_main_starts() {
@@ -407,34 +407,46 @@ pub(crate) fn layout_flex_children(
             // If we need to stretch, re-lay the item with the line's
             // cross extent as the cross dimension. Only items with no
             // explicit cross style and no auto cross margins stretch.
+            // Optimisation: skip the re-layout when the phase-4 content
+            // cross size already matches the stretch target (common when
+            // block items auto-fill the container or content is taller
+            // than the line).
             let mut child_box = if stretched {
                 let stretch_target = (line_cross_size - item.margin_cross_outer_known()).max(0.0);
-                let overrides = if is_row {
-                    BlockOverrides {
-                        width: Some(item.resolved_main),
-                        height: Some(stretch_target),
-                        ignore_style_width: false,
-                        ignore_style_height: false,
-                    }
+                let already_correct =
+                    (item.measured_cross_inner - stretch_target).abs() < 0.5;
+                if already_correct {
+                    item.box_.take().expect("item box was laid out in phase 4")
                 } else {
-                    BlockOverrides {
-                        width: Some(stretch_target),
-                        height: Some(item.resolved_main),
-                        ignore_style_width: false,
-                        ignore_style_height: false,
-                    }
-                };
-                layout_block_at_with(
-                    item.node,
-                    0.0,
-                    0.0,
-                    inner_width,
-                    cross_axis_size.unwrap_or(stretch_target),
-                    overrides,
-                    ctx,
-                )
+                    // Drop the phase-4 box — we're replacing it.
+                    item.box_ = None;
+                    let overrides = if is_row {
+                        BlockOverrides {
+                            width: Some(item.resolved_main),
+                            height: Some(stretch_target),
+                            ignore_style_width: false,
+                            ignore_style_height: false,
+                        }
+                    } else {
+                        BlockOverrides {
+                            width: Some(stretch_target),
+                            height: Some(item.resolved_main),
+                            ignore_style_width: false,
+                            ignore_style_height: false,
+                        }
+                    };
+                    layout_block_at_with(
+                        item.node,
+                        0.0,
+                        0.0,
+                        inner_width,
+                        cross_axis_size.unwrap_or(stretch_target),
+                        overrides,
+                        ctx,
+                    )
+                }
             } else {
-                item.box_.clone().expect("item box was laid out in phase 4")
+                item.box_.take().expect("item box was laid out in phase 4")
             };
 
             // Translate from temporary (0, 0) origin to final absolute
@@ -731,14 +743,19 @@ fn build_item<'a>(
     // Intrinsic basis: max-content of the item's content. Already
     // content-box (no padding/border), so it bypasses the box-sizing
     // conversion and is used as-is when no explicit basis is set.
-    let intrinsic_main = replaced_intrinsic_main(node, is_row, ctx)
-        .or_else(|| text_intrinsic_main(node, is_row, ctx));
+    // Only compute intrinsic size when needed (no explicit basis) to
+    // avoid O(depth × leaves) redundant text measurements in nested
+    // flex hierarchies.
     let mut base_size = match basis_explicit {
         Some(v) => match box_sizing {
             BoxSizing::ContentBox => v,
             BoxSizing::BorderBox => (v - frame_main).max(0.0),
         },
-        None => intrinsic_main.unwrap_or(0.0).max(0.0),
+        None => {
+            let intrinsic_main = replaced_intrinsic_main(node, is_row, ctx)
+                .or_else(|| text_intrinsic_main(node, is_row, ctx));
+            intrinsic_main.unwrap_or(0.0).max(0.0)
+        }
     };
 
     // Min/max on main axis, resolved into content-box pixels.

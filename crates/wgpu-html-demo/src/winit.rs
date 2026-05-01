@@ -274,12 +274,12 @@ struct DemoHook {
     enabled: bool,
     profiler: Profiler,
     commands: CommandQueue,
-    devtools: Devtools,
+    devtools: Option<Devtools>,
     stdin_started: bool,
 }
 
 impl DemoHook {
-    fn new(profiling_enabled: bool, devtools: Devtools) -> Self {
+    fn new(profiling_enabled: bool, devtools: Option<Devtools>) -> Self {
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
@@ -636,7 +636,9 @@ impl AppHook for DemoHook {
                         return EventResponse::Stop;
                     }
                     KeyCode::F11 => {
-                        self.devtools.toggle(ctx.event_loop);
+                        if let Some( devtools) = &mut self.devtools {
+                            devtools.toggle(ctx.event_loop);
+                        }
                         return EventResponse::Stop;
                     }
                     _ => {}
@@ -653,8 +655,10 @@ impl AppHook for DemoHook {
         }
         self.drain_commands(&mut ctx);
 
-        if self.devtools.is_enabled() {
-            self.devtools.poll_and_redraw(ctx.tree);
+        if let Some(devtools) = &mut self.devtools {
+            if devtools.is_enabled() {
+                 devtools.poll_and_redraw(ctx.tree);
+            }
         }
 
         if !self.enabled {
@@ -667,7 +671,28 @@ impl AppHook for DemoHook {
     }
 
     fn on_idle(&mut self) {
-        self.devtools.flush();
+        if let Some(devtools) = &mut self.devtools {
+            if devtools.is_enabled() {
+                devtools.flush();
+            }
+        }
+    }
+
+    fn on_window_event(
+        &mut self,
+        ctx: HookContext<'_>,
+        window_id: WindowId,
+        event: &WindowEvent,
+    ) -> bool {
+      if let Some(devtools) = &mut self.devtools {
+          if devtools.owns_window(window_id) {
+              devtools.handle_window_event(ctx.tree, event);
+              return true;
+          }
+          false
+      } else {
+          false
+      }
     }
 
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
@@ -677,18 +702,7 @@ impl AppHook for DemoHook {
         self.profiler.add_pointer_move(pointer_move_ms, changed);
     }
 
-    fn on_window_event(
-        &mut self,
-        _ctx: HookContext<'_>,
-        window_id: WindowId,
-        event: &WindowEvent,
-    ) -> bool {
-        if self.devtools.owns_window(window_id) {
-            self.devtools.handle_window_event(event);
-            return true;
-        }
-        false
-    }
+
 }
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -726,8 +740,16 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     tree.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
     install_demo_callbacks(&mut tree, &click_count);
 
+
+    if doc_source.ends_with("devtools.html") {
+        tree.register_linked_stylesheet("devtools.css", include_str!("../html/devtools.css"));
+    }
+    tree.profiler = Some(wgpu_html_tree::Profiler::tagged("demo app"));
+
+
+
     let devtools = Devtools::attach(&mut tree, true);
-    let hook = DemoHook::new(profiling_enabled, devtools);
+    let hook = DemoHook::new(profiling_enabled, Some(devtools));
 
     let result = create_window(&mut tree)
         .with_title(format!("wgpu-html demo: {doc_source}"))

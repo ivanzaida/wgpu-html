@@ -2274,7 +2274,8 @@ pub fn layout_with_text(
         text: TextCtx { ctx: text_ctx },
         images: image_cache,
     };
-    Some(layout_block(
+    layout_profile::reset();
+    let result = layout_block(
         root,
         0.0,
         0.0,
@@ -2283,7 +2284,121 @@ pub fn layout_with_text(
         Rect::new(0.0, 0.0, viewport_w, viewport_h),
         BlockOverrides::default(),
         &mut ctx,
-    ))
+    );
+    layout_profile::dump();
+    Some(result)
+}
+
+/// Lightweight per-frame layout sub-profiler. Thread-local, zero-sync.
+pub(crate) mod layout_profile {
+    use std::cell::RefCell;
+    use std::time::{Duration, Instant};
+
+    #[derive(Default)]
+    pub struct Counters {
+        pub block_calls: u32,
+        pub block_time: Duration,
+        pub flex_calls: u32,
+        pub flex_time: Duration,
+        pub grid_calls: u32,
+        pub grid_time: Duration,
+        pub inline_para_calls: u32,
+        pub inline_para_time: Duration,
+        pub text_shape_calls: u32,
+        pub text_shape_time: Duration,
+        pub text_shape_cache_hits: u32,
+        pub para_shape_calls: u32,
+        pub para_shape_time: Duration,
+        pub para_shape_cache_hits: u32,
+        pub collect_spans_calls: u32,
+        pub collect_spans_time: Duration,
+        pub resolve_family_calls: u32,
+        pub resolve_family_time: Duration,
+        pub total_nodes: u32,
+    }
+
+    thread_local! {
+        pub static COUNTERS: RefCell<Counters> = RefCell::new(Counters::default());
+    }
+
+    pub fn reset() {
+        COUNTERS.with(|c| *c.borrow_mut() = Counters::default());
+    }
+
+    pub fn dump() {
+        COUNTERS.with(|c| {
+            let c = c.borrow();
+            eprintln!("[layout-profile] nodes={} block={} calls={} | flex={:.2}ms calls={} | grid={:.2}ms calls={} | inline_para={:.2}ms calls={} | text_shape={:.2}ms calls={} hits={} | para_shape={:.2}ms calls={} hits={} | collect_spans={:.2}ms calls={} | resolve_family={:.2}ms calls={}",
+                c.total_nodes,
+                ms(c.block_time), c.block_calls,
+                ms(c.flex_time), c.flex_calls,
+                ms(c.grid_time), c.grid_calls,
+                ms(c.inline_para_time), c.inline_para_calls,
+                ms(c.text_shape_time), c.text_shape_calls, c.text_shape_cache_hits,
+                ms(c.para_shape_time), c.para_shape_calls, c.para_shape_cache_hits,
+                ms(c.collect_spans_time), c.collect_spans_calls,
+                ms(c.resolve_family_time), c.resolve_family_calls,
+            );
+        });
+    }
+
+    fn ms(d: Duration) -> f64 {
+        d.as_secs_f64() * 1000.0
+    }
+
+    /// RAII guard that accumulates elapsed time into a counter field.
+    pub struct Timer {
+        start: Instant,
+        field: Field,
+    }
+
+    pub enum Field {
+        Block,
+        Flex,
+        Grid,
+        InlinePara,
+        TextShape,
+        ParaShape,
+        CollectSpans,
+        ResolveFamily,
+    }
+
+    impl Timer {
+        pub fn new(field: Field) -> Self {
+            Self { start: Instant::now(), field }
+        }
+    }
+
+    impl Drop for Timer {
+        fn drop(&mut self) {
+            let elapsed = self.start.elapsed();
+            COUNTERS.with(|c| {
+                let mut c = c.borrow_mut();
+                match self.field {
+                    Field::Block => { c.block_calls += 1; c.block_time += elapsed; }
+                    Field::Flex => { c.flex_calls += 1; c.flex_time += elapsed; }
+                    Field::Grid => { c.grid_calls += 1; c.grid_time += elapsed; }
+                    Field::InlinePara => { c.inline_para_calls += 1; c.inline_para_time += elapsed; }
+                    Field::TextShape => { c.text_shape_calls += 1; c.text_shape_time += elapsed; }
+                    Field::ParaShape => { c.para_shape_calls += 1; c.para_shape_time += elapsed; }
+                    Field::CollectSpans => { c.collect_spans_calls += 1; c.collect_spans_time += elapsed; }
+                    Field::ResolveFamily => { c.resolve_family_calls += 1; c.resolve_family_time += elapsed; }
+                }
+            });
+        }
+    }
+
+    pub fn count_node() {
+        COUNTERS.with(|c| c.borrow_mut().total_nodes += 1);
+    }
+
+    pub fn count_text_cache_hit() {
+        COUNTERS.with(|c| c.borrow_mut().text_shape_cache_hits += 1);
+    }
+
+    pub fn count_para_cache_hit() {
+        COUNTERS.with(|c| c.borrow_mut().para_shape_cache_hits += 1);
+    }
 }
 
 /// Compatibility wrapper for callers that don't render text. Builds a
@@ -2370,6 +2485,9 @@ fn layout_block(
     overrides: BlockOverrides,
     ctx: &mut Ctx,
 ) -> LayoutBox {
+    let _timer = layout_profile::Timer::new(layout_profile::Field::Block);
+    layout_profile::count_node();
+
     // `display: none` removes the element and its subtree from the
     // box tree entirely. Returning a zero-sized box means the parent
     // contributes nothing for this child — no painting, no
@@ -2577,6 +2695,7 @@ fn layout_block(
     } else {
         match display {
             Display::Flex | Display::InlineFlex => {
+                let _ft = layout_profile::Timer::new(layout_profile::Field::Flex);
                 let (kids, _content_w_used, content_h_used) = flex::layout_flex_children(
                     node,
                     style,
@@ -2589,6 +2708,7 @@ fn layout_block(
                 (kids, content_h_used)
             }
             Display::Grid | Display::InlineGrid => {
+                let _gt = layout_profile::Timer::new(layout_profile::Field::Grid);
                 let (kids, _content_w_used, content_h_used) = grid::layout_grid_children(
                     node,
                     style,
@@ -3277,6 +3397,7 @@ fn shape_text_run(
     trim_edges: bool,
     ctx: &mut Ctx,
 ) -> (Option<ShapedRun>, f32, f32, f32) {
+    let _timer = layout_profile::Timer::new(layout_profile::Field::TextShape);
     if text.is_empty() {
         return (None, 0.0, 0.0, 0.0);
     }
@@ -4495,11 +4616,10 @@ fn push_paragraph_span(
     let family_refs: Vec<&str> = families.iter().map(String::as_str).collect();
     let weight = font_weight_value(node.style.font_weight.as_ref());
     let axis = font_style_axis(node.style.font_style.as_ref());
-    let family = ctx
-        .text
-        .ctx
-        .resolve_family(&family_refs, weight, axis)
-        .unwrap_or_default();
+    let family = {
+        let _timer = layout_profile::Timer::new(layout_profile::Field::ResolveFamily);
+        ctx.text.ctx.resolve_family(&family_refs, weight, axis).unwrap_or_default()
+    };
 
     let size_css = font_size_px(&node.style).unwrap_or(16.0);
     let line_h_css = line_height_px(&node.style, size_css);
@@ -4533,6 +4653,7 @@ fn collect_paragraph_spans(
     collapse: &mut ParagraphCollapseState,
     inherited_opacity: f32,
 ) {
+    let _timer = layout_profile::Timer::new(layout_profile::Field::CollectSpans);
     if matches!(node.style.display, Some(Display::None)) {
         return;
     }
@@ -4624,6 +4745,7 @@ fn layout_inline_paragraph(
     text_align: Option<&wgpu_html_models::common::css_enums::TextAlign>,
     ctx: &mut Ctx,
 ) -> (Vec<LayoutBox>, f32, f32) {
+    let _timer = layout_profile::Timer::new(layout_profile::Field::InlinePara);
     // 1. Flatten the inline subtree into spans + recorded inline
     //    blocks (the elements with bg / decoration whose per-line
     //    bounds we'll need after shaping).
@@ -4671,14 +4793,17 @@ fn layout_inline_paragraph(
             leaf_id: i as u32,
         })
         .collect();
-    let para = match ctx.text.ctx.shape_paragraph(
-        &paragraph_spans,
-        if style_wraps_text(&node.style) {
-            Some(container_w)
-        } else {
-            None
-        },
-    ) {
+    let para = match {
+        let _pt = layout_profile::Timer::new(layout_profile::Field::ParaShape);
+        ctx.text.ctx.shape_paragraph(
+            &paragraph_spans,
+            if style_wraps_text(&node.style) {
+                Some(container_w)
+            } else {
+                None
+            },
+        )
+    } {
         Some(p) => p,
         None => return (Vec::new(), 0.0, 0.0),
     };
@@ -4798,8 +4923,8 @@ fn layout_inline_paragraph(
                 glyph_range,
             })
             .collect(),
-        text: visible_text.clone(),
         byte_boundaries: wgpu_html_text::utf8_boundaries(&visible_text),
+        text: visible_text,
         width: para.width,
         height: para.height,
         ascent: para.first_line_ascent,

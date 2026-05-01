@@ -72,7 +72,7 @@ pub enum CssImage {
     Function(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Display {
     None,
     Block,
@@ -97,7 +97,7 @@ pub enum Display {
     Contents,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Position {
     Static,
     Relative,
@@ -106,7 +106,7 @@ pub enum Position {
     Sticky,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackgroundRepeat {
     Repeat,
     RepeatX,
@@ -116,7 +116,7 @@ pub enum BackgroundRepeat {
     Round,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorderStyle {
     None,
     Hidden,
@@ -130,7 +130,7 @@ pub enum BorderStyle {
     Outset,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontWeight {
     Normal,
     Bold,
@@ -139,14 +139,14 @@ pub enum FontWeight {
     Weight(u16),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontStyle {
     Normal,
     Italic,
     Oblique,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAlign {
     Left,
     Right,
@@ -156,7 +156,7 @@ pub enum TextAlign {
     End,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextTransform {
     None,
     Capitalize,
@@ -164,7 +164,7 @@ pub enum TextTransform {
     Lowercase,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WhiteSpace {
     Normal,
     Nowrap,
@@ -183,14 +183,14 @@ pub enum Overflow {
     Auto,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
     Visible,
     Hidden,
     Collapse,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlexDirection {
     Row,
     RowReverse,
@@ -198,14 +198,14 @@ pub enum FlexDirection {
     ColumnReverse,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlexWrap {
     Nowrap,
     Wrap,
     WrapReverse,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JustifyContent {
     Start,
     End,
@@ -219,7 +219,7 @@ pub enum JustifyContent {
     SpaceEvenly,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlignItems {
     Normal,
     Stretch,
@@ -231,7 +231,7 @@ pub enum AlignItems {
     Baseline,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlignContent {
     Normal,
     Stretch,
@@ -245,7 +245,7 @@ pub enum AlignContent {
     SpaceEvenly,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlignSelf {
     /// Defer to the parent flex container's `align-items`.
     Auto,
@@ -263,7 +263,7 @@ pub enum AlignSelf {
 /// grid cell. Mirrors `JustifyContent`'s shape minus the
 /// space-* distribution variants (those don't apply to per-item
 /// alignment).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JustifyItems {
     Normal,
     Stretch,
@@ -280,7 +280,7 @@ pub enum JustifyItems {
 /// CSS Grid: per-item override of `justify-items`. Shares the same
 /// shape but adds the `Auto` variant that means "defer to parent's
 /// `justify-items`".
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JustifySelf {
     Auto,
     Normal,
@@ -298,7 +298,7 @@ pub enum JustifySelf {
 /// `grid-auto-flow` direction. `RowDense` / `ColumnDense` accept
 /// the value through the cascade for fidelity but currently lay
 /// out the same as the non-dense variants.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GridAutoFlow {
     Row,
     Column,
@@ -327,7 +327,7 @@ pub enum GridTrackSize {
 /// We deliberately don't model named lines yet — those need a
 /// stylesheet-wide line-name registry that doesn't exist in the
 /// engine.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GridLine {
     /// `auto` — the value is decided by the auto-placement algorithm.
     Auto,
@@ -359,13 +359,13 @@ pub enum Cursor {
     Raw(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PointerEvents {
     Auto,
     None,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserSelect {
     Auto,
     None,
@@ -373,13 +373,13 @@ pub enum UserSelect {
     All,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoxSizing {
     ContentBox,
     BorderBox,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackgroundClip {
     BorderBox,
     PaddingBox,

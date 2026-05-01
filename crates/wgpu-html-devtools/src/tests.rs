@@ -22,23 +22,3 @@ fn first_path_with_class(node: &Node, class: &str, path: &mut Vec<usize>) -> Opt
     }
     None
 }
-
-#[test]
-#[ignore = "requires windowed context (HtmlWindow needs ActiveEventLoop)"]
-fn pointer_hover_repaints_tree_row_background() {
-    let inspected = Tree::new(Node::new(wgpu_html_models::Div {
-        id: Some("app".to_owned()),
-        ..Default::default()
-    }));
-    let mut devtools = Devtools::new(false);
-    devtools.poll(&inspected);
-    if wgpu_html_tree::register_system_fonts(&mut devtools.tree, "DemoSans") == 0 {
-        return;
-    }
-
-    let _ = first_path_with_class(
-        devtools.tree.root.as_ref().expect("devtools root"),
-        "tree-row",
-        &mut Vec::new(),
-    );
-}

@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "crates/wgpu-html",
-    "crates/wgpu-html-demo", "crates/wgpu-html-devtools",
+    "crates/wgpu-html-demo",
+    "crates/wgpu-html-devtools",
     "crates/wgpu-html-egui",
     "crates/wgpu-html-events",
     "crates/wgpu-html-layout",
@@ -12,6 +13,7 @@ members = [
     "crates/wgpu-html-style",
     "crates/wgpu-html-text",
     "crates/wgpu-html-tree",
+    "crates/wgpu-html-ui",
     "crates/wgpu-html-winit",
 ]
 
@@ -28,6 +30,7 @@ wgpu-html-style        = { path = "crates/wgpu-html-style" }
 wgpu-html-text         = { path = "crates/wgpu-html-text" }
 wgpu-html-tree         = { path = "crates/wgpu-html-tree" }
 wgpu-html-winit        = { path = "crates/wgpu-html-winit" }
+wgpu-html-ui           = { path = "crates/wgpu-html-ui" }
 
 wgpu     = "29"
 winit    = "0.30"

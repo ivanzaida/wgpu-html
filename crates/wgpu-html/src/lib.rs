@@ -341,6 +341,12 @@ pub fn paint_tree_cached<'c>(
             cache.scale = scale;
             cache.font_generation = tree.fonts.generation();
             cache.tree_generation = tree.generation;
+            // NOTE: paint_only_pseudo_rules can't be used yet because
+            // LayoutBox bakes in colors at layout time. Skipping layout
+            // means stale colors in the box tree. A future architecture
+            // that reads paint properties from the CascadedTree directly
+            // (or patches LayoutBox colors without re-layout) could
+            // enable this optimization.
         }
         PipelineAction::PartialCascade => {
             let cascade_t0 = Instant::now();

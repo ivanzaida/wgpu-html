@@ -1,51 +1,41 @@
 //! Platform-agnostic devtools inspector.
 //!
-//! `Devtools` manages a UI tree that visualises an inspected tree's
-//! DOM structure, styles, and breadcrumb. Rendering and input handling
-//! are delegated to an [`HtmlWindow`] when the devtools window is active.
+//! `Devtools` wraps a [`DevtoolsComponent`] driven by
+//! [`Mount`](wgpu_html_ui::Mount), managing the secondary OS window
+//! and synchronisation with the inspected host tree.
 
 use std::sync::Arc;
 
-use wgpu_html_tree::{Node, Profiler, Tree};
+use wgpu_html_tree::{Profiler, Tree};
+use wgpu_html_ui::Mount;
 use wgpu_html_winit::HtmlWindow;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
-use crate::components::breadcrumb::Breadcrumb;
-use crate::components::styles_panel::StylesPanel;
-use crate::components::tree_view::TreeView;
-use crate::html_gen;
+use crate::component::{DevtoolsComponent, DevtoolsProps};
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
+
+/// CSS for the devtools UI.
+const CSS: &str = include_str!("../html/devtools.css");
 
 // ── Devtools ─────────────────────────────────────────────────────
 
 /// Platform-agnostic devtools inspector.
 ///
-/// Owns its own UI [`Tree`] and delegates rendering and input handling
-/// to an [`HtmlWindow`] when active. Each panel section is a
-/// component struct that owns its own state.
+/// Owns its own UI [`Tree`] and delegates rendering and input
+/// handling to an [`HtmlWindow`] when active.  The UI is produced
+/// by [`DevtoolsComponent`] via the `wgpu-html-ui` framework.
 pub struct Devtools {
-    // ── UI state ────────────────────────────────────────────
     tree: Tree,
+    mount: Mount<DevtoolsComponent>,
 
-    // ── Components ──────────────────────────────────────────
-    tree_view: TreeView,
-    breadcrumb: Breadcrumb,
-    styles_panel: StylesPanel,
-
-    // ── Inspected-tree tracking ─────────────────────────────
-    inspected_root: Option<Node>,
     last_inspected_gen: Option<u64>,
-
-    /// Set to `true` whenever the UI needs a repaint.
     needs_redraw: bool,
 
-    // ── Window (managed by devtools itself) ──────────────────
     html_window: Option<HtmlWindow>,
-    /// Deferred window drop (must happen outside WndProc).
     pending_drop: Option<HtmlWindow>,
     enabled: bool,
 }
@@ -53,21 +43,20 @@ pub struct Devtools {
 impl Devtools {
     /// Create a devtools instance without attaching to a tree.
     pub fn new(enable_profiler: bool) -> Self {
-        let tree_view = TreeView::new();
-        let mut tree = html_gen::build_shell();
+        let mut tree = Tree::default();
         let lucide = wgpu_html_tree::FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
         tree.register_font(lucide);
+        tree.register_linked_stylesheet("devtools.css", CSS);
 
         if enable_profiler {
             tree.profiler = Some(Profiler::tagged("devtools"));
         }
 
+        let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps);
+
         Self {
             tree,
-            tree_view,
-            breadcrumb: Breadcrumb::new(),
-            styles_panel: StylesPanel::new(),
-            inspected_root: None,
+            mount,
             last_inspected_gen: None,
             needs_redraw: true,
             html_window: None,
@@ -77,20 +66,17 @@ impl Devtools {
     }
 
     /// Create a devtools instance pre-populated with the host tree's
-    /// state and fonts.
-    pub fn attach(tree: &mut Tree, enable_profiler: bool) -> Self {
-        if enable_profiler && tree.profiler.is_none() {
-            tree.profiler = Some(Profiler::tagged("host"));
+    /// fonts.  The first render is deferred to the first [`poll`]
+    /// call (which only runs when the devtools window is enabled).
+    pub fn attach(host_tree: &mut Tree, enable_profiler: bool) -> Self {
+        if enable_profiler && host_tree.profiler.is_none() {
+            host_tree.profiler = Some(Profiler::tagged("host"));
         }
 
         let mut devtools = Self::new(enable_profiler);
-        devtools.inspected_root = tree.root.clone();
-        devtools.last_inspected_gen = Some(tree.generation);
-        for (_handle, face) in tree.fonts.iter() {
+        for (_handle, face) in host_tree.fonts.iter() {
             devtools.register_font(face.clone());
         }
-        devtools.update_tree_rows();
-        devtools.update_selection();
         devtools
     }
 
@@ -112,38 +98,23 @@ impl Devtools {
 
     // ── Polling ─────────────────────────────────────────────
 
-    /// Sync with the host tree. Call once per frame.
+    /// Sync with the host tree.  Call once per frame.
     pub fn poll(&mut self, host_tree: &Tree) {
+        // Process any pending component messages (clicks, toggles)
+        // first, so we don't force-render and then immediately
+        // re-render again from queued messages.
+        if self.mount.process(&mut self.tree, host_tree) {
+            println!("[Devtools::poll] process() triggered re-render");
+            self.needs_redraw = true;
+        }
+
         let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
         if dom_changed {
-            self.inspected_root = host_tree.root.clone();
+            println!("[Devtools::poll] dom_changed, host_gen={}", host_tree.generation);
             self.last_inspected_gen = Some(host_tree.generation);
-            self.update_tree_rows();
+            self.mount.force_render(&mut self.tree, host_tree);
+            self.needs_redraw = true;
         }
-
-        let (toggled, clicked) = self.tree_view.drain();
-        if toggled {
-            self.update_tree_rows();
-        }
-        if clicked {
-            self.update_selection();
-        }
-    }
-
-    // ── Internal: incremental tree updates ───────────────────
-
-    fn update_tree_rows(&mut self) {
-        self.tree_view
-            .update(&mut self.tree, self.inspected_root.as_ref());
-        self.needs_redraw = true;
-    }
-
-    fn update_selection(&mut self) {
-        let root = self.inspected_root.as_ref();
-        let sel = self.tree_view.selected_path.as_deref();
-        self.breadcrumb.update(&mut self.tree, root, sel);
-        self.styles_panel.update(&mut self.tree, root, sel);
-        self.update_tree_rows();
     }
 
     // ── Window lifecycle ────────────────────────────────────
@@ -195,7 +166,7 @@ impl Devtools {
     }
 
     /// Handle a winit `WindowEvent` for the devtools window.
-    pub fn handle_window_event(&mut self, event: &WindowEvent) {
+    pub fn handle_window_event(&mut self, host_tree: &Tree, event: &WindowEvent) {
         let Some(hw) = self.html_window.as_mut() else {
             return;
         };
@@ -213,7 +184,7 @@ impl Devtools {
         }
         let needs_redraw = hw.handle_event(&mut self.tree, event);
 
-        // Check if a tree-row click or chevron toggle happened.
+        // After mouse release, component callbacks may have queued messages.
         if matches!(
             event,
             WindowEvent::MouseInput {
@@ -221,12 +192,10 @@ impl Devtools {
                 ..
             }
         ) {
-            let (toggled, clicked) = self.tree_view.drain();
-            if toggled {
-                self.update_tree_rows();
-            }
-            if clicked {
-                self.update_selection();
+            println!("[Devtools::handle_window_event] MouseRelease, running process()");
+            if self.mount.process(&mut self.tree, host_tree) {
+                println!("[Devtools::handle_window_event] process() triggered re-render");
+                self.needs_redraw = true;
             }
         }
 
