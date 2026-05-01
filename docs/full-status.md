@@ -1,6 +1,6 @@
 # wgpu-html — Complete Project Status
 
-> **Date:** 2026-04-29
+> **Date:** 2026-05-01
 > **Scope:** GPU-accelerated HTML/CSS renderer via `wgpu`. **No JavaScript — ever.**
 
 ---
@@ -26,7 +26,7 @@ DisplayList
 Frame on wgpu surface
 ```
 
-### Crate map (12 crates)
+### Crate map (14 crates)
 
 | Crate | Role |
 |---|---|
@@ -40,6 +40,8 @@ Frame on wgpu surface
 | `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF shader), glyph pipeline, image pipeline, scissor clipping, screenshot |
 | `wgpu-html` | Façade: `parse → cascade → layout → paint`, interactivity wrappers (layout-aware), `PipelineTimings`, text selection helpers, public `scroll` module (scrollbar geometry + paint, document/element scroll utilities) |
 | `wgpu-html-winit` | winit ↔ engine glue: type translators (`mouse_button`, `key_to_dom_key`, `keycode_to_dom_code`, `keycode_to_modifier`), forwarders (`update_modifiers`, `forward_keyboard`, `handle_keyboard`), batteries-included `WgpuHtmlWindow` harness (`AppHook` trait + `EventResponse` + `HookContext` + `FrameTimings`; built-in viewport scroll, scrollbar drag, clipboard, F12 screenshot), `system_font_variants` / `register_system_fonts` |
+| `wgpu-html-ui` | Elm-architecture component framework: `Component` trait, `Ctx` callback factory, `MsgSender` channel, `Store<T>` reactive shared state, `Children` content-projection type, `App` / `Mount` entry points, per-component render caching, keyed child identity, background task dispatch |
+| `wgpu-html-devtools` | Visual devtools panel (component tree browser, styles inspector, breadcrumb bar) implemented with `wgpu-html-ui`; attaches to a host tree via `Devtools::attach` |
 | `wgpu-html-egui` | Alternative `egui` / `eframe` integration backend; the demo can pick between the winit and egui renderers via `--renderer=` |
 | `wgpu-html-demo` | Thin shell over `wgpu-html-winit` (or `wgpu-html-egui` via `--renderer=egui`); HTML loading, demo hooks (F9 profiling), `--profile` CLI flag |
 
@@ -62,7 +64,7 @@ Frame on wgpu surface
 - **Borders:** `border` shorthand; per-side shorthand + `-width / -style / -color` longhands; `border-radius` with `/`-separated elliptical syntax, 1–4-corner expansion, per-corner `<h> <v>` longhands.
 - **Typography:** `color, font-family, font-size, font-weight, font-style, line-height, letter-spacing, text-align, text-transform, white-space, text-decoration, vertical-align`.
 - **Overflow:** `overflow, overflow-x, overflow-y`.
-- **Misc:** `opacity, visibility, z-index`.
+- **Misc:** `opacity, visibility, z-index, pointer-events, user-select, cursor`.
 - **Flexbox:** `flex-direction, flex-wrap, justify-content, align-items, align-content, align-self, gap, row-gap, column-gap, flex, flex-grow, flex-shrink, flex-basis, order`.
 - **Grid:** `display: grid`, `grid-template-columns, grid-template-rows, grid-auto-columns, grid-auto-rows, grid-auto-flow, grid-column-start/end, grid-row-start/end, grid-column, grid-row, justify-items, justify-self, align-items, align-self, align-content, justify-content, gap, row-gap, column-gap`.
 - **CSS-wide keywords:** `inherit`, `initial`, `unset` on any property.
@@ -181,6 +183,7 @@ Frame on wgpu surface
 
 **Text selection:**
 - `TextCursor` / `TextSelection` on `InteractionState`; drag-to-select wired in `interactivity.rs`; `select_all_text` / `selected_text` in `wgpu-html`; `Ctrl+A` + `Ctrl+C` built into the `wgpu-html-winit` harness (via `arboard`).
+- `user-select: none` suppresses text cursor hit-testing, drag-to-select, and selection highlight painting. `user-select: text | all` treated as `auto` (normal selectable).
 
 **Scrolling:**
 - `InteractionState::scroll_offsets_y: BTreeMap<Vec<usize>, f32>`; viewport and per-element scrollbar paint (10 px track, drag-to-scroll); `MouseWheel` scrolls viewport and nested scroll containers. Public `wgpu_html::scroll` module exposes `ScrollbarGeometry`, `scrollbar_geometry`, `scroll_y_from_thumb_top`, `paint_viewport_scrollbar`, `translate_display_list_y`, `clamp_scroll_y`, hit-tests, and per-element variants.
@@ -200,7 +203,75 @@ Frame on wgpu surface
 
 **Continuous redraw loop** via `request_redraw` in `about_to_wait`. Hover-path changes trigger a throttled redraw (16 ms budget) rather than unconditional full-speed redraws.
 
-### 8. Profiling (Inline)
+### 8. Component Framework (`wgpu-html-ui`)
+
+Elm-architecture component model layered on top of the core engine. Components produce element trees via a builder DSL; the runtime drives the update/render loop and wires everything into `wgpu-html-winit`.
+
+#### Component trait
+
+```
+Component::create(props) → Self
+Component::update(msg, props) → ShouldRender
+Component::view(&self, props, ctx, env) → El
+Component::props_changed(old, new) → ShouldRender   // default: Yes
+Component::mounted(sender)                            // lifecycle, receives MsgSender
+Component::updated(props)                             // post-update hook
+Component::destroyed()                                // lifecycle
+Component::scope() → &'static str                    // CSS scope prefix
+Component::styles() → Stylesheet                     // scoped CSS
+```
+
+#### `El` builder DSL
+
+- 73 element constructor functions (`el::div`, `el::button`, `el::input`, …).
+- Global attributes: `.id`, `.class`, `.style`, `.hidden`, `.tabindex`, `.data(key, val)`, `.attr_title`, `.custom_property`.
+- Children: `.child(el)`, `.children(iter)`, `.text(t)`.
+- Callbacks: `.on_click`, `.on_mouse_down`, `.on_mouse_up`, `.on_mouse_enter`, `.on_mouse_leave`, `.on_event` (+ `_cb` variants for pre-built `Arc` callbacks).
+- Element-specific mutation: `.configure(|model| { … })`.
+- `El` implements `Clone` — can be stored in `Props` for named-slot patterns.
+- `Children` — a cloneable `Vec<El>` newtype for variadic content projection; `from(iter)`, `iter()`, `IntoIterator`, `FromIterator`.
+
+#### `Ctx<Msg>` — callback factory
+
+- `ctx.on_click(Msg)` → `MouseCallback` (send fixed message on click).
+- `ctx.callback(|ev| Msg)` → `MouseCallback`.
+- `ctx.event_callback(|ev| Option<Msg>)` → `EventCallback`.
+- `ctx.sender()` → `MsgSender<Msg>` clone for custom closures.
+- `ctx.scoped("class")` → scoped class name via `Component::scope`.
+- `ctx.child::<C>(props)` — embed child component (positional key `"__pos_N"`).
+- `ctx.keyed_child::<C>(key, props)` — embed with explicit string key; stable across reordering.
+- `ctx.spawn(|| Msg)` — spawn OS thread; result sent as a message when complete.
+
+#### `Store<T>` — shared reactive state
+
+- `Store::new(value)` — wrap any `Send + Sync + 'static` value.
+- `store.get()` → `T` (clone), `store.set(v)`, `store.update(|v| …)`.
+- `store.on_change(|v| …)` — raw subscriber callback.
+- `store.subscribe(&sender, |v| Msg)` — bridge to a component's message queue.
+- Subscribe inside `Component::mounted(sender)` for lifecycle-scoped wiring.
+- Cheap to clone — all clones share the same `Arc<Mutex<T>>` + listener list.
+
+#### Reconciliation / update model
+
+- `MsgSender::send` enqueues a message and calls `wake()` (→ `request_redraw`).
+- `Runtime::process` drains messages in a loop until stable; cascades child→parent callbacks within a single frame.
+- **Three-path render model** per `MountedComponent`:
+  - Each component stores `last_node` (resolved), `skeleton_node` (raw `view()` output with placeholders), `needs_render`, and `subtree_dirty`.
+  - **Path 1 — clean fast-path** (`!needs_render && !subtree_dirty`): return `last_node`; zero work, no `view()` call.
+  - **Path 2 — patch path** (`!needs_render && subtree_dirty`): parent's `view()` is **skipped**. Clone `skeleton_node` (tiny — placeholder divs only, much smaller than `last_node`) and re-substitute every child: dirty ones re-render, clean ones return their `last_node`. Saves one `view()` call per ancestor of every updated leaf.
+  - **Path 3 — full render** (`needs_render`): call `view()`, reconcile child set, store raw output as `skeleton_node`, substitute children, cache as `last_node`.
+- **Keyed children**: child identity is `(String, TypeId)`. Positional key (`"__pos_N"`) matches call-site order; user key from `keyed_child` survives list reordering.
+- `Component::updated(props)` is called after each render caused by the component's own state change (not after initial mount).
+
+#### Entry points
+
+- `App::new::<C>(props)` / `App::with_state::<C>(state, props)` — full winit application.
+- `App::stylesheet(css)`, `.title(...)`, `.size(w, h)`, `.setup_tree(f)`, `.with_secondary(f)`.
+- `Mount<C>` — drive a component tree manually inside an existing `Tree` (no winit dep).
+
+---
+
+### 9. Profiling (Inline)
 - **`PipelineTimings`** struct in `wgpu-html/src/lib.rs`: `cascade_ms`, `layout_ms`, `paint_ms`, `total_ms()`.
 - **`compute_layout_profiled`** and **`paint_tree_returning_layout_profiled`**: profiled variants of the main API; return `(result, PipelineTimings)`.
 - **`ProfileWindow`** in `wgpu-html-demo/src/main.rs`: rolling per-second stats for every pipeline stage (`tree`, `cascade`, `layout`, `paint`, `postprocess`, `atlas_upload`, `render`) plus dedicated hover-path latency breakdown (avg/max pointer-move time, hover-triggered frame breakdown). Printed to stderr once per second.
@@ -259,7 +330,7 @@ Frame on wgpu surface
 - **`:focus-visible`, `:focus-within`, `:disabled`** not yet matched in cascade.
 - **No `Wheel` event dispatch to elements** — wheel scrolls the viewport and detects scroll-container scroll, but is not forwarded to element `on_event` callbacks.
 - **No cursor styling** (`cursor` property parsed but not applied to the OS cursor shape).
-- **No `pointer-events: none`** skipping in hit test.
+- ~~**No `pointer-events: none`** skipping in hit test.~~ **Done** — `pointer-events: none` elements are transparent to hit-testing; children with `auto` remain hittable.
 - No event `preventDefault` / `stopPropagation` semantics.
 - No double-click / triple-click / context-menu / aux-click synthesis.
 - The document is a compile-time constant — no URL loading, no live editing, no hot reload.
@@ -326,3 +397,23 @@ Frame on wgpu surface
 | calc() / var() / custom properties | ❌ Not done |
 | `<link>` stylesheet loading | ❌ Not done |
 | JavaScript | 🚫 Permanently out of scope |
+| **Component framework (`wgpu-html-ui`)** | |
+| `Component` trait (create / update / view / props_changed) | ✅ Done |
+| Local component state | ✅ Done (struct fields) |
+| Props (immutable, Clone, passed from parent) | ✅ Done |
+| `El` builder DSL (73 elements, all global attrs, callbacks) | ✅ Done |
+| `El: Clone` + `Children` content-projection type | ✅ Done |
+| `Ctx::child` (positional keying) | ✅ Done |
+| `Ctx::keyed_child` (explicit string key, list-stable) | ✅ Done |
+| `Ctx::spawn` (background thread → message) | ✅ Done |
+| `Store<T>` shared reactive state | ✅ Done |
+| `Store::subscribe` / `Component::mounted(sender)` | ✅ Done |
+| Per-component render cache + `subtree_dirty` fast-path | ✅ Done — three-path model: clean fast-path / skeleton patch-path / full render |
+| `Component::updated` post-render lifecycle hook | ✅ Done |
+| `Component::mounted` / `Component::destroyed` lifecycle | ✅ Done |
+| Scoped CSS (`Component::scope` + `Component::styles`) | ✅ Done |
+| `App` / `Mount` entry points, `Env` shared context | ✅ Done |
+| Virtual-DOM diffing of `Node` tree (structural diff) | ❌ Not done — full subtree replace on component re-render |
+| Subscription handle / auto-unsubscribe on destroy | ❌ Not done — subscriptions accumulate until `Store` is dropped |
+| Async `Future`-based task dispatch | ❌ Not done — thread-based `spawn` only (no async runtime) |
+| Named template slots / portal rendering | ❌ Not done |

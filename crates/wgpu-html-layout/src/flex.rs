@@ -212,6 +212,52 @@ pub(crate) fn layout_flex_children(
         laid.content_rect.h
       };
     }
+
+    // Column flex: non-stretch items without an explicit CSS width
+    // auto-fill the container in block layout, leaving zero free
+    // cross space for alignment. Measure the actual content extent
+    // from the laid-out children and, when narrower, re-lay the
+    // item at that width so centering / flex-end have room.
+    // Replaced elements (img, svg) are skipped — their intrinsic
+    // sizes from HTML attributes are already handled by layout_block.
+    if !is_row && !item.has_explicit_cross_size {
+      let is_replaced = matches!(item.node.element, Element::Img(_) | Element::Svg(_));
+      if !is_replaced {
+        let align = resolve_align_self(&item.align_self, &align_items);
+        let will_stretch =
+          matches!(align, ResolvedAlign::Stretch) && !item.auto_cross_start && !item.auto_cross_end;
+        if !will_stretch {
+          let cx = laid.content_rect.x;
+          let content_extent = laid
+            .children
+            .iter()
+            .map(|ch| (ch.margin_rect.x - cx) + ch.margin_rect.w)
+            .fold(0.0_f32, f32::max);
+          // Re-lay only when children are genuinely narrower (with a
+          // small buffer to avoid sub-pixel re-wrapping of text).
+          if content_extent > 0.0 && content_extent + 1.0 < item.measured_cross_inner {
+            let relaid = layout_block_at_with(
+              item.node,
+              0.0,
+              0.0,
+              inner_width,
+              cross_axis_size.unwrap_or(0.0),
+              BlockOverrides {
+                width: Some(content_extent.ceil()),
+                height: override_main.then_some(item.resolved_main),
+                ignore_style_width: false,
+                ignore_style_height: false,
+              },
+              ctx,
+            );
+            item.measured_cross_inner = relaid.content_rect.w;
+            item.box_ = Some(relaid);
+            continue;
+          }
+        }
+      }
+    }
+
     item.box_ = Some(laid);
   }
 

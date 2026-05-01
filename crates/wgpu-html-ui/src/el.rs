@@ -22,6 +22,7 @@ use wgpu_html_tree::{Element, HtmlEvent, MouseEvent, Node};
 /// A node builder. Wraps [`Node`] with chainable setter methods.
 ///
 /// Convert to a raw [`Node`] via [`El::into_node`] or the [`From`] impl.
+#[derive(Clone)]
 pub struct El {
   pub(crate) node: Node,
 }
@@ -38,6 +39,75 @@ impl From<El> for Node {
   #[inline]
   fn from(el: El) -> Node {
     el.node
+  }
+}
+
+// ── Children ────────────────────────────────────────────────────────────────
+
+/// A list of child elements that can be passed as a prop for named-slot /
+/// content-projection patterns.
+///
+/// # Example — component that accepts projected children
+///
+/// ```ignore
+/// #[derive(Clone)]
+/// struct CardProps {
+///     header: El,           // single named slot
+///     body:   Children,     // variadic slot
+/// }
+///
+/// // In the parent's view():
+/// let card = ctx.child::<Card>(CardProps {
+///     header: el::h2().text("Title"),
+///     body:   Children::from([
+///         el::p().text("paragraph 1"),
+///         el::p().text("paragraph 2"),
+///     ]),
+/// });
+/// ```
+///
+/// Inside `Card::view`, render the slots with `.children(props.body.iter())`.
+#[derive(Clone, Default)]
+pub struct Children(Vec<El>);
+
+impl Children {
+  /// Empty children list.
+  pub fn empty() -> Self {
+    Self(Vec::new())
+  }
+
+  /// Create from any iterator of [`El`].
+  pub fn from(iter: impl IntoIterator<Item = El>) -> Self {
+    Self(iter.into_iter().collect())
+  }
+
+  /// Number of children.
+  pub fn len(&self) -> usize {
+    self.0.len()
+  }
+
+  /// True if the list is empty.
+  pub fn is_empty(&self) -> bool {
+    self.0.is_empty()
+  }
+
+  /// Iterate over the children.
+  pub fn iter(&self) -> impl Iterator<Item = El> + '_ {
+    self.0.iter().cloned()
+  }
+}
+
+impl IntoIterator for Children {
+  type Item = El;
+  type IntoIter = std::vec::IntoIter<El>;
+  fn into_iter(self) -> Self::IntoIter {
+    self.0.into_iter()
+  }
+}
+
+impl FromIterator<El> for Children {
+  fn from_iter<I: IntoIterator<Item = El>>(iter: I) -> Self {
+    Self(iter.into_iter().collect())
   }
 }
 

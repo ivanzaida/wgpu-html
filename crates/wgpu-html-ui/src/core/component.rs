@@ -1,6 +1,10 @@
 //! Component trait and related types.
 
-use crate::{core::ctx::Ctx, el::El, style::Stylesheet};
+use crate::{
+  core::ctx::{Ctx, MsgSender},
+  el::El,
+  style::Stylesheet,
+};
 
 /// Whether a component's view should be re-rendered after an update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,9 +54,9 @@ pub enum ShouldRender {
 ///     fn view(&self, props: &Props, ctx: &Ctx<Msg>, _env: &()) -> El {
 ///         el::div().children([
 ///             el::span().text(&props.label),
-///             el::button().text("-").on_click(ctx.msg(Msg::Dec)),
+///             el::button().text("-").on_click(ctx.on_click(Msg::Dec)),
 ///             el::span().text(&self.count.to_string()),
-///             el::button().text("+").on_click(ctx.msg(Msg::Inc)),
+///             el::button().text("+").on_click(ctx.on_click(Msg::Inc)),
 ///         ])
 ///     }
 /// }
@@ -85,7 +89,16 @@ pub trait Component: 'static {
   }
 
   /// Called once after the component is first mounted.
-  fn mounted(&mut self) {}
+  ///
+  /// `sender` can be stored and used to subscribe to [`Store`](crate::Store)
+  /// updates or to send messages from background threads.
+  fn mounted(&mut self, _sender: MsgSender<Self::Msg>) {}
+
+  /// Called after every re-render triggered by this component's own
+  /// [`update`](Component::update) returning [`ShouldRender::Yes`].
+  /// Analogous to React's `componentDidUpdate` / Vue's `updated` hook.
+  /// Not called after the initial mount render.
+  fn updated(&mut self, _props: &Self::Props) {}
 
   /// Called before the component is destroyed.
   fn destroyed(&mut self) {}

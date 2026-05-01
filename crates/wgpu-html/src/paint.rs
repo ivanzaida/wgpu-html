@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use wgpu_html_layout::LayoutBox;
+use wgpu_html_layout::{LayoutBox, PointerEvents, UserSelect};
 use wgpu_html_models::common::css_enums::Overflow;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
@@ -343,7 +343,7 @@ fn paint_box_in_clip(
     origin.y += paint_offset_y;
     // Form control text (placeholders + typed values) is excluded
     // from document-level drag-to-select, matching browser behavior.
-    let selected_range = if b.text_unselectable {
+    let selected_range = if b.text_unselectable || b.user_select == UserSelect::None {
       None
     } else {
       selection_range_for_path(selection, path, run)
@@ -1172,6 +1172,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1490,6 +1492,8 @@ mod tests {
         y: Overflow::Auto,
       },
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1534,6 +1538,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1557,6 +1563,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: vec![textarea, h2],

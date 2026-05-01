@@ -17,6 +17,10 @@ use crate::el::El;
 ///
 /// Cloned into callback closures so that event handlers (which must be
 /// `Send + Sync`) can enqueue messages for the component's update loop.
+///
+/// You can also obtain one from [`Ctx::sender`] inside `view()` to pass
+/// into [`Store::subscribe`](crate::Store::subscribe) inside
+/// [`Component::mounted`](crate::Component::mounted).
 #[derive(Clone)]
 pub struct MsgSender<M: 'static> {
   queue: Arc<Mutex<Vec<M>>>,
@@ -45,9 +49,14 @@ impl<M: 'static> MsgSender<M> {
 
 // ── ChildSlot ───────────────────────────────────────────────────────────────
 
-/// Descriptor for a child component declared during [`Ctx::child`].
+/// Descriptor for a child component declared during [`Ctx::child`] /
+/// [`Ctx::keyed_child`].
 pub(crate) struct ChildSlot {
-  pub index: usize,
+  /// Identity key used to match children across re-renders.
+  /// `ctx.child` auto-generates `"__pos_{n}"`.
+  /// `ctx.keyed_child` uses the caller-supplied string.
+  pub key: String,
+  /// The DOM placeholder element id inserted into the parent's node tree.
   pub marker_id: String,
   pub component_type_id: TypeId,
   pub props: Box<dyn Any>,
@@ -97,7 +106,11 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   // ── Callback factories ──────────────────────────────────────────────
 
   /// Create a [`MouseCallback`] that sends a pre-built message.
-  pub fn msg(&self, msg: Msg) -> MouseCallback {
+  ///
+  /// ```ignore
+  /// el::button().text("+").on_click_cb(ctx.on_click(Msg::Inc))
+  /// ```
+  pub fn on_click(&self, msg: Msg) -> MouseCallback {
     let sender = self.sender.clone();
     Arc::new(move |_: &MouseEvent| {
       sender.send(msg.clone());
@@ -124,15 +137,42 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   }
 
   /// Get a clone of the message sender for building custom callbacks
-  /// (e.g. parent-provided closures in props).
+  /// (e.g. parent-provided closures in props) or passing to
+  /// [`Store::subscribe`](crate::Store::subscribe).
   pub fn sender(&self) -> MsgSender<Msg> {
     self.sender.clone()
   }
 
+  // ── Background tasks (#12) ──────────────────────────────────────────
+
+  /// Spawn a blocking task on a background thread.
+  ///
+  /// `f` runs on a new OS thread. When it returns a message, that
+  /// message is enqueued just like a normal callback message.
+  ///
+  /// ```ignore
+  /// ctx.spawn(|| {
+  ///     let data = std::fs::read_to_string("data.json").unwrap();
+  ///     Msg::Loaded(data)
+  /// });
+  /// ```
+  pub fn spawn<F>(&self, f: F)
+  where
+    F: FnOnce() -> Msg + Send + 'static,
+  {
+    let sender = self.sender.clone();
+    std::thread::spawn(move || {
+      sender.send(f());
+    });
+  }
+
   // ── Child components ────────────────────────────────────────────────
 
-  /// Embed a child component.  Returns a placeholder [`El`] that the
-  /// runtime replaces with the child's rendered subtree.
+  /// Embed a child component.  The call-site position determines
+  /// identity across re-renders (positional keying).
+  ///
+  /// Use [`keyed_child`](Ctx::keyed_child) when the child appears in a
+  /// dynamic list so that it survives reordering without losing state.
   pub fn child<C: crate::Component>(&self, props: C::Props) -> El
   where
     C::Props: 'static,
@@ -141,8 +181,39 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   {
     let idx = self.child_counter.get();
     self.child_counter.set(idx + 1);
+    self.push_child::<C>(format!("__pos_{idx}"), props)
+  }
 
-    let marker_id = format!("__ui_child_{idx}");
+  /// Embed a child component with an explicit string key.
+  ///
+  /// Children with the same key and type are considered the same
+  /// instance across re-renders regardless of their call-site position.
+  /// Use this for dynamic lists where items can be reordered or removed:
+  ///
+  /// ```ignore
+  /// for item in &self.items {
+  ///     row = row.child(ctx.keyed_child::<ItemRow>(
+  ///         item.id.to_string(),
+  ///         ItemProps { data: item.clone() },
+  ///     ));
+  /// }
+  /// ```
+  pub fn keyed_child<C: crate::Component>(&self, key: impl Into<String>, props: C::Props) -> El
+  where
+    C::Props: 'static,
+    C::Msg: Clone + Send + Sync + 'static,
+    C::Env: 'static,
+  {
+    self.push_child::<C>(key.into(), props)
+  }
+
+  fn push_child<C: crate::Component>(&self, key: String, props: C::Props) -> El
+  where
+    C::Props: 'static,
+    C::Msg: Clone + Send + Sync + 'static,
+    C::Env: 'static,
+  {
+    let marker_id = format!("__ui_child_{key}");
 
     let placeholder = El {
       node: Node::new(m::Div {
@@ -152,7 +223,7 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
     };
 
     self.children.borrow_mut().push(ChildSlot {
-      index: idx,
+      key,
       marker_id,
       component_type_id: TypeId::of::<C>(),
       props: Box::new(props),

@@ -17,7 +17,7 @@ pub mod interactivity;
 pub mod paint;
 pub mod scroll;
 pub use paint::{paint_tree, paint_tree_with_text};
-use wgpu_html_layout::LayoutBox;
+use wgpu_html_layout::{LayoutBox, PointerEvents, UserSelect};
 use wgpu_html_renderer::{DisplayList, Renderer, ScreenshotError};
 use wgpu_html_style::MediaContext;
 use wgpu_html_text::TextContext;
@@ -540,7 +540,7 @@ pub fn select_word_at_cursor(tree: &mut Tree, layout: &LayoutBox, cursor: &TextC
   let Some(text_box) = layout_at_path(layout, &cursor.path) else {
     return false;
   };
-  if text_box.text_unselectable {
+  if text_box.text_unselectable || text_box.user_select == UserSelect::None {
     return false;
   }
   let Some(run) = text_box.text_run.as_ref() else {
@@ -572,7 +572,7 @@ pub fn select_line_at_cursor(tree: &mut Tree, layout: &LayoutBox, cursor: &TextC
   let Some(text_box) = layout_at_path(layout, &cursor.path) else {
     return false;
   };
-  if text_box.text_unselectable {
+  if text_box.text_unselectable || text_box.user_select == UserSelect::None {
     return false;
   }
   let Some(run) = text_box.text_run.as_ref() else {
@@ -614,7 +614,7 @@ fn first_text_cursor(layout: &LayoutBox) -> Option<TextCursor> {
 }
 
 fn first_text_cursor_inner(layout: &LayoutBox, path: &mut Vec<usize>) -> Option<TextCursor> {
-  if !layout.text_unselectable {
+  if !layout.text_unselectable && layout.user_select != UserSelect::None {
     if let Some(run) = &layout.text_run {
       if !run.text.is_empty() || !run.glyphs.is_empty() {
         return Some(TextCursor {
@@ -649,7 +649,7 @@ fn last_text_cursor_inner(layout: &LayoutBox, path: &mut Vec<usize>) -> Option<T
       return hit;
     }
   }
-  if layout.text_unselectable {
+  if layout.text_unselectable || layout.user_select == UserSelect::None {
     return None;
   }
   let run = layout.text_run.as_ref()?;
@@ -668,7 +668,11 @@ fn collect_selected_text(
   out: &mut String,
 ) {
   if let Some(run) = &layout.text_run {
-    if !layout.text_unselectable && !path_less(path, &start.path) && !path_less(&end.path, path) {
+    if !layout.text_unselectable
+      && layout.user_select != UserSelect::None
+      && !path_less(path, &start.path)
+      && !path_less(&end.path, path)
+    {
       let from = if path.as_slice() == start.path.as_slice() {
         run.byte_offset_for_boundary(start.glyph_index)
       } else {
@@ -860,6 +864,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -886,6 +892,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -974,6 +982,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1049,6 +1059,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: vec![text_box("Hello", 0.0), text_box("World", 0.0)],
@@ -1082,6 +1094,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: vec![text_box("Hello ", 0.0), text_box("world", 48.0)],
@@ -1104,6 +1118,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: vec![inline_parent, text_box("Second", 0.0)],

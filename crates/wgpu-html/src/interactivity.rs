@@ -20,7 +20,7 @@
 //! [`focus`], [`blur`], [`focus_next`], [`key_down`], [`key_up`],
 //! [`pointer_leave`].
 
-use wgpu_html_layout::LayoutBox;
+use wgpu_html_layout::{LayoutBox, PointerEvents, UserSelect};
 use wgpu_html_tree::{MouseButton, Tree};
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `wgpu_html_tree::dispatch`.
@@ -212,7 +212,7 @@ mod tests {
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
   };
-
+  use wgpu_html_models::common::PointerEvents;
   use wgpu_html_tree::{Node, SelectionColors};
 
   use super::*;
@@ -280,6 +280,8 @@ mod tests {
       text_decorations: Vec::new(),
       overflow: wgpu_html_layout::OverflowAxes::visible(),
       opacity: 1.0,
+      pointer_events: PointerEvents::Auto,
+      user_select: UserSelect::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),

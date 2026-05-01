@@ -1507,6 +1507,8 @@ fn synthetic_text_layout() -> LayoutBox {
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     opacity: 1.0,
+    pointer_events: PointerEvents::Auto,
+    user_select: UserSelect::Auto,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -1603,6 +1605,69 @@ fn overflow_visible_allows_child_hit_outside_parent() {
   );
   let body = layout(&tree, 800.0, 600.0).unwrap();
   assert_eq!(body.hit_path((120.0, 20.0)).unwrap(), vec![0, 0]);
+}
+
+// ---------------------------------------------------------------------------
+// pointer-events
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pointer_events_none_skips_self_in_hit_test() {
+  let tree = make(
+    r#"<body style="margin: 0; width: 300px; height: 300px;">
+            <div style="width: 100px; height: 100px; pointer-events: none;"></div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  // Click inside the div — should pass through to body (empty path).
+  let path = body.hit_path((50.0, 50.0)).unwrap();
+  assert_eq!(path, Vec::<usize>::new(), "pointer-events:none div is transparent");
+}
+
+#[test]
+fn pointer_events_none_children_still_hittable() {
+  let tree = make(
+    r#"<body style="margin: 0; width: 300px; height: 300px;">
+            <div style="width: 200px; height: 200px; pointer-events: none;">
+                <div style="width: 100px; height: 100px; pointer-events: auto;"></div>
+            </div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  // Click inside the inner div — child has pointer-events: auto.
+  let path = body.hit_path((50.0, 50.0)).unwrap();
+  assert_eq!(path, vec![0, 0], "child with auto is hittable through none parent");
+  // Click inside the outer div but outside the child.
+  let path = body.hit_path((150.0, 150.0)).unwrap();
+  assert_eq!(path, Vec::<usize>::new(), "outer none div still transparent");
+}
+
+// ---------------------------------------------------------------------------
+// user-select
+// ---------------------------------------------------------------------------
+
+#[test]
+fn user_select_none_blocks_text_cursor_hit() {
+  let mut lay = synthetic_text_layout();
+  assert!(lay.hit_text_cursor((15.0, 24.0)).is_some(), "baseline: cursor works");
+  lay.user_select = UserSelect::None;
+  assert!(lay.hit_text_cursor((15.0, 24.0)).is_none(), "user-select:none blocks cursor");
+}
+
+#[test]
+fn user_select_none_inherits_through_cascade() {
+  let tree = make(
+    r#"<body style="margin: 0; width: 300px; height: 300px; user-select: none;">
+            <div style="width: 100px; height: 100px;"></div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  assert_eq!(body.user_select, UserSelect::None);
+  assert_eq!(
+    body.children[0].user_select,
+    UserSelect::None,
+    "user-select:none inherited to child"
+  );
 }
 
 // ---------------------------------------------------------------------------

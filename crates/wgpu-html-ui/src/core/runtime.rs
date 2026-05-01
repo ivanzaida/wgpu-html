@@ -31,11 +31,15 @@ pub(crate) trait AnyComponent {
   /// Drain pending messages.
   fn drain_messages(&self) -> Vec<Box<dyn Any>>;
 
-  /// Lifecycle: mounted.
+  /// Lifecycle: mounted — passes the sender so the component can subscribe.
   fn mounted(&mut self);
 
   /// Lifecycle: destroyed.
   fn destroyed(&mut self);
+
+  /// Called after each render pass triggered by the component's own state
+  /// change.  Calls [`Component::updated`].
+  fn did_render(&mut self);
 
   /// Component's scope prefix.
   fn scope_prefix(&self) -> &'static str;
@@ -89,7 +93,6 @@ where
       let children = ctx.children.into_inner();
       (el.into_node(), children)
     } else {
-      // Env type mismatch — should not happen in practice.
       (Node::new(""), Vec::new())
     }
   }
@@ -136,21 +139,44 @@ where
   }
 
   fn mounted(&mut self) {
-    self.component.mounted();
+    self.component.mounted(self.sender.clone());
   }
 
   fn destroyed(&mut self) {
     self.component.destroyed();
   }
+
+  fn did_render(&mut self) {
+    self.component.updated(&self.props);
+  }
 }
 
 // ── Mounted component tree ──────────────────────────────────────────────────
 
-type ChildKey = (usize, TypeId);
+/// Child key: (user/positional key string, TypeId).
+/// String keys come from `ctx.keyed_child`; positional keys are
+/// `"__pos_{n}"` from `ctx.child`.
+type ChildKey = (String, TypeId);
 
 pub(crate) struct MountedComponent {
   pub(crate) state: Box<dyn AnyComponent>,
   pub(crate) children: HashMap<ChildKey, MountedComponent>,
+  /// Fully-resolved cached output (placeholders replaced with child subtrees).
+  /// Returned on the clean fast-path and on patch-path after substitution.
+  pub(crate) last_node: Option<Node>,
+  /// Raw output of the last `state.render()` call — child placeholders are
+  /// **not** substituted.  Kept because it is much smaller than `last_node`
+  /// (placeholder divs instead of full child subtrees) so cloning it to
+  /// re-patch dirty children is cheap.  `None` before the first render.
+  pub(crate) skeleton_node: Option<Node>,
+  /// True if this component's own `update()` returned `Yes` since the last
+  /// render, or if its parent flagged it via `props_changed`.
+  pub(crate) needs_render: bool,
+  /// True if this component OR any descendant is dirty. Propagated by
+  /// `process_component`; cleared after a render pass.
+  pub(crate) subtree_dirty: bool,
+  /// The DOM placeholder id in the parent's node tree (empty for root).
+  pub(crate) marker_id: String,
 }
 
 // ── Runtime ─────────────────────────────────────────────────────────────────
@@ -160,6 +186,14 @@ pub(crate) struct Runtime {
   wake: Arc<dyn Fn() + Send + Sync>,
   /// TypeIds of components whose styles have been registered.
   registered_styles: std::collections::HashSet<TypeId>,
+  /// When `true`, the component's rendered output replaces `tree.root`
+  /// directly.  When `false` (the default), the output is placed inside
+  /// the existing `html > body > [0]` structure created by the [`App`]
+  /// harness.
+  ///
+  /// [`Mount`](crate::Mount) sets this to `true` because the component
+  /// owns the entire document.
+  direct_root: bool,
 }
 
 impl Runtime {
@@ -179,10 +213,23 @@ impl Runtime {
       root: MountedComponent {
         state,
         children: HashMap::new(),
+        last_node: None,
+        skeleton_node: None,
+        needs_render: true,
+        subtree_dirty: true,
+        marker_id: String::new(),
       },
       wake,
       registered_styles: std::collections::HashSet::new(),
+      direct_root: false,
     }
+  }
+
+  /// When set to `true`, `process` and `force_render` replace
+  /// `tree.root` directly instead of navigating into an existing
+  /// `html > body` wrapper.
+  pub(crate) fn set_direct_root(&mut self, direct: bool) {
+    self.direct_root = direct;
   }
 
   /// Perform the initial render of the entire component tree.
@@ -195,10 +242,6 @@ impl Runtime {
   /// Process all pending messages across the component tree.
   /// Re-renders if any component changed.
   ///
-  /// Loops until no more messages are pending so that child→parent
-  /// callbacks (which queue messages on the parent during the child's
-  /// update) are processed in the same frame.
-  ///
   /// Returns `true` if any subtree was re-rendered.
   pub(crate) fn process(&mut self, tree: &mut Tree, env: &dyn Any) -> bool {
     let mut ever_changed = false;
@@ -209,8 +252,7 @@ impl Runtime {
       }
       ever_changed = true;
       let node = Self::render_component(&mut self.root, &self.wake, env);
-      Self::replace_component_node(tree, node);
-      tree.generation += 1;
+      self.apply_node(tree, node);
     }
     ever_changed
   }
@@ -218,17 +260,25 @@ impl Runtime {
   /// Force a full re-render (e.g. when env changed externally).
   pub(crate) fn force_render(&mut self, tree: &mut Tree, env: &dyn Any) {
     Self::register_styles(tree, &self.root);
+    Self::mark_all_dirty(&mut self.root);
     let node = Self::render_component(&mut self.root, &self.wake, env);
-    Self::replace_component_node(tree, node);
+    self.apply_node(tree, node);
+  }
+
+  /// Write the component output into the tree and bump the generation.
+  fn apply_node(&self, tree: &mut Tree, node: Node) {
+    if self.direct_root {
+      tree.root = Some(node);
+    } else {
+      Self::replace_component_node(tree, node);
+    }
     tree.generation += 1;
   }
 
   /// Replace the component's node inside the tree structure.
-  /// The tree is `<html><body>{component}</body></html>` — we
-  /// replace body's first child, preserving the wrapper.
+  /// Used by the [`App`] harness where `html > body` already exists.
   fn replace_component_node(tree: &mut Tree, node: Node) {
     if let Some(root) = &mut tree.root {
-      // Navigate: html → body (first child) → replace first child
       if let Some(body) = root.children.first_mut() {
         if body.children.is_empty() {
           body.children.push(node);
@@ -238,7 +288,6 @@ impl Runtime {
         return;
       }
     }
-    // Fallback: no wrapper, set root directly.
     tree.root = Some(node);
   }
 
@@ -261,72 +310,160 @@ impl Runtime {
     }
   }
 
-  /// Process a component and its children.  Child `update()` calls
-  /// can queue messages on the parent via prop callbacks, so we
-  /// drain, process children, then drain again until stable.
-  fn process_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>) -> bool {
-    let mut changed = false;
-
-    // Drain own messages first.
-    Self::drain_and_update(mounted, &mut changed);
-
-    // Process children — their update() may queue new messages
-    // on this component via prop callbacks.
-    for (_key, child) in &mut mounted.children {
-      if Self::process_component(child, wake) {
-        changed = true;
-      }
+  /// Mark this component and all descendants as needing a full re-render.
+  /// Called by `force_render` when the environment changes.
+  fn mark_all_dirty(mounted: &mut MountedComponent) {
+    mounted.needs_render = true;
+    mounted.subtree_dirty = true;
+    for child in mounted.children.values_mut() {
+      Self::mark_all_dirty(child);
     }
-
-    // Re-drain: children may have queued messages on us.
-    Self::drain_and_update(mounted, &mut changed);
-
-    changed
   }
 
+  /// Drain messages and call `update`.  Sets `needs_render` on the mounted
+  /// component when `update` returns `Yes`.
   fn drain_and_update(mounted: &mut MountedComponent, changed: &mut bool) {
     let messages = mounted.state.drain_messages();
     for msg in messages {
       if mounted.state.update_any(msg) == ShouldRender::Yes {
         *changed = true;
+        mounted.needs_render = true;
       }
     }
   }
 
+  /// Process a component and its children.  Returns `true` if anything in
+  /// the subtree is now dirty.  Sets `subtree_dirty` on `mounted`.
+  fn process_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>) -> bool {
+    let mut any_dirty = false;
+
+    Self::drain_and_update(mounted, &mut any_dirty);
+
+    for (_key, child) in &mut mounted.children {
+      if Self::process_component(child, wake) {
+        any_dirty = true;
+      }
+    }
+
+    // Re-drain: children may have queued messages on us via prop callbacks.
+    Self::drain_and_update(mounted, &mut any_dirty);
+
+    mounted.subtree_dirty = any_dirty;
+    any_dirty
+  }
+
+  /// Render a component and return its resolved node.
+  ///
+  /// Three paths, from cheapest to most expensive:
+  ///
+  /// 1. **Clean fast-path** (`!needs_render && !subtree_dirty`):
+  ///    Return `last_node` directly.  No allocations, no `view()` call.
+  ///
+  /// 2. **Patch path** (`!needs_render && subtree_dirty`):
+  ///    The component itself is unchanged so `view()` is **skipped**.
+  ///    Clone the stored `skeleton_node` (tiny — contains placeholder divs
+  ///    instead of full child subtrees) and re-substitute every child:
+  ///    dirty children re-render recursively; clean children return their
+  ///    own `last_node`.  Saves one `view()` call per ancestor of every
+  ///    updated leaf.
+  ///
+  /// 3. **Full render** (`needs_render`, or first render):
+  ///    Call `view()`, reconcile the child set (add/remove/update),
+  ///    store the raw output as `skeleton_node`, substitute children,
+  ///    cache the resolved result as `last_node`.
   fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>, env: &dyn Any) -> Node {
-    let (mut node, child_slots) = mounted.state.render(env);
+    // ── Path 1: clean fast-path ─────────────────────────────────────
+    if !mounted.needs_render && !mounted.subtree_dirty {
+      if let Some(cached) = &mounted.last_node {
+        return cached.clone();
+      }
+    }
+
+    // ── Path 2: patch path — parent clean, children dirty ───────────
+    if !mounted.needs_render && mounted.subtree_dirty {
+      if let Some(skeleton) = &mounted.skeleton_node {
+        // Clone the skeleton (placeholder divs only — much smaller than
+        // last_node which contains full child subtrees).
+        let mut resolved = skeleton.clone();
+
+        // Re-substitute every child.  Dirty children re-render; clean
+        // children hit path 1 and return their last_node cheaply.
+        for child in mounted.children.values_mut() {
+          let child_node = Self::render_component(child, wake, env);
+          replace_placeholder(&mut resolved, &child.marker_id, child_node);
+        }
+
+        mounted.subtree_dirty = false;
+        mounted.last_node = Some(resolved.clone());
+        return resolved;
+      }
+      // No skeleton yet (shouldn't happen in steady state) — fall through
+      // to a full render.
+    }
+
+    // ── Path 3: full render ──────────────────────────────────────────
+    let was_dirty = mounted.needs_render;
+    let is_first_render = mounted.skeleton_node.is_none();
+    let (skeleton, child_slots) = mounted.state.render(env);
+    // Resolved starts as a clone of the skeleton; children are then
+    // substituted in.  The original skeleton is kept intact for future
+    // patch-path passes.
+    let mut resolved = skeleton.clone();
 
     let mut new_children: HashMap<ChildKey, MountedComponent> = HashMap::new();
 
     for slot in child_slots {
-      let key = (slot.index, slot.component_type_id);
+      let key: ChildKey = (slot.key.clone(), slot.component_type_id);
 
       let mut child = if let Some(mut existing) = mounted.children.remove(&key) {
-        let _should = existing.state.props_changed_any(slot.props.as_ref());
+        let props_changed = existing.state.props_changed_any(slot.props.as_ref());
+        if props_changed == ShouldRender::Yes {
+          existing.needs_render = true;
+          existing.subtree_dirty = true;
+        }
         existing.state.set_props(slot.props);
         existing
       } else {
+        // New child — always render and call mounted.
         let state = (slot.create)(slot.props.as_ref(), wake.clone());
         let mut child = MountedComponent {
           state,
           children: HashMap::new(),
+          last_node: None,
+          skeleton_node: None,
+          needs_render: true,
+          subtree_dirty: true,
+          marker_id: slot.marker_id.clone(),
         };
         child.state.mounted();
         child
       };
 
+      child.marker_id = slot.marker_id.clone();
+
       let child_node = Self::render_component(&mut child, wake, env);
-      replace_placeholder(&mut node, &slot.marker_id, child_node);
+      replace_placeholder(&mut resolved, &slot.marker_id, child_node);
 
       new_children.insert(key, child);
     }
 
+    // Destroy removed children.
     for (_key, mut removed) in mounted.children.drain() {
       destroy_recursive(&mut removed);
     }
-
     mounted.children = new_children;
-    node
+
+    // Post-render lifecycle hook (skip on first render — initial mount
+    // is not considered a "re-render").
+    if was_dirty && !is_first_render {
+      mounted.state.did_render();
+    }
+
+    mounted.skeleton_node = Some(skeleton);
+    mounted.needs_render = false;
+    mounted.subtree_dirty = false;
+    mounted.last_node = Some(resolved.clone());
+    resolved
   }
 }
 
@@ -348,4 +485,992 @@ fn destroy_recursive(mounted: &mut MountedComponent) {
     destroy_recursive(child);
   }
   mounted.state.destroyed();
+}
+
+#[cfg(test)]
+mod tests {
+  use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicUsize, Ordering::SeqCst},
+  };
+
+  use wgpu_html_tree::Tree;
+
+  use crate::{
+    Component, Ctx, El, MsgSender, ShouldRender,
+    core::runtime::Runtime,
+    el,
+  };
+
+  // ── Shared counter bundle ───────────────────────────────────────────────────
+
+  /// Tracks calls to each lifecycle method for a single component instance.
+  #[derive(Clone, Default)]
+  struct Spy {
+    views:    Arc<AtomicUsize>,
+    mounts:   Arc<AtomicUsize>,
+    destroys: Arc<AtomicUsize>,
+    updated:  Arc<AtomicUsize>,
+  }
+
+  impl Spy {
+    fn views(&self) -> usize { self.views.load(SeqCst) }
+    fn mounts(&self) -> usize { self.mounts.load(SeqCst) }
+    fn destroys(&self) -> usize { self.destroys.load(SeqCst) }
+    fn updated(&self) -> usize { self.updated.load(SeqCst) }
+  }
+
+  /// Slot that a component writes its `MsgSender` into from `mounted()`.
+  type SenderSlot<M> = Arc<Mutex<Option<MsgSender<M>>>>;
+
+  fn slot<M: 'static>() -> SenderSlot<M> {
+    Arc::new(Mutex::new(None))
+  }
+
+  fn poke<M: Clone + Send + Sync + 'static>(s: &SenderSlot<M>, msg: M) {
+    s.lock().unwrap().as_ref().expect("sender not yet stored").send(msg);
+  }
+
+  // ── Leaf component ──────────────────────────────────────────────────────────
+  //
+  // Leaf is a standalone component (no children). Its `mounted()` writes
+  // the sender into a caller-owned `SenderSlot` so tests can inject messages.
+
+  struct LeafComp {
+    spy:      Spy,
+    on_mount: Arc<dyn Fn(MsgSender<LeafMsg>) + Send + Sync>,
+  }
+
+  #[derive(Clone)]
+  struct LeafProps {
+    spy:         Spy,
+    sender_slot: SenderSlot<LeafMsg>,
+  }
+
+  #[derive(Clone)]
+  enum LeafMsg { Poke }
+
+  impl Component for LeafComp {
+    type Props = LeafProps;
+    type Msg   = LeafMsg;
+    type Env   = ();
+
+    fn create(p: &LeafProps) -> Self {
+      let slot = p.sender_slot.clone();
+      LeafComp {
+        spy:      p.spy.clone(),
+        on_mount: Arc::new(move |s| { *slot.lock().unwrap() = Some(s); }),
+      }
+    }
+
+    fn update(&mut self, _: LeafMsg, _: &LeafProps) -> ShouldRender {
+      ShouldRender::Yes
+    }
+
+    fn view(&self, _: &LeafProps, _: &Ctx<LeafMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      el::span()
+    }
+
+    fn mounted(&mut self, sender: MsgSender<LeafMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+      (self.on_mount)(sender);
+    }
+
+    fn destroyed(&mut self) {
+      self.spy.destroys.fetch_add(1, SeqCst);
+    }
+
+    fn updated(&mut self, _: &LeafProps) {
+      self.spy.updated.fetch_add(1, SeqCst);
+    }
+  }
+
+  // ── ParentComp — one LeafComp child ────────────────────────────────────────
+
+  struct ParentComp {
+    spy: Spy,
+  }
+
+  #[derive(Clone)]
+  struct ParentProps {
+    spy:       Spy,
+    leaf_spy:  Spy,
+    leaf_slot: SenderSlot<LeafMsg>,
+  }
+
+  #[derive(Clone)]
+  enum ParentMsg { Poke }
+
+  impl Component for ParentComp {
+    type Props = ParentProps;
+    type Msg   = ParentMsg;
+    type Env   = ();
+
+    fn create(p: &ParentProps) -> Self {
+      ParentComp { spy: p.spy.clone() }
+    }
+
+    fn update(&mut self, _: ParentMsg, _: &ParentProps) -> ShouldRender {
+      ShouldRender::Yes
+    }
+
+    fn view(&self, props: &ParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      el::div().child(ctx.child::<LeafComp>(LeafProps {
+        spy:         props.leaf_spy.clone(),
+        sender_slot: props.leaf_slot.clone(),
+      }))
+    }
+
+    fn mounted(&mut self, _: MsgSender<ParentMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+    }
+
+    fn destroyed(&mut self) {
+      self.spy.destroys.fetch_add(1, SeqCst);
+    }
+
+    fn updated(&mut self, _: &ParentProps) {
+      self.spy.updated.fetch_add(1, SeqCst);
+    }
+  }
+
+  // ── RootComp — one ParentComp child ────────────────────────────────────────
+  // Used for the 3-level depth tests.
+
+  struct RootComp {
+    spy: Spy,
+  }
+
+  #[derive(Clone)]
+  struct RootProps {
+    spy:         Spy,
+    parent_spy:  Spy,
+    leaf_spy:    Spy,
+    leaf_slot:   SenderSlot<LeafMsg>,
+  }
+
+  #[derive(Clone)]
+  enum RootMsg {}
+
+  impl Component for RootComp {
+    type Props = RootProps;
+    type Msg   = RootMsg;
+    type Env   = ();
+
+    fn create(p: &RootProps) -> Self {
+      RootComp { spy: p.spy.clone() }
+    }
+
+    fn update(&mut self, _: RootMsg, _: &RootProps) -> ShouldRender {
+      ShouldRender::No
+    }
+
+    fn view(&self, props: &RootProps, ctx: &Ctx<RootMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      el::div().child(ctx.child::<ParentComp>(ParentProps {
+        spy:       props.parent_spy.clone(),
+        leaf_spy:  props.leaf_spy.clone(),
+        leaf_slot: props.leaf_slot.clone(),
+      }))
+    }
+
+    fn mounted(&mut self, _: MsgSender<RootMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+    }
+  }
+
+  // ── TwoChildrenComp — two keyed LeafComp children ──────────────────────────
+
+  struct TwoChildrenComp {
+    spy: Spy,
+  }
+
+  #[derive(Clone)]
+  struct TwoChildrenProps {
+    spy:    Spy,
+    spy_a:  Spy,
+    spy_b:  Spy,
+    slot_a: SenderSlot<LeafMsg>,
+    slot_b: SenderSlot<LeafMsg>,
+  }
+
+  #[derive(Clone)]
+  enum TwoChildrenMsg {}
+
+  impl Component for TwoChildrenComp {
+    type Props = TwoChildrenProps;
+    type Msg   = TwoChildrenMsg;
+    type Env   = ();
+
+    fn create(p: &TwoChildrenProps) -> Self {
+      TwoChildrenComp { spy: p.spy.clone() }
+    }
+
+    fn update(&mut self, _: TwoChildrenMsg, _: &TwoChildrenProps) -> ShouldRender {
+      ShouldRender::No
+    }
+
+    fn view(&self, props: &TwoChildrenProps, ctx: &Ctx<TwoChildrenMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      el::div().children([
+        ctx.keyed_child::<LeafComp>("a", LeafProps {
+          spy:         props.spy_a.clone(),
+          sender_slot: props.slot_a.clone(),
+        }),
+        ctx.keyed_child::<LeafComp>("b", LeafProps {
+          spy:         props.spy_b.clone(),
+          sender_slot: props.slot_b.clone(),
+        }),
+      ])
+    }
+
+    fn mounted(&mut self, _: MsgSender<TwoChildrenMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+    }
+  }
+
+  // ── StableLeaf — like LeafComp but props_changed returns No ────────────────
+
+  struct StableLeaf {
+    spy:      Spy,
+    on_mount: Arc<dyn Fn(MsgSender<LeafMsg>) + Send + Sync>,
+  }
+
+  impl Component for StableLeaf {
+    type Props = LeafProps;
+    type Msg   = LeafMsg;
+    type Env   = ();
+
+    fn create(p: &LeafProps) -> Self {
+      let slot = p.sender_slot.clone();
+      StableLeaf {
+        spy:      p.spy.clone(),
+        on_mount: Arc::new(move |s| { *slot.lock().unwrap() = Some(s); }),
+      }
+    }
+
+    fn update(&mut self, _: LeafMsg, _: &LeafProps) -> ShouldRender {
+      ShouldRender::Yes
+    }
+
+    fn view(&self, _: &LeafProps, _: &Ctx<LeafMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      el::span()
+    }
+
+    fn props_changed(&mut self, _: &LeafProps, _: &LeafProps) -> ShouldRender {
+      ShouldRender::No
+    }
+
+    fn mounted(&mut self, sender: MsgSender<LeafMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+      (self.on_mount)(sender);
+    }
+
+    fn destroyed(&mut self) {
+      self.spy.destroys.fetch_add(1, SeqCst);
+    }
+
+    fn updated(&mut self, _: &LeafProps) {
+      self.spy.updated.fetch_add(1, SeqCst);
+    }
+  }
+
+  // ── ConditionalComp — toggleable child ─────────────────────────────────────
+
+  struct ConditionalComp {
+    show_child: bool,
+    spy:        Spy,
+    on_mount:   Arc<dyn Fn(MsgSender<ConditionalMsg>) + Send + Sync>,
+  }
+
+  #[derive(Clone)]
+  struct ConditionalProps {
+    spy:         Spy,
+    sender_slot: SenderSlot<ConditionalMsg>,
+    child_spy:   Spy,
+    child_slot:  SenderSlot<LeafMsg>,
+  }
+
+  #[derive(Clone)]
+  enum ConditionalMsg {
+    Toggle,
+  }
+
+  impl Component for ConditionalComp {
+    type Props = ConditionalProps;
+    type Msg   = ConditionalMsg;
+    type Env   = ();
+
+    fn create(p: &ConditionalProps) -> Self {
+      let s = p.sender_slot.clone();
+      ConditionalComp {
+        show_child: true,
+        spy:        p.spy.clone(),
+        on_mount:   Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+      }
+    }
+
+    fn update(&mut self, msg: ConditionalMsg, _: &ConditionalProps) -> ShouldRender {
+      match msg {
+        ConditionalMsg::Toggle => {
+          self.show_child = !self.show_child;
+          ShouldRender::Yes
+        }
+      }
+    }
+
+    fn view(&self, props: &ConditionalProps, ctx: &Ctx<ConditionalMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      if self.show_child {
+        el::div().child(ctx.child::<LeafComp>(LeafProps {
+          spy:         props.child_spy.clone(),
+          sender_slot: props.child_slot.clone(),
+        }))
+      } else {
+        el::div()
+      }
+    }
+
+    fn mounted(&mut self, sender: MsgSender<ConditionalMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+      (self.on_mount)(sender);
+    }
+
+    fn destroyed(&mut self) {
+      self.spy.destroys.fetch_add(1, SeqCst);
+    }
+  }
+
+  // ── SelfPokingComp — update() sends a follow-up message ───────────────────
+
+  struct SelfPokingComp {
+    spy:      Spy,
+    sender:   Option<MsgSender<SelfPokingMsg>>,
+    on_mount: Arc<dyn Fn(MsgSender<SelfPokingMsg>) + Send + Sync>,
+  }
+
+  #[derive(Clone)]
+  struct SelfPokingProps {
+    spy:         Spy,
+    sender_slot: SenderSlot<SelfPokingMsg>,
+  }
+
+  #[derive(Clone)]
+  enum SelfPokingMsg {
+    Start,
+    FollowUp,
+  }
+
+  impl Component for SelfPokingComp {
+    type Props = SelfPokingProps;
+    type Msg   = SelfPokingMsg;
+    type Env   = ();
+
+    fn create(p: &SelfPokingProps) -> Self {
+      let s = p.sender_slot.clone();
+      SelfPokingComp {
+        spy:      p.spy.clone(),
+        sender:   None,
+        on_mount: Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+      }
+    }
+
+    fn update(&mut self, msg: SelfPokingMsg, _: &SelfPokingProps) -> ShouldRender {
+      match msg {
+        SelfPokingMsg::Start => {
+          if let Some(s) = &self.sender {
+            s.send(SelfPokingMsg::FollowUp);
+          }
+          ShouldRender::Yes
+        }
+        SelfPokingMsg::FollowUp => ShouldRender::Yes,
+      }
+    }
+
+    fn view(&self, _: &SelfPokingProps, _: &Ctx<SelfPokingMsg>, _: &()) -> El {
+      self.spy.views.fetch_add(1, SeqCst);
+      el::span()
+    }
+
+    fn mounted(&mut self, sender: MsgSender<SelfPokingMsg>) {
+      self.spy.mounts.fetch_add(1, SeqCst);
+      self.sender = Some(sender.clone());
+      (self.on_mount)(sender);
+    }
+  }
+
+  // ── Test helpers ────────────────────────────────────────────────────────────
+
+  fn bootstrap<C: Component<Env = ()>>(props: C::Props) -> (Runtime, Tree)
+  where
+    C::Msg:   Clone + Send + Sync + 'static,
+    C::Props: 'static,
+  {
+    let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(|| {});
+    let mut rt   = Runtime::new::<C>(&props, wake);
+    let tree = Tree::default();
+    rt.initial_render(&());
+    (rt, tree)
+  }
+
+  // ── Render-path tests ─────────────────────────────────────────────────────
+
+  /// PATH 1: A clean component (no messages, no dirty descendants) returns its
+  /// cached `last_node` without calling `view()`.
+  #[test]
+  fn path1_clean_component_skips_view() {
+    let leaf_spy  = Spy::default();
+    let leaf_slot = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
+      spy:         leaf_spy.clone(),
+      sender_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(leaf_spy.views(), 1, "initial render calls view once");
+
+    // No messages — process() should do nothing.
+    let changed = rt.process(&mut tree, &());
+
+    assert!(!changed,     "process() reports no change");
+    assert_eq!(leaf_spy.views(), 1, "view() not called again (path 1)");
+  }
+
+  /// PATH 3: A component with a pending message has its `view()` called.
+  #[test]
+  fn path3_dirty_component_calls_view() {
+    let leaf_spy  = Spy::default();
+    let leaf_slot = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
+      spy:         leaf_spy.clone(),
+      sender_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(leaf_spy.views(), 1);
+
+    poke(&leaf_slot, LeafMsg::Poke);
+    let changed = rt.process(&mut tree, &());
+
+    assert!(changed, "process() reports a change");
+    assert_eq!(leaf_spy.views(), 2, "view() called after dirty message (path 3)");
+  }
+
+  /// PATH 2: When a child is dirty but its parent is clean, the parent's
+  /// `view()` must NOT be called — only the child's.
+  #[test]
+  fn path2_dirty_child_skips_parent_view() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
+      spy:       parent_spy.clone(),
+      leaf_spy:  leaf_spy.clone(),
+      leaf_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(parent_spy.views(), 1, "initial render");
+    assert_eq!(leaf_spy.views(),   1, "initial render");
+
+    // Poke only the child.
+    poke(&leaf_slot, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(leaf_spy.views(),   2, "leaf re-rendered (path 3)");
+    assert_eq!(parent_spy.views(), 1, "parent view() NOT called (path 2)");
+  }
+
+  /// PATH 2 chains: with a Root->Parent->Leaf tree and only the Leaf dirty,
+  /// neither Root nor Parent should have their `view()` called.
+  #[test]
+  fn path2_chains_through_two_ancestors() {
+    let root_spy   = Spy::default();
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<RootComp>(RootProps {
+      spy:        root_spy.clone(),
+      parent_spy: parent_spy.clone(),
+      leaf_spy:   leaf_spy.clone(),
+      leaf_slot:  leaf_slot.clone(),
+    });
+
+    assert_eq!(root_spy.views(),   1);
+    assert_eq!(parent_spy.views(), 1);
+    assert_eq!(leaf_spy.views(),   1);
+
+    poke(&leaf_slot, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(leaf_spy.views(),   2, "leaf re-rendered (path 3)");
+    assert_eq!(parent_spy.views(), 1, "parent view() skipped (path 2)");
+    assert_eq!(root_spy.views(),   1, "root view() skipped (path 2)");
+  }
+
+  /// PATH 1 + 2 siblings: only the dirty sibling is re-rendered; the clean
+  /// sibling and the parent stay untouched.
+  #[test]
+  fn path1_clean_sibling_not_re_rendered() {
+    let parent_spy = Spy::default();
+    let spy_a      = Spy::default();
+    let spy_b      = Spy::default();
+    let slot_a     = slot::<LeafMsg>();
+    let slot_b     = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<TwoChildrenComp>(TwoChildrenProps {
+      spy:    parent_spy.clone(),
+      spy_a:  spy_a.clone(),
+      spy_b:  spy_b.clone(),
+      slot_a: slot_a.clone(),
+      slot_b: slot_b.clone(),
+    });
+
+    assert_eq!(parent_spy.views(), 1);
+    assert_eq!(spy_a.views(),      1);
+    assert_eq!(spy_b.views(),      1);
+
+    // Only poke child A.
+    poke(&slot_a, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(spy_a.views(),      2, "child A re-rendered");
+    assert_eq!(spy_b.views(),      1, "child B view() not called (path 1)");
+    assert_eq!(parent_spy.views(), 1, "parent view() not called (path 2)");
+  }
+
+  /// Verify `skeleton_node` is populated after initial render and that
+  /// multiple pokes accumulate correctly (each takes path 3 on the leaf
+  /// and path 2 on its ancestors).
+  #[test]
+  fn skeleton_stored_and_patch_path_repeatable() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
+      spy:       parent_spy.clone(),
+      leaf_spy:  leaf_spy.clone(),
+      leaf_slot: leaf_slot.clone(),
+    });
+
+    // Poke the child three times.
+    for _ in 0..3 {
+      poke(&leaf_slot, LeafMsg::Poke);
+      rt.process(&mut tree, &());
+    }
+
+    assert_eq!(leaf_spy.views(),   4, "initial + 3 re-renders");
+    assert_eq!(parent_spy.views(), 1, "parent view() never called again");
+  }
+
+  /// `force_render` marks every component dirty so all `view()` calls happen.
+  #[test]
+  fn force_render_calls_view_on_all() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
+      spy:       parent_spy.clone(),
+      leaf_spy:  leaf_spy.clone(),
+      leaf_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(parent_spy.views(), 1);
+    assert_eq!(leaf_spy.views(),   1);
+
+    rt.force_render(&mut tree, &());
+
+    assert_eq!(parent_spy.views(), 2, "parent re-rendered by force_render");
+    assert_eq!(leaf_spy.views(),   2, "leaf re-rendered by force_render");
+  }
+
+  /// When the parent is dirty (path 3) and the child has `props_changed`
+  /// returning `No`, the child's `view()` must be skipped (path 1 inside
+  /// path 3).
+  #[test]
+  fn path3_parent_dirty_does_not_re_render_clean_child() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+    let parent_slot = slot::<ParentMsg>();
+
+    struct ObservableParent {
+      spy:      Spy,
+      on_mount: Arc<dyn Fn(MsgSender<ParentMsg>) + Send + Sync>,
+    }
+
+    #[derive(Clone)]
+    struct ObservableParentProps {
+      spy:         Spy,
+      parent_slot: SenderSlot<ParentMsg>,
+      leaf_spy:    Spy,
+      leaf_slot:   SenderSlot<LeafMsg>,
+    }
+
+    impl Component for ObservableParent {
+      type Props = ObservableParentProps;
+      type Msg   = ParentMsg;
+      type Env   = ();
+
+      fn create(p: &ObservableParentProps) -> Self {
+        let s = p.parent_slot.clone();
+        ObservableParent {
+          spy:      p.spy.clone(),
+          on_mount: Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+        }
+      }
+
+      fn update(&mut self, _: ParentMsg, _: &ObservableParentProps) -> ShouldRender {
+        ShouldRender::Yes
+      }
+
+      fn view(&self, props: &ObservableParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
+        self.spy.views.fetch_add(1, SeqCst);
+        el::div().child(ctx.child::<StableLeaf>(LeafProps {
+          spy:         props.leaf_spy.clone(),
+          sender_slot: props.leaf_slot.clone(),
+        }))
+      }
+
+      fn mounted(&mut self, sender: MsgSender<ParentMsg>) {
+        self.spy.mounts.fetch_add(1, SeqCst);
+        (self.on_mount)(sender);
+      }
+    }
+
+    let (mut rt, mut tree) = bootstrap::<ObservableParent>(ObservableParentProps {
+      spy:         parent_spy.clone(),
+      parent_slot: parent_slot.clone(),
+      leaf_spy:    leaf_spy.clone(),
+      leaf_slot:   leaf_slot.clone(),
+    });
+
+    assert_eq!(parent_spy.views(), 1);
+    assert_eq!(leaf_spy.views(),   1);
+
+    // Poke the parent (makes parent dirty, not the leaf).
+    poke(&parent_slot, ParentMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(parent_spy.views(), 2, "parent view() called (path 3)");
+    assert_eq!(leaf_spy.views(),   1, "leaf view() skipped (path 1 inside path 3)");
+  }
+
+  // ── Lifecycle tests ─────────────────────────────────────────────────────────
+
+  /// `Component::mounted()` fires exactly once on initial render.
+  #[test]
+  fn mounted_lifecycle_fires_once() {
+    let leaf_spy  = Spy::default();
+    let leaf_slot = slot::<LeafMsg>();
+
+    let (_rt, _tree) = bootstrap::<LeafComp>(LeafProps {
+      spy:         leaf_spy.clone(),
+      sender_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(leaf_spy.mounts(), 1, "mounted() called exactly once");
+  }
+
+  /// `Component::updated()` is called after a dirty re-render, but NOT after
+  /// a clean (path 1) non-render or the initial mount render.
+  #[test]
+  fn updated_hook_fires_on_dirty_render_only() {
+    let leaf_spy  = Spy::default();
+    let leaf_slot = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
+      spy:         leaf_spy.clone(),
+      sender_slot: leaf_slot.clone(),
+    });
+
+    // `updated` should NOT fire on the initial mount render.
+    assert_eq!(leaf_spy.updated(), 0, "updated() not called after initial render");
+
+    // After a dirty message:
+    poke(&leaf_slot, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+    assert_eq!(leaf_spy.updated(), 1, "updated() called once after dirty render");
+
+    // With no new message (clean pass):
+    rt.process(&mut tree, &());
+    assert_eq!(leaf_spy.updated(), 1, "updated() not called on clean pass");
+
+    // Another dirty message:
+    poke(&leaf_slot, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+    assert_eq!(leaf_spy.updated(), 2, "updated() called again after second dirty render");
+  }
+
+  /// `destroyed()` fires when a parent stops rendering a child.
+  #[test]
+  fn destroyed_fires_on_child_removal() {
+    let cond_spy   = Spy::default();
+    let child_spy  = Spy::default();
+    let cond_slot  = slot::<ConditionalMsg>();
+    let child_slot = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ConditionalComp>(ConditionalProps {
+      spy:         cond_spy.clone(),
+      sender_slot: cond_slot.clone(),
+      child_spy:   child_spy.clone(),
+      child_slot:  child_slot.clone(),
+    });
+
+    assert_eq!(child_spy.mounts(),   1, "child mounted after initial render");
+    assert_eq!(child_spy.destroys(), 0, "child not yet destroyed");
+
+    // Toggle child off.
+    poke(&cond_slot, ConditionalMsg::Toggle);
+    rt.process(&mut tree, &());
+
+    assert_eq!(child_spy.destroys(), 1, "child destroyed after toggle off");
+  }
+
+  /// After removing and re-adding a child, a fresh instance is mounted.
+  #[test]
+  fn child_remounted_after_removal() {
+    let cond_spy   = Spy::default();
+    let child_spy  = Spy::default();
+    let cond_slot  = slot::<ConditionalMsg>();
+    let child_slot = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ConditionalComp>(ConditionalProps {
+      spy:         cond_spy.clone(),
+      sender_slot: cond_slot.clone(),
+      child_spy:   child_spy.clone(),
+      child_slot:  child_slot.clone(),
+    });
+
+    assert_eq!(child_spy.mounts(), 1);
+
+    // Toggle off then on.
+    poke(&cond_slot, ConditionalMsg::Toggle);
+    rt.process(&mut tree, &());
+    poke(&cond_slot, ConditionalMsg::Toggle);
+    rt.process(&mut tree, &());
+
+    assert_eq!(child_spy.destroys(), 1, "first instance destroyed");
+    assert_eq!(child_spy.mounts(),   2, "second instance mounted");
+  }
+
+  /// Both parent and child components receive `mounted()` on initial render.
+  #[test]
+  fn nested_components_both_mounted() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (_rt, _tree) = bootstrap::<ParentComp>(ParentProps {
+      spy:       parent_spy.clone(),
+      leaf_spy:  leaf_spy.clone(),
+      leaf_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(parent_spy.mounts(), 1, "parent mounted");
+    assert_eq!(leaf_spy.mounts(),   1, "leaf mounted");
+  }
+
+  // ── Sibling and message batching tests ───────────────────────────────────────
+
+  /// When both siblings are dirty, both re-render; the parent skips (path 2).
+  #[test]
+  fn both_siblings_dirty_both_rerender() {
+    let parent_spy = Spy::default();
+    let spy_a      = Spy::default();
+    let spy_b      = Spy::default();
+    let slot_a     = slot::<LeafMsg>();
+    let slot_b     = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<TwoChildrenComp>(TwoChildrenProps {
+      spy:    parent_spy.clone(),
+      spy_a:  spy_a.clone(),
+      spy_b:  spy_b.clone(),
+      slot_a: slot_a.clone(),
+      slot_b: slot_b.clone(),
+    });
+
+    // Poke both children.
+    poke(&slot_a, LeafMsg::Poke);
+    poke(&slot_b, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(spy_a.views(),      2, "child A re-rendered");
+    assert_eq!(spy_b.views(),      2, "child B re-rendered");
+    assert_eq!(parent_spy.views(), 1, "parent view() not called (path 2)");
+  }
+
+  /// Multiple messages queued before `process()` result in a single re-render.
+  #[test]
+  fn multiple_messages_single_render() {
+    let spy       = Spy::default();
+    let leaf_slot = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
+      spy:         spy.clone(),
+      sender_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(spy.views(), 1);
+
+    // Queue three messages before processing.
+    poke(&leaf_slot, LeafMsg::Poke);
+    poke(&leaf_slot, LeafMsg::Poke);
+    poke(&leaf_slot, LeafMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(spy.views(), 2, "only one re-render despite three messages");
+  }
+
+  /// A follow-up message sent from `update()` is handled in the same
+  /// `process()` call, producing only one render.
+  #[test]
+  fn followup_message_handled_in_same_process() {
+    let spy       = Spy::default();
+    let poke_slot = slot::<SelfPokingMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<SelfPokingComp>(SelfPokingProps {
+      spy:         spy.clone(),
+      sender_slot: poke_slot.clone(),
+    });
+
+    assert_eq!(spy.views(), 1);
+
+    // Start sends FollowUp internally; both handled in one process().
+    poke(&poke_slot, SelfPokingMsg::Start);
+    let changed = rt.process(&mut tree, &());
+
+    assert!(changed);
+    assert_eq!(spy.views(), 2, "single re-render covers Start + FollowUp");
+  }
+
+  // ── Lifecycle hook and props_changed tests ───────────────────────────────────
+
+  /// `force_render` triggers `updated()` on components that already have a
+  /// skeleton (i.e. not on their first render).
+  #[test]
+  fn force_render_triggers_updated() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
+      spy:       parent_spy.clone(),
+      leaf_spy:  leaf_spy.clone(),
+      leaf_slot: leaf_slot.clone(),
+    });
+
+    assert_eq!(parent_spy.updated(), 0, "no updated() after initial render");
+    assert_eq!(leaf_spy.updated(),   0, "no updated() after initial render");
+
+    rt.force_render(&mut tree, &());
+
+    assert_eq!(parent_spy.updated(), 1, "parent updated() fired by force_render");
+    assert_eq!(leaf_spy.updated(),   1, "leaf updated() fired by force_render");
+  }
+
+  /// With the default `props_changed` (returns Yes), a parent re-render
+  /// (path 3) also re-renders the child, but the child instance is reused
+  /// (not destroyed and re-created).
+  #[test]
+  fn props_changed_default_rerenders_child() {
+    let parent_spy  = Spy::default();
+    let leaf_spy    = Spy::default();
+    let leaf_slot   = slot::<LeafMsg>();
+    let parent_slot = slot::<ParentMsg>();
+
+    struct PokableParent {
+      spy:      Spy,
+      on_mount: Arc<dyn Fn(MsgSender<ParentMsg>) + Send + Sync>,
+    }
+
+    #[derive(Clone)]
+    struct PokableParentProps {
+      spy:         Spy,
+      parent_slot: SenderSlot<ParentMsg>,
+      leaf_spy:    Spy,
+      leaf_slot:   SenderSlot<LeafMsg>,
+    }
+
+    impl Component for PokableParent {
+      type Props = PokableParentProps;
+      type Msg   = ParentMsg;
+      type Env   = ();
+
+      fn create(p: &PokableParentProps) -> Self {
+        let s = p.parent_slot.clone();
+        PokableParent {
+          spy:      p.spy.clone(),
+          on_mount: Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+        }
+      }
+
+      fn update(&mut self, _: ParentMsg, _: &PokableParentProps) -> ShouldRender {
+        ShouldRender::Yes
+      }
+
+      fn view(&self, props: &PokableParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
+        self.spy.views.fetch_add(1, SeqCst);
+        // Uses LeafComp which has default props_changed -> Yes.
+        el::div().child(ctx.child::<LeafComp>(LeafProps {
+          spy:         props.leaf_spy.clone(),
+          sender_slot: props.leaf_slot.clone(),
+        }))
+      }
+
+      fn mounted(&mut self, sender: MsgSender<ParentMsg>) {
+        self.spy.mounts.fetch_add(1, SeqCst);
+        (self.on_mount)(sender);
+      }
+    }
+
+    let (mut rt, mut tree) = bootstrap::<PokableParent>(PokableParentProps {
+      spy:         parent_spy.clone(),
+      parent_slot: parent_slot.clone(),
+      leaf_spy:    leaf_spy.clone(),
+      leaf_slot:   leaf_slot.clone(),
+    });
+
+    assert_eq!(parent_spy.views(), 1);
+    assert_eq!(leaf_spy.views(),   1);
+
+    // Poke parent -> parent re-renders (path 3). Default props_changed = Yes
+    // so child is also re-rendered.
+    poke(&parent_slot, ParentMsg::Poke);
+    rt.process(&mut tree, &());
+
+    assert_eq!(parent_spy.views(), 2, "parent re-rendered (path 3)");
+    assert_eq!(leaf_spy.views(),   2, "child re-rendered (default props_changed = Yes)");
+    assert_eq!(leaf_spy.mounts(),   1, "child not re-mounted (reused)");
+    assert_eq!(leaf_spy.destroys(), 0, "child not destroyed (reused)");
+  }
+
+  /// Calling `process()` on a fully clean tree (parent + children) is a no-op.
+  #[test]
+  fn process_noop_on_clean_tree() {
+    let parent_spy = Spy::default();
+    let leaf_spy   = Spy::default();
+    let leaf_slot  = slot::<LeafMsg>();
+
+    let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
+      spy:       parent_spy.clone(),
+      leaf_spy:  leaf_spy.clone(),
+      leaf_slot: leaf_slot.clone(),
+    });
+
+    // Three clean process() calls.
+    for _ in 0..3 {
+      let changed = rt.process(&mut tree, &());
+      assert!(!changed, "process() on clean tree returns false");
+    }
+
+    assert_eq!(parent_spy.views(), 1, "parent view() not called again");
+    assert_eq!(leaf_spy.views(),   1, "leaf view() not called again");
+  }
 }

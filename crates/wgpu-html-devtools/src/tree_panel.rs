@@ -198,7 +198,7 @@ fn make_tree_row(depth: usize, path: &[usize], selected_path: Option<&[usize]>, 
     "tree-row"
   };
   let path_owned = path.to_vec();
-  let msg_cb = ctx.msg(TreePanelMsg::Select(path_owned.clone()));
+  let msg_cb = ctx.on_click(TreePanelMsg::Select(path_owned.clone()));
   el::div()
     .class(class)
     .style(format!("padding-left: {px}px;"))
@@ -219,7 +219,7 @@ fn chevron_button(icon: &str, path: &[usize], ctx: &Ctx<TreePanelMsg>) -> El {
   el::span()
     .class("chevron")
     .text(icon)
-    .on_click_cb(ctx.msg(TreePanelMsg::Toggle(path_owned)))
+    .on_click_cb(ctx.on_click(TreePanelMsg::Toggle(path_owned)))
 }
 
 /// Append `<tag id="…" class="…">` spans to an El builder.

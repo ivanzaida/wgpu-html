@@ -962,6 +962,8 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, Cs
     (svg_stroke_linejoin, "stroke-linejoin"),
     (svg_stroke_dasharray, "stroke-dasharray"),
     (svg_stroke_dashoffset, "stroke-dashoffset"),
+    (pointer_events, "pointer-events"),
+    (user_select, "user-select"),
   );
   // Deferred longhands: bulk-clone when child has no overrides and
   // no keyword/reset blocks apply. One HashMap::clone instead of N

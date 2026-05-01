@@ -430,8 +430,8 @@ style_props! {
     transform_origin => "transform-origin";
     transition => "transition";
     animation => "animation";
-    pointer_events => "pointer-events";
-    user_select => "user-select";
+    pointer_events => "pointer-events" ,inherited;
+    user_select => "user-select" ,inherited;
 }
 
 #[cfg(test)]

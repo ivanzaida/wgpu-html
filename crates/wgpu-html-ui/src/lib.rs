@@ -34,9 +34,9 @@
 //!     fn view(&self, props: &Props, ctx: &Ctx<Msg>, _env: &()) -> El {
 //!         el::div().children([
 //!             el::span().text(&props.label),
-//!             el::button().text("-").on_click(ctx.msg(Msg::Dec)),
+//!             el::button().text("-").on_click(ctx.on_click(Msg::Dec)),
 //!             el::span().text(&self.count.to_string()),
-//!             el::button().text("+").on_click(ctx.msg(Msg::Inc)),
+//!             el::button().text("+").on_click(ctx.on_click(Msg::Inc)),
 //!         ])
 //!     }
 //! }
@@ -54,6 +54,9 @@
 pub mod el;
 pub mod style;
 
+// ── Shared reactive state ────────────────────────────────────────────────────
+mod store;
+
 // ── Core Elm-architecture machinery ─────────────────────────────────────────
 mod core;
 
@@ -70,7 +73,8 @@ pub use app::{
   app::{App, SecondaryWindow},
   mount::Mount,
 };
-pub use el::El;
+pub use el::{Children, El};
+pub use store::Store;
 
 /// Register platform system fonts with the tree under the given family alias.
 /// Call this once during app setup so text renders correctly.

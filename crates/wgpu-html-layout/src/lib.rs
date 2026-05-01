@@ -40,6 +40,7 @@ use std::{
 };
 
 pub use color::{Color, resolve_color};
+pub use wgpu_html_models::common::css_enums::{PointerEvents, UserSelect};
 
 /// One frame of an animated image as it sits in the raw (pre-resize)
 /// cache. `delay_ms` comes straight from the source format and is
@@ -1722,6 +1723,13 @@ pub struct LayoutBox {
   /// Computed CSS opacity for this element. Paint multiplies this
   /// into the inherited opacity for the whole subtree.
   pub opacity: f32,
+  /// Resolved `pointer-events`. `None` means hit-testing passes
+  /// through this element to whatever is behind it, but children
+  /// with `Auto` are still hittable (CSS spec).
+  pub pointer_events: PointerEvents,
+  /// Resolved `user-select`. `None` suppresses text selection and
+  /// highlight painting for this box (inherited to descendants).
+  pub user_select: UserSelect,
   /// Decoded image data for `<img>` elements. `None` for non-image
   /// boxes. The `Arc` allows cheap cloning through the display list.
   pub image: Option<ImageData>,
@@ -1879,7 +1887,7 @@ impl LayoutBox {
   ) -> Option<TextCursor> {
     let path = self.hit_path_scrolled(point, scroll_offsets)?;
     let text_box = self.box_at_path(&path)?;
-    if text_box.text_unselectable {
+    if text_box.text_unselectable || text_box.user_select == UserSelect::None {
       return None;
     }
     let run = text_box.text_run.as_ref()?;
@@ -1933,9 +1941,9 @@ impl LayoutBox {
   pub fn hit_text_cursor(&self, point: (f32, f32)) -> Option<TextCursor> {
     let path = self.hit_path(point)?;
     let text_box = self.box_at_path(&path)?;
-    // Form control internal text (placeholder / value) is excluded
-    // from document-level drag-to-select.
-    if text_box.text_unselectable {
+    // Form control internal text (placeholder / value) and elements
+    // with user-select: none are excluded from drag-to-select.
+    if text_box.text_unselectable || text_box.user_select == UserSelect::None {
       return None;
     }
     let run = text_box.text_run.as_ref()?;
@@ -2053,6 +2061,11 @@ fn collect_hit_path(b: &LayoutBox, x: f32, y: f32, active_clip: Option<Rect>) ->
     }
   }
 
+  // pointer-events: none — the element itself is invisible to
+  // hit-testing but children with `auto` can still be hit.
+  if b.pointer_events == PointerEvents::None {
+    return None;
+  }
   b.border_rect.contains(x, y).then(Vec::new)
 }
 
@@ -2104,6 +2117,9 @@ fn collect_hit_path_scrolled(
     path.pop();
   }
 
+  if b.pointer_events == PointerEvents::None {
+    return None;
+  }
   if b.border_rect.contains(x, y) {
     Some(path.clone())
   } else {
@@ -2159,6 +2175,8 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode) {
   let style = &node.style;
   b.background = style.background_color.as_ref().and_then(resolve_color);
   b.opacity = resolved_opacity(style);
+  b.pointer_events = resolved_pointer_events(style);
+  b.user_select = resolved_user_select(style);
 
   // Text color: only for text boxes or boxes with text_color set.
   if b.text_color.is_some() || matches!(b.kind, BoxKind::Text) {
@@ -2813,6 +2831,8 @@ fn layout_block(
     text_decorations: Vec::new(),
     overflow: effective_overflow(style),
     opacity: resolved_opacity(style),
+    pointer_events: resolved_pointer_events(style),
+    user_select: resolved_user_select(style),
     image: effective_image,
     background_image,
     children,
@@ -3076,6 +3096,14 @@ fn resolved_opacity(style: &Style) -> f32 {
   style.opacity.unwrap_or(1.0).clamp(0.0, 1.0)
 }
 
+fn resolved_pointer_events(style: &Style) -> PointerEvents {
+  style.pointer_events.unwrap_or(PointerEvents::Auto)
+}
+
+fn resolved_user_select(style: &Style) -> UserSelect {
+  style.user_select.unwrap_or(UserSelect::Auto)
+}
+
 fn establishes_containing_block(style: &Style) -> bool {
   !matches!(style.position, None | Some(Position::Static))
 }
@@ -3166,7 +3194,7 @@ fn positioned_overrides(
   }
 }
 
-fn shrink_to_fit_content_width(node: &CascadedNode, available_w: f32, ctx: &mut Ctx) -> f32 {
+pub(crate) fn shrink_to_fit_content_width(node: &CascadedNode, available_w: f32, ctx: &mut Ctx) -> f32 {
   if all_children_inline_level(node) {
     let (_children, width, _height) = layout_inline_block_children(node, 0.0, 0.0, available_w, ctx);
     return width.min(available_w).max(0.0);
@@ -3538,6 +3566,8 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     opacity: 1.0,
+    pointer_events: PointerEvents::Auto,
+    user_select: UserSelect::Auto,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3582,6 +3612,8 @@ fn make_text_leaf(
     text_decorations: decorations,
     overflow: OverflowAxes::visible(),
     opacity: resolved_opacity(style),
+    pointer_events: PointerEvents::Auto,
+    user_select: resolved_user_select(style),
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3880,6 +3912,8 @@ fn layout_inline_subtree(
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     opacity: resolved_opacity(&node.style),
+    pointer_events: resolved_pointer_events(&node.style),
+    user_select: resolved_user_select(&node.style),
     image: None,
     background_image: None,
     children: final_children,
@@ -4055,6 +4089,8 @@ fn layout_atomic_inline_subtree(
       text_decorations: Vec::new(),
       overflow: OverflowAxes::visible(),
       opacity: resolved_opacity(style),
+      pointer_events: resolved_pointer_events(style),
+      user_select: resolved_user_select(style),
       image: None,
       background_image: None,
       children,
@@ -4556,6 +4592,8 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     opacity: opacity.clamp(0.0, 1.0),
+    pointer_events: PointerEvents::Auto,
+    user_select: UserSelect::Auto,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -4763,6 +4801,8 @@ fn layout_inline_paragraph(
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     opacity: resolved_opacity(&node.style),
+    pointer_events: PointerEvents::Auto,
+    user_select: resolved_user_select(&node.style),
     image: None,
     background_image: None,
     children: Vec::new(),

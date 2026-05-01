@@ -41,8 +41,10 @@ where
   /// Call [`set_wake`](Mount::set_wake) to install a real one.
   pub fn new(props: C::Props) -> Self {
     let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(|| {});
+    let mut runtime = Runtime::new::<C>(&props, wake);
+    runtime.set_direct_root(true);
     Self {
-      runtime: Runtime::new::<C>(&props, wake),
+      runtime,
       _marker: std::marker::PhantomData,
     }
   }
@@ -50,8 +52,10 @@ where
   /// Create a mount with a custom wake function that triggers
   /// redraws when callbacks fire.
   pub fn with_wake(props: C::Props, wake: Arc<dyn Fn() + Send + Sync>) -> Self {
+    let mut runtime = Runtime::new::<C>(&props, wake);
+    runtime.set_direct_root(true);
     Self {
-      runtime: Runtime::new::<C>(&props, wake),
+      runtime,
       _marker: std::marker::PhantomData,
     }
   }
