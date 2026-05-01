@@ -276,6 +276,16 @@ impl El {
     self
   }
 
+  pub fn on_mouse_move(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_mouse_move = Some(Arc::new(f));
+    self
+  }
+
+  pub fn on_mouse_move_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_mouse_move = Some(cb);
+    self
+  }
+
   pub fn on_mouse_enter(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
     self.node.on_mouse_enter = Some(Arc::new(f));
     self

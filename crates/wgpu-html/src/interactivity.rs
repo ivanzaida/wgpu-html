@@ -20,7 +20,7 @@
 //! [`focus`], [`blur`], [`focus_next`], [`key_down`], [`key_up`],
 //! [`pointer_leave`].
 
-use wgpu_html_layout::{LayoutBox, PointerEvents, UserSelect};
+use wgpu_html_layout::{Cursor, LayoutBox, PointerEvents, UserSelect};
 use wgpu_html_tree::{MouseButton, Tree};
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `wgpu_html_tree::dispatch`.
@@ -34,8 +34,22 @@ pub use wgpu_html_tree::{blur, dispatch_pointer_leave as pointer_leave, focus, f
 /// keep it in sync with [`Tree::set_modifier`].
 pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> bool {
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
-  let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
-  tree.dispatch_pointer_move(target.as_deref(), pos, cursor)
+  let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  tree.dispatch_pointer_move(target.as_deref(), pos, text_cursor)
+}
+
+/// Like [`pointer_move`] but also returns the resolved CSS `cursor`
+/// for the hovered element. The host can use this to set the OS
+/// pointer icon.
+pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> (bool, Cursor) {
+  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  let css_cursor = target
+    .as_deref()
+    .map(|path| layout.cursor_at_path(path))
+    .unwrap_or(Cursor::Auto);
+  let changed = tree.dispatch_pointer_move(target.as_deref(), pos, text_cursor);
+  (changed, css_cursor)
 }
 
 /// Primary-button (or any-button) press at `pos`. Records the

@@ -423,7 +423,59 @@ pub fn dispatch_pointer_move(
     update_hover(tree, old.as_deref(), new_target, pos);
     tree.interaction.hover_path = new_owned;
   }
+
+  // Fire `mousemove` on the current target regardless of whether
+  // the hover path changed (browsers fire it on every pixel move).
+  if let Some(target) = tree.interaction.hover_path.clone() {
+    bubble_mouse_move(tree, &target, pos);
+  }
+
   changed
+}
+
+/// Bubble a `mousemove` event up the ancestry chain, calling each
+/// node's `on_mouse_move` callback and the generic `on_event` slot.
+fn bubble_mouse_move(tree: &mut Tree, target_path: &[usize], pos: (f32, f32)) {
+  let modifiers = tree.interaction.modifiers;
+  let depth = target_path.len();
+  for i in 0..=depth {
+    let current_path = target_path[..depth.saturating_sub(i)].to_vec();
+    let (mouse_cb, event_cb) = tree
+      .root
+      .as_ref()
+      .and_then(|root| root.at_path(&current_path))
+      .map(|node| (node.on_mouse_move.clone(), node.on_event.clone()))
+      .unwrap_or((None, None));
+
+    let ev = MouseEvent {
+      pos,
+      button: None,
+      modifiers,
+      target_path: target_path.to_vec(),
+      current_path: current_path.clone(),
+    };
+    if let Some(cb) = mouse_cb {
+      cb(&ev);
+    }
+
+    // Also fire through on_event as a mousemove HtmlEvent.
+    if let Some(cb) = event_cb {
+      let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+      let html_ev = make_mouse_html_event(
+        ev::HtmlEventType::MOUSEMOVE,
+        true,
+        0,
+        pos,
+        None,
+        tree.interaction.buttons_down,
+        modifiers,
+        target_path,
+        current_path,
+        time_stamp,
+      );
+      cb(&html_ev);
+    }
+  }
 }
 
 /// The pointer left the surface (e.g. winit `CursorLeft`). Clears

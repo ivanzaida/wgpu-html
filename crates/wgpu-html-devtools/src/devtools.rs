@@ -86,8 +86,13 @@ body {
 .main { display: flex; flex-grow: 1; min-height: 0; }
 .tree-panel {
     display: flex; flex-direction: column; width: 50%; min-width: 0;
-    background: var(--bg-primary); border-right: 1px solid var(--border);
+    background: var(--bg-primary);
 }
+.divider {
+    width: 4px; flex-shrink: 0; cursor: col-resize;
+    background: var(--border);
+}
+.divider:hover { background: var(--accent-blue); }
 .tree-rows {
     flex-grow: 1; display: flex; flex-direction: column;
     padding: 8px 0; overflow: auto; min-width: 0;
@@ -142,7 +147,7 @@ body {
 .ss-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .ss-btn-active { background: var(--bg-tertiary); color: var(--accent-blue); }
 .styles-content { flex-grow: 1; display: flex; flex-direction: column; overflow: auto; }
-.rule { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); cursor: default; }
+.rule { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); cursor: default; flex-shrink: 0; }
 .rule:hover { background: rgba(255, 255, 255, 0.02); }
 .rule-header { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 12px; }
 .selector-text { color: var(--selector); }
@@ -193,6 +198,9 @@ pub struct Devtools {
   enabled: bool,
   /// Shared flag set by the TreeHook when F11 is pressed on the host.
   toggle_requested: Arc<AtomicBool>,
+  /// Shared flag set by the DumpHtmlHook when Shift+F12 is pressed
+  /// on the devtools window.
+  dump_html_requested: Arc<AtomicBool>,
 }
 
 impl Devtools {
@@ -210,6 +218,12 @@ impl Devtools {
 
     let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps);
 
+    // Register Shift+F12 dump hook on the devtools tree.
+    let dump_html_requested = Arc::new(AtomicBool::new(false));
+    tree.hooks.push(TreeHookHandle::new(
+      crate::devtools_hook::DumpHtmlHook { flag: dump_html_requested.clone() },
+    ));
+
     Self {
       tree,
       mount,
@@ -218,6 +232,7 @@ impl Devtools {
       html_window: None,
       enabled: false,
       toggle_requested: Arc::new(AtomicBool::new(false)),
+      dump_html_requested,
     }
   }
 
@@ -273,6 +288,16 @@ impl Devtools {
       self.html_window = Some(hw);
       self.last_inspected_gen = None;
       self.needs_redraw = true;
+    }
+
+    // Shift+F12: dump devtools tree as HTML for browser debugging.
+    if self.dump_html_requested.swap(false, Ordering::Relaxed) {
+      let html = self.tree.to_html();
+      let path = format!("devtools-dump-{}.html", self.tree.generation);
+      match std::fs::write(&path, &html) {
+        Ok(()) => println!("[devtools] saved HTML \u{2192} {path} ({} bytes)", html.len()),
+        Err(e) => eprintln!("[devtools] failed to save HTML: {e}"),
+      }
     }
 
     // Process pending component messages.
@@ -350,16 +375,21 @@ impl Devtools {
     }
     let needs_redraw = hw.handle_event(&mut self.tree, event);
 
-    // After mouse release, component callbacks may have queued messages.
-    if matches!(
-      event,
-      WindowEvent::MouseInput {
-        state: ElementState::Released,
-        ..
-      }
-    ) {
-      if self.mount.process(&mut self.tree, host_tree) {
-        self.needs_redraw = true;
+    // Drain any messages queued by callbacks (mouse move, mouse
+    // down/up, click, keyboard, etc.) so the component state
+    // updates immediately — not just on the next poll().
+    if self.mount.process(&mut self.tree, host_tree) {
+      self.needs_redraw = true;
+    }
+
+    // Check Shift+F12 dump flag (set by the tree hook during
+    // hw.handle_event above, so it's available immediately).
+    if self.dump_html_requested.swap(false, Ordering::Relaxed) {
+      let html = self.tree.to_html();
+      let path = format!("devtools-dump-{}.html", self.tree.generation);
+      match std::fs::write(&path, &html) {
+        Ok(()) => println!("[devtools] saved HTML \u{2192} {path} ({} bytes)", html.len()),
+        Err(e) => eprintln!("[devtools] failed to save HTML: {e}"),
       }
     }
 

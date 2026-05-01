@@ -175,7 +175,15 @@ pub(crate) fn layout_flex_children(
   // item (or stretch later) is honored by the block layout itself.
   // ----------------------------------------------------------------
   for item in &mut items {
-    let override_main = main_axis_size.is_some() || item.has_resolved_flex_basis;
+    // Override the main size when the item has a CSS-specified main
+    // dimension OR when the flex algorithm grew/shrunk it from its
+    // base. Items whose base_size was the 0-intrinsic fallback (non-
+    // text, non-replaced, no height/flex-basis) AND weren't flexed
+    // must NOT be overridden — they need the content height from
+    // block layout.
+    let was_flexed = (item.resolved_main - item.hypothetical_main).abs() > EPS;
+    let override_main =
+      (main_axis_size.is_some() || item.has_resolved_flex_basis) && (item.has_css_main_size || was_flexed);
     let overrides = if is_row {
       BlockOverrides {
         width: override_main.then_some(item.resolved_main),
@@ -205,12 +213,13 @@ pub(crate) fn layout_flex_children(
     } else {
       laid.content_rect.w
     };
-    if main_axis_size.is_none() && !item.has_resolved_flex_basis {
-      item.resolved_main = if is_row {
-        laid.content_rect.w
-      } else {
-        laid.content_rect.h
-      };
+    if !override_main {
+      // Item had no CSS main size — use the content size from block
+      // layout. This covers both indefinite containers (original
+      // path) and definite containers where the item's base_size was
+      // the 0-intrinsic fallback.
+      let content_main = if is_row { laid.content_rect.w } else { laid.content_rect.h };
+      item.resolved_main = content_main;
     }
 
     // Column flex: non-stretch items without an explicit CSS width
@@ -597,6 +606,11 @@ struct FlexItem<'a> {
   /// True when `flex-basis` resolved to a definite main-axis length
   /// even though the flex container's main size may be indefinite.
   has_resolved_flex_basis: bool,
+  /// True when the item's base size came from an explicit CSS value
+  /// (height/width or flex-basis), as opposed to the 0-fallback
+  /// for non-text/non-replaced elements. Items without a CSS main
+  /// size need their content height from block layout (phase 4).
+  has_css_main_size: bool,
   /// A percentage cross size with an indefinite flex-container
   /// cross size disables stretch, but it cannot resolve for the
   /// item's own layout. Treat that style size as auto for the
@@ -728,17 +742,33 @@ fn build_item<'a>(
   // Only compute intrinsic size when needed (no explicit basis) to
   // avoid O(depth × leaves) redundant text measurements in nested
   // flex hierarchies.
-  let mut base_size = match basis_explicit {
-    Some(v) => match box_sizing {
-      BoxSizing::ContentBox => v,
-      BoxSizing::BorderBox => (v - frame_main).max(0.0),
-    },
+  let (base_size_raw, has_definite_base) = match basis_explicit {
+    Some(v) => {
+      let content = match box_sizing {
+        BoxSizing::ContentBox => v,
+        BoxSizing::BorderBox => (v - frame_main).max(0.0),
+      };
+      (content, true)
+    }
     None => {
-      let intrinsic_main =
-        replaced_intrinsic_main(node, is_row, ctx).or_else(|| text_intrinsic_main(node, is_row, ctx));
-      intrinsic_main.unwrap_or(0.0).max(0.0)
+      if let Some(v) = replaced_intrinsic_main(node, is_row, ctx) {
+        // Replaced elements (img, svg) have accurate intrinsic sizes.
+        (v.max(0.0), true)
+      } else if let Some(v) = text_intrinsic_main(node, is_row, ctx) {
+        // In row flex, the summed text width is a good max-content
+        // proxy. In column flex, max-text-height is NOT accurate
+        // for block containers (it returns the tallest single text
+        // run, not the stacked height of children). Only trust it
+        // for direct text nodes in column direction.
+        let is_direct_text = matches!(node.element, Element::Text(_));
+        let accurate = is_direct_text || is_row;
+        (v.max(0.0), accurate)
+      } else {
+        (0.0, false)
+      }
     }
   };
+  let mut base_size = base_size_raw;
 
   // Min/max on main axis, resolved into content-box pixels.
   let (min_prop, max_prop) = if is_row {
@@ -795,6 +825,7 @@ fn build_item<'a>(
     auto_cross_end,
     has_explicit_cross_size,
     has_resolved_flex_basis: flex_basis_is_definite && basis_explicit.is_some(),
+    has_css_main_size: has_definite_base,
     ignore_unresolved_percent_cross_size,
     measured_cross_inner: 0.0,
     box_: None,

@@ -287,7 +287,8 @@ impl HtmlWindow {
         // Normal pointer move
         if let Some(layout) = self.last_layout.as_ref() {
           let doc_pos = viewport_to_document(pos, self.scroll_y);
-          let changed = interactivity::pointer_move(tree, layout, doc_pos);
+          let (changed, css_cursor) = interactivity::pointer_move_with_cursor(tree, layout, doc_pos);
+          self.window.set_cursor(css_cursor_to_winit(css_cursor));
           changed || tree.interaction.selecting_text
         } else {
           false
@@ -843,8 +844,9 @@ impl<'tree> WgpuHtmlWindow<'tree> {
     };
     let doc_pos = viewport_to_document(pos, scroll_y);
     let t0 = Instant::now();
-    let changed = interactivity::pointer_move(self.tree, layout, doc_pos);
+    let (changed, css_cursor) = interactivity::pointer_move_with_cursor(self.tree, layout, doc_pos);
     let pointer_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    window.set_cursor(css_cursor_to_winit(css_cursor));
     if changed || self.tree.interaction.selecting_text {
       window.request_redraw();
     }
@@ -1328,4 +1330,29 @@ fn start_scrollbar_drag(state: &mut RuntimeState, tree: &mut Tree, pos: (f32, f3
     return true;
   }
   false
+}
+
+// ── CSS cursor → winit cursor mapping ───────────────────────────────────────
+
+fn css_cursor_to_winit(cursor: wgpu_html::layout::Cursor) -> winit::window::CursorIcon {
+  use wgpu_html::layout::Cursor as C;
+  use winit::window::CursorIcon as I;
+  match cursor {
+    C::Auto | C::Default => I::Default,
+    C::Pointer => I::Pointer,
+    C::Text => I::Text,
+    C::Move => I::Move,
+    C::NotAllowed => I::NotAllowed,
+    C::Grab => I::Grab,
+    C::Grabbing => I::Grabbing,
+    C::Crosshair => I::Crosshair,
+    C::Wait => I::Wait,
+    C::Help => I::Help,
+    C::Progress => I::Progress,
+    C::None => I::Default, // winit doesn't have a hidden cursor icon
+    C::Resize => I::NwseResize,
+    C::ColResize => I::ColResize,
+    C::RowResize => I::RowResize,
+    C::Raw(_) => I::Default,
+  }
 }

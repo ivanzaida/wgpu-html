@@ -14,6 +14,17 @@ fn layout_scaled(tree: &CascadedTree, viewport_w: f32, viewport_h: f32, scale: f
   layout_with_text(tree, &mut text_ctx, &mut image_cache, viewport_w, viewport_h, scale).unwrap()
 }
 
+/// Layout with system fonts registered so text has real widths.
+fn layout_with_fonts(html: &str, viewport_w: f32, viewport_h: f32) -> LayoutBox {
+  let mut tree = wgpu_html_parser::parse(html);
+  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  let cascaded = wgpu_html_style::cascade(&tree);
+  let mut text_ctx = wgpu_html_text::TextContext::new(64);
+  text_ctx.sync_fonts(&tree.fonts);
+  let mut image_cache = ImageCache::new();
+  layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, viewport_w, viewport_h, 1.0).unwrap()
+}
+
 #[test]
 fn empty_tree_has_no_layout() {
   let tree = make("");
@@ -703,6 +714,172 @@ fn flex_row_align_items_stretch_fills_unspecified_height() {
 }
 
 #[test]
+fn flex_row_spans_with_text_do_not_overlap() {
+  // A flex row containing multiple spans with text content.
+  // Each span should get its text's intrinsic width and advance
+  // the cursor — no overlap between adjacent spans.
+  let body = layout_with_fonts(
+    r#"<body style="margin: 0; display: flex; align-items: center; width: 600px; height: 18px; font-family: sans-serif;">
+            <span>hello</span>
+            <span>world</span>
+            <span>test</span>
+        </body>"#,
+    800.0,
+    600.0,
+  );
+  assert_no_overlap(&body.children);
+  // Verify text runs from different spans don't overlap.
+  let runs = collect_run_extents(&body);
+  assert_runs_no_overlap(&runs);
+}
+
+#[test]
+fn flex_row_spans_glyph_positions_sequential() {
+  // Verifies that the actual glyph x-positions from adjacent spans
+  // are sequential (no overlap). This catches bugs where layout
+  // boxes are correct but glyphs within them are positioned wrong.
+  let body = layout_with_fonts(
+    r#"<body style="margin: 0; display: flex; align-items: center; width: 600px; height: 20px; font-family: sans-serif;">
+            <span>AB</span>
+            <span>CD</span>
+        </body>"#,
+    800.0,
+    600.0,
+  );
+  let runs = collect_run_extents(&body);
+  assert!(runs.len() >= 2, "expected at least 2 text runs, got {}", runs.len());
+  assert_runs_no_overlap(&runs);
+}
+
+#[test]
+fn flex_row_devtools_tree_row_glyphs_no_overlap() {
+  // Reproduces the exact devtools tree-row: <div> with class attr.
+  // Glyph positions must not overlap across span boundaries.
+  let root = layout_with_fonts(
+    r#"<html><head><style>
+        .row { display: flex; align-items: center; height: 18px; }
+        .tag { color: #5DB0D7; }
+        .br  { color: #9AA0A6; }
+        .atn { color: #9AA0A6; margin-left: 4px; }
+        .atv { color: #F28B82; }
+      </style></head>
+      <body style="margin: 0; font-family: sans-serif;">
+        <div class="row">
+          <span class="br">&lt;</span>
+          <span class="tag">div</span>
+          <span class="atn">class</span>
+          <span class="br">=</span>
+          <span class="atv">"app-root"</span>
+          <span class="br">&gt;</span>
+        </div>
+      </body></html>"#,
+    800.0,
+    600.0,
+  );
+  let body = &root.children[1];
+  let row = &body.children[0];
+  assert_no_overlap(&row.children);
+  let runs = collect_run_extents(row);
+  assert!(runs.len() >= 3, "expected text runs, got {}", runs.len());
+  assert_runs_no_overlap(&runs);
+}
+
+#[test]
+fn flex_row_spans_in_column_flex_tree_row() {
+  // Reproduces the devtools tree panel: a column flex container
+  // holds multiple flex-row "tree-row" divs, each containing spans
+  // with tag names and attributes. The spans must not overlap.
+  let root = layout_with_fonts(
+    r#"<html><head><style>
+        .rows { display: flex; flex-direction: column; width: 600px; height: 400px; }
+        .row  { display: flex; align-items: center; height: 18px; white-space: nowrap; overflow: hidden; }
+        .tag  { color: #5DB0D7; }
+        .br   { color: #9AA0A6; }
+        .atn  { color: #9AA0A6; margin-left: 4px; }
+        .atv  { color: #F28B82; }
+      </style></head>
+      <body style="margin: 0; font-family: sans-serif;">
+        <div class="rows">
+          <div class="row">
+            <span class="br">&lt;</span>
+            <span class="tag">div</span>
+            <span class="atn"> class</span>
+            <span class="br">=</span>
+            <span class="atv">"app-root"</span>
+            <span class="br">&gt;</span>
+          </div>
+        </div>
+      </body></html>"#,
+    800.0,
+    600.0,
+  );
+  // Navigate: html > body > .rows > .row
+  let body = &root.children[1];
+  let rows = &body.children[0];
+  let row = &rows.children[0];
+  assert_no_overlap(&row.children);
+}
+
+/// Collect per-run glyph extents: (run_start, run_end) for each text run.
+/// run_start = absolute x of the run's first glyph.
+/// run_end = absolute x+w of the run's last glyph.
+fn collect_run_extents(root: &LayoutBox) -> Vec<(f32, f32)> {
+  let mut runs = Vec::new();
+  collect_run_extents_recursive(root, &mut runs);
+  runs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+  runs
+}
+
+fn collect_run_extents_recursive(b: &LayoutBox, out: &mut Vec<(f32, f32)>) {
+  if let Some(run) = &b.text_run {
+    if !run.glyphs.is_empty() {
+      let first_x = b.content_rect.x + run.glyphs.first().unwrap().x;
+      let last = run.glyphs.last().unwrap();
+      let last_end = b.content_rect.x + last.x + last.w;
+      out.push((first_x, last_end));
+    }
+  }
+  for child in &b.children {
+    collect_run_extents_recursive(child, out);
+  }
+}
+
+/// Assert that text runs from different spans don't overlap.
+/// Glyphs WITHIN a single run may overlap (normal kerning/bearing).
+fn assert_runs_no_overlap(runs: &[(f32, f32)]) {
+  for i in 1..runs.len() {
+    let (_, prev_end) = runs[i - 1];
+    let (next_start, _) = runs[i];
+    assert!(
+      next_start >= prev_end - 1.0,
+      "run {i} at x={next_start:.1} overlaps with previous ending at {prev_end:.1}; \
+       runs: [{:.1}..{:.1}] vs [{:.1}..{:.1}]",
+      runs[i - 1].0, prev_end, next_start, runs[i].1,
+    );
+  }
+}
+
+fn assert_no_overlap(children: &[LayoutBox]) {
+  // Each child should have non-zero width.
+  for (i, child) in children.iter().enumerate() {
+    assert!(
+      child.margin_rect.w > 0.5,
+      "child {i} has near-zero width: {}",
+      child.margin_rect.w
+    );
+  }
+  // Each child should start AFTER the previous one ends.
+  for i in 1..children.len() {
+    let prev_end = children[i - 1].margin_rect.x + children[i - 1].margin_rect.w;
+    assert!(
+      children[i].margin_rect.x >= prev_end - 0.5,
+      "child {i} at x={:.1} overlaps with previous ending at {prev_end:.1}",
+      children[i].margin_rect.x
+    );
+  }
+}
+
+#[test]
 fn flex_column_direction_stacks_vertically() {
   let tree = make(
     r#"<body style="margin: 0; display: flex; flex-direction: column; width: 100px; height: 200px;">
@@ -856,6 +1033,249 @@ fn flex_column_auto_height_flex_one_keeps_content_height() {
   let second = &body.children[1];
   assert!((first.border_rect.h - 60.0).abs() < 0.01);
   assert!((second.margin_rect.y - 60.0).abs() < 0.01);
+}
+
+#[test]
+fn flex_column_block_child_stacks_its_own_children() {
+  // A block-level div (no explicit display) inside a column flex container
+  // should compute its content height from its block-flow children.
+  // This reproduces a devtools bug where nested block children overlap.
+  let tree = make(
+    r#"<body style="margin: 0; display: flex; flex-direction: column; width: 200px;">
+            <div>
+                <div style="display: flex; height: 22px;"></div>
+                <div style="display: flex; height: 18px;"></div>
+                <div style="display: flex; height: 18px;"></div>
+            </div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let wrapper = &body.children[0];
+  assert!(
+    (wrapper.border_rect.h - 58.0).abs() < 0.01,
+    "wrapper height should be 58, got {}",
+    wrapper.border_rect.h
+  );
+  let ys: Vec<f32> = wrapper
+    .children
+    .iter()
+    .map(|c| c.margin_rect.y - wrapper.content_rect.y)
+    .collect();
+  assert_eq!(ys, vec![0.0, 22.0, 40.0], "children should stack at y=0, 22, 40; got {ys:?}");
+}
+
+#[test]
+fn flex_column_block_child_with_border_stacks_children() {
+  // Same as above but the wrapper has a border-bottom (matching
+  // the devtools style-group wrapper). The border adds to the
+  // wrapper's box height but must not affect child stacking.
+  let tree = make(
+    r#"<body style="margin: 0; display: flex; flex-direction: column; width: 200px;">
+            <div style="border-bottom: 1px solid #333;">
+                <div style="display: flex; height: 22px;"></div>
+                <div style="display: flex; height: 18px;"></div>
+                <div style="display: flex; height: 18px;"></div>
+            </div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let wrapper = &body.children[0];
+  // Content = 58, border-bottom = 1 → border_rect.h = 59
+  assert!(
+    (wrapper.border_rect.h - 59.0).abs() < 0.01,
+    "wrapper border_rect.h should be 59, got {}",
+    wrapper.border_rect.h
+  );
+  let ys: Vec<f32> = wrapper
+    .children
+    .iter()
+    .map(|c| c.margin_rect.y - wrapper.content_rect.y)
+    .collect();
+  assert_eq!(ys, vec![0.0, 22.0, 40.0], "children should stack at y=0, 22, 40; got {ys:?}");
+}
+
+#[test]
+fn flex_column_block_child_with_stylesheet_classes() {
+  // The devtools uses a linked stylesheet for child styles.
+  // Verify that CSS-class-driven display:flex children inside a
+  // block wrapper inside a flex column stack correctly.
+  let tree = {
+    let mut t = wgpu_html_parser::parse(
+      r#"<html><head></head>
+         <body style="margin: 0; display: flex; flex-direction: column; width: 300px;">
+           <div style="border-bottom: 1px solid #333;">
+             <div class="hdr"><span>Title</span></div>
+             <div class="row"><span>prop</span><span>value</span></div>
+             <div class="row"><span>prop</span><span>value</span></div>
+             <div class="end">}</div>
+           </div>
+         </body></html>"#,
+    );
+    t.register_linked_stylesheet(
+      "test.css",
+      r#"
+        .hdr { display: flex; align-items: center; height: 22px; padding: 0 12px; }
+        .row { display: flex; align-items: center; height: 18px; padding: 0 12px 0 28px; }
+        .end { display: flex; align-items: center; height: 18px; padding: 0 12px; }
+      "#,
+    );
+    wgpu_html_style::cascade(&t)
+  };
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  // html → head + body. body is the second child (index 1).
+  let body = &root.children[1];
+  let wrapper = &body.children[0];
+  // Content height = 22 + 18 + 18 + 18 = 76, border-bottom = 1 → 77
+  assert!(
+    (wrapper.border_rect.h - 77.0).abs() < 0.01,
+    "wrapper border_rect.h should be 77, got {}",
+    wrapper.border_rect.h
+  );
+  // Children should stack vertically.
+  let ys: Vec<f32> = wrapper
+    .children
+    .iter()
+    .map(|c| c.margin_rect.y - wrapper.content_rect.y)
+    .collect();
+  assert_eq!(
+    ys,
+    vec![0.0, 22.0, 40.0, 58.0],
+    "children should stack; got {ys:?}"
+  );
+}
+
+#[test]
+fn flex_column_deeply_nested_block_child_stacks() {
+  // Reproduces the full devtools nesting: multiple flex layers
+  // around a block wrapper containing display:flex children.
+  let tree = {
+    let mut t = wgpu_html_parser::parse(
+      r#"<html><head></head>
+         <body style="margin:0; display:flex; flex-direction:column;">
+           <div style="display:flex; flex-grow:1;">
+             <div style="display:flex; flex-direction:column; flex-grow:1;">
+               <div class="sc">
+                 <div style="border-bottom: 1px solid #333;">
+                   <div class="hdr"><span>Layout</span></div>
+                   <div class="row"><span>display</span><span>flex</span></div>
+                   <div class="row"><span>width</span><span>200px</span></div>
+                   <div class="end">}</div>
+                 </div>
+               </div>
+             </div>
+           </div>
+         </body></html>"#,
+    );
+    t.register_linked_stylesheet(
+      "test.css",
+      r#"
+        .sc  { display: flex; flex-direction: column; flex-grow: 1; overflow: auto; }
+        .hdr { display: flex; align-items: center; height: 22px; padding: 0 12px; }
+        .row { display: flex; align-items: center; height: 18px; padding: 0 28px; }
+        .end { display: flex; align-items: center; height: 18px; padding: 0 12px; }
+      "#,
+    );
+    wgpu_html_style::cascade(&t)
+  };
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  // html > body > outer-flex > inner-col-flex > .sc > wrapper
+  let body = &root.children[1];
+  let outer = &body.children[0];
+  let col = &outer.children[0];
+  let sc = &col.children[0];
+  let wrapper = &sc.children[0];
+  let content_h = 22.0 + 18.0 + 18.0 + 18.0; // 76
+  assert!(
+    (wrapper.content_rect.h - content_h).abs() < 0.5,
+    "wrapper content_rect.h should be ~{content_h}, got {}",
+    wrapper.content_rect.h
+  );
+  // Children within the wrapper should stack vertically.
+  let ys: Vec<f32> = wrapper
+    .children
+    .iter()
+    .map(|c| c.margin_rect.y - wrapper.content_rect.y)
+    .collect();
+  assert!(
+    (ys[1] - 22.0).abs() < 0.5 && (ys[2] - 40.0).abs() < 0.5,
+    "children should stack; got {ys:?}"
+  );
+}
+
+#[test]
+fn flex_column_nested_flex_column_many_children() {
+  // A flex-column child inside a flex-column parent with many
+  // grandchildren. The .rule class is display:flex; flex-direction:column.
+  // Matches the devtools structure exactly.
+  //
+  // CRITICAL: body has height:100% so the flex chain has DEFINITE
+  // main-axis sizes at every level, matching the real devtools
+  // rendering where the viewport provides a fixed height.
+  let tree = {
+    let mut t = wgpu_html_parser::parse(
+      r#"<html><head></head>
+         <body style="margin:0; display:flex; flex-direction:column; height:600px;">
+           <div style="display:flex; flex-grow:1;">
+             <div style="display:flex; flex-direction:column; flex-grow:1;">
+               <div class="sc">
+                 <div class="rule">
+                   <div class="hdr"><span>Layout</span></div>
+                   <div class="row"><span>a</span><span>b</span></div>
+                   <div class="row"><span>c</span><span>d</span></div>
+                   <div class="row"><span>e</span><span>f</span></div>
+                   <div class="row"><span>g</span><span>h</span></div>
+                   <div class="row"><span>i</span><span>j</span></div>
+                   <div class="row"><span>k</span><span>l</span></div>
+                   <div class="row"><span>m</span><span>n</span></div>
+                   <div class="row"><span>o</span><span>p</span></div>
+                   <div class="end">}</div>
+                 </div>
+               </div>
+             </div>
+           </div>
+         </body></html>"#,
+    );
+    t.register_linked_stylesheet(
+      "test.css",
+      r#"
+        .sc   { display:flex; flex-direction:column; flex-grow:1; overflow:auto; }
+        .rule { display:flex; flex-direction:column; border-bottom:1px solid #333; flex-shrink:0; }
+        .hdr  { display:flex; align-items:center; height:22px; padding:0 12px; }
+        .row  { display:flex; align-items:center; height:18px; padding:0 12px 0 28px; }
+        .end  { display:flex; align-items:center; height:18px; padding:0 12px; }
+      "#,
+    );
+    wgpu_html_style::cascade(&t)
+  };
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let body = &root.children[1];
+  let outer = &body.children[0];
+  let col = &outer.children[0];
+  let sc = &col.children[0];
+  let rule = &sc.children[0];
+  // 22 + 8*18 + 18 = 184 content + 1 border = 185 border_rect
+  let expected_content = 22.0 + 8.0 * 18.0 + 18.0;
+  assert!(
+    (rule.content_rect.h - expected_content).abs() < 0.5,
+    "rule content_rect.h should be ~{expected_content}, got {}",
+    rule.content_rect.h
+  );
+  // Check all 10 children stack
+  let ys: Vec<f32> = rule
+    .children
+    .iter()
+    .map(|c| c.margin_rect.y - rule.content_rect.y)
+    .collect();
+  let mut expected_ys = vec![0.0, 22.0];
+  for i in 2..10 {
+    expected_ys.push(22.0 + (i - 1) as f32 * 18.0);
+  }
+  for (i, (actual, expected)) in ys.iter().zip(expected_ys.iter()).enumerate() {
+    assert!(
+      (actual - expected).abs() < 0.5,
+      "child {i}: expected y={expected}, got {actual}; all ys={ys:?}"
+    );
+  }
 }
 
 #[test]
@@ -1509,6 +1929,7 @@ fn synthetic_text_layout() -> LayoutBox {
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
+    cursor: Cursor::Auto,
     image: None,
     background_image: None,
     children: Vec::new(),

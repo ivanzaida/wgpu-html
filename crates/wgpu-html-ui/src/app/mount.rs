@@ -75,4 +75,11 @@ where
   pub fn force_render(&mut self, tree: &mut Tree, env: &C::Env) {
     self.runtime.force_render(tree, env);
   }
+
+  /// Render the component tree and return the result as an HTML
+  /// string. Useful for debugging layout in a real browser.
+  pub fn generate_html(&mut self, tree: &mut Tree, env: &C::Env) -> String {
+    self.runtime.force_render(tree, env);
+    tree.to_html()
+  }
 }

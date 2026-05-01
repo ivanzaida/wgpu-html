@@ -119,6 +119,18 @@ pub struct CascadedNode {
   pub children: Vec<CascadedNode>,
 }
 
+impl CascadedNode {
+  /// Walk a child-index path from this node to a descendant.
+  /// Returns `None` if any index is out of bounds.
+  pub fn at_path(&self, path: &[usize]) -> Option<&CascadedNode> {
+    let mut cursor: &CascadedNode = self;
+    for &i in path {
+      cursor = cursor.children.get(i)?;
+    }
+    Some(cursor)
+  }
+}
+
 /// Tracks which pseudo-classes appear in which position across all
 /// selectors. Used by incremental cascade to decide whether a
 /// pseudo-class state change requires re-cascade at all.

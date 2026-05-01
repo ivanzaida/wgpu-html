@@ -3313,6 +3313,8 @@ fn parse_cursor(value: &str) -> Option<Cursor> {
     "progress" => Some(Cursor::Progress),
     "none" => Some(Cursor::None),
     "resize" => Some(Cursor::Resize),
+    "col-resize" => Some(Cursor::ColResize),
+    "row-resize" => Some(Cursor::RowResize),
     _ => Some(Cursor::Raw(value.to_string())),
   }
 }

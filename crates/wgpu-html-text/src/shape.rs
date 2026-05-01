@@ -523,6 +523,7 @@ impl TextContext {
     let mut glyph_chars: Vec<usize> = Vec::with_capacity(glyph_capacity);
     let mut lines: Vec<ShapedLine> = Vec::with_capacity(layout_lines.len());
     let mut max_x: f32 = 0.0;
+    let mut min_x: f32 = 0.0;
     let (atlas_w, atlas_h) = self.atlas.dimensions();
 
     for (line_glyphs, line_top, line_y, line_h) in &layout_lines {
@@ -579,6 +580,12 @@ impl TextContext {
         let quad_w = entry.w as f32;
         let quad_h = entry.h as f32;
 
+        // Track left/right ink extents. After the loop we shift all
+        // glyphs so min_x = 0 and include the overshoot in run.width.
+        if pos_x < min_x {
+          min_x = pos_x;
+        }
+
         if entry.w > 0 && entry.h > 0 {
           let uv_min = [
             entry.rect.x as f32 / atlas_w as f32,
@@ -602,12 +609,14 @@ impl TextContext {
           glyph_chars.push(char_idx);
         }
 
-        // The line's used width is the right edge of the last
-        // glyph's advance (with letter-spacing). `max_x` tracks
-        // the widest line.
+        // The line's used width must cover both the advance cursor
+        // AND the ink extent of the last glyph (its bitmap may
+        // extend past the advance via right-side bearing).
         let advance_right = layout_x + layout_w + spacing_dx;
-        if advance_right > max_x {
-          max_x = advance_right;
+        let ink_right = pos_x + quad_w;
+        let right = advance_right.max(ink_right);
+        if right > max_x {
+          max_x = right;
         }
       }
       lines.push(ShapedLine {
@@ -624,6 +633,17 @@ impl TextContext {
     // makes the height content-dependent: a span with descenders
     // would get a taller box than one without, causing flex
     // `align-items: center` to place them at different offsets.
+
+    // Shift all glyph x-positions so the leftmost ink edge is at
+    // x=0 (eliminates negative left-side bearing overshoot). This
+    // ensures adjacent flex items don't visually overlap.
+    if min_x < 0.0 {
+      let shift = -min_x;
+      for g in &mut glyphs {
+        g.x += shift;
+      }
+      max_x += shift;
+    }
 
     let run = ShapedRun {
       glyphs,

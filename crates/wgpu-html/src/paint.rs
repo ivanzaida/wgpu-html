@@ -383,7 +383,19 @@ fn paint_box_in_clip(
       .filter(|_| edit_caret.is_some_and(|c| path.as_slice() == c.focus_path))
       .map(|(sb, eb)| (byte_offset_to_glyph_index(run, sb), byte_offset_to_glyph_index(run, eb)));
 
+    // Right edge of the text box — glyphs past this are clipped.
+    // Without this, when a flex item shrinks below its text content
+    // width, overflowing glyphs bleed into adjacent items.
+    let box_right = origin.x + origin.w;
+
     for (idx, g) in run.glyphs.iter().enumerate() {
+      let glyph_x = origin.x + g.x;
+
+      // Skip glyphs entirely outside the text box.
+      if glyph_x >= box_right || glyph_x + g.w <= origin.x {
+        continue;
+      }
+
       // Per-glyph color: each glyph carries its source span's
       // resolved foreground (set at shape time). The per-leaf
       // `text_color` on the box stays around as a hint for
@@ -396,7 +408,7 @@ fn paint_box_in_clip(
         g.color
       };
       out.push_glyph(
-        Rect::new(origin.x + g.x, origin.y + g.y, g.w, g.h),
+        Rect::new(glyph_x, origin.y + g.y, g.w, g.h),
         apply_opacity(glyph_color, opacity),
         g.uv_min,
         g.uv_max,

@@ -1,13 +1,17 @@
 //! Styles panel component — shows computed styles of the selected element.
 
+use wgpu_html_models::Style;
 use wgpu_html_tree::Tree;
 use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
+
+use crate::style_extract::extract_grouped;
 
 // ── Props / Msg ─────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 pub struct StylesPanelProps {
   pub selected_path: Option<Vec<usize>>,
+  pub cascaded_style: Option<Style>,
 }
 
 // Stateless — no interactions.
@@ -34,17 +38,13 @@ impl Component for StylesPanel {
   fn view(&self, props: &StylesPanelProps, _ctx: &Ctx<StylesPanelMsg>, env: &Tree) -> El {
     let selected_node = props.selected_path.as_deref().and_then(|path| {
       let root = env.root.as_ref()?;
-      if path.is_empty() {
-        Some(root)
-      } else {
-        root.at_path(path)
-      }
+      if path.is_empty() { Some(root) } else { root.at_path(path) }
     });
 
     let mut container = el::div().class("styles-content");
 
     if let Some(node) = selected_node {
-      // element.style rule
+      // element.style rule (inline styles)
       let mut element_style = el::div()
         .class("rule")
         .children([el::div().class("rule-header").children([
@@ -64,6 +64,14 @@ impl Component for StylesPanel {
       }
       element_style = element_style.child(el::div().class("rule-end").child(el::text("}")));
       container = container.child(element_style);
+
+      // Cascaded styles grouped by category
+      if let Some(ref style) = props.cascaded_style {
+        let groups = extract_grouped(style);
+        for group in &groups {
+          container = container.child(render_style_group(group));
+        }
+      }
 
       // Element info
       let tag = node.element.tag_name();
@@ -94,6 +102,17 @@ impl Component for StylesPanel {
 
     container
   }
+}
+
+fn render_style_group(group: &crate::style_extract::CssDeclGroup) -> El {
+  let mut rule = el::div().class("rule").children([el::div().class("rule-header").children([
+    el::span().class("selector-text").text(group.label),
+    el::span().class("brace").text(" {"),
+  ])]);
+  for decl in &group.decls {
+    rule = rule.child(make_decl_el(&decl.property, &decl.value));
+  }
+  rule.child(el::div().class("rule-end").child(el::text("}")))
 }
 
 fn make_decl_el(prop: &str, value: &str) -> El {

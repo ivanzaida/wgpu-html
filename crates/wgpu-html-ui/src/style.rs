@@ -768,6 +768,8 @@ fn css_cursor(v: Cursor) -> String {
     Cursor::Progress => "progress".into(),
     Cursor::None => "none".into(),
     Cursor::Resize => "resize".into(),
+    Cursor::ColResize => "col-resize".into(),
+    Cursor::RowResize => "row-resize".into(),
     Cursor::Raw(s) => s,
   }
 }

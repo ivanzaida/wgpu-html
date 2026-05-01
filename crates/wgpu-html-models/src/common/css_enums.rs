@@ -356,6 +356,8 @@ pub enum Cursor {
   Progress,
   None,
   Resize,
+  ColResize,
+  RowResize,
   Raw(String),
 }
 

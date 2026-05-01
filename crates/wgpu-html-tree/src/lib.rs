@@ -202,6 +202,18 @@ impl Tree {
     removed
   }
 
+  /// Serialize the tree to an HTML string. Linked stylesheets are
+  /// emitted as `<style>` blocks inside `<head>`. Useful for
+  /// debugging layout in a real browser.
+  pub fn to_html(&self) -> String {
+    let mut buf = String::with_capacity(8192);
+    buf.push_str("<!DOCTYPE html>\n");
+    if let Some(root) = &self.root {
+      write_node_html(&mut buf, root, &self.linked_stylesheets, false);
+    }
+    buf
+  }
+
   /// Set the base directory for resolving relative asset paths.
   ///
   /// After this call, relative `src` / `href` references in `<img>`,
@@ -415,6 +427,9 @@ pub struct Node {
   pub on_mouse_down: Option<MouseCallback>,
   /// Fires on every primary-button release, target → root.
   pub on_mouse_up: Option<MouseCallback>,
+  /// Fires on every pointer move while over this node's subtree.
+  /// Bubbles target → root.
+  pub on_mouse_move: Option<MouseCallback>,
   /// Fires when the pointer enters this node's subtree (root-first
   /// across the entered chain). No bubbling beyond the entered set.
   pub on_mouse_enter: Option<MouseCallback>,
@@ -439,6 +454,7 @@ impl std::fmt::Debug for Node {
       .field("on_click", &self.on_click.as_ref().map(|_| "<fn>"))
       .field("on_mouse_down", &self.on_mouse_down.as_ref().map(|_| "<fn>"))
       .field("on_mouse_up", &self.on_mouse_up.as_ref().map(|_| "<fn>"))
+      .field("on_mouse_move", &self.on_mouse_move.as_ref().map(|_| "<fn>"))
       .field("on_mouse_enter", &self.on_mouse_enter.as_ref().map(|_| "<fn>"))
       .field("on_mouse_leave", &self.on_mouse_leave.as_ref().map(|_| "<fn>"))
       .field("on_event", &self.on_event.as_ref().map(|_| "<fn>"))
@@ -455,6 +471,7 @@ impl Node {
       on_click: None,
       on_mouse_down: None,
       on_mouse_up: None,
+      on_mouse_move: None,
       on_mouse_enter: None,
       on_mouse_leave: None,
       on_event: None,
@@ -1377,4 +1394,129 @@ mod tests {
 
     assert!(tree.insert_template_content("tpl", &[1], 99).is_none());
   }
+}
+
+// ── HTML serialisation ──────────────────────────────────────────────────────
+
+/// Void elements that must not have a closing tag.
+const VOID_ELEMENTS: &[&str] = &[
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+  "track", "wbr",
+];
+
+/// Attributes worth serialising (global + common specific).
+const ATTRS_TO_TRY: &[&str] = &[
+  "id", "class", "style", "href", "src", "alt", "type", "name", "value", "placeholder", "for",
+  "rel", "content", "disabled", "readonly", "required", "checked", "selected", "multiple",
+  "autofocus", "width", "height", "action", "method", "target", "colspan", "rowspan", "role",
+];
+
+fn write_node_html(
+  buf: &mut String,
+  node: &Node,
+  stylesheets: &std::collections::HashMap<String, String>,
+  raw_text: bool,
+) {
+  use std::fmt::Write;
+
+  match &node.element {
+    Element::Text(s) => {
+      if raw_text {
+        // Inside <style> or <script>: emit verbatim.
+        buf.push_str(s);
+      } else {
+        // Escape basic HTML entities in text content.
+        for ch in s.chars() {
+          match ch {
+            '&' => buf.push_str("&amp;"),
+            '<' => buf.push_str("&lt;"),
+            '>' => buf.push_str("&gt;"),
+            _ => buf.push(ch),
+          }
+        }
+      }
+      return;
+    }
+    _ => {}
+  }
+
+  let tag = node.element.tag_name();
+
+  buf.push('<');
+  buf.push_str(tag);
+
+  // Emit attributes.
+  for &attr_name in ATTRS_TO_TRY {
+    if let Some(val) = node.element.attr(attr_name) {
+      if val.is_empty() {
+        // Boolean attribute.
+        let _ = write!(buf, " {attr_name}");
+      } else {
+        let _ = write!(buf, " {attr_name}=\"{}\"", html_escape_attr(&val));
+      }
+    }
+  }
+
+  // data-* and aria-* from the element's maps.
+  write_map_attrs(buf, &node.element, "data-");
+  write_map_attrs(buf, &node.element, "aria-");
+
+  buf.push('>');
+
+  // Inject linked stylesheets as <style> blocks inside <head>.
+  if tag == "head" {
+    for (_href, css) in stylesheets {
+      buf.push_str("\n<style>\n");
+      buf.push_str(css);
+      buf.push_str("\n</style>\n");
+    }
+  }
+
+  // Recurse into children. <style> and <script> are raw-text elements
+  // whose text content must not be HTML-escaped.
+  let children_raw = matches!(tag, "style" | "script");
+  for child in &node.children {
+    write_node_html(buf, child, stylesheets, children_raw);
+  }
+
+  // Close tag (skip for void elements).
+  if !VOID_ELEMENTS.contains(&tag) {
+    let _ = write!(buf, "</{tag}>");
+  }
+}
+
+fn html_escape_attr(s: &str) -> String {
+  let mut out = String::with_capacity(s.len());
+  for ch in s.chars() {
+    match ch {
+      '"' => out.push_str("&quot;"),
+      '&' => out.push_str("&amp;"),
+      '<' => out.push_str("&lt;"),
+      '>' => out.push_str("&gt;"),
+      _ => out.push(ch),
+    }
+  }
+  out
+}
+
+fn write_map_attrs(buf: &mut String, element: &Element, prefix: &str) {
+  use std::fmt::Write;
+  macro_rules! arms {
+    ($($v:ident),* $(,)?) => {
+      match element {
+        Element::Text(_) => {},
+        $(Element::$v(e) => {
+          let map = if prefix == "data-" { &e.data_attrs } else { &e.aria_attrs };
+          let mut keys: Vec<_> = map.keys().collect();
+          keys.sort();
+          for key in keys {
+            if let Some(val) = map.get(key) {
+              let _ = write!(buf, " {prefix}{key}=\"{}\"", html_escape_attr(val));
+            }
+          }
+        },)*
+      }
+    };
+  }
+  all_element_variants!(arms);
 }

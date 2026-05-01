@@ -40,7 +40,7 @@ use std::{
 };
 
 pub use color::{Color, resolve_color};
-pub use wgpu_html_models::common::css_enums::{PointerEvents, UserSelect};
+pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, UserSelect};
 
 /// One frame of an animated image as it sits in the raw (pre-resize)
 /// cache. `delay_ms` comes straight from the source format and is
@@ -1730,6 +1730,8 @@ pub struct LayoutBox {
   /// Resolved `user-select`. `None` suppresses text selection and
   /// highlight painting for this box (inherited to descendants).
   pub user_select: UserSelect,
+  /// Resolved CSS `cursor`. Used by the host to set the OS pointer.
+  pub cursor: Cursor,
   /// Decoded image data for `<img>` elements. `None` for non-image
   /// boxes. The `Arc` allows cheap cloning through the display list.
   pub image: Option<ImageData>,
@@ -1877,6 +1879,21 @@ impl LayoutBox {
   pub fn hit_path_scrolled(&self, point: (f32, f32), scroll_offsets: &BTreeMap<Vec<usize>, f32>) -> Option<Vec<usize>> {
     let mut path = Vec::new();
     collect_hit_path_scrolled(self, point.0, point.1, scroll_offsets, &mut path, None)
+  }
+
+  /// Resolve the CSS cursor for a hit-tested path. Walks from the
+  /// deepest element to the root and returns the first non-Auto
+  /// cursor found (matching CSS inheritance behaviour).
+  pub fn cursor_at_path(&self, path: &[usize]) -> Cursor {
+    // Walk from deepest to root, return the first non-Auto cursor.
+    for depth in (0..=path.len()).rev() {
+      if let Some(b) = self.box_at_path(&path[..depth]) {
+        if !matches!(b.cursor, Cursor::Auto) {
+          return b.cursor.clone();
+        }
+      }
+    }
+    Cursor::Auto
   }
 
   /// Like [`hit_text_cursor`] but scroll-aware.
@@ -2833,6 +2850,7 @@ fn layout_block(
     opacity: resolved_opacity(style),
     pointer_events: resolved_pointer_events(style),
     user_select: resolved_user_select(style),
+    cursor: resolved_cursor(style),
     image: effective_image,
     background_image,
     children,
@@ -3104,6 +3122,10 @@ fn resolved_user_select(style: &Style) -> UserSelect {
   style.user_select.unwrap_or(UserSelect::Auto)
 }
 
+fn resolved_cursor(style: &Style) -> Cursor {
+  style.cursor.clone().unwrap_or(Cursor::Auto)
+}
+
 fn establishes_containing_block(style: &Style) -> bool {
   !matches!(style.position, None | Some(Position::Static))
 }
@@ -3336,7 +3358,10 @@ fn shape_text_run(
     .as_ref()
     .and_then(resolve_color)
     .unwrap_or([0.0, 0.0, 0.0, 1.0]);
-  let wrap_enabled = style_wraps_text(style);
+  // Always shape single text runs without a wrap budget so the
+  // measurement (max-content) and final shaping hit the same cache
+  // entry and produce identical glyph positions. Multi-line wrapping
+  // is handled by `layout_inline_paragraph`, not by this path.
   match ctx.text.ctx.shape_and_pack(
     display_text,
     handle,
@@ -3345,7 +3370,7 @@ fn shape_text_run(
     letter_spacing,
     weight,
     axis,
-    if wrap_enabled { max_width_px } else { None },
+    None,
     color,
   ) {
     Some(run) => {
@@ -3568,6 +3593,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
+    cursor: Cursor::Auto,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3614,6 +3640,7 @@ fn make_text_leaf(
     opacity: resolved_opacity(style),
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(style),
+    cursor: resolved_cursor(style),
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3622,53 +3649,12 @@ fn make_text_leaf(
 }
 
 pub(crate) fn measure_text_leaf(text: &str, style: &Style, ctx: &mut Ctx) -> (f32, f32) {
-  layout_profile::count_text_shape(&mut ctx.profiler);
-  if text.is_empty() {
-    return (0.0, 0.0);
-  }
-  // Same text prep as shape_text_run but uses measure_only to avoid
-  // cloning the full ShapedRun (only needs width/height).
-  let mut prev_collapsed_space = false;
-  let normalized = normalize_text_for_style(text, style, Some(&mut prev_collapsed_space));
-  let normalized = if style_collapses_whitespace(style) {
-    trim_collapsed_whitespace_edges(&normalized, true, true).to_string()
-  } else {
-    normalized
-  };
-  if normalized.is_empty() {
-    return (0.0, 0.0);
-  }
-  let transformed = apply_text_transform(&normalized, style.text_transform.as_ref());
-  let display_text: &str = match transformed.as_ref() {
-    Some(s) => s.as_str(),
-    None => &normalized,
-  };
-  let families = parse_family_list(style.font_family.as_deref());
-  let family_refs: Vec<&str> = families.iter().map(String::as_str).collect();
-  let weight = font_weight_value(style.font_weight.as_ref());
-  let axis = font_style_axis(style.font_style.as_ref());
-  let Some(handle) = ctx.text.ctx.pick_font(&family_refs, weight, axis) else {
-    return (0.0, 0.0);
-  };
-  let size_css = font_size_px(style).unwrap_or(16.0);
-  let line_h_css = line_height_px_for_font(style, size_css, &ctx.text.ctx, handle);
-  let size_px = size_css * ctx.scale;
-  let line_height = line_h_css * ctx.scale;
-  let letter_spacing = letter_spacing_px(style, size_css) * ctx.scale;
-  let wrap_enabled = style_wraps_text(style);
-  match ctx.text.ctx.measure_only(
-    display_text,
-    handle,
-    size_px,
-    line_height,
-    letter_spacing,
-    weight,
-    axis,
-    if wrap_enabled { None } else { None },
-  ) {
-    Some((w, h, _ascent)) => (w, h),
-    None => (0.0, 0.0),
-  }
+  // Delegate to shape_text_run so the measurement uses the exact same
+  // code path (shape_and_pack) that produces the final glyphs. The old
+  // measure_only path returned slightly different widths, causing ~1-2px
+  // glyph overlap between adjacent flex items.
+  let (_run, w, h, _ascent) = shape_text_run(text, style, None, true, ctx);
+  (w, h)
 }
 
 /// Parse the raw `text-decoration` shorthand string into the set of
@@ -3914,6 +3900,7 @@ fn layout_inline_subtree(
     opacity: resolved_opacity(&node.style),
     pointer_events: resolved_pointer_events(&node.style),
     user_select: resolved_user_select(&node.style),
+    cursor: resolved_cursor(&node.style),
     image: None,
     background_image: None,
     children: final_children,
@@ -4091,6 +4078,7 @@ fn layout_atomic_inline_subtree(
       opacity: resolved_opacity(style),
       pointer_events: resolved_pointer_events(style),
       user_select: resolved_user_select(style),
+      cursor: resolved_cursor(style),
       image: None,
       background_image: None,
       children,
@@ -4594,6 +4582,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     opacity: opacity.clamp(0.0, 1.0),
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
+    cursor: Cursor::Auto,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -4803,6 +4792,7 @@ fn layout_inline_paragraph(
     opacity: resolved_opacity(&node.style),
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(&node.style),
+    cursor: resolved_cursor(&node.style),
     image: None,
     background_image: None,
     children: Vec::new(),

@@ -4277,6 +4277,7 @@ dependencies = [
  "wgpu-html-models",
  "wgpu-html-parser",
  "wgpu-html-renderer",
+ "wgpu-html-style",
  "wgpu-html-text",
  "wgpu-html-tree",
  "wgpu-html-ui",
