@@ -1,7 +1,8 @@
-//! Component trait and related types.
+    //! Component trait and related types.
 
 use crate::ctx::Ctx;
 use crate::el::El;
+use crate::style::Stylesheet;
 
 /// Whether a component's view should be re-rendered after an update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,4 +91,16 @@ pub trait Component: 'static {
 
     /// Called before the component is destroyed.
     fn destroyed(&mut self) {}
+
+    /// Scope prefix for this component's styles. When non-empty, class
+    /// names in [`styles()`](Component::styles) are auto-prefixed with
+    /// this value, and [`Ctx::scoped`] prepends it in view().
+    ///
+    /// Return `""` (default) for no scoping / global styles.
+    fn scope() -> &'static str where Self: Sized { "" }
+
+    /// Component-level stylesheet. Registered once when the component
+    /// type is first mounted. If [`scope()`](Component::scope) is
+    /// non-empty, all `.class` selectors are prefixed automatically.
+    fn styles() -> Stylesheet where Self: Sized { Stylesheet::empty() }
 }

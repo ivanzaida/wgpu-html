@@ -26,12 +26,23 @@ use wgpu_html_models as m;
 /// let db = MyDatabase::open();
 /// App::with_state::<Dashboard>(db, props).run().unwrap();
 /// ```
+/// Trait for secondary window handlers (devtools, etc.) that need
+/// per-frame polling and window event routing from the host app.
+pub trait SecondaryWindow: 'static {
+    fn poll(&mut self, tree: &Tree, event_loop: &winit::event_loop::ActiveEventLoop);
+    fn on_key(&mut self, tree: &Tree, event_loop: &winit::event_loop::ActiveEventLoop, event: &KeyEvent) -> bool { false }
+    fn owns_window(&self, id: winit::window::WindowId) -> bool;
+    fn handle_window_event(&mut self, tree: &Tree, event: &winit::event::WindowEvent);
+}
+
 pub struct App<State: 'static = ()> {
     state: Arc<State>,
     factory: Box<dyn FnOnce(Arc<dyn Fn() + Send + Sync>) -> Runtime>,
     title: String,
     size: (u32, u32),
     stylesheets: Vec<String>,
+    setup: Option<Box<dyn FnOnce(&mut Tree)>>,
+    secondary_windows: Vec<Box<dyn FnOnce(&mut Tree) -> Box<dyn SecondaryWindow>>>,
 }
 
 impl App<()> {
@@ -47,6 +58,8 @@ impl App<()> {
             title: "wgpu-html".into(),
             size: (1280, 720),
             stylesheets: Vec::new(),
+            setup: None,
+            secondary_windows: Vec::new(),
         }
     }
 }
@@ -70,6 +83,8 @@ impl<State: Send + Sync + 'static> App<State> {
             title: "wgpu-html".into(),
             size: (1280, 720),
             stylesheets: Vec::new(),
+            setup: None,
+            secondary_windows: Vec::new(),
         }
     }
 
@@ -85,6 +100,20 @@ impl<State: Send + Sync + 'static> App<State> {
 
     pub fn stylesheet(mut self, css: impl Into<String>) -> Self {
         self.stylesheets.push(css.into());
+        self
+    }
+
+    /// Run a setup callback with `&mut Tree` before the window opens.
+    /// Use this to attach devtools, register extra fonts, etc.
+    pub fn setup_tree(mut self, f: impl FnOnce(&mut Tree) + 'static) -> Self {
+        self.setup = Some(Box::new(f));
+        self
+    }
+
+    /// Add a secondary window (devtools, etc.) that opens on F11 and
+    /// receives per-frame polling + window event routing.
+    pub fn with_secondary(mut self, factory: impl FnOnce(&mut Tree) -> Box<dyn SecondaryWindow> + 'static) -> Self {
+        self.secondary_windows.push(Box::new(factory));
         self
     }
 
@@ -107,14 +136,32 @@ impl<State: Send + Sync + 'static> App<State> {
         let html_node = Node::new(m::Html::default()).with_children(vec![body]);
         let mut tree = Tree::new(html_node);
 
+        // Register user-provided global stylesheets.
         for (i, css) in self.stylesheets.iter().enumerate() {
             tree.register_linked_stylesheet(format!("__ui_style_{i}"), css.clone());
         }
+
+        // Register component-level scoped styles.
+        Runtime::register_styles(&mut tree, runtime.root_mounted());
+
+        // Register system fonts so text renders.
+        crate::register_system_fonts(&mut tree);
+
+        if let Some(setup) = self.setup {
+            setup(&mut tree);
+        }
+
+        let secondaries: Vec<Box<dyn SecondaryWindow>> = self
+            .secondary_windows
+            .into_iter()
+            .map(|factory| factory(&mut tree))
+            .collect();
 
         let hook = UiHook {
             runtime,
             state: self.state,
             wake_slot,
+            secondaries,
         };
 
         wgpu_html_winit::create_window(&mut tree)
@@ -131,6 +178,7 @@ struct UiHook<State: 'static> {
     runtime: Runtime,
     state: Arc<State>,
     wake_slot: Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>,
+    secondaries: Vec<Box<dyn SecondaryWindow>>,
 }
 
 impl<State: Send + Sync + 'static> AppHook for UiHook<State> {
@@ -148,12 +196,39 @@ impl<State: Send + Sync + 'static> AppHook for UiHook<State> {
         if self.runtime.process(ctx.tree, &*self.state) {
             ctx.window.request_redraw();
         }
+
+        for sec in &mut self.secondaries {
+            sec.poll(ctx.tree, ctx.event_loop);
+        }
     }
 
-    fn on_key(&mut self, ctx: HookContext<'_>, _event: &KeyEvent) -> EventResponse {
+    fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+        use winit::event::ElementState;
+        use winit::keyboard::{KeyCode, PhysicalKey};
+
+        // F11: let it pass through to handle_keyboard so the tree's
+        // key_down dispatch fires (which triggers the devtools TreeHook).
+        // No Stop — Continue allows the winit harness to call
+        // handle_keyboard → tree.key_down → DevtoolsKeyHook.
+
         if self.runtime.process(ctx.tree, &*self.state) {
             ctx.window.request_redraw();
         }
         EventResponse::Continue
+    }
+
+    fn on_window_event(
+        &mut self,
+        ctx: HookContext<'_>,
+        window_id: winit::window::WindowId,
+        event: &winit::event::WindowEvent,
+    ) -> bool {
+        for sec in &mut self.secondaries {
+            if sec.owns_window(window_id) {
+                sec.handle_window_event(ctx.tree, event);
+                return true;
+            }
+        }
+        false
     }
 }

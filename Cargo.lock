@@ -4273,6 +4273,7 @@ name = "wgpu-html-devtools"
 version = "0.1.0"
 dependencies = [
  "wgpu-html",
+ "wgpu-html-events",
  "wgpu-html-models",
  "wgpu-html-parser",
  "wgpu-html-renderer",
@@ -4368,6 +4369,16 @@ dependencies = [
  "wgpu-html-tree",
  "wgpu-html-winit",
  "winit",
+]
+
+[[package]]
+name = "wgpu-html-ui-demo"
+version = "0.1.0"
+dependencies = [
+ "wgpu-html-devtools",
+ "wgpu-html-models",
+ "wgpu-html-tree",
+ "wgpu-html-ui",
 ]
 
 [[package]]

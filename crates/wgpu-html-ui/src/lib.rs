@@ -51,6 +51,7 @@
 //! ```
 
 pub mod el;
+pub mod style;
 
 mod app;
 mod component;
@@ -58,8 +59,14 @@ mod ctx;
 mod mount;
 pub(crate) mod runtime;
 
-pub use app::App;
+pub use app::{App, SecondaryWindow};
 pub use component::{Component, ShouldRender};
 pub use ctx::{Ctx, MsgSender};
 pub use el::El;
 pub use mount::Mount;
+
+/// Register platform system fonts with the tree under the given family alias.
+/// Call this once during app setup so text renders correctly.
+pub(crate) fn register_system_fonts(tree: &mut wgpu_html_tree::Tree) {
+    wgpu_html_winit::register_system_fonts(tree, "sans-serif");
+}

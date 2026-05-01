@@ -2256,6 +2256,48 @@ fn intersect_rects_for_hit(a: Rect, b: Rect) -> Rect {
     Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0))
 }
 
+/// Walk a laid-out `LayoutBox` tree and its matching `CascadedTree` in
+/// lockstep, patching only paint-relevant properties (background color,
+/// text color, border colors, opacity) from the updated cascade. The
+/// geometry (positions, sizes) is NOT recomputed — this is O(n) simple
+/// field writes, not a full relayout.
+///
+/// Use this after `cascade_incremental` returns `true` when all
+/// pseudo-class rules are known to be paint-only.
+pub fn patch_layout_colors(layout: &mut LayoutBox, cascaded: &CascadedTree) {
+    if let Some(root) = &cascaded.root {
+        patch_node_colors(layout, root);
+    }
+}
+
+fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode) {
+    // Patch this node's paint properties from the cascade.
+    let style = &node.style;
+    b.background = style.background_color.as_ref().and_then(resolve_color);
+    b.opacity = resolved_opacity(style);
+
+    // Text color: only for text boxes or boxes with text_color set.
+    if b.text_color.is_some() || matches!(b.kind, BoxKind::Text) {
+        b.text_color = style
+            .color
+            .as_ref()
+            .and_then(resolve_color);
+    }
+
+    // Border colors.
+    b.border_colors = BorderColors {
+        top: style.border_top_color.as_ref().and_then(resolve_color),
+        right: style.border_right_color.as_ref().and_then(resolve_color),
+        bottom: style.border_bottom_color.as_ref().and_then(resolve_color),
+        left: style.border_left_color.as_ref().and_then(resolve_color),
+    };
+
+    // Recurse into children in lockstep.
+    for (child_box, child_node) in b.children.iter_mut().zip(node.children.iter()) {
+        patch_node_colors(child_box, child_node);
+    }
+}
+
 fn padding_box_rect(b: &LayoutBox) -> Rect {
     Rect::new(
         b.border_rect.x + b.border.left,

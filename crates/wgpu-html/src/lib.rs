@@ -341,12 +341,8 @@ pub fn paint_tree_cached<'c>(
             cache.scale = scale;
             cache.font_generation = tree.fonts.generation();
             cache.tree_generation = tree.generation;
-            // NOTE: paint_only_pseudo_rules can't be used yet because
-            // LayoutBox bakes in colors at layout time. Skipping layout
-            // means stale colors in the box tree. A future architecture
-            // that reads paint properties from the CascadedTree directly
-            // (or patches LayoutBox colors without re-layout) could
-            // enable this optimization.
+            cache.paint_only_pseudo_rules =
+                wgpu_html_style::pseudo_rules_are_paint_only(tree);
         }
         PipelineAction::PartialCascade => {
             let cascade_t0 = Instant::now();
@@ -367,25 +363,38 @@ pub fn paint_tree_cached<'c>(
                 prof.record("cascade_incremental", cascade_t0.elapsed());
             }
 
-            // Re-layout if cascade changed any styles — unless the
-            // caller has declared that pseudo-class rules are
-            // paint-only (background-color, etc.) and can't affect
-            // box dimensions.
-            if changed && !cache.paint_only_pseudo_rules {
-                let layout_t0 = Instant::now();
-                if let Some(cascaded) = &cache.cascaded {
-                    cache.layout = wgpu_html_layout::layout_with_text(
-                        cascaded,
-                        text_ctx,
-                        image_cache,
-                        viewport_w,
-                        viewport_h,
-                        scale,
-                    );
-                }
-                timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
-                if let Some(prof) = &tree.profiler {
-                    prof.record("layout", layout_t0.elapsed());
+            // Re-layout if cascade changed any styles — unless
+            // pseudo-class rules are paint-only, in which case we
+            // patch colors in the existing LayoutBox tree (O(n) field
+            // writes, no geometry recomputation).
+            if changed {
+                if cache.paint_only_pseudo_rules {
+                    let layout_t0 = Instant::now();
+                    if let (Some(layout), Some(cascaded)) =
+                        (&mut cache.layout, &cache.cascaded)
+                    {
+                        wgpu_html_layout::patch_layout_colors(layout, cascaded);
+                    }
+                    timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+                    if let Some(prof) = &tree.profiler {
+                        prof.record("patch_colors", layout_t0.elapsed());
+                    }
+                } else {
+                    let layout_t0 = Instant::now();
+                    if let Some(cascaded) = &cache.cascaded {
+                        cache.layout = wgpu_html_layout::layout_with_text(
+                            cascaded,
+                            text_ctx,
+                            image_cache,
+                            viewport_w,
+                            viewport_h,
+                            scale,
+                        );
+                    }
+                    timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+                    if let Some(prof) = &tree.profiler {
+                        prof.record("layout", layout_t0.elapsed());
+                    }
                 }
             }
             cache.snapshot = tree.interaction.cascade_snapshot();

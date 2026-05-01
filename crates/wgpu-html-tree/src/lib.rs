@@ -97,6 +97,10 @@ pub struct Tree {
     /// → paint pipeline records each stage's wall-clock duration.
     /// Cleared at the start of every frame.
     pub profiler: Option<Profiler>,
+    /// Base directory for resolving relative asset paths (images,
+    /// stylesheets, fonts). When set, `<img src="logo.png">` resolves
+    /// to `{asset_root}/logo.png`. Set via [`Tree::set_asset_root`].
+    pub asset_root: Option<std::path::PathBuf>,
 }
 
 impl Tree {
@@ -112,6 +116,7 @@ impl Tree {
             hooks: Vec::new(),
             generation: 0,
             profiler: None,
+            asset_root: None,
         }
     }
 
@@ -198,6 +203,36 @@ impl Tree {
             self.generation += 1;
         }
         removed
+    }
+
+    /// Set the base directory for resolving relative asset paths.
+    ///
+    /// After this call, relative `src` / `href` references in `<img>`,
+    /// `<link>`, fonts, etc. resolve against this directory.
+    pub fn set_asset_root(&mut self, path: impl Into<std::path::PathBuf>) {
+        self.asset_root = Some(path.into());
+    }
+
+    /// Resolve a relative path against the asset root. Returns a
+    /// borrowed reference when no transformation is needed (path is
+    /// already absolute, is a URL, or no asset root is set), avoiding
+    /// allocation in the common case.
+    pub fn resolve_asset_path<'a>(&self, relative: &'a str) -> std::borrow::Cow<'a, str> {
+        use std::borrow::Cow;
+        if relative.is_empty() {
+            return Cow::Borrowed(relative);
+        }
+        let path = std::path::Path::new(relative);
+        if path.is_absolute()
+            || relative.starts_with("http://")
+            || relative.starts_with("https://")
+        {
+            return Cow::Borrowed(relative);
+        }
+        match &self.asset_root {
+            Some(root) => Cow::Owned(root.join(relative).to_string_lossy().into_owned()),
+            None => Cow::Borrowed(relative),
+        }
     }
 
     /// Return an immutable reference to the currently focused element,

@@ -29,6 +29,9 @@ pub enum DevtoolsMsg {
 pub struct DevtoolsComponent {
     selected_path: Option<Vec<usize>>,
     collapsed: HashSet<Vec<usize>>,
+    /// Depth beyond which tree nodes are auto-collapsed (to keep
+    /// the initial DOM small). Set to `usize::MAX` to expand all.
+    auto_collapse_depth: usize,
 }
 
 impl Component for DevtoolsComponent {
@@ -40,6 +43,7 @@ impl Component for DevtoolsComponent {
         Self {
             selected_path: None,
             collapsed: HashSet::new(),
+            auto_collapse_depth: 2,
         }
     }
 
@@ -67,6 +71,7 @@ impl Component for DevtoolsComponent {
         let tree_props = TreePanelProps {
             selected_path: self.selected_path.clone(),
             collapsed: self.collapsed.clone(),
+            auto_collapse_depth: self.auto_collapse_depth,
             on_select: Arc::new(move |path| {
                 select_sender.send(DevtoolsMsg::SelectRow(path));
             }),

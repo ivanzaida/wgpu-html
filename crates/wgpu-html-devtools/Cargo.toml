@@ -13,3 +13,4 @@ wgpu-html-renderer.workspace = true
 wgpu-html-text.workspace = true
 wgpu-html-winit.workspace = true
 winit.workspace = true
+wgpu-html-events.workspace = true

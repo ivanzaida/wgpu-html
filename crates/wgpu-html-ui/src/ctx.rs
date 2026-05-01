@@ -66,14 +66,31 @@ pub struct Ctx<Msg: 'static> {
     pub(crate) sender: MsgSender<Msg>,
     pub(crate) children: RefCell<Vec<ChildSlot>>,
     pub(crate) child_counter: Cell<usize>,
+    pub(crate) scope_prefix: &'static str,
 }
 
 impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
-    pub(crate) fn new(sender: MsgSender<Msg>) -> Self {
+    pub(crate) fn new(sender: MsgSender<Msg>, scope_prefix: &'static str) -> Self {
         Self {
             sender,
             children: RefCell::new(Vec::new()),
             child_counter: Cell::new(0),
+            scope_prefix,
+        }
+    }
+
+    /// Returns the component's scope prefix (empty if unscoped).
+    pub fn scope(&self) -> &'static str {
+        self.scope_prefix
+    }
+
+    /// Build a scoped class name: `"{prefix}-{class}"`.
+    /// If the component has no scope, returns the class unchanged.
+    pub fn scoped(&self, class: &str) -> String {
+        if self.scope_prefix.is_empty() {
+            class.to_string()
+        } else {
+            format!("{}-{}", self.scope_prefix, class)
         }
     }
 

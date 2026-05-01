@@ -14,6 +14,7 @@ members = [
     "crates/wgpu-html-text",
     "crates/wgpu-html-tree",
     "crates/wgpu-html-ui",
+    "crates/wgpu-html-ui-demo",
     "crates/wgpu-html-winit",
 ]
 
@@ -42,3 +43,25 @@ bytemuck = { version = "1", features = ["derive"] }
 image    = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 ureq     = { version = "2", default-features = false, features = ["tls"] }
 resvg    = "0.44"
+
+# ── Dev profile: optimize hot crates for usable FPS during development ──
+# The demo/app code stays at opt-level 0 for fast incremental compiles,
+# but the engine hot path gets opt-level 2 so layout/text/paint run fast.
+[profile.dev.package.wgpu-html-layout]
+opt-level = 2
+[profile.dev.package.wgpu-html-text]
+opt-level = 2
+[profile.dev.package.wgpu-html-style]
+opt-level = 2
+[profile.dev.package.wgpu-html]
+opt-level = 2
+[profile.dev.package.wgpu-html-renderer]
+opt-level = 2
+[profile.dev.package.cosmic-text]
+opt-level = 2
+[profile.dev.package.rustybuzz]
+opt-level = 2
+[profile.dev.package.ttf-parser]
+opt-level = 2
+[profile.dev.package.image]
+opt-level = 2

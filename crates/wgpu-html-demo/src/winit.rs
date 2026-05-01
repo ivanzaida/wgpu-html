@@ -279,12 +279,12 @@ struct DemoHook {
 }
 
 impl DemoHook {
-    fn new(profiling_enabled: bool, devtools: Option<Devtools>) -> Self {
+    fn new(profiling_enabled: bool, devtools: Devtools) -> Self {
         Self {
             enabled: profiling_enabled,
             profiler: Profiler::new(),
             commands: Arc::new(Mutex::new(VecDeque::new())),
-            devtools,
+            devtools: Some(devtools),
             stdin_started: false,
         }
     }
@@ -620,7 +620,7 @@ fn json_str(s: &str) -> String {
 }
 
 impl AppHook for DemoHook {
-    fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
+    fn on_key(&mut self, _ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
         if event.state == ElementState::Pressed && !event.repeat {
             if let PhysicalKey::Code(code) = event.physical_key {
                 match code {
@@ -632,12 +632,6 @@ impl AppHook for DemoHook {
                         );
                         if !self.enabled {
                             self.profiler.reset();
-                        }
-                        return EventResponse::Stop;
-                    }
-                    KeyCode::F11 => {
-                        if let Some( devtools) = &mut self.devtools {
-                            devtools.toggle(ctx.event_loop);
                         }
                         return EventResponse::Stop;
                     }
@@ -655,10 +649,9 @@ impl AppHook for DemoHook {
         }
         self.drain_commands(&mut ctx);
 
+        // Sync devtools with current tree state.
         if let Some(devtools) = &mut self.devtools {
-            if devtools.is_enabled() {
-                 devtools.poll_and_redraw(ctx.tree);
-            }
+            devtools.poll(ctx.tree, ctx.event_loop);
         }
 
         if !self.enabled {
@@ -670,29 +663,19 @@ impl AppHook for DemoHook {
         }
     }
 
-    fn on_idle(&mut self) {
-        if let Some(devtools) = &mut self.devtools {
-            if devtools.is_enabled() {
-                devtools.flush();
-            }
-        }
-    }
-
     fn on_window_event(
         &mut self,
         ctx: HookContext<'_>,
         window_id: WindowId,
         event: &WindowEvent,
     ) -> bool {
-      if let Some(devtools) = &mut self.devtools {
-          if devtools.owns_window(window_id) {
-              devtools.handle_window_event(ctx.tree, event);
-              return true;
-          }
-          false
-      } else {
-          false
-      }
+        if let Some(devtools) = &mut self.devtools {
+            if devtools.owns_window(window_id) {
+                devtools.handle_window_event(ctx.tree, event);
+                return true;
+            }
+        }
+        false
     }
 
     fn on_pointer_move(&mut self, _ctx: HookContext<'_>, pointer_move_ms: f64, changed: bool) {
@@ -744,12 +727,12 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     if doc_source.ends_with("devtools.html") {
         tree.register_linked_stylesheet("devtools.css", include_str!("../html/devtools.css"));
     }
-    tree.profiler = Some(wgpu_html_tree::Profiler::tagged("demo app"));
+    // tree.profiler = Some(wgpu_html_tree::Profiler::tagged("demo app"));
 
 
 
-    let devtools = Devtools::attach(&mut tree, true);
-    let hook = DemoHook::new(profiling_enabled, Some(devtools));
+    let devtools = Devtools::attach(&mut tree, false);
+    let hook = DemoHook::new(profiling_enabled, devtools);
 
     let result = create_window(&mut tree)
         .with_title(format!("wgpu-html demo: {doc_source}"))

@@ -781,17 +781,28 @@ fn ua_prepared_stylesheet() -> &'static PreparedStylesheet {
 
 fn collect_stylesheet_source(tree: &Tree) -> String {
     let mut css = String::new();
+    // Gather from DOM-referenced stylesheets (<link> and <style> elements).
+    let mut referenced: HashSet<&str> = HashSet::new();
     if let Some(root) = &tree.root {
-        gather(root, &tree.linked_stylesheets, &mut css, false);
+        gather(root, &tree.linked_stylesheets, &mut css, false, &mut referenced);
+    }
+    // Also include any registered stylesheets that have NO matching
+    // <link> element in the DOM (e.g. component styles registered
+    // programmatically).
+    for (href, sheet_css) in &tree.linked_stylesheets {
+        if !referenced.contains(href.as_str()) {
+            append_stylesheet_source(&mut css, sheet_css, None);
+        }
     }
     css
 }
 
-fn gather(
-    node: &Node,
-    linked_stylesheets: &HashMap<String, String>,
+fn gather<'a>(
+    node: &'a Node,
+    linked_stylesheets: &'a HashMap<String, String>,
     out: &mut String,
     inside_template: bool,
+    referenced: &mut HashSet<&'a str>,
 ) {
     let inside_template = inside_template || matches!(&node.element, Element::Template(_));
     if inside_template {
@@ -822,13 +833,14 @@ fn gather(
         if link_is_stylesheet(link) {
             if let Some(href) = link.href.as_deref() {
                 if let Some(css) = linked_stylesheets.get(href) {
+                    referenced.insert(href);
                     append_stylesheet_source(out, css, link.media.as_deref());
                 }
             }
         }
     }
     for child in &node.children {
-        gather(child, linked_stylesheets, out, inside_template);
+        gather(child, linked_stylesheets, out, inside_template, referenced);
     }
 }
 

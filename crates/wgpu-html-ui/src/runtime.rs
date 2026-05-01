@@ -32,6 +32,12 @@ pub(crate) trait AnyComponent {
 
     /// Lifecycle: destroyed.
     fn destroyed(&mut self);
+
+    /// Component's scope prefix.
+    fn scope_prefix(&self) -> &'static str;
+
+    /// Generated scoped CSS, if the component defines styles.
+    fn styles_css(&self) -> Option<String>;
 }
 
 // ── Concrete typed wrapper ──────────────────────────────────────────────────
@@ -73,7 +79,7 @@ where
     }
 
     fn render(&self, env: &dyn Any) -> (Node, Vec<ChildSlot>) {
-        let ctx = Ctx::new(self.sender.clone());
+        let ctx = Ctx::new(self.sender.clone(), C::scope());
         if let Some(env) = env.downcast_ref::<C::Env>() {
             let el = self.component.view(&self.props, &ctx, env);
             let children = ctx.children.into_inner();
@@ -81,6 +87,23 @@ where
         } else {
             // Env type mismatch — should not happen in practice.
             (Node::new(""), Vec::new())
+        }
+    }
+
+    fn scope_prefix(&self) -> &'static str {
+        C::scope()
+    }
+
+    fn styles_css(&self) -> Option<String> {
+        let sheet = C::styles();
+        if sheet.is_empty() {
+            return None;
+        }
+        let prefix = C::scope();
+        if prefix.is_empty() {
+            Some(sheet.to_css())
+        } else {
+            Some(sheet.to_css_scoped(prefix))
         }
     }
 
@@ -120,7 +143,7 @@ where
 
 type ChildKey = (usize, TypeId);
 
-struct MountedComponent {
+pub(crate) struct MountedComponent {
     state: Box<dyn AnyComponent>,
     children: HashMap<ChildKey, MountedComponent>,
 }
@@ -130,9 +153,15 @@ struct MountedComponent {
 pub(crate) struct Runtime {
     root: MountedComponent,
     wake: Arc<dyn Fn() + Send + Sync>,
+    /// TypeIds of components whose styles have been registered.
+    registered_styles: std::collections::HashSet<TypeId>,
 }
 
 impl Runtime {
+    pub(crate) fn root_mounted(&self) -> &MountedComponent {
+        &self.root
+    }
+
     /// Create a runtime with a root component.
     pub(crate) fn new<C: Component>(
         props: &C::Props,
@@ -150,6 +179,7 @@ impl Runtime {
                 children: HashMap::new(),
             },
             wake,
+            registered_styles: std::collections::HashSet::new(),
         }
     }
 
@@ -177,7 +207,7 @@ impl Runtime {
             }
             ever_changed = true;
             let node = Self::render_component(&mut self.root, &self.wake, env);
-            tree.root = Some(node);
+            Self::replace_component_node(tree, node);
             tree.generation += 1;
         }
         ever_changed
@@ -185,9 +215,48 @@ impl Runtime {
 
     /// Force a full re-render (e.g. when env changed externally).
     pub(crate) fn force_render(&mut self, tree: &mut Tree, env: &dyn Any) {
+        Self::register_styles(tree, &self.root);
         let node = Self::render_component(&mut self.root, &self.wake, env);
-        tree.root = Some(node);
+        Self::replace_component_node(tree, node);
         tree.generation += 1;
+    }
+
+    /// Replace the component's node inside the tree structure.
+    /// The tree is `<html><body>{component}</body></html>` — we
+    /// replace body's first child, preserving the wrapper.
+    fn replace_component_node(tree: &mut Tree, node: Node) {
+        if let Some(root) = &mut tree.root {
+            // Navigate: html → body (first child) → replace first child
+            if let Some(body) = root.children.first_mut() {
+                if body.children.is_empty() {
+                    body.children.push(node);
+                } else {
+                    body.children[0] = node;
+                }
+                return;
+            }
+        }
+        // Fallback: no wrapper, set root directly.
+        tree.root = Some(node);
+    }
+
+    /// Walk the mounted tree and register any pending component styles.
+    pub(crate) fn register_styles(tree: &mut Tree, mounted: &MountedComponent) {
+        let css = mounted.state.styles_css();
+        if let Some(css) = css {
+            let prefix = mounted.state.scope_prefix();
+            let href = if prefix.is_empty() {
+                "__component_global".to_string()
+            } else {
+                format!("__component_{prefix}")
+            };
+            if !tree.linked_stylesheets.contains_key(&href) {
+                tree.register_linked_stylesheet(&href, &css);
+            }
+        }
+        for (_key, child) in &mounted.children {
+            Self::register_styles(tree, child);
+        }
     }
 
     /// Process a component and its children.  Child `update()` calls

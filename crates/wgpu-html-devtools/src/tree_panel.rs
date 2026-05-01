@@ -15,6 +15,9 @@ use crate::tags::*;
 pub struct TreePanelProps {
     pub selected_path: Option<Vec<usize>>,
     pub collapsed: HashSet<Vec<usize>>,
+    /// Depth beyond which nodes are treated as collapsed unless
+    /// explicitly expanded by the user.
+    pub auto_collapse_depth: usize,
     pub on_select: Arc<dyn Fn(Vec<usize>) + Send + Sync>,
     pub on_toggle: Arc<dyn Fn(Vec<usize>) + Send + Sync>,
 }
@@ -66,6 +69,7 @@ impl Component for TreePanel {
                 &mut path,
                 props.selected_path.as_deref(),
                 &props.collapsed,
+                props.auto_collapse_depth,
                 ctx,
             );
             for row in rows {
@@ -85,6 +89,7 @@ fn emit_tree_node(
     path: &mut Vec<usize>,
     selected_path: Option<&[usize]>,
     collapsed: &HashSet<Vec<usize>>,
+    auto_collapse_depth: usize,
     ctx: &Ctx<TreePanelMsg>,
 ) {
     if depth > 32 {
@@ -111,7 +116,22 @@ fn emit_tree_node(
             let has_vis = has_visible_children(node);
 
             if has_vis {
-                let is_collapsed = collapsed.contains(path.as_slice());
+                // Auto-collapse beyond the configured depth unless
+                // the user explicitly expanded this node.
+                let explicitly_collapsed = collapsed.contains(path.as_slice());
+                let is_collapsed = explicitly_collapsed
+                    || (depth >= auto_collapse_depth && !collapsed.contains(path.as_slice()));
+                // If user toggled an auto-collapsed node, treat it as expanded.
+                // We use a trick: if it's in the collapsed set AND beyond auto depth,
+                // that means the user toggled it open (the set acts as an override).
+                let is_collapsed = if depth >= auto_collapse_depth {
+                    // Beyond auto-collapse depth: collapsed unless user toggled it open
+                    !collapsed.contains(path.as_slice())
+                } else {
+                    // Within auto-collapse depth: expanded unless user collapsed it
+                    collapsed.contains(path.as_slice())
+                };
+
                 let icon = if is_collapsed {
                     ICON_CHEVRON_RIGHT
                 } else {
@@ -134,7 +154,7 @@ fn emit_tree_node(
 
                     for (i, child) in node.children.iter().enumerate() {
                         path.push(i);
-                        emit_tree_node(out, child, depth + 1, path, selected_path, collapsed, ctx);
+                        emit_tree_node(out, child, depth + 1, path, selected_path, collapsed, auto_collapse_depth, ctx);
                         path.pop();
                     }
 
