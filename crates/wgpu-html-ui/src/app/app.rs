@@ -7,7 +7,7 @@ use wgpu_html_tree::{Node, Tree};
 use wgpu_html_winit::{AppHook, EventResponse, FrameTimings, HookContext};
 use winit::event::KeyEvent;
 
-use crate::{component::Component, runtime::Runtime};
+use crate::core::{component::Component, runtime::Runtime};
 
 // ── App builder ─────────────────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ use crate::{component::Component, runtime::Runtime};
 /// per-frame polling and window event routing from the host app.
 pub trait SecondaryWindow: 'static {
   fn poll(&mut self, tree: &Tree, event_loop: &winit::event_loop::ActiveEventLoop);
-  fn on_key(&mut self, tree: &Tree, event_loop: &winit::event_loop::ActiveEventLoop, event: &KeyEvent) -> bool {
+  fn on_key(&mut self, _tree: &Tree, _event_loop: &winit::event_loop::ActiveEventLoop, _event: &KeyEvent) -> bool {
     false
   }
   fn owns_window(&self, id: winit::window::WindowId) -> bool;
@@ -199,16 +199,6 @@ impl<State: Send + Sync + 'static> AppHook for UiHook<State> {
   }
 
   fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
-    use winit::{
-      event::ElementState,
-      keyboard::{KeyCode, PhysicalKey},
-    };
-
-    // F11: let it pass through to handle_keyboard so the tree's
-    // key_down dispatch fires (which triggers the devtools TreeHook).
-    // No Stop — Continue allows the winit harness to call
-    // handle_keyboard → tree.key_down → DevtoolsKeyHook.
-
     if self.runtime.process(ctx.tree, &*self.state) {
       ctx.window.request_redraw();
     }

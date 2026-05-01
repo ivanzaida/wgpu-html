@@ -8,7 +8,7 @@ use std::{
 
 use wgpu_html_tree::{Node, Tree};
 
-use crate::{
+use crate::core::{
   component::{Component, ShouldRender},
   ctx::{ChildSlot, Ctx, MsgSender},
 };
@@ -149,8 +149,8 @@ where
 type ChildKey = (usize, TypeId);
 
 pub(crate) struct MountedComponent {
-  state: Box<dyn AnyComponent>,
-  children: HashMap<ChildKey, MountedComponent>,
+  pub(crate) state: Box<dyn AnyComponent>,
+  pub(crate) children: HashMap<ChildKey, MountedComponent>,
 }
 
 // ── Runtime ─────────────────────────────────────────────────────────────────

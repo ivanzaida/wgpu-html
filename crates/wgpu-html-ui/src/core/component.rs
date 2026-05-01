@@ -1,6 +1,6 @@
 //! Component trait and related types.
 
-use crate::{ctx::Ctx, el::El, style::Stylesheet};
+use crate::{core::ctx::Ctx, el::El, style::Stylesheet};
 
 /// Whether a component's view should be re-rendered after an update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

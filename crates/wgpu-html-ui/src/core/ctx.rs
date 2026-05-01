@@ -52,7 +52,7 @@ pub(crate) struct ChildSlot {
   pub component_type_id: TypeId,
   pub props: Box<dyn Any>,
   /// Factory: `(props: &dyn Any, wake) -> Box<dyn AnyComponent>`
-  pub create: Box<dyn FnOnce(&dyn Any, Arc<dyn Fn() + Send + Sync>) -> Box<dyn crate::runtime::AnyComponent>>,
+  pub create: Box<dyn FnOnce(&dyn Any, Arc<dyn Fn() + Send + Sync>) -> Box<dyn crate::core::runtime::AnyComponent>>,
 }
 
 // ── Ctx ─────────────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
       props: Box::new(props),
       create: Box::new(|props_any, wake| {
         let props = props_any.downcast_ref::<C::Props>().unwrap();
-        Box::new(crate::runtime::ComponentState::<C>::new(props, wake))
+        Box::new(crate::core::runtime::ComponentState::<C>::new(props, wake))
       }),
     });
 

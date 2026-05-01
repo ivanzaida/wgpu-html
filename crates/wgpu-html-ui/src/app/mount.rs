@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use wgpu_html_tree::Tree;
 
-use crate::{component::Component, runtime::Runtime};
+use crate::core::{component::Component, runtime::Runtime};
 
 /// A typed handle for driving a single component tree manually.
 ///

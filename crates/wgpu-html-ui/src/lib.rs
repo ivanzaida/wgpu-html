@@ -50,20 +50,27 @@
 //! }
 //! ```
 
+// ── DSL modules (public) ─────────────────────────────────────────────────────
 pub mod el;
 pub mod style;
 
-mod app;
-mod component;
-mod ctx;
-mod mount;
-pub(crate) mod runtime;
+// ── Core Elm-architecture machinery ─────────────────────────────────────────
+mod core;
 
-pub use app::{App, SecondaryWindow};
-pub use component::{Component, ShouldRender};
-pub use ctx::{Ctx, MsgSender};
+// ── Application entry points ─────────────────────────────────────────────────
+mod app;
+
+// ── Public re-exports ────────────────────────────────────────────────────────
+pub use core::{
+  component::{Component, ShouldRender},
+  ctx::{Ctx, MsgSender},
+};
+
+pub use app::{
+  app::{App, SecondaryWindow},
+  mount::Mount,
+};
 pub use el::El;
-pub use mount::Mount;
 
 /// Register platform system fonts with the tree under the given family alias.
 /// Call this once during app setup so text renders correctly.
