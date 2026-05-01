@@ -23,22 +23,22 @@ use wgpu_html_tree::{Element, HtmlEvent, MouseEvent, Node};
 ///
 /// Convert to a raw [`Node`] via [`El::into_node`] or the [`From`] impl.
 pub struct El {
-    pub(crate) node: Node,
+  pub(crate) node: Node,
 }
 
 impl El {
-    /// Unwrap into the underlying [`Node`].
-    #[inline]
-    pub fn into_node(self) -> Node {
-        self.node
-    }
+  /// Unwrap into the underlying [`Node`].
+  #[inline]
+  pub fn into_node(self) -> Node {
+    self.node
+  }
 }
 
 impl From<El> for Node {
-    #[inline]
-    fn from(el: El) -> Node {
-        el.node
-    }
+  #[inline]
+  fn from(el: El) -> Node {
+    el.node
+  }
 }
 
 // ── Variant list ────────────────────────────────────────────────────────────
@@ -47,22 +47,22 @@ impl From<El> for Node {
 // public API.  Keep in sync if new element types are added.
 
 macro_rules! with_all_variants {
-    ($mac:ident) => {
-        $mac! {
-            Html, Head, Body, Title, Meta, Link, StyleElement, Script, Noscript,
-            H1, H2, H3, H4, H5, H6, P, Br, Hr, Pre, Blockquote, Address,
-            Span, A, Strong, B, Em, I, U, S, Small, Mark, Code, Kbd, Samp,
-            Var, Abbr, Cite, Dfn, Sub, Sup, Time,
-            Ul, Ol, Li, Dl, Dt, Dd,
-            Header, Nav, Main, Section, Article, Aside, Footer, Div,
-            Img, Picture, Source, Video, Audio, Track, Iframe, Canvas, Svg, SvgPath,
-            Table, Caption, Thead, Tbody, Tfoot, Tr, Th, Td, Colgroup, Col,
-            Form, Label, Input, Textarea, Button, Select, OptionElement, Optgroup,
-            Fieldset, Legend, Datalist, Output, Progress, Meter,
-            Details, Summary, Dialog, Template, Slot, Del, Ins, Bdi, Bdo, Wbr,
-            Data, Ruby, Rt, Rp
-        }
-    };
+  ($mac:ident) => {
+    $mac! {
+        Html, Head, Body, Title, Meta, Link, StyleElement, Script, Noscript,
+        H1, H2, H3, H4, H5, H6, P, Br, Hr, Pre, Blockquote, Address,
+        Span, A, Strong, B, Em, I, U, S, Small, Mark, Code, Kbd, Samp,
+        Var, Abbr, Cite, Dfn, Sub, Sup, Time,
+        Ul, Ol, Li, Dl, Dt, Dd,
+        Header, Nav, Main, Section, Article, Aside, Footer, Div,
+        Img, Picture, Source, Video, Audio, Track, Iframe, Canvas, Svg, SvgPath,
+        Table, Caption, Thead, Tbody, Tfoot, Tr, Th, Td, Colgroup, Col,
+        Form, Label, Input, Textarea, Button, Select, OptionElement, Optgroup,
+        Fieldset, Legend, Datalist, Output, Progress, Meter,
+        Details, Summary, Dialog, Template, Slot, Del, Ins, Bdi, Bdo, Wbr,
+        Data, Ruby, Rt, Rp
+    }
+  };
 }
 
 // ── Global attribute setters ────────────────────────────────────────────────
@@ -148,25 +148,23 @@ with_all_variants!(impl_global_attr_methods);
 // ── Children & text ─────────────────────────────────────────────────────────
 
 impl El {
-    /// Append a text child node.
-    pub fn text(mut self, t: impl Into<String>) -> Self {
-        self.node.children.push(Node::new(t.into()));
-        self
-    }
+  /// Append a text child node.
+  pub fn text(mut self, t: impl Into<String>) -> Self {
+    self.node.children.push(Node::new(t.into()));
+    self
+  }
 
-    /// Append multiple children.
-    pub fn children(mut self, children: impl IntoIterator<Item = El>) -> Self {
-        self.node
-            .children
-            .extend(children.into_iter().map(|el| el.node));
-        self
-    }
+  /// Append multiple children.
+  pub fn children(mut self, children: impl IntoIterator<Item = El>) -> Self {
+    self.node.children.extend(children.into_iter().map(|el| el.node));
+    self
+  }
 
-    /// Append a single child.
-    pub fn child(mut self, child: El) -> Self {
-        self.node.children.push(child.node);
-        self
-    }
+  /// Append a single child.
+  pub fn child(mut self, child: El) -> Self {
+    self.node.children.push(child.node);
+    self
+  }
 }
 
 // ── Callback setters ────────────────────────────────────────────────────────
@@ -177,66 +175,66 @@ pub type MouseCallback = Arc<dyn Fn(&MouseEvent) + Send + Sync>;
 pub type EventCallback = Arc<dyn Fn(&HtmlEvent) + Send + Sync>;
 
 impl El {
-    pub fn on_click(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-        self.node.on_click = Some(Arc::new(f));
-        self
-    }
+  pub fn on_click(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_click = Some(Arc::new(f));
+    self
+  }
 
-    /// Attach a pre-built [`MouseCallback`] (e.g. from [`Ctx::msg`]).
-    pub fn on_click_cb(mut self, cb: MouseCallback) -> Self {
-        self.node.on_click = Some(cb);
-        self
-    }
+  /// Attach a pre-built [`MouseCallback`] (e.g. from [`Ctx::msg`]).
+  pub fn on_click_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_click = Some(cb);
+    self
+  }
 
-    pub fn on_mouse_down(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-        self.node.on_mouse_down = Some(Arc::new(f));
-        self
-    }
+  pub fn on_mouse_down(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_mouse_down = Some(Arc::new(f));
+    self
+  }
 
-    pub fn on_mouse_down_cb(mut self, cb: MouseCallback) -> Self {
-        self.node.on_mouse_down = Some(cb);
-        self
-    }
+  pub fn on_mouse_down_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_mouse_down = Some(cb);
+    self
+  }
 
-    pub fn on_mouse_up(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-        self.node.on_mouse_up = Some(Arc::new(f));
-        self
-    }
+  pub fn on_mouse_up(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_mouse_up = Some(Arc::new(f));
+    self
+  }
 
-    pub fn on_mouse_up_cb(mut self, cb: MouseCallback) -> Self {
-        self.node.on_mouse_up = Some(cb);
-        self
-    }
+  pub fn on_mouse_up_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_mouse_up = Some(cb);
+    self
+  }
 
-    pub fn on_mouse_enter(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-        self.node.on_mouse_enter = Some(Arc::new(f));
-        self
-    }
+  pub fn on_mouse_enter(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_mouse_enter = Some(Arc::new(f));
+    self
+  }
 
-    pub fn on_mouse_enter_cb(mut self, cb: MouseCallback) -> Self {
-        self.node.on_mouse_enter = Some(cb);
-        self
-    }
+  pub fn on_mouse_enter_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_mouse_enter = Some(cb);
+    self
+  }
 
-    pub fn on_mouse_leave(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-        self.node.on_mouse_leave = Some(Arc::new(f));
-        self
-    }
+  pub fn on_mouse_leave(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_mouse_leave = Some(Arc::new(f));
+    self
+  }
 
-    pub fn on_mouse_leave_cb(mut self, cb: MouseCallback) -> Self {
-        self.node.on_mouse_leave = Some(cb);
-        self
-    }
+  pub fn on_mouse_leave_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_mouse_leave = Some(cb);
+    self
+  }
 
-    pub fn on_event(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
-        self.node.on_event = Some(Arc::new(f));
-        self
-    }
+  pub fn on_event(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_event = Some(Arc::new(f));
+    self
+  }
 
-    pub fn on_event_cb(mut self, cb: EventCallback) -> Self {
-        self.node.on_event = Some(cb);
-        self
-    }
+  pub fn on_event_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_event = Some(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────
@@ -244,7 +242,7 @@ impl El {
 /// Trait for extracting a mutable reference to a specific model struct
 /// from an [`Element`] enum.
 pub trait ElementModel: 'static {
-    fn from_element_mut(element: &mut Element) -> Option<&mut Self>;
+  fn from_element_mut(element: &mut Element) -> Option<&mut Self>;
 }
 
 macro_rules! impl_element_model {
@@ -265,21 +263,21 @@ macro_rules! impl_element_model {
 with_all_variants!(impl_element_model);
 
 impl El {
-    /// Access the underlying model struct for element-specific mutation.
-    ///
-    /// ```ignore
-    /// el::input().configure(|i: &mut wgpu_html_models::Input| {
-    ///     i.placeholder = Some("type here".into());
-    /// })
-    /// ```
-    ///
-    /// Does nothing if the element type doesn't match `M`.
-    pub fn configure<M: ElementModel>(mut self, f: impl FnOnce(&mut M)) -> Self {
-        if let Some(model) = M::from_element_mut(&mut self.node.element) {
-            f(model);
-        }
-        self
+  /// Access the underlying model struct for element-specific mutation.
+  ///
+  /// ```ignore
+  /// el::input().configure(|i: &mut wgpu_html_models::Input| {
+  ///     i.placeholder = Some("type here".into());
+  /// })
+  /// ```
+  ///
+  /// Does nothing if the element type doesn't match `M`.
+  pub fn configure<M: ElementModel>(mut self, f: impl FnOnce(&mut M)) -> Self {
+    if let Some(model) = M::from_element_mut(&mut self.node.element) {
+      f(model);
     }
+    self
+  }
 }
 
 // ── Element constructor functions ───────────────────────────────────────────
@@ -421,23 +419,17 @@ el_constructors! {
 /// Create a text node.
 #[inline]
 pub fn text(t: impl Into<String>) -> El {
-    El {
-        node: Node::new(t.into()),
-    }
+  El {
+    node: Node::new(t.into()),
+  }
 }
 
 // ── Custom properties ───────────────────────────────────────────────────────
 
 impl El {
-    /// Set a CSS custom property on this node.
-    pub fn custom_property(
-        mut self,
-        name: impl Into<String>,
-        value: impl Into<String>,
-    ) -> Self {
-        self.node
-            .custom_properties
-            .insert(name.into(), value.into());
-        self
-    }
+  /// Set a CSS custom property on this node.
+  pub fn custom_property(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+    self.node.custom_properties.insert(name.into(), value.into());
+    self
+  }
 }

@@ -1,14 +1,12 @@
-    //! Component trait and related types.
+//! Component trait and related types.
 
-use crate::ctx::Ctx;
-use crate::el::El;
-use crate::style::Stylesheet;
+use crate::{ctx::Ctx, el::El, style::Stylesheet};
 
 /// Whether a component's view should be re-rendered after an update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShouldRender {
-    Yes,
-    No,
+  Yes,
+  No,
 }
 
 /// Elm-architecture component.
@@ -60,47 +58,57 @@ pub enum ShouldRender {
 /// }
 /// ```
 pub trait Component: 'static {
-    /// Immutable configuration passed from the parent component.
-    type Props: Clone + 'static;
+  /// Immutable configuration passed from the parent component.
+  type Props: Clone + 'static;
 
-    /// Messages produced by user interactions or other events.
-    type Msg: Clone + Send + Sync + 'static;
+  /// Messages produced by user interactions or other events.
+  type Msg: Clone + Send + Sync + 'static;
 
-    /// External data provided by the mount site at render time.
-    /// Use `()` for standalone applications.
-    type Env: 'static;
+  /// External data provided by the mount site at render time.
+  /// Use `()` for standalone applications.
+  type Env: 'static;
 
-    /// Create a new component instance from initial props.
-    fn create(props: &Self::Props) -> Self;
+  /// Create a new component instance from initial props.
+  fn create(props: &Self::Props) -> Self;
 
-    /// Handle a message.  Return [`ShouldRender::Yes`] to trigger
-    /// a call to [`view`](Component::view) and subtree replacement.
-    fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender;
+  /// Handle a message.  Return [`ShouldRender::Yes`] to trigger
+  /// a call to [`view`](Component::view) and subtree replacement.
+  fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender;
 
-    /// Produce the element tree for the current state, props, and
-    /// environment.
-    fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El;
+  /// Produce the element tree for the current state, props, and
+  /// environment.
+  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El;
 
-    /// Called when the parent passes new props.  Default: always re-render.
-    fn props_changed(&mut self, _old: &Self::Props, _new: &Self::Props) -> ShouldRender {
-        ShouldRender::Yes
-    }
+  /// Called when the parent passes new props.  Default: always re-render.
+  fn props_changed(&mut self, _old: &Self::Props, _new: &Self::Props) -> ShouldRender {
+    ShouldRender::Yes
+  }
 
-    /// Called once after the component is first mounted.
-    fn mounted(&mut self) {}
+  /// Called once after the component is first mounted.
+  fn mounted(&mut self) {}
 
-    /// Called before the component is destroyed.
-    fn destroyed(&mut self) {}
+  /// Called before the component is destroyed.
+  fn destroyed(&mut self) {}
 
-    /// Scope prefix for this component's styles. When non-empty, class
-    /// names in [`styles()`](Component::styles) are auto-prefixed with
-    /// this value, and [`Ctx::scoped`] prepends it in view().
-    ///
-    /// Return `""` (default) for no scoping / global styles.
-    fn scope() -> &'static str where Self: Sized { "" }
+  /// Scope prefix for this component's styles. When non-empty, class
+  /// names in [`styles()`](Component::styles) are auto-prefixed with
+  /// this value, and [`Ctx::scoped`] prepends it in view().
+  ///
+  /// Return `""` (default) for no scoping / global styles.
+  fn scope() -> &'static str
+  where
+    Self: Sized,
+  {
+    ""
+  }
 
-    /// Component-level stylesheet. Registered once when the component
-    /// type is first mounted. If [`scope()`](Component::scope) is
-    /// non-empty, all `.class` selectors are prefixed automatically.
-    fn styles() -> Stylesheet where Self: Sized { Stylesheet::empty() }
+  /// Component-level stylesheet. Registered once when the component
+  /// type is first mounted. If [`scope()`](Component::scope) is
+  /// non-empty, all `.class` selectors are prefixed automatically.
+  fn styles() -> Stylesheet
+  where
+    Self: Sized,
+  {
+    Stylesheet::empty()
+  }
 }

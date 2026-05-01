@@ -5,15 +5,19 @@
 //! and runs on the host's event loop (winit only allows one per
 //! process).
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+  Arc,
+  atomic::{AtomicBool, Ordering},
+};
 
 use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 use wgpu_html_winit::HtmlWindow;
-use winit::event::{ElementState, WindowEvent};
-use winit::event_loop::ActiveEventLoop;
-use winit::window::WindowId;
+use winit::{
+  event::{ElementState, WindowEvent},
+  event_loop::ActiveEventLoop,
+  window::WindowId,
+};
 
 use crate::component::{DevtoolsComponent, DevtoolsProps};
 
@@ -179,243 +183,240 @@ body {
 /// }
 /// ```
 pub struct Devtools {
-    tree: Tree,
-    mount: Mount<DevtoolsComponent>,
+  tree: Tree,
+  mount: Mount<DevtoolsComponent>,
 
-    last_inspected_gen: Option<u64>,
-    needs_redraw: bool,
+  last_inspected_gen: Option<u64>,
+  needs_redraw: bool,
 
-    html_window: Option<HtmlWindow>,
-    enabled: bool,
-    /// Shared flag set by the TreeHook when F11 is pressed on the host.
-    toggle_requested: Arc<AtomicBool>,
+  html_window: Option<HtmlWindow>,
+  enabled: bool,
+  /// Shared flag set by the TreeHook when F11 is pressed on the host.
+  toggle_requested: Arc<AtomicBool>,
 }
 
 impl Devtools {
-    /// Create a devtools instance without attaching to a tree.
-    pub fn new(enable_profiler: bool) -> Self {
-        let mut tree = Tree::default();
-        let lucide = FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
-        tree.register_font(lucide);
-        tree.register_linked_stylesheet("devtools.css", CSS);
-        wgpu_html_winit::register_system_fonts(&mut tree, "sans-serif");
+  /// Create a devtools instance without attaching to a tree.
+  pub fn new(enable_profiler: bool) -> Self {
+    let mut tree = Tree::default();
+    let lucide = FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
+    tree.register_font(lucide);
+    tree.register_linked_stylesheet("devtools.css", CSS);
+    wgpu_html_winit::register_system_fonts(&mut tree, "sans-serif");
 
-        if enable_profiler {
-            tree.profiler = Some(Profiler::tagged("devtools"));
-        }
-
-        let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps);
-
-        Self {
-            tree,
-            mount,
-            last_inspected_gen: None,
-            needs_redraw: true,
-            html_window: None,
-            enabled: false,
-            toggle_requested: Arc::new(AtomicBool::new(false)),
-        }
+    if enable_profiler {
+      tree.profiler = Some(Profiler::tagged("devtools"));
     }
 
-    /// Create a devtools instance pre-populated with the host tree's
-    /// fonts. Opens automatically on the first `poll()` call.
-    ///
-    /// Registers an F11 keyboard hook on the host tree so the devtools
-    /// window can be toggled without the host needing to forward keys.
-    pub fn attach(host_tree: &mut Tree, enable_profiler: bool) -> Self {
-        let mut devtools = Self::new(enable_profiler);
-        for (_handle, face) in host_tree.fonts.iter() {
-            devtools.tree.register_font(face.clone());
-        }
-        // Auto-enable so it opens on first poll.
-        devtools.enabled = true;
+    let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps);
 
-        // Register F11 hook on the host tree.
-        let toggle_flag = devtools.toggle_requested.clone();
-        host_tree.hooks.push(TreeHookHandle::new(DevtoolsKeyHook { toggle_flag }));
+    Self {
+      tree,
+      mount,
+      last_inspected_gen: None,
+      needs_redraw: true,
+      html_window: None,
+      enabled: false,
+      toggle_requested: Arc::new(AtomicBool::new(false)),
+    }
+  }
 
-        devtools
+  /// Create a devtools instance pre-populated with the host tree's
+  /// fonts. Opens automatically on the first `poll()` call.
+  ///
+  /// Registers an F11 keyboard hook on the host tree so the devtools
+  /// window can be toggled without the host needing to forward keys.
+  pub fn attach(host_tree: &mut Tree, enable_profiler: bool) -> Self {
+    let mut devtools = Self::new(enable_profiler);
+    for (_handle, face) in host_tree.fonts.iter() {
+      devtools.tree.register_font(face.clone());
+    }
+    // Auto-enable so it opens on first poll.
+    devtools.enabled = true;
+
+    // Register F11 hook on the host tree.
+    let toggle_flag = devtools.toggle_requested.clone();
+    host_tree
+      .hooks
+      .push(TreeHookHandle::new(DevtoolsKeyHook { toggle_flag }));
+
+    devtools
+  }
+
+  // ── Font registration ───────────────────────────────────
+
+  pub fn register_font(&mut self, face: FontFace) {
+    self.tree.register_font(face);
+  }
+
+  // ── Polling ─────────────────────────────────────────────
+
+  /// Sync with the host tree and manage the window lifecycle.
+  /// Call once per frame from the host's `on_frame` hook.
+  ///
+  /// If the window hasn't been created yet and devtools is enabled,
+  /// it will be opened using `event_loop`.
+  pub fn poll(&mut self, host_tree: &Tree, event_loop: &ActiveEventLoop) {
+    // Check if the host tree hook requested a toggle (F11).
+    if self.toggle_requested.swap(false, Ordering::Relaxed) {
+      self.toggle();
     }
 
-    // ── Font registration ───────────────────────────────────
-
-    pub fn register_font(&mut self, face: FontFace) {
-        self.tree.register_font(face);
+    if !self.enabled {
+      return;
     }
 
-    // ── Polling ─────────────────────────────────────────────
-
-    /// Sync with the host tree and manage the window lifecycle.
-    /// Call once per frame from the host's `on_frame` hook.
-    ///
-    /// If the window hasn't been created yet and devtools is enabled,
-    /// it will be opened using `event_loop`.
-    pub fn poll(&mut self, host_tree: &Tree, event_loop: &ActiveEventLoop) {
-        // Check if the host tree hook requested a toggle (F11).
-        if self.toggle_requested.swap(false, Ordering::Relaxed) {
-            self.toggle();
-        }
-
-        if !self.enabled {
-            return;
-        }
-
-        // Lazily create the window on first enable.
-        if self.html_window.is_none() {
-            let hw = HtmlWindow::new(event_loop, "DevTools", 1280, 720);
-            hw.request_redraw();
-            self.html_window = Some(hw);
-            self.last_inspected_gen = None;
-            self.needs_redraw = true;
-        }
-
-        // Process pending component messages.
-        if self.mount.process(&mut self.tree, host_tree) {
-            self.needs_redraw = true;
-        }
-
-        // Re-render if the host tree changed.
-        let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
-        if dom_changed {
-            self.last_inspected_gen = Some(host_tree.generation);
-            self.mount.force_render(&mut self.tree, host_tree);
-            self.needs_redraw = true;
-        }
-
-        if self.needs_redraw {
-            if let Some(hw) = &self.html_window {
-                hw.request_redraw();
-            }
-        }
+    // Lazily create the window on first enable.
+    if self.html_window.is_none() {
+      let hw = HtmlWindow::new(event_loop, "DevTools", 1280, 720);
+      hw.request_redraw();
+      self.html_window = Some(hw);
+      self.last_inspected_gen = None;
+      self.needs_redraw = true;
     }
 
-    // ── Window lifecycle ────────────────────────────────────
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
+    // Process pending component messages.
+    if self.mount.process(&mut self.tree, host_tree) {
+      self.needs_redraw = true;
     }
 
-    pub fn enable(&mut self) {
-        self.enabled = true;
-        if let Some(hw) = &self.html_window {
-            hw.window().set_visible(true);
-            hw.request_redraw();
-        }
+    // Re-render if the host tree changed.
+    let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
+    if dom_changed {
+      self.last_inspected_gen = Some(host_tree.generation);
+      self.mount.force_render(&mut self.tree, host_tree);
+      self.needs_redraw = true;
     }
 
-    pub fn disable(&mut self) {
-        self.enabled = false;
-        if let Some(hw) = &self.html_window {
-            hw.window().set_visible(false);
-        }
+    if self.needs_redraw {
+      if let Some(hw) = &self.html_window {
+        hw.request_redraw();
+      }
+    }
+  }
+
+  // ── Window lifecycle ────────────────────────────────────
+
+  pub fn is_enabled(&self) -> bool {
+    self.enabled
+  }
+
+  pub fn enable(&mut self) {
+    self.enabled = true;
+    if let Some(hw) = &self.html_window {
+      hw.window().set_visible(true);
+      hw.request_redraw();
+    }
+  }
+
+  pub fn disable(&mut self) {
+    self.enabled = false;
+    if let Some(hw) = &self.html_window {
+      hw.window().set_visible(false);
+    }
+  }
+
+  pub fn toggle(&mut self) {
+    if self.enabled {
+      self.disable();
+    } else {
+      self.enable();
+    }
+  }
+
+  pub fn window_id(&self) -> Option<WindowId> {
+    self.html_window.as_ref().map(|hw| hw.window_id())
+  }
+
+  pub fn owns_window(&self, id: WindowId) -> bool {
+    self.window_id() == Some(id)
+  }
+
+  /// Handle a winit `WindowEvent` for the devtools window.
+  pub fn handle_window_event(&mut self, host_tree: &Tree, event: &WindowEvent) {
+    let Some(hw) = self.html_window.as_mut() else {
+      return;
+    };
+    match event {
+      WindowEvent::CloseRequested => {
+        self.disable();
+        return;
+      }
+      WindowEvent::RedrawRequested => {
+        self.render_to_window();
+        return;
+      }
+      _ => {}
+    }
+    let needs_redraw = hw.handle_event(&mut self.tree, event);
+
+    // After mouse release, component callbacks may have queued messages.
+    if matches!(
+      event,
+      WindowEvent::MouseInput {
+        state: ElementState::Released,
+        ..
+      }
+    ) {
+      if self.mount.process(&mut self.tree, host_tree) {
+        self.needs_redraw = true;
+      }
     }
 
-    pub fn toggle(&mut self) {
-        if self.enabled {
-            self.disable();
-        } else {
-            self.enable();
-        }
+    if needs_redraw || self.needs_redraw {
+      if let Some(hw) = &self.html_window {
+        hw.request_redraw();
+      }
     }
+  }
 
-    pub fn window_id(&self) -> Option<WindowId> {
-        self.html_window.as_ref().map(|hw| hw.window_id())
+  fn render_to_window(&mut self) {
+    if let Some(hw) = self.html_window.as_mut() {
+      hw.render_frame(&self.tree);
     }
-
-    pub fn owns_window(&self, id: WindowId) -> bool {
-        self.window_id() == Some(id)
-    }
-
-    /// Handle a winit `WindowEvent` for the devtools window.
-    pub fn handle_window_event(&mut self, host_tree: &Tree, event: &WindowEvent) {
-        let Some(hw) = self.html_window.as_mut() else {
-            return;
-        };
-        match event {
-            WindowEvent::CloseRequested => {
-                self.disable();
-                return;
-            }
-            WindowEvent::RedrawRequested => {
-                self.render_to_window();
-                return;
-            }
-            _ => {}
-        }
-        let needs_redraw = hw.handle_event(&mut self.tree, event);
-
-        // After mouse release, component callbacks may have queued messages.
-        if matches!(
-            event,
-            WindowEvent::MouseInput {
-                state: ElementState::Released,
-                ..
-            }
-        ) {
-            if self.mount.process(&mut self.tree, host_tree) {
-                self.needs_redraw = true;
-            }
-        }
-
-        if needs_redraw || self.needs_redraw {
-            if let Some(hw) = &self.html_window {
-                hw.request_redraw();
-            }
-        }
-    }
-
-    fn render_to_window(&mut self) {
-        if let Some(hw) = self.html_window.as_mut() {
-            hw.render_frame(&self.tree);
-        }
-        self.needs_redraw = false;
-    }
+    self.needs_redraw = false;
+  }
 }
 
 // ── F11 TreeHook ────────────────────────────────────────────────
 
 struct DevtoolsKeyHook {
-    toggle_flag: Arc<AtomicBool>,
+  toggle_flag: Arc<AtomicBool>,
 }
 
 impl wgpu_html_tree::TreeHook for DevtoolsKeyHook {
-    fn on_keyboard_event(
-        &mut self,
-        _tree: &mut Tree,
-        event: &mut wgpu_html_events::events::KeyboardEvent,
-    ) -> wgpu_html_tree::TreeHookResponse {
-        // Only toggle on keydown, not keyup (both fire through this hook).
-        let is_keydown = event.base.base.event_type.as_str() == "keydown";
-        if event.code == "F11" && is_keydown && !event.repeat {
-            self.toggle_flag.store(true, Ordering::Relaxed);
-        }
-        wgpu_html_tree::TreeHookResponse::Continue
+  fn on_keyboard_event(
+    &mut self,
+    _tree: &mut Tree,
+    event: &mut wgpu_html_events::events::KeyboardEvent,
+  ) -> wgpu_html_tree::TreeHookResponse {
+    // Only toggle on keydown, not keyup (both fire through this hook).
+    let is_keydown = event.base.base.event_type.as_str() == "keydown";
+    if event.code == "F11" && is_keydown && !event.repeat {
+      self.toggle_flag.store(true, Ordering::Relaxed);
     }
+    wgpu_html_tree::TreeHookResponse::Continue
+  }
 }
 
 // ── SecondaryWindow impl ────────────────────────────────────────
 
 impl wgpu_html_ui::SecondaryWindow for Devtools {
-    fn poll(&mut self, tree: &Tree, event_loop: &ActiveEventLoop) {
-        Devtools::poll(self, tree, event_loop);
-    }
+  fn poll(&mut self, tree: &Tree, event_loop: &ActiveEventLoop) {
+    Devtools::poll(self, tree, event_loop);
+  }
 
-    fn on_key(
-        &mut self,
-        _tree: &Tree,
-        _event_loop: &ActiveEventLoop,
-        _event: &winit::event::KeyEvent,
-    ) -> bool {
-        // F11 is handled by the TreeHook → toggle_requested flag → poll().
-        // No action needed here.
-        false
-    }
+  fn on_key(&mut self, _tree: &Tree, _event_loop: &ActiveEventLoop, _event: &winit::event::KeyEvent) -> bool {
+    // F11 is handled by the TreeHook → toggle_requested flag → poll().
+    // No action needed here.
+    false
+  }
 
-    fn owns_window(&self, id: WindowId) -> bool {
-        Devtools::owns_window(self, id)
-    }
+  fn owns_window(&self, id: WindowId) -> bool {
+    Devtools::owns_window(self, id)
+  }
 
-    fn handle_window_event(&mut self, tree: &Tree, event: &WindowEvent) {
-        Devtools::handle_window_event(self, tree, event);
-    }
+  fn handle_window_event(&mut self, tree: &Tree, event: &WindowEvent) {
+    Devtools::handle_window_event(self, tree, event);
+  }
 }

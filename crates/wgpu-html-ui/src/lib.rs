@@ -68,5 +68,5 @@ pub use mount::Mount;
 /// Register platform system fonts with the tree under the given family alias.
 /// Call this once during app setup so text renders correctly.
 pub(crate) fn register_system_fonts(tree: &mut wgpu_html_tree::Tree) {
-    wgpu_html_winit::register_system_fonts(tree, "sans-serif");
+  wgpu_html_winit::register_system_fonts(tree, "sans-serif");
 }

@@ -16,21 +16,17 @@ pub mod tokenizer;
 pub mod tree_builder;
 
 pub use css_parser::{
-    CssWideKeyword, StyleDecls, apply_css_property, parse_inline_style, parse_inline_style_decls,
-    resolve_var_references,
+  CssWideKeyword, StyleDecls, apply_css_property, parse_inline_style, parse_inline_style_decls, resolve_var_references,
 };
-pub use style_props::{
-    apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords,
-};
+pub use style_props::{apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords};
 pub use stylesheet::{
-    MediaFeature, MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule, Selector, Stylesheet,
-    parse_media_query_list, parse_stylesheet,
+  MediaFeature, MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule, Selector, Stylesheet, parse_media_query_list,
+  parse_stylesheet,
 };
 pub use tokenizer::Token;
-
 use wgpu_html_tree::Tree;
 
 /// Parse an HTML string into a tree.
 pub fn parse(html: &str) -> Tree {
-    tree_builder::build(tokenizer::tokenize(html))
+  tree_builder::build(tokenizer::tokenize(html))
 }

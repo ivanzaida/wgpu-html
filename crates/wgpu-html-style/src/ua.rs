@@ -553,6 +553,6 @@ template {
 
 /// The lazily-parsed UA stylesheet.
 pub fn ua_stylesheet() -> &'static Stylesheet {
-    static SHEET: OnceLock<Stylesheet> = OnceLock::new();
-    SHEET.get_or_init(|| parse_stylesheet(UA_CSS))
+  static SHEET: OnceLock<Stylesheet> = OnceLock::new();
+  SHEET.get_or_init(|| parse_stylesheet(UA_CSS))
 }

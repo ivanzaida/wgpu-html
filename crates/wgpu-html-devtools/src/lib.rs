@@ -5,8 +5,8 @@ mod devtools_hook;
 mod profiler_hook;
 mod styles_panel;
 mod tags;
-mod tree_panel;
 #[cfg(test)]
 mod tests;
+mod tree_panel;
 
 pub use devtools::Devtools;
