@@ -17,7 +17,7 @@ pub mod interactivity;
 pub mod paint;
 pub mod scroll;
 pub use paint::{paint_tree, paint_tree_with_text};
-use wgpu_html_layout::{LayoutBox, PointerEvents, UserSelect};
+use wgpu_html_layout::{LayoutBox, UserSelect};
 use wgpu_html_renderer::{DisplayList, Renderer, ScreenshotError};
 use wgpu_html_style::MediaContext;
 use wgpu_html_text::TextContext;

@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use wgpu_html_layout::{LayoutBox, PointerEvents, UserSelect};
+use wgpu_html_layout::{LayoutBox, UserSelect};
 use wgpu_html_models::common::css_enums::Overflow;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
@@ -1119,6 +1119,7 @@ fn shift_rect_y(r: Rect, dy: f32) -> Rect {
 
 #[cfg(test)]
 mod tests {
+  use wgpu_html_models::common::{Cursor, PointerEvents};
   use wgpu_html_tree::{TextCursor, TextSelection};
 
   use super::*;
@@ -1186,6 +1187,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Auto,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1509,6 +1511,7 @@ mod tests {
       image: None,
       background_image: None,
       children: Vec::new(),
+      cursor: Cursor::Auto,
     };
     let h2_rect = LR::new(0.0, 100.0, 200.0, 24.0);
     let h2 = LayoutBox {
@@ -1555,6 +1558,7 @@ mod tests {
       image: None,
       background_image: None,
       children: Vec::new(),
+      cursor: Cursor::Auto,
     };
     let body_rect = LR::new(0.0, 0.0, 800.0, 200.0);
     let body = LayoutBox {
@@ -1580,6 +1584,8 @@ mod tests {
       image: None,
       background_image: None,
       children: vec![textarea, h2],
+      cursor: Cursor::Auto,
+
     };
     let mut list = DisplayList::new();
     paint_layout(&body, &mut list);
@@ -1673,7 +1679,7 @@ mod tests {
       1080.0,
       1.0,
     )
-    .expect("layout");
+      .expect("layout");
     fn count_layout_images(b: &LayoutBox) -> usize {
       (b.image.is_some() && b.content_rect.w > 0.0 && b.content_rect.h > 0.0) as usize
         + b.children.iter().map(count_layout_images).sum::<usize>()
@@ -1710,7 +1716,7 @@ mod tests {
       1080.0,
       1.5,
     )
-    .expect("scaled layout");
+      .expect("scaled layout");
     let mut scaled_image_rects = Vec::new();
     collect_image_rects(&scaled_layout, &mut scaled_image_rects);
     assert!(

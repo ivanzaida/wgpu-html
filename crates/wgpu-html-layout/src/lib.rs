@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use wgpu_html_models::{
-  Style,
   common::css_enums::{BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, WhiteSpace},
+  Style,
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
@@ -28,18 +28,18 @@ mod length;
 mod svg;
 
 use std::{
-  collections::{HashMap, hash_map::DefaultHasher},
+  collections::{hash_map::DefaultHasher, HashMap},
   hash::{Hash, Hasher},
   io::Read,
   sync::{
-    Arc, Mutex, OnceLock,
-    atomic::{AtomicU64, AtomicUsize, Ordering},
-    mpsc::{Receiver, Sender, channel},
+    atomic::{AtomicU64, AtomicUsize, Ordering}, mpsc::{channel, Receiver, Sender}, Arc,
+    Mutex,
+    OnceLock,
   },
   time::{Duration, Instant},
 };
 
-pub use color::{Color, resolve_color};
+pub use color::{resolve_color, Color};
 pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, UserSelect};
 
 /// One frame of an animated image as it sits in the raw (pre-resize)
@@ -824,7 +824,7 @@ fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
 /// Single-frame WebPs collapse to `Still` so the animation machinery
 /// stays dormant for the common case.
 fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
-  use image::{AnimationDecoder, codecs::webp::WebPDecoder};
+  use image::{codecs::webp::WebPDecoder, AnimationDecoder};
 
   let decoder = WebPDecoder::new(std::io::Cursor::new(bytes)).ok()?;
   let frames = decoder.into_frames().collect_frames().ok()?;
@@ -868,7 +868,7 @@ fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
 /// fully-composited canvas (the decoder applies disposal/transparency
 /// internally), so we just copy its RGBA buffer.
 fn decode_animated_gif(bytes: &[u8]) -> Option<DecodedAsset> {
-  use image::{AnimationDecoder, codecs::gif::GifDecoder};
+  use image::{codecs::gif::GifDecoder, AnimationDecoder};
 
   let decoder = GifDecoder::new(std::io::Cursor::new(bytes)).ok()?;
   let frames = decoder.into_frames().collect_frames().ok()?;
@@ -2284,8 +2284,6 @@ pub fn layout_with_text_profiled(
 
 /// Layout sub-profiler. Lives in `Ctx` — zero overhead when `None`.
 pub(crate) mod layout_profile {
-  use std::time::{Duration, Instant};
-
   /// Accumulated layout counters. Only populated when profiling is
   /// enabled (passed as `Some(&mut LayoutProfiler)` in `Ctx`).
   #[derive(Default)]
@@ -4295,11 +4293,11 @@ fn layout_inline_mixed_children(
       && !current.items.is_empty()
       && matches!(&child.element, Element::Text(_))
       && cl
-        .box_
-        .text_run
-        .as_ref()
-        .map(|run| run.lines.len() > 1)
-        .unwrap_or(false);
+      .box_
+      .text_run
+      .as_ref()
+      .map(|run| run.lines.len() > 1)
+      .unwrap_or(false);
     if wrapped_under_remainder {
       let mut kept_head_on_line = false;
       if let Element::Text(raw) = &child.element {
