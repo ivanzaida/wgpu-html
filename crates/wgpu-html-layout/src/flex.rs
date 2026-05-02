@@ -23,7 +23,7 @@
 use wgpu_html_models::{
   Style,
   common::css_enums::{
-    AlignContent, AlignItems, AlignSelf, BoxSizing, CssLength, FlexDirection, FlexWrap, JustifyContent,
+    AlignContent, AlignItems, AlignSelf, BoxSizing, CssLength, FlexDirection, FlexWrap, JustifyContent, Overflow,
   },
 };
 use wgpu_html_style::CascadedNode;
@@ -771,17 +771,39 @@ fn build_item<'a>(
   let mut base_size = base_size_raw;
 
   // Min/max on main axis, resolved into content-box pixels.
+  // CSS-Flex-1 §4.5: auto min-size. When min-width/min-height is not
+  // explicitly set (i.e. `auto`), the minimum depends on whether the
+  // item clips overflow on the main axis. If it does, auto → 0 (can
+  // shrink to 0). If it doesn't (overflow: visible), auto → content
+  // size so the item stays at least as wide as its content.
+  // For items WITH a specified main size, the content-based minimum
+  // is min(specified, content) per spec.
   let (min_prop, max_prop) = if is_row {
     (style.min_width.as_ref(), style.max_width.as_ref())
   } else {
     (style.min_height.as_ref(), style.max_height.as_ref())
   };
-  let main_min = resolve_axis_length(min_prop, parent_inner_main, ctx)
-    .map(|v| match box_sizing {
+  let main_min = if let Some(v) = resolve_axis_length(min_prop, parent_inner_main, ctx) {
+    match box_sizing {
       BoxSizing::ContentBox => v,
       BoxSizing::BorderBox => (v - frame_main).max(0.0),
-    })
-    .unwrap_or(0.0);
+    }
+  } else {
+    // auto min-size: depends on overflow behavior.
+    let main_overflow = (if is_row { style.overflow_x.as_ref() } else { style.overflow_y.as_ref() })
+      .or(style.overflow.as_ref());
+    if matches!(main_overflow, Some(Overflow::Hidden | Overflow::Clip | Overflow::Scroll | Overflow::Auto)) {
+      0.0
+    } else {
+      let content_size =
+        text_intrinsic_main(node, is_row, ctx).or_else(|| replaced_intrinsic_main(node, is_row, ctx)).unwrap_or(0.0);
+      // min(transferred_size, content_size) — but transferred_size is
+      // already captured by base_size clamping later. Setting main_min
+      // to content_size here means items with visible overflow can't
+      // shrink below their intrinsic content.
+      content_size
+    }
+  };
   let main_max = resolve_axis_length(max_prop, parent_inner_main, ctx)
     .map(|v| match box_sizing {
       BoxSizing::ContentBox => v,

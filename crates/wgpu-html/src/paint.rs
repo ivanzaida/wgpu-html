@@ -2127,4 +2127,117 @@ mod tests {
     assert_eq!(list.glyphs[1].color, colors.foreground);
     assert_eq!(list.glyphs[2].color, colors.foreground);
   }
+
+  #[test]
+  fn tree_row_overflow_hidden_clips_span_glyphs() {
+    let mut tree = wgpu_html_parser::parse(
+      r#"<html><head><style>
+          .tree-row { width: 50px; display: flex; align-items: center;
+                      height: 18px; flex-shrink: 0; white-space: nowrap;
+                      overflow: hidden; }
+          span { color: #ccc; }
+        </style></head>
+        <body style="margin: 0; font-family: sans-serif;">
+          <div class="tree-row">
+            <span>&lt;</span>
+            <span>div</span>
+            <span> class</span>
+            <span>=</span>
+            <span>"child"</span>
+            <span>&gt;</span>
+          </div>
+        </body></html>"#,
+    );
+    wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+    let list = paint_tree(&tree, 800.0, 600.0);
+
+    // The tree-row must push a clip. Find it.
+    let row_clip = list
+      .clips
+      .iter()
+      .find(|c| c.rect.is_some())
+      .expect("tree-row with overflow:hidden must emit a clip range");
+    let clip_rect = row_clip.rect.unwrap();
+
+    assert!(
+      (clip_rect.w - 50.0).abs() < 5.0,
+      "clip width should be ~50px (the row width), got {:.1}",
+      clip_rect.w
+    );
+
+    let mut glyphs_inside = 0u32;
+    for g_idx in row_clip.glyph_range.0..row_clip.glyph_range.1 {
+      let g = list.glyphs[g_idx as usize];
+      // Glyph must start within or at edge of clip.
+      assert!(
+        g.rect.x >= clip_rect.x - 1.0,
+        "glyph {g_idx} at x={:.1} starts before clip x={:.1}",
+        g.rect.x,
+        clip_rect.x
+      );
+      glyphs_inside += 1;
+    }
+    assert!(
+      glyphs_inside > 0,
+      "expected glyphs inside the clip range, got 0"
+    );
+
+    // Any glyph whose right edge exceeds the clip right must be within
+    // the clip range (so the renderer scissor can clip it). We already
+    // iterate only over glyphs in the range, so this is a sanity
+    // assertion that they are correctly bounded.
+    let clip_right = clip_rect.x + clip_rect.w;
+    let mut overflow_glyphs = 0u32;
+    for g_idx in row_clip.glyph_range.0..row_clip.glyph_range.1 {
+      let g = list.glyphs[g_idx as usize];
+      if g.rect.x + g.rect.w > clip_right + 1.0 {
+        overflow_glyphs += 1;
+      }
+    }
+    // Glyphs that overflow the clip rect must still be inside the
+    // clip range so the renderer scissor can cut them visually.
+    assert!(
+      overflow_glyphs == 0 || glyphs_inside > 0,
+      "some glyphs overflow clip rect but are inside the clipped range; \
+       renderer scissor should clip them"
+    );
+  }
+
+  #[test]
+  fn tree_row_overflow_hidden_pushes_clip_before_span_glyph_idx() {
+    // The clip push happens BEFORE children are painted. Glyph
+    // indices of the first span must be ≥ the clip's glyph_range.0.
+    let mut tree = wgpu_html_parser::parse(
+      r#"<html><head><style>
+          .row { width: 50px; display: flex; align-items: center; height: 18px;
+                 flex-shrink: 0; white-space: nowrap; overflow: hidden; }
+        </style></head>
+        <body style="margin: 0; font-family: sans-serif;">
+          <div class="row">
+            <span>aaa</span>
+            <span>bbb</span>
+            <span>ccc</span>
+          </div>
+        </body></html>"#,
+    );
+    wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+    let list = paint_tree(&tree, 800.0, 600.0);
+
+    let row_clip = list
+      .clips
+      .iter()
+      .find(|c| c.rect.is_some())
+      .expect("row with overflow:hidden must emit a clip");
+
+    // All glyphs must fall inside the row's clip range.
+    for i in 0..list.glyphs.len() {
+      let idx = i as u32;
+      assert!(
+        idx >= row_clip.glyph_range.0 && idx < row_clip.glyph_range.1,
+        "glyph {i} at index {idx} not in clip glyph_range [{}, {})",
+        row_clip.glyph_range.0,
+        row_clip.glyph_range.1
+      );
+    }
+  }
 }

@@ -34,7 +34,7 @@ pub use focus::{
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 pub use profiler::{ProfileEntry, Profiler};
 pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
-pub use system_fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
+pub use system_fonts::{register_system_fonts, system_font_variants, SystemFontVariant};
 pub use tree_hook::{
   TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase, TreeLifecycleStage,
   TreeRenderEvent, TreeRenderViewport,
@@ -209,9 +209,19 @@ impl Tree {
     let mut buf = String::with_capacity(8192);
     buf.push_str("<!DOCTYPE html>\n");
     if let Some(root) = &self.root {
-      write_node_html(&mut buf, root, &self.linked_stylesheets, false);
+      root.write_html_into(&mut buf, &self.linked_stylesheets, false);
     }
     buf
+  }
+
+  /// Serialise a single node to its outer HTML (including the
+  /// node itself and all descendants). Returns a complete HTML
+  /// fragment — no `<!DOCTYPE>` prefix.
+  pub fn node_to_html(&self, path: &[usize]) -> Option<String> {
+    let node = self.root.as_ref()?.at_path(path)?;
+    let mut buf = String::with_capacity(1024);
+    node.write_html_into(&mut buf, &self.linked_stylesheets, false);
+    Some(buf)
   }
 
   /// Set the base directory for resolving relative asset paths.
@@ -271,6 +281,61 @@ impl Tree {
   /// ```
   pub fn get_element_by_id(&mut self, id: &str) -> Option<&mut Node> {
     self.root.as_mut()?.find_by_id_mut(id)
+  }
+
+  pub fn get_element_by_class_name(&self, class_name: &str) -> Option<&Node> {
+    self.root.as_ref()?.get_element_by_class_name(class_name)
+  }
+
+  pub fn get_elements_by_class_name(&self, class_name: &str) -> Vec<&Node> {
+    self.root.as_ref().map(|r| r.get_elements_by_class_name(class_name)).unwrap_or_default()
+  }
+
+  pub fn get_element_by_name(&self, name: &str) -> Option<&Node> {
+    self.root.as_ref()?.get_element_by_name(name)
+  }
+
+  pub fn get_elements_by_name(&self, name: &str) -> Vec<&Node> {
+    self.root.as_ref().map(|r| r.get_elements_by_name(name)).unwrap_or_default()
+  }
+
+  pub fn get_element_by_tag_name(&self, tag_name: &str) -> Option<&Node> {
+    self.root.as_ref()?.get_element_by_tag_name(tag_name)
+  }
+
+  pub fn get_elements_by_tag_name(&self, tag_name: &str) -> Vec<&Node> {
+    self.root.as_ref().map(|r| r.get_elements_by_tag_name(tag_name)).unwrap_or_default()
+  }
+
+  /// Return paths to every element whose `class` attribute contains
+  /// `class_name` as a whitespace-separated token. Document order.
+  pub fn find_elements_by_class_name(&self, class_name: &str) -> Vec<Vec<usize>> {
+    let mut out = Vec::new();
+    if let Some(root) = self.root.as_ref() {
+      collect_class_name_paths(root, class_name, &mut vec![], &mut out);
+    }
+    out
+  }
+
+  /// Return paths to every element whose `name` attribute equals
+  /// `name` (case-insensitive, but the value is stored as-is).
+  /// Document order.
+  pub fn find_elements_by_name(&self, name: &str) -> Vec<Vec<usize>> {
+    let mut out = Vec::new();
+    if let Some(root) = self.root.as_ref() {
+      collect_name_paths(root, name, &mut vec![], &mut out);
+    }
+    out
+  }
+
+  /// Return paths to every element whose tag name equals
+  /// `tag_name` (case-insensitive). Document order.
+  pub fn find_elements_by_tag_name(&self, tag_name: &str) -> Vec<Vec<usize>> {
+    let mut out = Vec::new();
+    if let Some(root) = self.root.as_ref() {
+      collect_tag_name_paths(root, tag_name, &mut vec![], &mut out);
+    }
+    out
   }
 
   /// Clone the child nodes held by a `<template id="...">`.
@@ -410,6 +475,14 @@ impl Tree {
   }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct NodeRect {
+  pub x: f32,
+  pub y: f32,
+  pub width: f32,
+  pub height: f32,
+}
+
 #[derive(Clone)]
 pub struct Node {
   pub element: Element,
@@ -441,6 +514,9 @@ pub struct Node {
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
   /// without a dedicated slot.
   pub on_event: Option<EventCallback>,
+  /// Computed layout rectangle for this node (content-box).
+  /// Populated by the layout pass; `None` if not yet laid out.
+  pub rect: Option<NodeRect>,
 }
 
 impl std::fmt::Debug for Node {
@@ -475,6 +551,7 @@ impl Node {
       on_mouse_enter: None,
       on_mouse_leave: None,
       on_event: None,
+      rect: None,
     }
   }
 
@@ -522,8 +599,6 @@ impl Node {
     None
   }
 
-  /// Depth-first search for a descendant (or `self`) whose `id`
-  /// attribute equals `id`. Document order; first match wins.
   pub fn find_by_id_mut(&mut self, id: &str) -> Option<&mut Node> {
     if self.element.id() == Some(id) {
       return Some(self);
@@ -534,6 +609,72 @@ impl Node {
       }
     }
     None
+  }
+
+  /// Depth-first search for a descendant (or `self`) whose `class`
+  /// attribute contains `class_name` as a whitespace-separated
+  /// token. Document order; first match wins.
+  pub fn get_element_by_class_name(&self, class_name: &str) -> Option<&Node> {
+    if self
+      .element
+      .class()
+      .is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name))
+    {
+      return Some(self);
+    }
+    for child in &self.children {
+      if let Some(found) = child.get_element_by_class_name(class_name) {
+        return Some(found);
+      }
+    }
+    None
+  }
+
+  pub fn get_elements_by_class_name(&self, class_name: &str) -> Vec<&Node> {
+    let mut out = Vec::new();
+    collect_class_name_nodes(self, class_name, &mut out);
+    out
+  }
+
+  /// Depth-first search for a descendant (or `self`) whose `name`
+  /// attribute equals `name`. Document order; first match wins.
+  pub fn get_element_by_name(&self, name: &str) -> Option<&Node> {
+    if self.element.attr("name").as_deref() == Some(name) {
+      return Some(self);
+    }
+    for child in &self.children {
+      if let Some(found) = child.get_element_by_name(name) {
+        return Some(found);
+      }
+    }
+    None
+  }
+
+  pub fn get_elements_by_name(&self, name: &str) -> Vec<&Node> {
+    let mut out = Vec::new();
+    collect_name_nodes(self, name, &mut out);
+    out
+  }
+
+  /// Depth-first search for a descendant (or `self`) whose tag
+  /// name matches `tag_name` (case-insensitive). Document order;
+  /// first match wins.
+  pub fn get_element_by_tag_name(&self, tag_name: &str) -> Option<&Node> {
+    if self.element.tag_name().eq_ignore_ascii_case(tag_name) {
+      return Some(self);
+    }
+    for child in &self.children {
+      if let Some(found) = child.get_element_by_tag_name(tag_name) {
+        return Some(found);
+      }
+    }
+    None
+  }
+
+  pub fn get_elements_by_tag_name(&self, tag_name: &str) -> Vec<&Node> {
+    let mut out = Vec::new();
+    collect_tag_name_nodes(self, tag_name, &mut out);
+    out
   }
 
   /// Walk a child-index path from this node to a descendant. An empty
@@ -1047,7 +1188,7 @@ impl Element {
           Url => "url",
           Week => "week",
         }
-        .to_owned()
+          .to_owned()
       }),
       ("type", Element::Button(e)) => e.r#type.as_ref().map(|t| {
         use m::common::html_enums::ButtonType::*;
@@ -1056,7 +1197,7 @@ impl Element {
           Submit => "submit",
           Reset => "reset",
         }
-        .to_owned()
+          .to_owned()
       }),
       ("type", Element::Source(e)) => e.r#type.clone(),
       ("type", Element::Script(e)) => e.r#type.clone(),
@@ -1259,8 +1400,8 @@ impl Element {
 #[cfg(test)]
 mod tests {
   use std::sync::{
-    Arc,
     atomic::{AtomicUsize, Ordering},
+    Arc,
   };
 
   use super::*;
@@ -1411,77 +1552,77 @@ const ATTRS_TO_TRY: &[&str] = &[
   "autofocus", "width", "height", "action", "method", "target", "colspan", "rowspan", "role",
 ];
 
-fn write_node_html(
-  buf: &mut String,
-  node: &Node,
-  stylesheets: &std::collections::HashMap<String, String>,
-  raw_text: bool,
-) {
-  use std::fmt::Write;
+impl Node {
+  /// Serialise this node and all descendants to an HTML string.
+  pub fn to_html(&self) -> String {
+    let mut buf = String::with_capacity(4096);
+    self.write_html_into(&mut buf, &Default::default(), false);
+    buf
+  }
 
-  match &node.element {
-    Element::Text(s) => {
-      if raw_text {
-        // Inside <style> or <script>: emit verbatim.
-        buf.push_str(s);
-      } else {
-        // Escape basic HTML entities in text content.
-        for ch in s.chars() {
-          match ch {
-            '&' => buf.push_str("&amp;"),
-            '<' => buf.push_str("&lt;"),
-            '>' => buf.push_str("&gt;"),
-            _ => buf.push(ch),
+  fn write_html_into(
+    &self,
+    buf: &mut String,
+    stylesheets: &std::collections::HashMap<String, String>,
+    raw_text: bool,
+  ) {
+    use std::fmt::Write;
+
+    match &self.element {
+      Element::Text(s) => {
+        if raw_text {
+          buf.push_str(s);
+        } else {
+          for ch in s.chars() {
+            match ch {
+              '&' => buf.push_str("&amp;"),
+              '<' => buf.push_str("&lt;"),
+              '>' => buf.push_str("&gt;"),
+              _ => buf.push(ch),
+            }
           }
         }
+        return;
       }
-      return;
+      _ => {}
     }
-    _ => {}
-  }
 
-  let tag = node.element.tag_name();
+    let tag = self.element.tag_name();
 
-  buf.push('<');
-  buf.push_str(tag);
+    buf.push('<');
+    buf.push_str(tag);
 
-  // Emit attributes.
-  for &attr_name in ATTRS_TO_TRY {
-    if let Some(val) = node.element.attr(attr_name) {
-      if val.is_empty() {
-        // Boolean attribute.
-        let _ = write!(buf, " {attr_name}");
-      } else {
-        let _ = write!(buf, " {attr_name}=\"{}\"", html_escape_attr(&val));
+    for &attr_name in ATTRS_TO_TRY {
+      if let Some(val) = self.element.attr(attr_name) {
+        if val.is_empty() {
+          let _ = write!(buf, " {attr_name}");
+        } else {
+          let _ = write!(buf, " {attr_name}=\"{}\"", html_escape_attr(&val));
+        }
       }
     }
-  }
 
-  // data-* and aria-* from the element's maps.
-  write_map_attrs(buf, &node.element, "data-");
-  write_map_attrs(buf, &node.element, "aria-");
+    write_map_attrs(buf, &self.element, "data-");
+    write_map_attrs(buf, &self.element, "aria-");
 
-  buf.push('>');
+    buf.push('>');
 
-  // Inject linked stylesheets as <style> blocks inside <head>.
-  if tag == "head" {
-    for (_href, css) in stylesheets {
-      buf.push_str("\n<style>\n");
-      buf.push_str(css);
-      buf.push_str("\n</style>\n");
+    if tag == "head" {
+      for (_href, css) in stylesheets {
+        buf.push_str("\n<style>\n");
+        buf.push_str(css);
+        buf.push_str("\n</style>\n");
+      }
     }
-  }
 
-  // Recurse into children. <style> and <script> are raw-text elements
-  // whose text content must not be HTML-escaped.
-  let children_raw = matches!(tag, "style" | "script");
-  for child in &node.children {
-    write_node_html(buf, child, stylesheets, children_raw);
-  }
+    let children_raw = matches!(tag, "style" | "script");
+    for child in &self.children {
+      child.write_html_into(buf, stylesheets, children_raw);
+    }
 
-  // Close tag (skip for void elements).
-  if !VOID_ELEMENTS.contains(&tag) {
-    let _ = write!(buf, "</{tag}>");
+    if !VOID_ELEMENTS.contains(&tag) {
+      let _ = write!(buf, "</{tag}>");
+    }
   }
 }
 
@@ -1519,4 +1660,66 @@ fn write_map_attrs(buf: &mut String, element: &Element, prefix: &str) {
     };
   }
   all_element_variants!(arms);
+}
+
+// ── Path-collection helpers for find_elements_by_* ─────────────
+
+fn collect_class_name_paths(node: &Node, class_name: &str, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+  if node.element.class().is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name)) {
+    out.push(path.clone());
+  }
+  for (i, child) in node.children.iter().enumerate() {
+    path.push(i);
+    collect_class_name_paths(child, class_name, path, out);
+    path.pop();
+  }
+}
+
+fn collect_name_paths(node: &Node, name: &str, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+  if node.element.attr("name").as_deref() == Some(name) {
+    out.push(path.clone());
+  }
+  for (i, child) in node.children.iter().enumerate() {
+    path.push(i);
+    collect_name_paths(child, name, path, out);
+    path.pop();
+  }
+}
+
+fn collect_tag_name_paths(node: &Node, tag_name: &str, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+  if node.element.tag_name().eq_ignore_ascii_case(tag_name) {
+    out.push(path.clone());
+  }
+  for (i, child) in node.children.iter().enumerate() {
+    path.push(i);
+    collect_tag_name_paths(child, tag_name, path, out);
+    path.pop();
+  }
+}
+
+fn collect_class_name_nodes<'a>(node: &'a Node, class_name: &str, out: &mut Vec<&'a Node>) {
+  if node.element.class().is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name)) {
+    out.push(node);
+  }
+  for child in &node.children {
+    collect_class_name_nodes(child, class_name, out);
+  }
+}
+
+fn collect_name_nodes<'a>(node: &'a Node, name: &str, out: &mut Vec<&'a Node>) {
+  if node.element.attr("name").as_deref() == Some(name) {
+    out.push(node);
+  }
+  for child in &node.children {
+    collect_name_nodes(child, name, out);
+  }
+}
+
+fn collect_tag_name_nodes<'a>(node: &'a Node, tag_name: &str, out: &mut Vec<&'a Node>) {
+  if node.element.tag_name().eq_ignore_ascii_case(tag_name) {
+    out.push(node);
+  }
+  for child in &node.children {
+    collect_tag_name_nodes(child, tag_name, out);
+  }
 }

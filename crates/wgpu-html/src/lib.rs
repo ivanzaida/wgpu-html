@@ -817,6 +817,8 @@ fn boundary_index_for_byte(run: &wgpu_html_text::ShapedRun, byte: usize) -> usiz
 #[cfg(test)]
 mod tests {
   use super::*;
+  use wgpu_html_layout::Cursor;
+  use wgpu_html_models::common::PointerEvents;
 
   fn text_box(text: &str, x: f32) -> LayoutBox {
     let r = wgpu_html_layout::Rect::new(x, 0.0, 100.0, 20.0);
@@ -866,6 +868,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -894,6 +897,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -984,6 +988,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1061,6 +1066,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: vec![text_box("Hello", 0.0), text_box("World", 0.0)],
@@ -1096,6 +1102,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: vec![text_box("Hello ", 0.0), text_box("world", 48.0)],
@@ -1120,6 +1127,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: vec![inline_parent, text_box("Second", 0.0)],

@@ -226,7 +226,7 @@ mod tests {
     atomic::{AtomicUsize, Ordering}, Arc,
     Mutex,
   };
-  use wgpu_html_models::common::PointerEvents;
+  use wgpu_html_models::common::{Cursor, PointerEvents, UserSelect};
   use wgpu_html_tree::{Node, SelectionColors};
 
   use super::*;
@@ -296,6 +296,7 @@ mod tests {
       opacity: 1.0,
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
+      cursor: Cursor::Default,
       image: None,
       background_image: None,
       children: Vec::new(),

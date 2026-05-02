@@ -1,0 +1,62 @@
+<style>
+    .tree-rows {
+        background-color: #202124;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 8px 0;
+        overflow: auto;
+        min-width: 0;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .tree-row {
+        gap: 2px;
+        flex-shrink: 0;
+        width: 50px;
+        display: flex;
+        align-items: center;
+        height: 18px;
+        padding-right: 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        cursor: default;
+    }
+
+</style>
+
+<div class="tree-rows">
+    <div class="tree-row" data-path="" style="padding-left: 12px;"><span class="chevron"></span><span
+            class="bracket">&lt;</span><span class="tag">body</span><span class="bracket">&gt;</span></div>
+    <div class="tree-row" data-path="1" style="padding-left: 28px;"><span class="chevron"></span><span
+            class="bracket">&lt;</span><span class="tag">div</span><span class="attr-n"> class</span><span
+            class="bracket">=</span><span class="attr-v">"parent"</span><span class="bracket">&gt;</span>
+    </div>
+    <div class="tree-row" data-path="1.0" style="padding-left: 44px;"><span class="bracket">&lt;</span><span
+            class="tag">div</span><span class="attr-n"> class</span><span class="bracket">=</span><span
+            class="attr-v">"child child-1"</span><span class="bracket">&gt;</span><span
+            class="text-node">1</span><span class="bracket">&lt;/</span><span class="tag">div</span><span
+            class="bracket">&gt;</span></div>
+    <div class="tree-row" data-path="1.1" style="padding-left: 44px;"><span class="bracket">&lt;</span><span
+            class="tag">div</span><span class="attr-n"> class</span><span class="bracket">=</span><span
+            class="attr-v">"child"</span><span class="bracket">&gt;</span><span
+            class="text-node">2</span><span class="bracket">&lt;/</span><span class="tag">div</span><span
+            class="bracket">&gt;</span></div>
+    <div class="tree-row" data-path="1.2" style="padding-left: 44px;"><span class="bracket">&lt;</span><span
+            class="tag">div</span><span class="attr-n"> class</span><span class="bracket">=</span><span
+            class="attr-v">"child"</span><span class="bracket">&gt;</span><span
+            class="text-node">3</span><span class="bracket">&lt;/</span><span class="tag">div</span><span
+            class="bracket">&gt;</span></div>
+    <div class="tree-row" data-path="1.3" style="padding-left: 44px;"><span class="bracket">&lt;</span><span
+            class="tag">div</span><span class="attr-n"> class</span><span class="bracket">=</span><span
+            class="attr-v">"child"</span><span class="bracket">&gt;</span><span
+            class="text-node">4</span><span class="bracket">&lt;/</span><span class="tag">div</span><span
+            class="bracket">&gt;</span></div>
+    <div class="tree-row" style="padding-left: 28px;"><span class="bracket">&lt;/</span><span
+            class="tag">div</span><span
+            class="bracket">&gt;</span></div>
+    <div class="tree-row" style="padding-left: 12px;"><span class="bracket">&lt;/</span><span
+            class="tag">body</span><span
+            class="bracket">&gt;</span></div>
+</div>
