@@ -60,10 +60,10 @@ address {
 
 blockquote {
   display: block;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
-  margin-inline-start: 40px;
-  margin-inline-end: 40px;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  margin-left: 40px;
+  margin-right: 40px;
 }
 
 div {
@@ -76,64 +76,64 @@ h1 {
   display: block;
   font-size: 2em;
   font-weight: bold;
-  margin-block-start: 0.67em;
-  margin-block-end: 0.67em;
+  margin-top: 0.67em;
+  margin-bottom: 0.67em;
 }
 
 h2 {
   display: block;
   font-size: 1.5em;
   font-weight: bold;
-  margin-block-start: 0.83em;
-  margin-block-end: 0.83em;
+  margin-top: 0.83em;
+  margin-bottom: 0.83em;
 }
 
 h3 {
   display: block;
   font-size: 1.17em;
   font-weight: bold;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 h4 {
   display: block;
   font-size: 1em;
   font-weight: bold;
-  margin-block-start: 1.33em;
-  margin-block-end: 1.33em;
+  margin-top: 1.33em;
+  margin-bottom: 1.33em;
 }
 
 h5 {
   display: block;
   font-size: 0.83em;
   font-weight: bold;
-  margin-block-start: 1.67em;
-  margin-block-end: 1.67em;
+  margin-top: 1.67em;
+  margin-bottom: 1.67em;
 }
 
 h6 {
   display: block;
   font-size: 0.67em;
   font-weight: bold;
-  margin-block-start: 2.33em;
-  margin-block-end: 2.33em;
+  margin-top: 2.33em;
+  margin-bottom: 2.33em;
 }
 
 /* Text blocks */
 
 p {
   display: block;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 hr {
   display: block;
-  margin-block-start: 0.5em;
-  margin-block-end: 0.5em;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: auto;
+  margin-right: auto;
   border-style: inset;
   border-width: 1px;
 }
@@ -142,8 +142,8 @@ pre {
   display: block;
   font-family: monospace;
   white-space: pre;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 /* Lists */
@@ -153,17 +153,17 @@ menu,
 dir {
   display: block;
   list-style-type: disc;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
-  padding-inline-start: 40px;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 40px;
 }
 
 ol {
   display: block;
   list-style-type: decimal;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
-  padding-inline-start: 40px;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 40px;
 }
 
 li {
@@ -184,13 +184,13 @@ ol ol ul {
 
 dd {
   display: block;
-  margin-inline-start: 40px;
+  margin-left: 40px;
 }
 
 dl {
   display: block;
-  margin-block-start: 1em;
-  margin-block-end: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 dt {
@@ -370,24 +370,24 @@ table {
 
 form {
   display: block;
-  margin-block-end: 1em;
+  margin-bottom: 1em;
 }
 
 fieldset {
   display: block;
-  margin-inline-start: 2px;
-  margin-inline-end: 2px;
-  padding-block-start: 0.35em;
-  padding-inline-start: 0.75em;
-  padding-inline-end: 0.75em;
-  padding-block-end: 0.625em;
+  margin-left: 2px;
+  margin-right: 2px;
+  padding-top: 0.35em;
+  padding-left: 0.75em;
+  padding-right: 0.75em;
+  padding-bottom: 0.625em;
   border: 2px groove;
 }
 
 legend {
   display: block;
-  padding-inline-start: 2px;
-  padding-inline-end: 2px;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 label {
@@ -419,16 +419,20 @@ input[type="reset"] {
   text-align: center;
   cursor: default;
   box-sizing: border-box;
-  padding-block: 2px;
-  padding-inline: 6px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 6px;
+  padding-right: 6px;
   border: 2px outset;
   background-color: buttonface;
   color: buttontext;
 }
 
 input {
-  padding-block: 1px;
-  padding-inline: 2px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  padding-left: 2px;
+  padding-right: 2px;
   border: 2px inset;
   background-color: field;
   color: fieldtext;
@@ -487,8 +491,8 @@ summary {
 dialog {
   position: absolute;
   display: none;
-  inset-inline-start: 0;
-  inset-inline-end: 0;
+  left: 0;
+  right: 0;
   width: fit-content;
   height: fit-content;
   margin: auto;

@@ -386,14 +386,38 @@ fn paint_box_in_clip(
     // Right edge of the text box — glyphs past this are clipped.
     // Without this, when a flex item shrinks below its text content
     // width, overflowing glyphs bleed into adjacent items.
+    let box_left = origin.x;
     let box_right = origin.x + origin.w;
 
     for (idx, g) in run.glyphs.iter().enumerate() {
-      let glyph_x = origin.x + g.x;
+      let mut glyph_x = origin.x + g.x;
+      let mut glyph_w = g.w;
+      let mut uv_min = g.uv_min;
+      let mut uv_max = g.uv_max;
 
-      // Skip glyphs entirely outside the text box.
-      if glyph_x >= box_right || glyph_x + g.w <= origin.x {
+      // Clip left: glyph starts before the text box origin.
+      if glyph_x < box_left {
+        let clip = box_left - glyph_x;
+        if clip >= glyph_w {
+          continue;
+        }
+        let frac = clip / glyph_w;
+        let uv_range_x = uv_max[0] - uv_min[0];
+        glyph_x = box_left;
+        glyph_w -= clip;
+        uv_min[0] += uv_range_x * frac;
+      }
+
+      // Clip right: glyph extends past the text box edge.
+      let overflow = (glyph_x + glyph_w - box_right).max(0.0);
+      if overflow >= glyph_w {
         continue;
+      }
+      if overflow > 0.0 {
+        let keep_frac = (glyph_w - overflow) / glyph_w;
+        let uv_range_x = uv_max[0] - uv_min[0];
+        glyph_w -= overflow;
+        uv_max[0] = uv_min[0] + uv_range_x * keep_frac;
       }
 
       // Per-glyph color: each glyph carries its source span's
@@ -408,10 +432,10 @@ fn paint_box_in_clip(
         g.color
       };
       out.push_glyph(
-        Rect::new(glyph_x, origin.y + g.y, g.w, g.h),
+        Rect::new(glyph_x, origin.y + g.y, glyph_w, g.h),
         apply_opacity(glyph_color, opacity),
-        g.uv_min,
-        g.uv_max,
+        uv_min,
+        uv_max,
       );
     }
 
@@ -496,7 +520,16 @@ fn paint_box_in_clip(
 
   let scroll_y = element_scroll_y(b, path, scroll_offsets_y);
   let child_offset_y = paint_offset_y - scroll_y;
-  for (i, child) in b.children.iter().enumerate() {
+
+  // Sort children by CSS z-index for paint order.
+  let mut child_order: Vec<usize> = (0..b.children.len()).collect();
+  let has_positioned = b.children.iter().any(|c| c.z_index.is_some());
+  if has_positioned {
+    child_order.sort_by_key(|&i| z_index_sort_key(&b.children[i]));
+  }
+
+  for &i in &child_order {
+    let child = &b.children[i];
     path.push(i);
     paint_box_in_clip(
       child,
@@ -644,6 +677,17 @@ fn overflow_clip_rect(b: &LayoutBox, pad: Rect, parent: Option<ClipFrame>) -> Re
   match parent {
     Some(parent) => intersect_rects(parent.rect, local),
     None => local,
+  }
+}
+
+/// Sort key for CSS z-index paint order: negative z-index (-1),
+/// auto / non-positioned (0), non-negative z-index (1).
+/// Within each layer, sort by the z-index value.
+fn z_index_sort_key(b: &LayoutBox) -> (i32, i32) {
+  match b.z_index {
+    Some(z) if z < 0 => (-1, z),
+    Some(z) => (1, z),
+    None => (0, 0),
   }
 }
 
@@ -1188,6 +1232,7 @@ mod tests {
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
       cursor: Cursor::Auto,
+      z_index: None,
       image: None,
       background_image: None,
       children: Vec::new(),
@@ -1512,6 +1557,7 @@ mod tests {
       background_image: None,
       children: Vec::new(),
       cursor: Cursor::Auto,
+      z_index: None,
     };
     let h2_rect = LR::new(0.0, 100.0, 200.0, 24.0);
     let h2 = LayoutBox {
@@ -1559,6 +1605,7 @@ mod tests {
       background_image: None,
       children: Vec::new(),
       cursor: Cursor::Auto,
+      z_index: None,
     };
     let body_rect = LR::new(0.0, 0.0, 800.0, 200.0);
     let body = LayoutBox {
@@ -1585,6 +1632,7 @@ mod tests {
       background_image: None,
       children: vec![textarea, h2],
       cursor: Cursor::Auto,
+      z_index: None,
 
     };
     let mut list = DisplayList::new();
@@ -2239,5 +2287,109 @@ mod tests {
         row_clip.glyph_range.1
       );
     }
+  }
+
+  #[test]
+  fn tree_row_painted_glyphs_dont_overlap() {
+    let mut tree = wgpu_html_parser::parse(
+      r#"<html><head><style>
+          .tree-row { width: 50px; display: flex; align-items: center; height: 18px;
+                      flex-shrink: 0; white-space: nowrap; overflow: hidden; }
+        </style></head>
+        <body style="margin: 0; font-family: sans-serif;">
+          <div class="tree-row">
+            <span>&lt;</span>
+            <span>div</span>
+            <span> class</span>
+            <span>=</span>
+            <span>"app-root"</span>
+            <span>&gt;</span>
+          </div>
+        </body></html>"#,
+    );
+    wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+    let list = paint_tree(&tree, 800.0, 600.0);
+    let mut rects: Vec<(f32, f32)> =
+      list.glyphs.iter().map(|g| (g.rect.x, g.rect.x + g.rect.w)).collect();
+    assert!(!rects.is_empty());
+    rects.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    for i in 1..rects.len() {
+      let gap = rects[i].0 - rects[i - 1].1;
+      assert!(
+        gap > -3.0,
+        "glyph {i} starts at {:.1} but prev ends at {:.1} (gap {gap:.1})",
+        rects[i].0,
+        rects[i - 1].1
+      );
+    }
+  }
+
+  #[test]
+  fn z_index_sorts_positioned_children_in_paint_order() {
+    let tree = wgpu_html_parser::parse(
+      r#"<body style="margin:0; width:200px; height:100px;">
+          <div style="position:absolute; z-index:10; width:50px; height:50px;
+                      background-color:#00f; left:0; top:0;"></div>
+          <div style="position:absolute; z-index:5; width:50px; height:50px;
+                      background-color:#f00; left:10px; top:10px;"></div>
+          <div style="position:absolute; z-index:auto; width:50px; height:50px;
+                      background-color:#0f0; left:20px; top:20px;"></div>
+        </body>"#,
+    );
+    let list = paint_tree(&tree, 800.0, 600.0);
+    let colors: Vec<_> = list.quads.iter().map(|q| q.color).collect();
+    assert_eq!(colors[0], [0.0, 1.0, 0.0, 1.0]);
+    assert_eq!(colors[1], [1.0, 0.0, 0.0, 1.0]);
+    assert_eq!(colors[2], [0.0, 0.0, 1.0, 1.0]);
+  }
+
+  #[test]
+  fn negative_z_index_paints_behind_non_positioned_siblings() {
+    let tree = wgpu_html_parser::parse(
+      r#"<body style="margin:0; width:200px; height:100px;">
+          <div style="position:absolute; z-index:-1; width:80px; height:80px;
+                      background-color:#f00; left:0; top:0;"></div>
+          <div style="position:relative; width:50px; height:50px;
+                      background-color:#00f;"></div>
+        </body>"#,
+    );
+    let list = paint_tree(&tree, 800.0, 600.0);
+    let colors: Vec<_> = list.quads.iter().map(|q| q.color).collect();
+    assert_eq!(colors.len(), 2);
+    assert_eq!(colors[0], [1.0, 0.0, 0.0, 1.0]);
+    assert_eq!(colors[1], [0.0, 0.0, 1.0, 1.0]);
+  }
+
+  #[test]
+  fn absolute_z_neg1_child_paints_behind_normal_flow_sibling_with_margins() {
+    let tree = wgpu_html_parser::parse(
+      r#"<body style="margin:0;">
+          <div style="position:relative; width:200px; height:80px;
+                      background-color:#222;">
+            <div style="position:absolute; z-index:-1; left:10px; top:10px;
+                        width:80px; height:60px; background-color:#f00;"></div>
+            <div style="width:100px; height:30px; margin-top:25px; margin-left:50px;
+                        background-color:#00f;"></div>
+          </div>
+        </body>"#,
+    );
+    let list = paint_tree(&tree, 800.0, 600.0);
+    let colors: Vec<_> = list.quads.iter().map(|q| q.color).collect();
+    assert!(!colors.is_empty(), "no quads emitted");
+    // Both red and blue should be present
+    let red_idx = colors.iter().position(|c| *c == [1.0, 0.0, 0.0, 1.0]);
+    let blue_idx = colors.iter().position(|c| *c == [0.0, 0.0, 1.0, 1.0]);
+    assert!(
+      red_idx.is_some(),
+      "red quad not found; colors: {colors:?}"
+    );
+    assert!(
+      blue_idx.is_some(),
+      "blue quad not found; colors: {colors:?}"
+    );
+    assert!(
+      red_idx < blue_idx,
+      "red (z=-1) must paint before blue"
+    );
   }
 }

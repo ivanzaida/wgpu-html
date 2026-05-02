@@ -1732,6 +1732,9 @@ pub struct LayoutBox {
   pub user_select: UserSelect,
   /// Resolved CSS `cursor`. Used by the host to set the OS pointer.
   pub cursor: Cursor,
+  /// Resolved CSS `z-index`. `None` means `auto`. Only meaningful
+  /// for positioned elements (`absolute` / `relative` / `fixed`).
+  pub z_index: Option<i32>,
   /// Decoded image data for `<img>` elements. `None` for non-image
   /// boxes. The `Arc` allows cheap cloning through the display list.
   pub image: Option<ImageData>,
@@ -2200,12 +2203,31 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode) {
     b.text_color = style.color.as_ref().and_then(resolve_color);
   }
 
-  // Border colors.
+  // Border colors. When a border side has no explicit color, fall
+  // back to currentColor (CSS `color` property) per spec.  The
+  // shorthand `border: 1px solid` without a color must still paint.
+  let resolved_color = style.color.as_ref().and_then(resolve_color);
   b.border_colors = BorderColors {
-    top: style.border_top_color.as_ref().and_then(resolve_color),
-    right: style.border_right_color.as_ref().and_then(resolve_color),
-    bottom: style.border_bottom_color.as_ref().and_then(resolve_color),
-    left: style.border_left_color.as_ref().and_then(resolve_color),
+    top: style
+      .border_top_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_color),
+    right: style
+      .border_right_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_color),
+    bottom: style
+      .border_bottom_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_color),
+    left: style
+      .border_left_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_color),
   };
 
   // Recurse into children in lockstep.
@@ -2751,11 +2773,12 @@ fn layout_block(
   );
 
   let background = style.background_color.as_ref().and_then(resolve_color);
+  let resolved_fg = style.color.as_ref().and_then(resolve_color);
   let border_colors = BorderColors {
-    top: style.border_top_color.as_ref().and_then(resolve_color),
-    right: style.border_right_color.as_ref().and_then(resolve_color),
-    bottom: style.border_bottom_color.as_ref().and_then(resolve_color),
-    left: style.border_left_color.as_ref().and_then(resolve_color),
+    top: style.border_top_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    right: style.border_right_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    bottom: style.border_bottom_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    left: style.border_left_color.as_ref().and_then(resolve_color).or(resolved_fg),
   };
   let border_styles = BorderStyles {
     top: style.border_top_style.clone(),
@@ -2849,6 +2872,7 @@ fn layout_block(
     pointer_events: resolved_pointer_events(style),
     user_select: resolved_user_select(style),
     cursor: resolved_cursor(style),
+    z_index: resolved_z_index(style),
     image: effective_image,
     background_image,
     children,
@@ -3122,6 +3146,10 @@ fn resolved_user_select(style: &Style) -> UserSelect {
 
 fn resolved_cursor(style: &Style) -> Cursor {
   style.cursor.clone().unwrap_or(Cursor::Auto)
+}
+
+fn resolved_z_index(style: &Style) -> Option<i32> {
+  style.z_index
 }
 
 fn establishes_containing_block(style: &Style) -> bool {
@@ -3589,6 +3617,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
     cursor: Cursor::Auto,
+    z_index: None,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3644,6 +3673,7 @@ fn make_text_leaf(
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(style),
     cursor: resolved_cursor(style),
+    z_index: resolved_z_index(style),
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3904,6 +3934,7 @@ fn layout_inline_subtree(
     pointer_events: resolved_pointer_events(&node.style),
     user_select: resolved_user_select(&node.style),
     cursor: resolved_cursor(&node.style),
+    z_index: resolved_z_index(&node.style),
     image: None,
     background_image: None,
     children: final_children,
@@ -3998,11 +4029,12 @@ fn layout_atomic_inline_subtree(
   );
 
   let background = style.background_color.as_ref().and_then(resolve_color);
+  let resolved_fg = style.color.as_ref().and_then(resolve_color);
   let border_colors = BorderColors {
-    top: style.border_top_color.as_ref().and_then(resolve_color),
-    right: style.border_right_color.as_ref().and_then(resolve_color),
-    bottom: style.border_bottom_color.as_ref().and_then(resolve_color),
-    left: style.border_left_color.as_ref().and_then(resolve_color),
+    top: style.border_top_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    right: style.border_right_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    bottom: style.border_bottom_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    left: style.border_left_color.as_ref().and_then(resolve_color).or(resolved_fg),
   };
   let border_styles = BorderStyles {
     top: style.border_top_style.clone(),
@@ -4082,6 +4114,7 @@ fn layout_atomic_inline_subtree(
       pointer_events: resolved_pointer_events(style),
       user_select: resolved_user_select(style),
       cursor: resolved_cursor(style),
+    z_index: resolved_z_index(style),
       image: None,
       background_image: None,
       children,
@@ -4586,6 +4619,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
     cursor: Cursor::Auto,
+    z_index: None,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -4796,6 +4830,7 @@ fn layout_inline_paragraph(
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(&node.style),
     cursor: resolved_cursor(&node.style),
+    z_index: resolved_z_index(&node.style),
     image: None,
     background_image: None,
     children: Vec::new(),

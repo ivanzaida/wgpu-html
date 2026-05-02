@@ -1,0 +1,111 @@
+<style>
+  body { margin: 0; font-family: sans-serif; background: #111; color: #ccc; padding: 16px; }
+  h2 { color: #fff; margin: 16px 0 8px; }
+  .demo-box { margin-bottom: 24px; border: 1px solid #333; padding: 12px; }
+
+  /* ── P0-1: glyph clipping ── */
+  .glyph-row {
+    width: 100px;
+    display: flex;
+    align-items: center;
+    height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    background: #202124;
+    margin-bottom: 4px;
+    border-radius: 3px;
+  }
+  .glyph-row span { color: #e8eaed; }
+  .tag  { color: #5db0d7; }
+  .br   { color: #9aa0a6; }
+  .atn  { color: #9aa0a6; margin-left: 4px; }
+  .atv  { color: #f28b82; }
+
+  /* ── P0-3: border color fallback ── */
+  .border-demo {
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .border-box {
+    width: 100px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+  }
+  .border-box.red   { color: red; border: 2px solid; }
+  .border-box.blue  { color: blue; border: 3px dashed; }
+  .border-box.green { color: green; border: 2px solid; }
+
+  /* ── P0-2: z-index ── */
+  .z-stack {
+    position: relative; width: 200px; height: 120px;
+    background: #222; border-radius: 4px;
+  }
+  .z-layer {
+    position: absolute; width: 60px; height: 60px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #fff; border-radius: 4px;
+  }
+</style>
+
+<h2>P0-1: Glyph clipping in narrow flex rows</h2>
+<div class="demo-box">
+  <p>Row is 100px wide. Text spans keep full content width,
+     overflow:hidden clips at 100px. Glyphs must not overlap.</p>
+  <div class="glyph-row">
+    <span class="br">&lt;</span>
+    <span class="tag">div</span>
+    <span class="atn">class</span>
+    <span class="br">=</span>
+    <span class="atv">"a-very-long-class-name"</span>
+    <span class="br">&gt;</span>
+  </div>
+  <div class="glyph-row">
+    <span class="br">&lt;</span>
+    <span class="tag">span</span>
+    <span class="atn">data-value</span>
+    <span class="br">=</span>
+    <span class="atv">"123456789abcdef"</span>
+    <span class="br">&gt;</span>
+  </div>
+  <div class="glyph-row">
+    <span class="br">&lt;/</span>
+    <span class="tag">div</span>
+    <span class="br">class</span>
+    <span class="br">=</span>
+    <span class="atv">"root"</span>
+    <span class="br">&gt;</span>
+  </div>
+</div>
+
+<h2>P0-3: Border color falls back to currentColor</h2>
+<div class="demo-box">
+  <p>Each box has <code>border: 2px solid</code> without an explicit
+     border color. The border must match the text color.</p>
+  <div class="border-demo">
+    <div class="border-box red">red</div>
+    <div class="border-box blue">blue</div>
+    <div class="border-box green">green</div>
+  </div>
+</div>
+
+<h2>P0-2: z-index paint order</h2>
+<div class="demo-box">
+  <p>Three absolute-positioned boxes. z-index:auto (green) behind,
+     z-index:5 (red) middle, z-index:10 (blue) on top.</p>
+  <div class="z-stack">
+    <div class="z-layer" style="background:#00f; z-index:10; left:0; top:0;">z=10</div>
+    <div class="z-layer" style="background:#f00; z-index:5; left:30px; top:15px;">z=5</div>
+    <div class="z-layer" style="background:#0f0; z-index:auto; left:60px; top:30px;">auto</div>
+  </div>
+</div>
+
+<div class="demo-box" style="margin-top:16px;">
+  <p>Negative z-index paints behind normal flow.
+     Red (z=-1) behind the blue text box.</p>
+  <div style="position:relative; width:200px; height:80px; background:#222; border-radius:4px;">
+    <div style="position:absolute; z-index:-1; left:10px; top:10px;
+                width:80px; height:60px; background:#f00; border-radius:4px;"></div>
+    <div style="position:static; width:100px; height:30px; margin-top:25px; margin-left:50px;
+                background:#00f; color:#fff; font-size:12px; border-radius:3px;
+                text-align:center; line-height:30px;">normal flow</div>
+  </div>
+</div>

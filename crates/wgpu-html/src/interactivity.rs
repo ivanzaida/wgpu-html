@@ -297,6 +297,7 @@ mod tests {
       pointer_events: PointerEvents::Auto,
       user_select: UserSelect::Auto,
       cursor: Cursor::Default,
+      z_index: None,
       image: None,
       background_image: None,
       children: Vec::new(),

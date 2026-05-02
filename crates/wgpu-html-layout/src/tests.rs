@@ -2009,6 +2009,7 @@ fn synthetic_text_layout() -> LayoutBox {
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
     cursor: Cursor::Auto,
+    z_index: None,
     image: None,
     background_image: None,
     children: Vec::new(),
@@ -3220,4 +3221,24 @@ fn tree_row_spans_glyphs_no_overlap_at_pixel_level() {
       prev.h
     );
   }
+}
+
+#[test]
+fn border_color_falls_back_to_current_color() {
+  // `border: 2px solid` without an explicit color must use the
+  // element's `color` (currentColor) per CSS spec.
+  let root = layout_with_fonts(
+    r#"<body style="margin: 0; font-family: sans-serif;">
+        <div style="width: 100px; height: 40px; color: rgb(255, 0, 0);
+                    border: 2px solid;"></div>
+      </body>"#,
+    800.0,
+    600.0,
+  );
+  let div = &root.children[0];
+  assert_eq!(div.border.top, 2.0);
+  assert_eq!(div.border_colors.top, Some([1.0, 0.0, 0.0, 1.0]));
+  assert_eq!(div.border_colors.right, Some([1.0, 0.0, 0.0, 1.0]));
+  assert_eq!(div.border_colors.bottom, Some([1.0, 0.0, 0.0, 1.0]));
+  assert_eq!(div.border_colors.left, Some([1.0, 0.0, 0.0, 1.0]));
 }
