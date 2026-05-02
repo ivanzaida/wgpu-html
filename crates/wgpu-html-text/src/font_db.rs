@@ -190,9 +190,5 @@ impl AsRef<[u8]> for SharedBytes {
 }
 
 #[cfg(test)]
-mod tests {
-  // Integration-style tests need a real font file. The cache shape
-  // (sync invariants, idempotence on Arc identity) doesn't, so we
-  // keep those in `wgpu-html-tree` where there are no font deps.
-  // Demo + downstream layout tests cover the real shaping paths.
-}
+#[path = "font_db_tests.rs"]
+mod tests_font_db;
