@@ -3358,10 +3358,7 @@ fn shape_text_run(
     .as_ref()
     .and_then(resolve_color)
     .unwrap_or([0.0, 0.0, 0.0, 1.0]);
-  // Always shape single text runs without a wrap budget so the
-  // measurement (max-content) and final shaping hit the same cache
-  // entry and produce identical glyph positions. Multi-line wrapping
-  // is handled by `layout_inline_paragraph`, not by this path.
+  let wrap_enabled = style_wraps_text(style);
   match ctx.text.ctx.shape_and_pack(
     display_text,
     handle,
@@ -3370,7 +3367,7 @@ fn shape_text_run(
     letter_spacing,
     weight,
     axis,
-    None,
+    if wrap_enabled { max_width_px } else { None },
     color,
   ) {
     Some(run) => {
@@ -3613,13 +3610,21 @@ fn make_text_leaf(
   ctx: &mut Ctx,
 ) -> (LayoutBox, f32, f32, f32) {
   let (run, w, h, ascent) = shape_text_run(text, style, max_width_px, trim_edges, ctx);
+  // Clamp box width to the container so text that exceeds its flex
+  // item (e.g. when flex-shrink reduces the item below text width)
+  // doesn't extend past the box bounds. The paint pass clips glyphs
+  // to the box rect, preventing visual overflow into adjacent items.
+  let box_w = match max_width_px {
+    Some(max_w) => w.min(max_w),
+    None => w,
+  };
   let text_color = style
     .color
     .as_ref()
     .and_then(resolve_color)
     .unwrap_or([0.0, 0.0, 0.0, 1.0]);
   let decorations = resolve_text_decorations(style);
-  let r = Rect::new(origin_x, origin_y, w, h);
+  let r = Rect::new(origin_x, origin_y, box_w, h);
   let box_ = LayoutBox {
     margin_rect: r,
     border_rect: r,
