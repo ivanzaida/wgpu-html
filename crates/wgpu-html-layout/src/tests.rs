@@ -785,6 +785,85 @@ fn flex_row_devtools_tree_row_glyphs_no_overlap() {
 }
 
 #[test]
+fn flex_row_shrunk_spans_text_clipped_to_box() {
+  // When a flex row is narrower than the total text width and items
+  // shrink (flex-shrink: 1, default), the text box must be clamped
+  // to the span's width so the paint clip has correct bounds.
+  let body = layout_with_fonts(
+    r#"<body style="margin: 0; display: flex; align-items: center; width: 60px; height: 18px;
+                    white-space: nowrap; font-family: sans-serif;">
+            <span>hello</span>
+            <span>world</span>
+        </body>"#,
+    800.0,
+    600.0,
+  );
+  let span0 = &body.children[0];
+  let span1 = &body.children[1];
+  let span0_right = span0.content_rect.x + span0.content_rect.w;
+  // Span boxes must not overlap.
+  assert!(
+    span1.content_rect.x >= span0_right - 0.5,
+    "span1 starts at {:.1} before span0 ends at {span0_right:.1}",
+    span1.content_rect.x
+  );
+  // Text box inside each span must be clamped to the span width.
+  for (i, span) in body.children.iter().enumerate() {
+    for child in &span.children {
+      if child.text_run.is_some() {
+        assert!(
+          child.content_rect.w <= span.content_rect.w + 1.0,
+          "span {i}: text box w={:.1} exceeds span w={:.1}",
+          child.content_rect.w,
+          span.content_rect.w
+        );
+      }
+    }
+  }
+}
+
+#[test]
+fn flex_row_nowrap_shrunk_text_box_clamped() {
+  // With white-space:nowrap, text shapes at full width but the text
+  // box must be clamped to the container (flex-shrunk) width. This
+  // verifies make_text_leaf clamps box_w to max_width_px.
+  let root = layout_with_fonts(
+    r#"<html><head><style>
+        .row { display: flex; align-items: center; height: 18px;
+               white-space: nowrap; overflow: hidden; width: 80px; }
+      </style></head>
+      <body style="margin: 0; font-family: sans-serif;">
+        <div class="row">
+          <span>hello</span>
+          <span>world</span>
+          <span>test</span>
+        </div>
+      </body></html>"#,
+    800.0,
+    600.0,
+  );
+  let body = &root.children[1];
+  let row = &body.children[0];
+  // Each span's text box must be clamped to the span's width.
+  // Glyphs inside the run may extend past (they were shaped at full
+  // width) but the paint pass clips them to the text box bounds.
+  for (i, span) in row.children.iter().enumerate() {
+    for child in &span.children {
+      if child.text_run.is_some() {
+        assert!(
+          child.content_rect.w <= span.content_rect.w + 1.0,
+          "span {i}: text box w={:.1} exceeds span w={:.1}",
+          child.content_rect.w,
+          span.content_rect.w
+        );
+      }
+    }
+  }
+  // Span boxes must not overlap.
+  assert_no_overlap(&row.children);
+}
+
+#[test]
 fn flex_row_spans_in_column_flex_tree_row() {
   // Reproduces the devtools tree panel: a column flex container
   // holds multiple flex-row "tree-row" divs, each containing spans
