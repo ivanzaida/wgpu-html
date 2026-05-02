@@ -56,8 +56,9 @@ known gaps are spelled out in §6.
   element children. The parser already collapses
   whitespace-only siblings out of element-only parents, so this
   hasn't bitten yet.
-- No `position: absolute` flex children — the engine has no
-  out-of-flow positioning at all (M4 explicitly removed it).
+- Out-of-flow flex children (absolute/fixed) are supported — they
+  are removed from the normal flow and positioned separately via
+  `layout_out_of_flow_block()`.
 - No `aspect-ratio` property.
 - No `visibility: collapse` on flex items (treated as `visible`).
 - No paged / fragmented flex layout.
@@ -229,7 +230,7 @@ The block walker also:
 | Percent cross-size against indefinite cross size | ✅ | Left unresolved (`auto`) so `stretch` still applies instead of collapsing to `0`. |
 | `aspect-ratio` | ❌ | Not modelled. |
 | `visibility: collapse` | ❌ | Treated as `visible`. |
-| `position: absolute` flex child | ❌ | Engine has no `position` support. |
+| `position: absolute` flex child | ✅ | Out-of-flow children are positioned via `layout_out_of_flow_block()`. |
 
 ## 6. Known gaps (deferred work)
 

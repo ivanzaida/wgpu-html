@@ -293,7 +293,7 @@ falls through). No diagnostics yet.
 | `float`, `clear` | No | Not modeled. |
 | `vertical-align` | No | Not modeled in the current `Style`/layout path. |
 | `direction`, `unicode-bidi` | Deferred/No | `direction` is deferred; bidi layout semantics are not implemented. |
-| `--*`, `var()` | Partial | Custom properties inherit through side-car maps and reparse into typed values where the destination parser accepts them. |
+| `--*`, `var()` | Yes | Custom properties inherit through side-car maps and reparse into typed values where the destination parser accepts them. |
 | CSS-wide keywords | Yes | `inherit`, `initial`, `unset` resolve through cascade keyword side-car maps. |
 | Unknown properties | No | Silently dropped; no diagnostics. |
 
@@ -639,7 +639,7 @@ inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
   through a host-supplied resolver into a synthetic
   `Tree::register_font(...)` call.
 
-### C11 — `var(--foo)` / custom properties — ✅ Partial/Done
+### C11 — `var(--foo)` / custom properties — ✅ Done
 
 - Custom properties (any `--*` token) are captured as side-car strings
   and inherited through the cascade.
@@ -649,7 +649,7 @@ inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
   visible effect where the resolved value is accepted by the existing
   typed parser.
 
-### C12 — `calc()` / `min()` / `max()` / `clamp()` — ✅ Partial/Done
+### C12 — `calc()` / `min()` / `max()` / `clamp()` — ✅ Done
 
 - Function bodies are tokenised into typed length math.
 - Layout resolves the common length math functions against the same

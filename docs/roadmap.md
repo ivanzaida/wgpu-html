@@ -219,9 +219,10 @@ Deferred:
 - Baseline alignment of non-text-bearing flex items (we currently
   track ascent/descent only inside the inline pass). Falls back to
   `flex-start`.
-- Intrinsic `flex-basis: content` measurement (we currently treat an
-  unspecified basis with no main size as 0; good enough for the
-  ubiquitous `flex: 1` pattern).
+- Intrinsic `flex-basis: content` measurement is now implemented via
+  `min-width: auto` content-based minimum per CSS-Flex-1 §4.5.
+  (Flex items with `overflow: visible` cannot shrink below their
+  content width.)
 
 Demo: `crates/wgpu-html-demo/html/flex-grow.html` exercises grow,
 clamping, wrap + align-content, align-self, auto-margin, and order.
@@ -353,8 +354,7 @@ See `spec/interactivity.md` for the full phase breakdown.
   `layout_block` and `layout_atomic_inline_subtree`.
 - Suppressed for `type="hidden"`, non-empty `value`, non-empty textarea
   content, or empty `placeholder=""`.
-- Not yet: typing into a field, caret overlay, checkbox/radio toggle,
-  `<select>` dropdown, form submission.
+- Not yet: checkbox/radio toggle, `<select>` dropdown, form submission.
 
 **M-INTER-3 (text selection + clipboard) ⚠️ partial**
 
@@ -431,12 +431,11 @@ M-INTER-6 (re-cascade caching).
 - `Wheel` event forwarding to element `on_event` callbacks
 - Re-cascade caching, hover-path stickiness across reflow (M-INTER-6)
 - CSS `transform` (layout and hit-test impact)
-- CSS `position: absolute / relative / fixed` with `top/right/bottom/left`
 - `z-index` and stacking contexts
 - `@font-face` (generic-family fallback in `FontRegistry::find_first`
   is already shipped)
-- `calc()` / `min()` / `max()` / `clamp()` in length values
-- `var(--foo)` CSS custom properties
+  `@font-face` (generic-family fallback in `FontRegistry::find_first`
+  is already shipped)
 - `@media` queries (re-cascade on resize)
 - `clip-path` / SDF non-rectangular clips
 - `wgpu-html-profiler` crate with ring-buffer history, GPU timing, and

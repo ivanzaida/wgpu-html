@@ -21,7 +21,7 @@ section and known deprecated legacy aliases.
 
 | Prop | Supported | Note |
 |---|---:|---|
-| `--*` | Partial | Custom properties are stored/inherited and resolved through `var()` where the target parser accepts the resolved value. |
+| `--*` | Yes | Custom properties are stored/inherited and resolved through `var()` where the target parser accepts the resolved value. |
 | `accent-color` | No | Not modeled. |
 | `align-content` | Yes | Consumed by flex/grid alignment. |
 | `align-items` | Yes | Consumed by flex/grid alignment. |
@@ -126,7 +126,7 @@ section and known deprecated legacy aliases.
 | `border-top-style` | Partial | Common styles paint; several styles degrade to solid. |
 | `border-top-width` | Yes | Consumed by layout/paint. |
 | `border-width` | Yes | Physical shorthand consumed. |
-| `bottom` | Partial | Used by positioned layout. |
+| `bottom` | Yes | Consumed by positioned layout (absolute/relative/fixed). Sticky is degraded to relative. |
 | `box-decoration-break` | No | Fragmented inline decoration semantics not modeled. |
 | `box-shadow` | Parsed only | Stored but not painted. |
 | `box-sizing` | Yes | `content-box` / `border-box` affect sizing. |
@@ -281,7 +281,7 @@ section and known deprecated legacy aliases.
 | `justify-content` | Yes | Consumed by flex/grid alignment. |
 | `justify-items` | Yes | Consumed by grid item alignment. |
 | `justify-self` | Yes | Consumed by grid item alignment. |
-| `left` | Partial | Used by positioned layout. |
+| `left` | Yes | Consumed by positioned layout (absolute/relative/fixed). Sticky is degraded to relative. |
 | `letter-spacing` | Yes | Consumed by text shaping. |
 | `lighting-color` | No | SVG filter property not modeled. |
 | `line-break` | No | Line breaking policy not modeled separately. |
@@ -399,7 +399,7 @@ section and known deprecated legacy aliases.
 | `reading-flow` | No | Reading order layout/accessibility behavior not modeled. |
 | `reading-order` | No | Reading order layout/accessibility behavior not modeled. |
 | `resize` | Deferred | Stored, but user resizing controls not implemented. |
-| `right` | Partial | Used by positioned layout. |
+| `right` | Yes | Consumed by positioned layout (absolute/relative/fixed). Sticky is degraded to relative. |
 | `rotate` | No | Individual transform property not consumed. |
 | `row-gap` | Yes | Consumed by flex/grid. |
 | `ruby-align` | No | Ruby layout not implemented. |
@@ -495,7 +495,7 @@ section and known deprecated legacy aliases.
 | `text-wrap-mode` | Deferred | Stored, not consumed. |
 | `text-wrap-style` | No | Not modeled. |
 | `timeline-scope` | Deferred | Scroll/view timeline metadata only. |
-| `top` | Partial | Used by positioned layout. |
+| `top` | Yes | Consumed by positioned layout (absolute/relative/fixed). Sticky is degraded to relative. |
 | `touch-action` | No | Touch input not modeled. |
 | `transform` | Parsed only | Stored raw; layout/paint/hit-testing ignore it. |
 | `transform-box` | No | Transform rendering not consumed. |

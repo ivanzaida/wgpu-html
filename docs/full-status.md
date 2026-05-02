@@ -1,6 +1,6 @@
 # wgpu-html — Complete Project Status
 
-> **Date:** 2026-05-01
+> **Date:** 2026-05-02
 > **Scope:** GPU-accelerated HTML/CSS renderer via `wgpu`. **No JavaScript — ever.**
 
 ---
@@ -56,6 +56,9 @@ Frame on wgpu surface
 - **~100 element variants** with per-element attribute parsing (`<a>`, `<img>`, `<input>`, `<form>`, etc.).
 - **Global attributes:** `id, class, style, title, lang, dir, hidden, tabindex, accesskey, contenteditable, draggable, spellcheck, translate, role`.
 - **`aria-*` / `data-*`** captured into `HashMap<String, String>`.
+- **DOM-style element lookup:** `get_element_by_id()`, `get_element_by_class_name()`, `get_elements_by_class_name()`, `get_element_by_name()`, `get_elements_by_name()`, `get_element_by_tag_name()`, `get_elements_by_tag_name()` (all returning `&Node`), plus path-returning `find_elements_by_*()` variants.
+- **HTML serialisation:** `Node::to_html()` serialises a subtree to outer HTML; `Tree::to_html()` serialises the full document; `Tree::node_to_html(path)` serialises a specific node.
+- **Layout rect caching:** `Node::rect: Option<NodeRect>` — populated by layout pass for element positioning queries.
 
 ### 2. CSS Parsing
 - **Box model:** `display, position, top/right/bottom/left, width, height, min-/max-width/height, box-sizing`.
@@ -290,44 +293,50 @@ Component::styles() → Stylesheet                     // scoped CSS
 
 ### CSS Parsing Gaps
 - **No at-rules:** `@media, @supports, @import, @keyframes, @font-face, @page` — not handled.
-- **No child/sibling combinators:** `>`, `+`, `~` are not supported (only descendant ` ` works).
-- **No attribute selectors** (`[href]`, `[type=text]`).
-- **No structural / logical pseudo-classes / pseudo-elements** (`:focus`, `:nth-child`, `:not()`, `:is()`, `::before`, `::after`, …). Dynamic `:hover` and `:active` *are* supported.
+- **No child/sibling combinators:** `>`, `+`, `~` are not supported (only descendant ` ` works).  *(Note: the query engine in `wgpu-html-tree/src/query.rs` supports child / next-sibling / subsequent-sibling combinators and attribute selectors for `querySelector`/`matches`/`closest`; the stylesheet parser and cascade selector matching have not been updated to match.)*
+- **No attribute selectors in stylesheet parser** (`[href]`, `[type=text]`). (Attribute selectors work in the `query_selector` API.)
+- **No structural / logical pseudo-classes in stylesheet parser.** Dynamic `:hover` and `:active` *are* supported in cascade matching; the query engine additionally supports `:focus`, `:focus-within`, `:checked`, `:disabled`, `:enabled`, `:required`, `:optional`, `:read-only`, `:read-write`, `:placeholder-shown`, `:first-child`, `:last-child`, `:only-child`, `:first-of-type`, `:last-of-type`, `:nth-child()`, `:nth-last-child()`, `:nth-of-type()`, `:not()`, `:is()`, `:where()`, `:has()`, `:root`, `:scope`, `:lang()`, `:dir()` for `query_selector*`.
 - `transform, transition, animation, box-shadow` stored as **raw `Option<String>`** — never structured or applied.
-- No `calc()`, no `var(…)`, no custom properties (`--foo`).
-- No structured types for shadows, gradients, transforms, filters, masks, clip-paths.
+- Gradients (`linear-gradient`, `radial-gradient`, …) parsed into `CssImage::Function(String)` but layout skips them — no gradient pipeline exists. `filter` property is silently dropped by the parser.
+- No structured types for shadows, transforms — stored as raw strings only.
 
 ### Style / Cascade Gaps
-- `<link rel="stylesheet">` not loaded — only inline `<style>` blocks.
+- `<link rel="stylesheet">` not loaded — only inline `<style>` blocks. (`linked_stylesheets` field exists on `Tree` and is consumed by the cascade, but no HTTP fetch to populate it.)
 - `currentColor` resolves to `None` (no foreground-color fallback for borders).
-- No `:focus` / `:focus-visible` / structural pseudo-class state integration.
+- `calc()` / `min()` / `max()` / `clamp()` fully parsed (AST with 18 CSS math functions) and evaluated in `length.rs` at layout time.
+- `var()` + custom properties (`--foo`) fully implemented: parsed, inherited, recursive variable substitution with cycle detection, late re-parse through `apply_css_property()`.
+- Programmatic custom properties via `Node::set_custom_property()` flow through cascade and participate in `var()` resolution.
+- No `:focus-visible` / `:focus-within` / `:disabled` in *cascade* matching (available in query engine only).
 
 ### Layout Gaps
-- **No positioned layout:** `position` and `top/right/bottom/left` parsed but never consumed.
-- **No `z-index`** — paint order is tree DFS only.
-- **No floats** (`float: left/right`).
-- **No table layout** (`display: table` and friends).
+- **Positioned layout** (`absolute` / `relative` / `fixed`) — fully implemented. `layout_out_of_flow_block()` resolves containing blocks, insets, shrink-to-fit, right/bottom anchoring. `apply_relative_position()` handles relative and sticky (sticky is degraded to relative — no scroll-pinning). 6 tests cover absolute/fixed/relative scenarios.
+- **No `z-index`** — parsed and stored on `Style`, but no `LayoutBox` field; paint order is tree DFS only.
+- **No floats** (`float: left/right`) — `float` property is not even parsed.
+- **No table layout** (`display: table` and friends) — all 9 table `Display` variants are parsed but fall through to block layout.
 - **No `display: inline / inline-block`** as an author-set value (IFC is auto-detected from content, not from `display`).
 - `em / rem` use a hard-coded 16px when no font-size is inherited (no full font cascade for unit resolution).
 - No baseline alignment in flex.
 - Transforms not applied to layout.
+- `flex-shrink` with `min-width: auto` now respects content-based minimum size per CSS-Flex-1 §4.5 — flex items with `overflow: visible` cannot shrink below their content width.
 
 ### Rendering Gaps
 - No `background-origin`, `background-attachment`, or multi-layer background rendering.
-- **No gradients:** `linear-gradient(…)` stays a raw string.
-- **No box-shadow.**
-- **No transforms / opacity layers / filters / blend modes** (per-quad alpha only).
+- **No gradients:** `linear-gradient(…)` parsed and stored but layout skips it — no gradient pipeline or shader.
+- **No box-shadow** — parsed but never consumed.
+- **No transforms** — parsed as raw string but never flows to LayoutBox or GPU.
+- **Opacity is fully working** (computed during layout, inherited multiplicatively, baked into color alpha, image pipeline respects it).
+- **No `filter`** — not parsed at all.
 - Border styles `double / groove / ridge / inset / outset` render as plain solid.
 - Dashed/dotted on rounded boxes only follow the curve when all four corners are uniform-circular; otherwise corners stay bare.
 - A border without an explicit color is skipped (no fallback to `color` / `currentColor`).
 - No multi-pass compositing (no stencil buffer usage beyond scissor).
 
 ### Interactivity Gaps
-- **No text editing** for `<input>` / `<textarea>` — typing into a focused field has no effect on its `value`. Placeholder rendering is done; live typing / caret movement / IME / arrow-key navigation aren't.
+- **Text editing for `<input>` / `<textarea>`** — fully implemented. `text_edit.rs` (12 functions, 425 lines) handles insert, delete, backspace, arrow-key navigation, Home/End, Shift-select, Ctrl+A, line breaks in textareas, multibyte/UTF-8. Wired in `dispatch.rs` for keyboard and `interactivity.rs` for click caret placement (with single/double/triple-click word/line selection). Readonly is respected.
 - **No `<input type="checkbox" / "radio">` click-to-toggle** — `checked` is parsed and the cascade reads it, but pointer presses don't flip it.
 - **No `<select>` dropdown** menu rendering or interaction.
 - **No form submission** — `Enter` in a focused input or click on `<button type="submit">` doesn't synthesise `SubmitEvent`.
-- **`:focus-visible`, `:focus-within`, `:disabled`** not yet matched in cascade.
+- **`:focus-visible`, `:focus-within`, `:disabled`** not yet matched in cascade (available in query engine only).
 - **No `Wheel` event dispatch to elements** — wheel scrolls the viewport and detects scroll-container scroll, but is not forwarded to element `on_event` callbacks.
 - **No cursor styling** (`cursor` property parsed but not applied to the OS cursor shape).
 - ~~**No `pointer-events: none`** skipping in hit test.~~ **Done** — `pointer-events: none` elements are transparent to hit-testing; children with `auto` remain hittable.
@@ -374,27 +383,25 @@ Component::styles() → Stylesheet                     // scoped CSS
 | Per-element scroll containers | ⚠️ Partial (scroll offset + scrollbar paint; no `Wheel`→`on_event` dispatch) |
 | Inline pipeline profiling (`PipelineTimings`) | ⚠️ Partial (CPU stage timing + hover latency; no `wgpu-html-profiler` crate) |
 | Screenshot (F12 → PNG) | ✅ Done |
-| Positioned layout (absolute/relative/fixed) | ❌ Not done |
-| z-index | ❌ Not done |
+| Positioned layout (absolute/relative/fixed) | ✅ Done (sticky degraded to relative) |
+| z-index | ❌ Not done (parsed, not consumed) |
 | Floats | ❌ Not done |
-| Table layout | ❌ Not done |
-| Gradients | ❌ Not done |
-| box-shadow | ❌ Not done |
-| Transforms / transitions / animations | ❌ Not done |
-| Opacity layers / filters / blend modes | ❌ Not done |
-| Keyboard event dispatch (`keydown`/`keyup` to focused element) | ✅ Done (via `Tree::key_down`/`key_up`, modifier state on tree) |
-| Tab / Shift+Tab focus traversal | ✅ Done (built into `Tree::key_down`) |
-| Focus state (`focus_path`, `focus`/`blur`/`focusin`/`focusout`) | ✅ Done |
-| `<input>` / `<textarea>` placeholder rendering | ✅ Done (`::placeholder`-style alpha; vertical centre + horizontal clip on inputs; soft-wrap on textarea) |
-| `<input>` / `<textarea>` value rendering + typing | ❌ Not done |
-| Checkbox / radio click toggle, `<select>` menu, form submit | ❌ Not done |
-| `:focus-visible` / `:focus-within` / `:disabled` | ❌ Not done |
-| Pseudo-elements (`::before`, `::after`, …) | ❌ Not done |
-| Structural pseudo-classes (`:nth-child`, `:not()`, …) | ❌ Not done |
-| Child/sibling combinators (`>`, `+`, `~`) | ❌ Not done |
-| Attribute selectors | ❌ Not done |
-| At-rules (@media, @keyframes, @font-face…) | ❌ Not done |
-| calc() / var() / custom properties | ❌ Not done |
+| Table layout | ❌ Not done (parsed, falls through to block) |
+| Gradients | ❌ Not done (parsed as raw string, skipped in layout) |
+| box-shadow | ❌ Not done (parsed as raw string, not consumed) |
+| Transforms / transitions / animations | ❌ Not done (parsed as raw string, not consumed) |
+| Opacity | ✅ Done |
+| Filter / blend modes | ❌ Not done |
+| Keyboard event dispatch | ✅ Done |
+| Tab / Shift+Tab focus traversal | ✅ Done |
+| Focus state | ✅ Done |
+| Placeholder rendering | ✅ Done |
+| Text editing + caret navigation | ✅ Done (insert, delete, arrow keys, Home/End, Shift-select, word/line click-select) |
+| Checkbox / radio click toggle, select menu, form submit | ❌ Not done |
+| `:focus-visible` / `:focus-within` / `:disabled` in cascade | ❌ Not done (query engine only) |
+| Pseudo-elements | ❌ Not done |
+| calc() / min() / max() / clamp() | ✅ Done (full AST + evaluation in length.rs) |
+| var() / custom properties (`--foo`) | ✅ Done (parsed, inherited, recursive substitution, cycle detection) |
 | `<link>` stylesheet loading | ❌ Not done |
 | JavaScript | 🚫 Permanently out of scope |
 | **Component framework (`wgpu-html-ui`)** | |
