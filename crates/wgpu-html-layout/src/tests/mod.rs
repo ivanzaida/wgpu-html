@@ -2,6 +2,7 @@ mod layout_basic;
 mod layout_box_sizing;
 mod layout_flex;
 mod layout_grid;
+mod layout_glyph_clip;
 mod layout_borders;
 mod layout_hit;
 mod layout_overflow;
