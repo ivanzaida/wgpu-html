@@ -90,7 +90,7 @@ fn focus_sets_focus_path_and_fires_focus_focusin() {
     let r = received.clone();
     let mut tree = focus_test_tree();
     if let Some(n) = tree.root.as_mut().and_then(|r| r.children.get_mut(0)) {
-        n.on_event = Some(Arc::new(move |ev| {
+        n.on_event.push(Arc::new(move |ev| {
             r.lock().unwrap().push(ev.event_type().to_string());
         }));
     }
@@ -107,7 +107,7 @@ fn focus_change_fires_blur_with_related_target() {
     let r = received.clone();
     let mut tree = focus_test_tree();
     if let Some(n) = tree.root.as_mut().and_then(|r| r.children.get_mut(0)) {
-        n.on_event = Some(Arc::new(move |ev| {
+        n.on_event.push(Arc::new(move |ev| {
             if let ev::HtmlEvent::Focus(fe) = ev {
                 r.lock()
                     .unwrap()
@@ -130,7 +130,7 @@ fn blur_clears_focus_and_fires_blur() {
     let r = received.clone();
     let mut tree = focus_test_tree();
     if let Some(n) = tree.root.as_mut().and_then(|r| r.children.get_mut(2)) {
-        n.on_event = Some(Arc::new(move |ev| {
+        n.on_event.push(Arc::new(move |ev| {
             r.lock().unwrap().push(ev.event_type().to_string());
         }));
     }
@@ -179,7 +179,7 @@ fn key_down_dispatches_to_focused_element_on_event() {
     let r = received.clone();
     let mut tree = focus_test_tree();
     if let Some(n) = tree.root.as_mut().and_then(|r| r.children.get_mut(0)) {
-        n.on_event = Some(Arc::new(move |ev| {
+        n.on_event.push(Arc::new(move |ev| {
             if let ev::HtmlEvent::Keyboard(ke) = ev {
                 r.lock().unwrap().push((ev.event_type().to_string(), ke.key.clone()));
             }
@@ -239,7 +239,7 @@ fn dispatch_mouse_down_then_up_synthesises_click() {
     let received = Arc::new(Mutex::new(Vec::<String>::new()));
     let r = received.clone();
     let mut node = Node::new("text");
-    node.on_event = Some(Arc::new(move |ev| {
+    node.on_event.push(Arc::new(move |ev| {
         r.lock().unwrap().push(ev.event_type().to_string());
     }));
     let mut tree = Tree::new(node);
@@ -257,7 +257,7 @@ fn dispatch_pointer_move_fires_enter_then_leave() {
     let received = Arc::new(Mutex::new(Vec::<String>::new()));
     let r = received.clone();
     let mut node = Node::new("text");
-    node.on_event = Some(Arc::new(move |ev| {
+    node.on_event.push(Arc::new(move |ev| {
         r.lock().unwrap().push(ev.event_type().to_string());
     }));
     let mut tree = Tree::new(node);

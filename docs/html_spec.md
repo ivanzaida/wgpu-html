@@ -150,13 +150,11 @@ Lines changed: ~100 in `crates/wgpu-html-style/src/`, ~100 in `crates/wgpu-html-
 
 | Item | Status |
 |---|---|
-| Parse `@media (condition) { rules }` blocks | ❌ |
-| Evaluate media queries (`width`, `height`, `prefers-color-scheme`, etc.) | ❌ |
-| Gate rules on media query match during cascade | ❌ |
+| Parse `@media (condition) { rules }` blocks | ✅ |
+| Evaluate media queries (`width`, `height`, `prefers-color-scheme`, etc.) | ✅ (width/height/orientation + not) |
+| Gate rules on media query match during cascade | ✅ |
 
-**Why:** `@media` is the most impactful missing at-rule. Responsive layouts need it.
-
-**Depends on:** none.
+**Status:** ✅ Done. `@media screen and (min-width: 600px) { … }` fully parsed, evaluated, and applied during cascade. Supports min-width, max-width, min-height, max-height, orientation (portrait/landscape), and `not` prefix.
 
 ---
 
@@ -404,7 +402,7 @@ Lines changed: ~100 in `crates/wgpu-html-layout/src/flex.rs`
 | **P1** | Sticky positioning | 50 | scroll tracking |
 | **P2** | Selector combinators + pseudo-classes in cascade | 200 | query engine (exists) |
 | **P2** | `:focus-within`, `:disabled` in cascade | 50 | P2-1 |
-| **P2** | `@media` at-rule | 200 | none |
+| **P2** | `@media` at-rule | ✅ Done | — |
 | **P3** | Checkbox/radio toggle | 40 | none |
 | **P3** | `<select>` dropdown | 500 | P0-2 |
 | **P3** | Form submission | 80 | none |

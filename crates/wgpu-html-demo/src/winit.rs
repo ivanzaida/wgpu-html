@@ -49,15 +49,15 @@ static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
 pub(crate) fn install_demo_callbacks(tree: &mut Tree, click_count: &Arc<AtomicUsize>) {
   let counter = click_count.clone();
   if let Some(btn) = tree.get_element_by_id("btn") {
-    btn.on_click = Some(Arc::new(move |_| {
+    btn.on_click.push(Arc::new(move |_| {
       let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
       let _ = n;
     }));
   }
   if let Some(panel) = tree.get_element_by_id("panel") {
-    panel.on_mouse_enter = Some(Arc::new(|_| {}));
-    panel.on_mouse_leave = Some(Arc::new(|_| {}));
-    panel.on_click = Some(Arc::new(|_| {}));
+    panel.on_mouse_enter.push(Arc::new(|_| {}));
+    panel.on_mouse_leave.push(Arc::new(|_| {}));
+    panel.on_click.push(Arc::new(|_| {}));
   }
 }
 

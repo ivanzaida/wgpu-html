@@ -246,73 +246,73 @@ pub type EventCallback = Arc<dyn Fn(&HtmlEvent) + Send + Sync>;
 
 impl El {
   pub fn on_click(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_click = Some(Arc::new(f));
+    self.node.on_click.push(Arc::new(f));
     self
   }
 
   /// Attach a pre-built [`MouseCallback`] (e.g. from [`Ctx::msg`]).
   pub fn on_click_cb(mut self, cb: MouseCallback) -> Self {
-    self.node.on_click = Some(cb);
+    self.node.on_click.push(cb);
     self
   }
 
   pub fn on_mouse_down(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_mouse_down = Some(Arc::new(f));
+    self.node.on_mouse_down.push(Arc::new(f));
     self
   }
 
   pub fn on_mouse_down_cb(mut self, cb: MouseCallback) -> Self {
-    self.node.on_mouse_down = Some(cb);
+    self.node.on_mouse_down.push(cb);
     self
   }
 
   pub fn on_mouse_up(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_mouse_up = Some(Arc::new(f));
+    self.node.on_mouse_up.push(Arc::new(f));
     self
   }
 
   pub fn on_mouse_up_cb(mut self, cb: MouseCallback) -> Self {
-    self.node.on_mouse_up = Some(cb);
+    self.node.on_mouse_up.push(cb);
     self
   }
 
   pub fn on_mouse_move(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_mouse_move = Some(Arc::new(f));
+    self.node.on_mouse_move.push(Arc::new(f));
     self
   }
 
   pub fn on_mouse_move_cb(mut self, cb: MouseCallback) -> Self {
-    self.node.on_mouse_move = Some(cb);
+    self.node.on_mouse_move.push(cb);
     self
   }
 
   pub fn on_mouse_enter(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_mouse_enter = Some(Arc::new(f));
+    self.node.on_mouse_enter.push(Arc::new(f));
     self
   }
 
   pub fn on_mouse_enter_cb(mut self, cb: MouseCallback) -> Self {
-    self.node.on_mouse_enter = Some(cb);
+    self.node.on_mouse_enter.push(cb);
     self
   }
 
   pub fn on_mouse_leave(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_mouse_leave = Some(Arc::new(f));
+    self.node.on_mouse_leave.push(Arc::new(f));
     self
   }
 
   pub fn on_mouse_leave_cb(mut self, cb: MouseCallback) -> Self {
-    self.node.on_mouse_leave = Some(cb);
+    self.node.on_mouse_leave.push(cb);
     self
   }
 
   pub fn on_event(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
-    self.node.on_event = Some(Arc::new(f));
+    self.node.on_event.push(Arc::new(f));
     self
   }
 
   pub fn on_event_cb(mut self, cb: EventCallback) -> Self {
-    self.node.on_event = Some(cb);
+    self.node.on_event.push(cb);
     self
   }
 }

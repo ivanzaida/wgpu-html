@@ -274,7 +274,7 @@ impl Tree {
   ///
   /// ```ignore
   /// if let Some(el) = tree.get_element_by_id("submit") {
-  ///     el.on_click = Some(std::sync::Arc::new(|ev| {
+  ///     el.on_click.push(std::sync::Arc::new(|ev| {
   ///         eprintln!("clicked at {:?}", ev.pos);
   ///     }));
   /// }
@@ -495,25 +495,28 @@ pub struct Node {
   pub custom_properties: HashMap<String, String>,
   /// Fires when a primary-button press *and* the matching release
   /// both land inside this node's subtree. Bubbles target → root.
-  pub on_click: Option<MouseCallback>,
+  /// Multiple handlers accumulate — calling `.on_click()` again
+  /// adds a listener rather than replacing the previous one.
+  pub on_click: Vec<MouseCallback>,
   /// Fires on every primary-button press, target → root.
-  pub on_mouse_down: Option<MouseCallback>,
+  /// Multiple handlers accumulate (like `addEventListener`).
+  pub on_mouse_down: Vec<MouseCallback>,
   /// Fires on every primary-button release, target → root.
-  pub on_mouse_up: Option<MouseCallback>,
+  pub on_mouse_up: Vec<MouseCallback>,
   /// Fires on every pointer move while over this node's subtree.
   /// Bubbles target → root.
-  pub on_mouse_move: Option<MouseCallback>,
+  pub on_mouse_move: Vec<MouseCallback>,
   /// Fires when the pointer enters this node's subtree (root-first
   /// across the entered chain). No bubbling beyond the entered set.
-  pub on_mouse_enter: Option<MouseCallback>,
+  pub on_mouse_enter: Vec<MouseCallback>,
   /// Fires when the pointer leaves this node's subtree
   /// (deepest-first across the left chain).
-  pub on_mouse_leave: Option<MouseCallback>,
+  pub on_mouse_leave: Vec<MouseCallback>,
   /// General-purpose handler that receives the full [`HtmlEvent`] for any
   /// event dispatched to this node, fired *after* the type-specific slot
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
-  /// without a dedicated slot.
-  pub on_event: Option<EventCallback>,
+  /// without a dedicated slot. Multiple handlers accumulate.
+  pub on_event: Vec<EventCallback>,
   /// Computed layout rectangle for this node (content-box).
   /// Populated by the layout pass; `None` if not yet laid out.
   pub rect: Option<NodeRect>,
@@ -527,13 +530,13 @@ impl std::fmt::Debug for Node {
       .field("element", &self.element)
       .field("children", &self.children)
       .field("custom_properties", &self.custom_properties)
-      .field("on_click", &self.on_click.as_ref().map(|_| "<fn>"))
-      .field("on_mouse_down", &self.on_mouse_down.as_ref().map(|_| "<fn>"))
-      .field("on_mouse_up", &self.on_mouse_up.as_ref().map(|_| "<fn>"))
-      .field("on_mouse_move", &self.on_mouse_move.as_ref().map(|_| "<fn>"))
-      .field("on_mouse_enter", &self.on_mouse_enter.as_ref().map(|_| "<fn>"))
-      .field("on_mouse_leave", &self.on_mouse_leave.as_ref().map(|_| "<fn>"))
-      .field("on_event", &self.on_event.as_ref().map(|_| "<fn>"))
+      .field("on_click", &format!("{} handlers", self.on_click.len()))
+      .field("on_mouse_down", &format!("{} handlers", self.on_mouse_down.len()))
+      .field("on_mouse_up", &format!("{} handlers", self.on_mouse_up.len()))
+      .field("on_mouse_move", &format!("{} handlers", self.on_mouse_move.len()))
+      .field("on_mouse_enter", &format!("{} handlers", self.on_mouse_enter.len()))
+      .field("on_mouse_leave", &format!("{} handlers", self.on_mouse_leave.len()))
+      .field("on_event", &format!("{} handlers", self.on_event.len()))
       .finish()
   }
 }
@@ -544,13 +547,13 @@ impl Node {
       element: element.into(),
       children: Vec::new(),
       custom_properties: HashMap::new(),
-      on_click: None,
-      on_mouse_down: None,
-      on_mouse_up: None,
-      on_mouse_move: None,
-      on_mouse_enter: None,
-      on_mouse_leave: None,
-      on_event: None,
+      on_click: Vec::new(),
+      on_mouse_down: Vec::new(),
+      on_mouse_up: Vec::new(),
+      on_mouse_move: Vec::new(),
+      on_mouse_enter: Vec::new(),
+      on_mouse_leave: Vec::new(),
+      on_event: Vec::new(),
       rect: None,
     }
   }

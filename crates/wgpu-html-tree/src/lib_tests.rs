@@ -53,13 +53,13 @@ fn on_click_field_is_assignable_and_invokable() {
     let c2 = counter.clone();
 
     // Direct field assignment in the friendly style:
-    // `tree.get_element_by_id(id).on_click = cb`.
-    tree.get_element_by_id("target").unwrap().on_click = Some(Arc::new(move |_ev| {
+    // `tree.get_element_by_id(id).on_click.push(cb)`.
+    tree.get_element_by_id("target").unwrap().on_click.push(Arc::new(move |_ev| {
         c2.fetch_add(1, Ordering::Relaxed);
     }));
 
     // The callback isn't fired by storage alone — invoke it.
-    let cb = tree.get_element_by_id("target").unwrap().on_click.clone().unwrap();
+    let cb = tree.get_element_by_id("target").unwrap().on_click[0].clone();
     let ev = MouseEvent {
         pos: (0.0, 0.0),
         button: Some(MouseButton::Primary),
@@ -80,10 +80,10 @@ fn first_match_wins_in_document_order() {
     let first = tree.get_element_by_id("dup").unwrap();
     // Mutate so we can identify which one we got back without
     // depending on pointer identity.
-    first.on_click = Some(Arc::new(|_| {}));
+    first.on_click.push(Arc::new(|_| {}));
     let body_node = tree.root.as_ref().unwrap();
-    assert!(body_node.children[0].on_click.is_some());
-    assert!(body_node.children[1].on_click.is_none());
+    assert!(!body_node.children[0].on_click.is_empty());
+    assert!(body_node.children[1].on_click.is_empty());
 }
 
 #[test]

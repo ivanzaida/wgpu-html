@@ -88,7 +88,7 @@
 
   fn make_tree(counter: Arc<AtomicUsize>) -> Tree {
     let mut root = Node::new("text");
-    root.on_click = Some(Arc::new(move |_| {
+    root.on_click.push(Arc::new(move |_| {
       counter.fetch_add(1, Ordering::Relaxed);
     }));
     let mut tree = Tree::new(root);
@@ -151,7 +151,7 @@
     let received = Arc::new(Mutex::new(Vec::<String>::new()));
     let r = received.clone();
     let mut root = Node::new("text");
-    root.on_event = Some(Arc::new(move |ev| {
+    root.on_event.push(Arc::new(move |ev| {
       r.lock().unwrap().push(ev.event_type().to_string());
     }));
     let lay = synthetic_text_layout();

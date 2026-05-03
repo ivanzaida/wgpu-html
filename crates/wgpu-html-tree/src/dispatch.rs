@@ -154,19 +154,19 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
   for i in 0..=depth {
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
 
-    let (mouse_cb, event_cb) = tree
+    let (mouse_cbs, event_cbs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
       .map(|node| {
-        let mouse_cb = match slot {
+        let mouse_cbs = match slot {
           Slot::MouseDown => node.on_mouse_down.clone(),
           Slot::MouseUp => node.on_mouse_up.clone(),
           Slot::Click => node.on_click.clone(),
         };
-        (mouse_cb, node.on_event.clone())
+        (mouse_cbs, node.on_event.clone())
       })
-      .unwrap_or((None, None));
+      .unwrap_or_default();
 
     let mut ev = MouseEvent {
       pos,
@@ -178,7 +178,7 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
     if tree.emit_mouse_event(&mut ev).is_stop() {
       return;
     }
-    if let Some(cb) = mouse_cb {
+    for cb in &mouse_cbs {
       cb(&ev);
     }
 
@@ -197,8 +197,8 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
     }
-    if let Some(on_ev) = event_cb {
-      on_ev(&html_ev);
+    for cb in &event_cbs {
+      cb(&html_ev);
     }
   }
 }
@@ -256,17 +256,17 @@ fn fire_root_hover_event(tree: &mut Tree, pos: (f32, f32), target_path: &[usize]
   let modifiers = tree.interaction.modifiers;
   let current_path: Vec<usize> = vec![];
 
-  let (mouse_cb, event_cb) = tree
+  let (mouse_cbs, event_cbs) = tree
     .root
     .as_ref()
     .map(|root| {
-      let mouse_cb = match slot {
+      let mouse_cbs = match slot {
         HoverSlot::Enter => root.on_mouse_enter.clone(),
         HoverSlot::Leave => root.on_mouse_leave.clone(),
       };
-      (mouse_cb, root.on_event.clone())
+      (mouse_cbs, root.on_event.clone())
     })
-    .unwrap_or((None, None));
+    .unwrap_or_default();
 
   let mut ev = MouseEvent {
     pos,
@@ -278,7 +278,7 @@ fn fire_root_hover_event(tree: &mut Tree, pos: (f32, f32), target_path: &[usize]
   if tree.emit_mouse_event(&mut ev).is_stop() {
     return;
   }
-  if let Some(cb) = mouse_cb {
+  for cb in &mouse_cbs {
     cb(&ev);
   }
 
@@ -297,8 +297,8 @@ fn fire_root_hover_event(tree: &mut Tree, pos: (f32, f32), target_path: &[usize]
   if tree.emit_event(&mut html_ev).is_stop() {
     return;
   }
-  if let Some(on_ev) = event_cb {
-    on_ev(&html_ev);
+  for cb in &event_cbs {
+    cb(&html_ev);
   }
 }
 
@@ -331,18 +331,18 @@ fn fire_chain_segment(
     };
     let current_path = path[..plen].to_vec();
 
-    let (mouse_cb, event_cb) = tree
+    let (mouse_cbs, event_cbs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
       .map(|node| {
-        let mouse_cb = match slot {
+        let mouse_cbs = match slot {
           HoverSlot::Enter => node.on_mouse_enter.clone(),
           HoverSlot::Leave => node.on_mouse_leave.clone(),
         };
-        (mouse_cb, node.on_event.clone())
+        (mouse_cbs, node.on_event.clone())
       })
-      .unwrap_or((None, None));
+      .unwrap_or_default();
 
     let mut ev = MouseEvent {
       pos,
@@ -354,7 +354,7 @@ fn fire_chain_segment(
     if tree.emit_mouse_event(&mut ev).is_stop() {
       return;
     }
-    if let Some(cb) = mouse_cb {
+    for cb in &mouse_cbs {
       cb(&ev);
     }
 
@@ -373,8 +373,8 @@ fn fire_chain_segment(
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
     }
-    if let Some(on_ev) = event_cb {
-      on_ev(&html_ev);
+    for cb in &event_cbs {
+      cb(&html_ev);
     }
   }
 }
@@ -440,12 +440,12 @@ fn bubble_mouse_move(tree: &mut Tree, target_path: &[usize], pos: (f32, f32)) {
   let depth = target_path.len();
   for i in 0..=depth {
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-    let (mouse_cb, event_cb) = tree
+    let (mouse_cbs, event_cbs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
       .map(|node| (node.on_mouse_move.clone(), node.on_event.clone()))
-      .unwrap_or((None, None));
+      .unwrap_or_default();
 
     let ev = MouseEvent {
       pos,
@@ -454,12 +454,12 @@ fn bubble_mouse_move(tree: &mut Tree, target_path: &[usize], pos: (f32, f32)) {
       target_path: target_path.to_vec(),
       current_path: current_path.clone(),
     };
-    if let Some(cb) = mouse_cb {
+    for cb in &mouse_cbs {
       cb(&ev);
     }
 
     // Also fire through on_event as a mousemove HtmlEvent.
-    if let Some(cb) = event_cb {
+    if !event_cbs.is_empty() {
       let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
       let html_ev = make_mouse_html_event(
         ev::HtmlEventType::MOUSEMOVE,
@@ -473,7 +473,9 @@ fn bubble_mouse_move(tree: &mut Tree, target_path: &[usize], pos: (f32, f32)) {
         current_path,
         time_stamp,
       );
-      cb(&html_ev);
+      for cb in &event_cbs {
+        cb(&html_ev);
+      }
     }
   }
 }
@@ -740,11 +742,12 @@ fn fire_focus_event(
       break;
     }
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-    let on_ev = tree
+    let on_evs = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
-      .and_then(|node| node.on_event.clone());
+      .map(|node| node.on_event.clone())
+      .unwrap_or_default();
     let event_phase = if current_path == target {
       ev::EventPhase::AtTarget
     } else {
@@ -771,7 +774,7 @@ fn fire_focus_event(
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
     }
-    if let Some(on_ev) = on_ev {
+    for on_ev in &on_evs {
       on_ev(&html_ev);
     }
   }
@@ -875,11 +878,12 @@ fn bubble_keyboard(
   let depth = target_path.len();
   for i in 0..=depth {
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-    let on_ev = tree
+    let on_evs = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
-      .and_then(|node| node.on_event.clone());
+      .map(|node| node.on_event.clone())
+      .unwrap_or_default();
     let mut html_ev = make_keyboard_html_event(
       event_type,
       key,
@@ -893,7 +897,7 @@ fn bubble_keyboard(
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
     }
-    if let Some(on_ev) = on_ev {
+    for on_ev in &on_evs {
       on_ev(&html_ev);
     }
   }

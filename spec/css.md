@@ -104,13 +104,20 @@ See `spec/interactivity.md` §8 for cascade integration details.
 
 ## 5. At-rules
 
-**None implemented.** `@media`, `@supports`, `@import`,
+**`@media` — ✅ Done.** `@media screen and (max-width: 500px) { … }`
+blocks are parsed, held as gated rule-lists on each `Stylesheet`, and
+evaluated at cascade time against a `MediaContext` (viewport width,
+height, orientation, scale). Supports `min-width`, `max-width`,
+`min-height`, `max-height`, `orientation: portrait | landscape`, and
+the `not` prefix for negating the entire query list. The cascade entry
+point `cascade_with_media(tree, &media_ctx)` gates each block's rules
+on query match.
+
+**Other at-rules — ❌ Not implemented.** `@supports`, `@import`,
 `@font-face`, `@keyframes`, `@page`, `@layer`, `@scope`, `@property`
 are all unhandled. The stylesheet parser walks `selectors { decls }`
-blocks only — anything else is skipped silently.
-
-Closest planned: `@font-face` (`spec/text.md` §12 open question — needs
-a host-supplied font resolver to honour `src: url(...)`).
+blocks and `@media { … }` blocks only — anything else is skipped
+silently.
 
 ## 6. Property parsing
 
@@ -607,14 +614,15 @@ Each phase ends in something a host can demo or test against.
   case-insensitive `i` flag.
 - Adds 10 to specificity.
 
-### C7 — `@media` queries
+### C7 — `@media` queries — ✅ Done
 
-- Tokenise `@media (...)` blocks, hold them as gated `Stylesheet`s
-  inside the parent.
-- Evaluate against viewport size + scale at cascade time.
-- Re-cascade on resize (the demo already re-runs cascade every
-  frame, so practically just a viewport→media-context plumbing
-  task).
+Tokenised `@media (…) { … }` blocks are held as gated `Rule` payloads
+inside each `Stylesheet`. At cascade time, `cascade_with_media(tree,
+&media_ctx)` evaluates each block's query list against viewport width,
+height, orientation, and scale. Supported features: `min-width`,
+`max-width`, `min-height`, `max-height`, `orientation`, and the `not`
+prefix for negation. Demo re-cascades on resize every frame, so
+responsive breakpoints work out of the box.
 
 ### C8 — `@import url(...)`
 
@@ -703,14 +711,14 @@ custom properties with `var()` substitution, length math
 table that's the single source of truth for the parser ↔ cascade
 boundary.
 
-What doesn't: remaining combinators (child/sibling), most pseudo-
-classes (`:focus-visible`, `:focus-within`, `:disabled`, `:checked`,
-`nth-*`, logical), pseudo-elements, advanced attribute selector
-operators, all at-rules (`@media` / `@import` / `@font-face` /
-`@keyframes` / …), `<link>` stylesheet loading, reliable
-`currentcolor` resolution, font-relative length resolution, and many
-recognized-but-mocked visual properties such as transforms, shadows,
-z-index stacking, and transitions/animations.
+What doesn't: remaining combinators (child/sibling) and most pseudo-
+classes in the *stylesheet parser + cascade matcher* (notably
+`:focus-visible`, `:focus-within`, `:disabled`, `:checked`,
+`nth-*`, logical) — though the `query_selector*` engine supports
+all of these. Also missing: pseudo-elements, `<link>` stylesheet
+loading, reliable `currentcolor` resolution, font-relative length
+resolution, and many recognized-but-mocked visual properties such as
+transforms, shadows, z-index stacking, and transitions/animations.
 
 C1–C3 land the cascade machinery and are the foundation for
 everything that follows; C4–C7 unlock realistic stylesheets; C8–C10

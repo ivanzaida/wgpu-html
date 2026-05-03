@@ -1,6 +1,6 @@
 # wgpu-html — Complete Project Status
 
-> **Date:** 2026-05-02
+> **Date:** 2026-05-03
 > **Scope:** GPU-accelerated HTML/CSS renderer via `wgpu`. **No JavaScript — ever.**
 
 ---
@@ -292,7 +292,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 - Whitespace-only text between tags is dropped.
 
 ### CSS Parsing Gaps
-- **No at-rules:** `@media, @supports, @import, @keyframes, @font-face, @page` — not handled.
+- **No at-rules:** `@supports, @import, @keyframes, @font-face, @page` — not handled. `@media` IS handled (width/height/orientation with min/max prefix + `not`; evaluated during cascade via `cascade_with_media`).
 - **No child/sibling combinators:** `>`, `+`, `~` are not supported (only descendant ` ` works).  *(Note: the query engine in `wgpu-html-tree/src/query.rs` supports child / next-sibling / subsequent-sibling combinators and attribute selectors for `querySelector`/`matches`/`closest`; the stylesheet parser and cascade selector matching have not been updated to match.)*
 - **No attribute selectors in stylesheet parser** (`[href]`, `[type=text]`). (Attribute selectors work in the `query_selector` API.)
 - **No structural / logical pseudo-classes in stylesheet parser.** Dynamic `:hover` and `:active` *are* supported in cascade matching; the query engine additionally supports `:focus`, `:focus-within`, `:checked`, `:disabled`, `:enabled`, `:required`, `:optional`, `:read-only`, `:read-write`, `:placeholder-shown`, `:first-child`, `:last-child`, `:only-child`, `:first-of-type`, `:last-of-type`, `:nth-child()`, `:nth-last-child()`, `:nth-of-type()`, `:not()`, `:is()`, `:where()`, `:has()`, `:root`, `:scope`, `:lang()`, `:dir()` for `query_selector*`.
@@ -342,6 +342,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 - ~~**No `pointer-events: none`** skipping in hit test.~~ **Done** — `pointer-events: none` elements are transparent to hit-testing; children with `auto` remain hittable.
 - No event `preventDefault` / `stopPropagation` semantics.
 - No double-click / triple-click / context-menu / aux-click synthesis.
+- `InputEvent` is not yet emitted (`text_input` mutates values but does not dispatch a DOM event).
 - The document is a compile-time constant — no URL loading, no live editing, no hot reload.
 
 ### Explicitly Out of Scope (Forever)
@@ -358,6 +359,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 | CSS stylesheet / selectors | ✅ Done (tag, id, class, *, descendant) |
 | `!important` | ✅ Done |
 | CSS-wide keywords (inherit/initial/unset) | ✅ Done |
+| `@media` queries | ✅ Done (width/height/orientation, min/max, not) |
 | UA default stylesheet | ✅ Done (headings, body margin, inline emphasis, display:none) |
 | Style inheritance | ✅ Done (color, font-*, text-*, line-height, visibility, etc.) |
 | `:hover` / `:active` / `:focus` cascade integration | ✅ Done (`MatchContext::for_path` in `wgpu-html-style`; `:focus` is exact-match — no propagation to ancestors yet) |
@@ -378,6 +380,8 @@ Component::styles() → Stylesheet                     // scoped CSS
 | Hit testing | ✅ Done |
 | Mouse events + bubbling | ✅ Done (typed `HtmlEvent` + legacy `MouseEvent` slots) |
 | Hover / active tracking | ✅ Done |
+| `pointer-events: none` hit-test skip | ✅ Done |
+| `user-select: none` enforcement | ✅ Done |
 | Text selection (drag-select, Ctrl+A, Ctrl+C) | ✅ Done (anchor/focus cursors, `arboard` clipboard) |
 | Viewport scrollbar + scroll position | ✅ Done (paint + drag; wheel scroll) |
 | Per-element scroll containers | ⚠️ Partial (scroll offset + scrollbar paint; no `Wheel`→`on_event` dispatch) |
@@ -395,6 +399,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 | Keyboard event dispatch | ✅ Done |
 | Tab / Shift+Tab focus traversal | ✅ Done |
 | Focus state | ✅ Done |
+| `querySelector` / `matches` engine | ✅ Done (full CSS Level 4: all combinators, attribute operators, pseudo-classes including `:has()`, `:is()`, `:where()`, `:not()`, structural pseudos, state pseudos) |
 | Placeholder rendering | ✅ Done |
 | Text editing + caret navigation | ✅ Done (insert, delete, arrow keys, Home/End, Shift-select, word/line click-select) |
 | Checkbox / radio click toggle, select menu, form submit | ❌ Not done |
@@ -403,6 +408,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 | calc() / min() / max() / clamp() | ✅ Done (full AST + evaluation in length.rs) |
 | var() / custom properties (`--foo`) | ✅ Done (parsed, inherited, recursive substitution, cycle detection) |
 | `<link>` stylesheet loading | ❌ Not done |
+| Devtools crate (`wgpu-html-devtools`) | ⚠️ Partial (exists with component tree browser, styles inspector, breadcrumb bar; panels not yet self-hosted) |
 | JavaScript | 🚫 Permanently out of scope |
 | **Component framework (`wgpu-html-ui`)** | |
 | `Component` trait (create / update / view / props_changed) | ✅ Done |

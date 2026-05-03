@@ -1,7 +1,7 @@
 use wgpu_html_models::common::JustifyContent::SpaceBetween;
-use wgpu_html_models::common::{AlignItems, BoxSizing, Display, FlexDirection};
+use wgpu_html_models::common::{AlignItems, BoxSizing, Display, FlexDirection, InputType};
 use wgpu_html_ui::style::Stylesheet;
-use wgpu_html_ui::{el, style, Component, Ctx, El, ShouldRender};
+use wgpu_html_ui::{el, style, Component, Ctx, El, InputAttrs, ShouldRender};
 
 pub struct TextInput {
   value: String,
@@ -13,7 +13,7 @@ impl Component for TextInput {
   type Env = ();
 
   fn create(props: &Self::Props) -> Self {
-    Self { value: String::new() }
+    Self { value: "jopa".into() }
   }
 
   fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender {
@@ -22,9 +22,7 @@ impl Component for TextInput {
 
   fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El {
     el::div().class(ctx.scoped("wrapper"))
-      .child(el::input().on_event(|e| {
-        println!("input event: {:?}", e);
-      }))
+      .child(el::input().input_type(InputType::Text).placeholder("test").value(&self.value))
       .child(el::p().class(ctx.scoped("value")).text(&format!("You typed: {}", self.value)))
   }
 
