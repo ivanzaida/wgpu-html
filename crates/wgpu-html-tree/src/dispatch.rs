@@ -21,6 +21,8 @@
 //! All of the above also exist as inherent methods on [`Tree`] for
 //! ergonomic call-site syntax (`tree.focus(...)`, etc.).
 
+use std::cell::Cell;
+
 use wgpu_html_events as ev;
 use wgpu_html_models as m;
 
@@ -80,7 +82,9 @@ fn make_mouse_html_event(
         target: Some(target_path.to_vec()),
         current_target: Some(current_path),
         event_phase,
-        default_prevented: false,
+        default_prevented: Cell::new(false),
+        propagation_stopped: Cell::new(false),
+        immediate_propagation_stopped: Cell::new(false),
         is_trusted: true,
         time_stamp,
       },
@@ -838,7 +842,9 @@ fn fire_focus_event(
           target: Some(target.clone()),
           current_target: Some(current_path),
           event_phase,
-          default_prevented: false,
+          default_prevented: Cell::new(false),
+        propagation_stopped: Cell::new(false),
+        immediate_propagation_stopped: Cell::new(false),
           is_trusted: true,
           time_stamp,
         },
@@ -925,7 +931,9 @@ fn make_keyboard_html_event(
         target: Some(target_path.to_vec()),
         current_target: Some(current_path),
         event_phase,
-        default_prevented: false,
+        default_prevented: Cell::new(false),
+        propagation_stopped: Cell::new(false),
+        immediate_propagation_stopped: Cell::new(false),
         is_trusted: true,
         time_stamp,
       },
@@ -1064,7 +1072,9 @@ fn make_input_html_event(
         target: Some(target_path.to_vec()),
         current_target: Some(current_path),
         event_phase,
-        default_prevented: false,
+        default_prevented: Cell::new(false),
+        propagation_stopped: Cell::new(false),
+        immediate_propagation_stopped: Cell::new(false),
         is_trusted: true,
         time_stamp,
       },
@@ -1143,7 +1153,9 @@ fn make_wheel_html_event(
           target: Some(target_path.to_vec()),
           current_target: Some(current_path),
           event_phase,
-          default_prevented: false,
+          default_prevented: Cell::new(false),
+        propagation_stopped: Cell::new(false),
+        immediate_propagation_stopped: Cell::new(false),
           is_trusted: true,
           time_stamp,
         },
@@ -1181,21 +1193,21 @@ fn make_wheel_html_event(
 /// has already converted the winit delta to screen pixels, or
 /// `Line` when using winit's `LineDelta`.
 ///
-/// Returns the wheel event so the caller can inspect
-/// `default_prevented` to decide whether to skip the default
-/// scroll action.
+/// Returns `true` if `preventDefault()` was called (caller should
+/// skip the default scroll action).
 pub fn wheel_event(
   tree: &mut Tree,
   pos: (f32, f32),
   delta_x: f64,
   delta_y: f64,
   delta_mode: ev::enums::WheelDeltaMode,
-) {
+) -> bool {
   let target = tree.interaction.hover_path.clone().unwrap_or_else(Vec::new);
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
   let buttons_down = tree.interaction.buttons_down;
   let modifiers = tree.interaction.modifiers;
   let depth = target.len();
+  let mut prevented = false;
   for i in 0..=depth {
     let current_path = target[..depth.saturating_sub(i)].to_vec();
     let (dedicated, on_evs) = tree
@@ -1217,15 +1229,28 @@ pub fn wheel_event(
       time_stamp,
     );
     if tree.emit_event(&mut html_ev).is_stop() {
-      return;
+      return prevented;
     }
     for cb in &dedicated {
       cb(&html_ev);
+      if html_ev.base().immediate_propagation_stopped.get() {
+        break;
+      }
     }
-    for on_ev in &on_evs {
-      on_ev(&html_ev);
+    if !html_ev.base().immediate_propagation_stopped.get() {
+      for on_ev in &on_evs {
+        on_ev(&html_ev);
+        if html_ev.base().immediate_propagation_stopped.get() {
+          break;
+        }
+      }
+    }
+    prevented = prevented || html_ev.base().default_prevented.get();
+    if html_ev.base().propagation_stopped.get() {
+      break;
     }
   }
+  prevented
 }
 
 // ── Submit / Form ─────────────────────────────────────────────────────────────
@@ -1265,7 +1290,9 @@ fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Opt
       target: Some(form_path.to_vec()),
       current_target: Some(form_path.to_vec()),
       event_phase: ev::EventPhase::AtTarget,
-      default_prevented: false,
+      default_prevented: Cell::new(false),
+      propagation_stopped: Cell::new(false),
+      immediate_propagation_stopped: Cell::new(false),
       is_trusted: true,
       time_stamp,
     },
@@ -1575,7 +1602,7 @@ impl Tree {
     delta_x: f64,
     delta_y: f64,
     delta_mode: ev::enums::WheelDeltaMode,
-  ) {
+  ) -> bool {
     wheel_event(self, pos, delta_x, delta_y, delta_mode)
   }
 

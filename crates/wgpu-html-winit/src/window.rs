@@ -359,9 +359,9 @@ impl HtmlWindow {
         let doc_pos = viewport_to_document(pos, self.scroll_y);
 
         // Fire wheel event first so listeners can preventDefault.
-        match delta {
+        let prevented = match delta {
           MouseScrollDelta::LineDelta(x, y) => {
-            tree.wheel_event(doc_pos, *x as f64, *y as f64, ev::WheelDeltaMode::Line);
+            tree.wheel_event(doc_pos, *x as f64, *y as f64, ev::WheelDeltaMode::Line)
           }
           MouseScrollDelta::PixelDelta(phys_pos) => {
             tree.wheel_event(
@@ -369,8 +369,12 @@ impl HtmlWindow {
               phys_pos.x / scale as f64,
               phys_pos.y / scale as f64,
               ev::WheelDeltaMode::Pixel,
-            );
+            )
           }
+        };
+
+        if prevented {
+          return true;
         }
 
         let dy = scroll_delta_to_pixels(*delta, scale);
@@ -952,9 +956,9 @@ impl<'tree> WgpuHtmlWindow<'tree> {
 
     // Fire the wheel event first so listeners can preventDefault.
     let scale = self.tree.effective_dpi_scale(window.scale_factor() as f32);
-    match delta {
+    let prevented = match delta {
       MouseScrollDelta::LineDelta(x, y) => {
-        self.tree.wheel_event(doc_pos, x as f64, y as f64, ev::WheelDeltaMode::Line);
+        self.tree.wheel_event(doc_pos, x as f64, y as f64, ev::WheelDeltaMode::Line)
       }
       MouseScrollDelta::PixelDelta(phys_pos) => {
         self.tree.wheel_event(
@@ -962,8 +966,12 @@ impl<'tree> WgpuHtmlWindow<'tree> {
           phys_pos.x / scale as f64,
           phys_pos.y / scale as f64,
           ev::WheelDeltaMode::Pixel,
-        );
+        )
       }
+    };
+
+    if prevented {
+      return;
     }
 
     let dy = scroll_delta_to_pixels(delta, scale);

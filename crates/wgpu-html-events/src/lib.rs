@@ -242,12 +242,33 @@ impl HtmlEvent {
 
   /// Whether `prevent_default()` has been called on this event.
   pub fn default_prevented(&self) -> bool {
-    self.base().default_prevented
+    self.base().default_prevented.get()
   }
 
   /// Whether the event bubbles.
   pub fn bubbles(&self) -> bool {
     self.base().bubbles
+  }
+
+  /// Cancel the default action for this event. Only has effect when
+  /// the event is `cancelable`.
+  pub fn prevent_default(&self) {
+    if self.base().cancelable {
+      self.base().default_prevented.set(true);
+    }
+  }
+
+  /// Stop further propagation of this event. After this call, no
+  /// further listeners on ancestor nodes will be invoked.
+  pub fn stop_propagation(&self) {
+    self.base().propagation_stopped.set(true);
+  }
+
+  /// Stop immediate propagation — skips remaining listeners on the
+  /// current node AND all ancestor nodes.
+  pub fn stop_immediate_propagation(&self) {
+    self.base().propagation_stopped.set(true);
+    self.base().immediate_propagation_stopped.set(true);
   }
 }
 

@@ -2,26 +2,15 @@
 //!
 //! Each event that "extends" a parent event embeds it in a `base` field so
 //! every field on the ancestor is trivially reachable without trait dispatch:
-//!
-//! ```
-//! # use wgpu_html_events::events::MouseEvent;
-//! # fn demo(ev: &MouseEvent) {
-//! let _ = ev.base.base.bubbles;   // Event field through UIEvent
-//! let _ = ev.base.detail;         // UIEvent field
-//! let _ = ev.client_x;            // MouseEvent field
-//! # }
-//! ```
+
+use std::cell::Cell;
 
 use crate::{
-  ClipboardDataId, DataTransferId, FormDataId, HtmlEventType, NodeId,
-  enums::{EventPhase, InputType, KeyboardLocation, PointerType, ToggleState, WheelDeltaMode},
+  ClipboardDataId, DataTransferId, EventPhase, FormDataId, HtmlEventType, InputType, KeyboardLocation,
+  NodeId, PointerType, ToggleState, WheelDeltaMode,
 };
 
-// ── Event ────────────────────────────────────────────────────────────────────
-
-/// The base DOM `Event` interface.
-///
-/// All other event types embed this struct as `base`.
+/// Every DOM event struct embeds a `base` (and possibly ancestor) `Event`.
 #[derive(Debug, Clone)]
 pub struct Event {
   /// The name of this event (e.g. `"click"`, `"keydown"`).
@@ -38,8 +27,13 @@ pub struct Event {
   pub current_target: Option<NodeId>,
   /// Current propagation phase.
   pub event_phase: EventPhase,
-  /// Whether `prevent_default()` has been called.
-  pub default_prevented: bool,
+  /// Whether `prevent_default()` has been called.  Interior-mutable
+  /// so that `&HtmlEvent` (immutable-ref) callbacks can call it.
+  pub default_prevented: Cell<bool>,
+  /// Whether `stop_propagation()` has been called.
+  pub propagation_stopped: Cell<bool>,
+  /// Whether `stop_immediate_propagation()` has been called.
+  pub immediate_propagation_stopped: Cell<bool>,
   /// Whether the event was dispatched by the user agent (not script).
   pub is_trusted: bool,
   /// Time (in milliseconds since the time origin) at which the event was created.

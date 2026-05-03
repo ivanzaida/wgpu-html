@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use super::{enums::EventPhase, *};
 
 fn make_base(event_type: &str) -> Event {
@@ -9,7 +11,9 @@ fn make_base(event_type: &str) -> Event {
     target: None,
     current_target: None,
     event_phase: EventPhase::AtTarget,
-    default_prevented: false,
+    default_prevented: Cell::new(false),
+    propagation_stopped: Cell::new(false),
+    immediate_propagation_stopped: Cell::new(false),
     is_trusted: true,
     time_stamp: 0.0,
   }

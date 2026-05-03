@@ -1,4 +1,5 @@
 use std::{
+  cell::Cell,
   sync::{Arc, Mutex},
   time::Duration,
 };
@@ -179,7 +180,9 @@ fn base(event_type: &str) -> dom::events::Event {
     target: Some(vec![0]),
     current_target: Some(vec![0]),
     event_phase: dom::EventPhase::AtTarget,
-    default_prevented: false,
+    default_prevented: Cell::new(false),
+    propagation_stopped: Cell::new(false),
+    immediate_propagation_stopped: Cell::new(false),
     is_trusted: true,
     time_stamp: 12.0,
   }
