@@ -21,8 +21,8 @@ pub mod text_edit;
 pub mod tree_hook;
 
 pub use dispatch::{
-  blur, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move, focus, focus_next,
-  key_down, key_up, text_input, wheel_event,
+  blur, clipboard_event, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move,
+  focus, focus_next, key_down, key_up, text_input, wheel_event,
 };
 pub use events::{
   EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,
@@ -550,6 +550,12 @@ pub struct Node {
   /// Whether this element can be dragged. When `true`, a primary-button
   /// mousedown followed by ≥5 px movement fires `dragstart`.
   pub draggable: bool,
+  /// Fires on `copy` dispatched to this node. Bubbles target → root.
+  pub on_copy: Vec<EventCallback>,
+  /// Fires on `cut` dispatched to this node. Bubbles target → root.
+  pub on_cut: Vec<EventCallback>,
+  /// Fires on `paste` dispatched to this node. Bubbles target → root.
+  pub on_paste: Vec<EventCallback>,
   /// General-purpose handler that receives the full [`HtmlEvent`] for any
   /// event dispatched to this node, fired *after* the type-specific slot
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
@@ -590,6 +596,9 @@ impl std::fmt::Debug for Node {
       .field("on_dragend", &format!("{} handlers", self.on_dragend.len()))
       .field("on_drop", &format!("{} handlers", self.on_drop.len()))
       .field("draggable", &self.draggable)
+      .field("on_copy", &format!("{} handlers", self.on_copy.len()))
+      .field("on_cut", &format!("{} handlers", self.on_cut.len()))
+      .field("on_paste", &format!("{} handlers", self.on_paste.len()))
       .field("on_event", &format!("{} handlers", self.on_event.len()))
       .finish()
   }
@@ -623,6 +632,9 @@ impl Node {
       on_dragend: Vec::new(),
       on_drop: Vec::new(),
       draggable: false,
+      on_copy: Vec::new(),
+      on_cut: Vec::new(),
+      on_paste: Vec::new(),
       on_event: Vec::new(),
       rect: None,
     }

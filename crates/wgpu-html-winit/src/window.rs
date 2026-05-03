@@ -1052,13 +1052,19 @@ impl<'tree> WgpuHtmlWindow<'tree> {
             // Ctrl+A is handled by handle_edit_key (select_all).
             KeyCode::KeyA => window.request_redraw(),
             KeyCode::KeyC => {
-              self.run_edit_copy();
+              if !self.tree.clipboard_event(ev::HtmlEventType::COPY) {
+                self.run_edit_copy();
+              }
             }
             KeyCode::KeyX => {
-              self.run_edit_cut(window);
+              if !self.tree.clipboard_event(ev::HtmlEventType::CUT) {
+                self.run_edit_cut(window);
+              }
             }
             KeyCode::KeyV => {
-              self.run_edit_paste(window);
+              if !self.tree.clipboard_event(ev::HtmlEventType::PASTE) {
+                self.run_edit_paste(window);
+              }
             }
             _ => {}
           }
@@ -1066,7 +1072,11 @@ impl<'tree> WgpuHtmlWindow<'tree> {
           // Document-level clipboard shortcuts.
           match key {
             KeyCode::KeyA => self.run_select_all(window),
-            KeyCode::KeyC => self.run_copy_selection(),
+            KeyCode::KeyC => {
+              if !self.tree.clipboard_event(ev::HtmlEventType::COPY) {
+                self.run_copy_selection();
+              }
+            }
             _ => {}
           }
         }

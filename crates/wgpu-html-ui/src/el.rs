@@ -465,6 +465,36 @@ impl El {
     self.node.on_drop.push(cb);
     self
   }
+
+  pub fn on_copy(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_copy.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_copy_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_copy.push(cb);
+    self
+  }
+
+  pub fn on_cut(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_cut.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_cut_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_cut.push(cb);
+    self
+  }
+
+  pub fn on_paste(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_paste.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_paste_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_paste.push(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────

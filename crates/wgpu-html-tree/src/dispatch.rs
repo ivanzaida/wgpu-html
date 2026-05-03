@@ -1336,6 +1336,85 @@ pub fn wheel_event(
   prevented
 }
 
+// ── Clipboard ────────────────────────────────────────────────────────────────
+
+/// Dispatch a `copy`, `cut`, or `paste` clipboard event to the
+/// focused element (or document root if nothing is focused),
+/// bubbling target → root.
+///
+/// Returns `true` if `preventDefault()` was called on the event,
+/// signalling the caller to skip the default clipboard operation.
+pub fn clipboard_event(
+  tree: &mut Tree,
+  event_type: &'static str,
+) -> bool {
+  let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let depth = target.len();
+  let mut prevented = false;
+  for i in 0..=depth {
+    let current_path = target[..depth.saturating_sub(i)].to_vec();
+    let (dedicated, on_evs) = tree
+      .root
+      .as_ref()
+      .and_then(|root| root.at_path(&current_path))
+      .map(|node| {
+        let d = match event_type {
+          ev::HtmlEventType::COPY => node.on_copy.clone(),
+          ev::HtmlEventType::CUT => node.on_cut.clone(),
+          ev::HtmlEventType::PASTE => node.on_paste.clone(),
+          _ => Vec::new(),
+        };
+        (d, node.on_event.clone())
+      })
+      .unwrap_or_default();
+    let event_phase = if current_path.as_slice() == target.as_slice() {
+      ev::EventPhase::AtTarget
+    } else {
+      ev::EventPhase::BubblingPhase
+    };
+    let mut html_ev = ev::HtmlEvent::Clipboard(ev::events::ClipboardEvent {
+      base: ev::events::Event {
+        event_type: ev::HtmlEventType::from(event_type),
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        target: Some(target.clone()),
+        current_target: Some(current_path),
+        event_phase,
+        default_prevented: Cell::new(false),
+        propagation_stopped: Cell::new(false),
+        immediate_propagation_stopped: Cell::new(false),
+        is_trusted: true,
+        time_stamp,
+      },
+      clipboard_data: None,
+    });
+    if tree.emit_event(&mut html_ev).is_stop() {
+      return prevented;
+    }
+    for cb in &dedicated {
+      cb(&html_ev);
+      if html_ev.base().immediate_propagation_stopped.get() {
+        break;
+      }
+    }
+    if !html_ev.base().immediate_propagation_stopped.get() {
+      for on_ev in &on_evs {
+        on_ev(&html_ev);
+        if html_ev.base().immediate_propagation_stopped.get() {
+          break;
+        }
+      }
+    }
+    prevented = prevented || html_ev.base().default_prevented.get();
+    if html_ev.base().propagation_stopped.get() {
+      break;
+    }
+  }
+  prevented
+}
+
 // ── Submit / Form ─────────────────────────────────────────────────────────────
 
 /// Find the nearest `<form>` ancestor of the element at `path`.
@@ -1757,6 +1836,12 @@ impl Tree {
     delta_mode: ev::enums::WheelDeltaMode,
   ) -> bool {
     wheel_event(self, pos, delta_x, delta_y, delta_mode)
+  }
+
+  /// Dispatch a clipboard event to the focused element.
+  /// See [`clipboard_event`].
+  pub fn clipboard_event(&mut self, event_type: &'static str) -> bool {
+    clipboard_event(self, event_type)
   }
 
   /// Process typed text on the focused form control. See [`text_input`].
