@@ -294,26 +294,18 @@ fn paint_box_in_clip(
     }
   }
 
-  // Borders: when the box has any rounded corner AND a uniform border
-  // colour we can paint the whole stroked ring as a single rounded
-  // quad. Otherwise (sharp corners, or per-side colours) fall back to
-  // emitting up to four sharp edge quads.
-  if rounded {
-    if let Some(color) = uniform_border_color(b) {
-      let color = apply_opacity(color, opacity);
-      let stroke = [b.border.top, b.border.right, b.border.bottom, b.border.left];
-      if stroke.iter().any(|s| *s > 0.0) {
-        out.push_quad_stroke_ellipse(rect, color, rh, rv, stroke);
-      }
-    } else {
-      // Mixed colours / styles on a rounded box: emit each solid
-      // side as its own one-sided ring quad so the corners follow
-      // the rounded path. Sides set to none / hidden are skipped;
-      // dashed / dotted on rounded boxes are still rendered as
-      // sharp segments — they overlap the rounded path slightly
-      // at the corners (acknowledged limitation).
-      paint_rounded_per_side_borders(b, rect, rh, rv, opacity, out);
+  // Borders: when all sides share the same solid colour we paint
+  // the whole ring as a single stroked quad — no GPU rasterisation
+  // seams between edges, works for both sharp and rounded corners.
+  // Mixed colours / styles still fall back to per-side quads.
+  if let Some(color) = uniform_border_color(b) {
+    let color = apply_opacity(color, opacity);
+    let stroke = [b.border.top, b.border.right, b.border.bottom, b.border.left];
+    if stroke.iter().any(|s| *s > 0.0) {
+      out.push_quad_stroke_ellipse(rect, color, rh, rv, stroke);
     }
+  } else if rounded {
+    paint_rounded_per_side_borders(b, rect, rh, rv, opacity, out);
   } else {
     paint_border_edges(b, out, paint_offset_y, opacity);
   }

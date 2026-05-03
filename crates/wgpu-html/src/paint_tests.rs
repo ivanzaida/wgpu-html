@@ -110,8 +110,9 @@
                              border: 2px solid red;"></body>"#,
     );
     let list = paint_tree(&tree, 800.0, 600.0);
-    // No background → 4 border edges only.
-    assert_eq!(list.quads.len(), 4);
+    // No background, uniform border → single stroked ring.
+    assert_eq!(list.quads.len(), 1);
+    assert_eq!(list.quads[0].stroke, [2.0, 2.0, 2.0, 2.0]);
   }
 
   #[test]
@@ -122,7 +123,8 @@
                              border: 2px solid red;"></body>"#,
     );
     let list = paint_tree(&tree, 800.0, 600.0);
-    assert_eq!(list.quads.len(), 5);
+    // Background + uniform border ring.
+    assert_eq!(list.quads.len(), 2);
   }
 
   #[test]
@@ -219,10 +221,10 @@
                              border: 2px solid red;"></body>"#,
     );
     let list = paint_tree(&tree, 800.0, 600.0);
-    assert_eq!(list.quads.len(), 4);
-    for q in &list.quads {
-      assert_eq!(q.stroke, [0.0; 4]);
-    }
+    // Sharp box with uniform border → single stroked ring, no seams.
+    assert_eq!(list.quads.len(), 1);
+    assert_eq!(list.quads[0].stroke, [2.0, 2.0, 2.0, 2.0]);
+    assert_eq!(list.quads[0].radii_h, [0.0; 4]);
   }
 
   #[test]
