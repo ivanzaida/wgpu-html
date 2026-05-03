@@ -405,6 +405,36 @@ impl El {
     self.node.on_wheel.push(cb);
     self
   }
+
+  pub fn on_dblclick(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_dblclick.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_dblclick_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_dblclick.push(cb);
+    self
+  }
+
+  pub fn on_contextmenu(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_contextmenu.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_contextmenu_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_contextmenu.push(cb);
+    self
+  }
+
+  pub fn on_auxclick(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_auxclick.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_auxclick_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_auxclick.push(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────

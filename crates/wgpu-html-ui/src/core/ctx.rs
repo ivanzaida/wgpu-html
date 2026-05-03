@@ -184,6 +184,30 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
     })
   }
 
+  /// Create a [`MouseCallback`] that sends a fixed message on `dblclick`.
+  pub fn on_dblclick(&self, msg: Msg) -> MouseCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &MouseEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create a [`MouseCallback`] that sends a fixed message on `contextmenu`.
+  pub fn on_contextmenu(&self, msg: Msg) -> MouseCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &MouseEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create a [`MouseCallback`] that sends a fixed message on `auxclick`.
+  pub fn on_auxclick(&self, msg: Msg) -> MouseCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &MouseEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
   /// Get a clone of the message sender for building custom callbacks
   /// (e.g. parent-provided closures in props) or passing to
   /// [`Store::subscribe`](crate::Store::subscribe).

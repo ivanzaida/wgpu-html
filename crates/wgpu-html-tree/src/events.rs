@@ -217,6 +217,14 @@ pub struct InteractionState {
   /// gained focus. Compared with the current value on `blur` to
   /// decide whether to fire a `change` event.
   pub focus_value_snapshot: Option<String>,
+  /// Instant of the most recent primary-button `click` synthesis.
+  /// Used with `last_click_path` to detect double-clicks (300 ms
+  /// window, same-element requirement).
+  pub last_click_time: Instant,
+  /// Path of the element that was clicked in the most recent
+  /// `click` synthesis. Compared with the next click target to
+  /// decide `dblclick`.
+  pub last_click_path: Option<Vec<usize>>,
 }
 
 impl Default for InteractionState {
@@ -236,6 +244,8 @@ impl Default for InteractionState {
       edit_cursor: None,
       caret_blink_epoch: Instant::now(),
       focus_value_snapshot: None,
+      last_click_time: Instant::now(),
+      last_click_path: None,
     }
   }
 }

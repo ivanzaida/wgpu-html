@@ -531,6 +531,13 @@ pub struct Node {
   pub on_change: Vec<EventCallback>,
   /// Fires on `wheel` dispatched to this node. Bubbles target → root.
   pub on_wheel: Vec<EventCallback>,
+  /// Fires on `dblclick` (two clicks within 300 ms on same element).
+  /// Bubbles target → root.
+  pub on_dblclick: Vec<MouseCallback>,
+  /// Fires on `contextmenu` (secondary-button release). Bubbles target → root.
+  pub on_contextmenu: Vec<MouseCallback>,
+  /// Fires on `auxclick` (middle-button release). Bubbles target → root.
+  pub on_auxclick: Vec<MouseCallback>,
   /// General-purpose handler that receives the full [`HtmlEvent`] for any
   /// event dispatched to this node, fired *after* the type-specific slot
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
@@ -564,6 +571,9 @@ impl std::fmt::Debug for Node {
       .field("on_input", &format!("{} handlers", self.on_input.len()))
       .field("on_change", &format!("{} handlers", self.on_change.len()))
       .field("on_wheel", &format!("{} handlers", self.on_wheel.len()))
+      .field("on_dblclick", &format!("{} handlers", self.on_dblclick.len()))
+      .field("on_contextmenu", &format!("{} handlers", self.on_contextmenu.len()))
+      .field("on_auxclick", &format!("{} handlers", self.on_auxclick.len()))
       .field("on_event", &format!("{} handlers", self.on_event.len()))
       .finish()
   }
@@ -590,6 +600,9 @@ impl Node {
       on_input: Vec::new(),
       on_change: Vec::new(),
       on_wheel: Vec::new(),
+      on_dblclick: Vec::new(),
+      on_contextmenu: Vec::new(),
+      on_auxclick: Vec::new(),
       on_event: Vec::new(),
       rect: None,
     }

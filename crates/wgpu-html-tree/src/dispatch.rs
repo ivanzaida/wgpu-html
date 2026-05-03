@@ -111,6 +111,9 @@ enum Slot {
   MouseDown,
   MouseUp,
   Click,
+  DblClick,
+  ContextMenu,
+  AuxClick,
 }
 
 impl Slot {
@@ -119,11 +122,14 @@ impl Slot {
       Slot::MouseDown => ev::HtmlEventType::MOUSEDOWN,
       Slot::MouseUp => ev::HtmlEventType::MOUSEUP,
       Slot::Click => ev::HtmlEventType::CLICK,
+      Slot::DblClick => ev::HtmlEventType::DBLCLICK,
+      Slot::ContextMenu => ev::HtmlEventType::CONTEXTMENU,
+      Slot::AuxClick => ev::HtmlEventType::AUXCLICK,
     }
   }
   fn detail(self) -> i32 {
     match self {
-      Slot::Click => 1,
+      Slot::Click | Slot::DblClick => 1,
       _ => 0,
     }
   }
@@ -163,6 +169,9 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
           Slot::MouseDown => node.on_mouse_down.clone(),
           Slot::MouseUp => node.on_mouse_up.clone(),
           Slot::Click => node.on_click.clone(),
+          Slot::DblClick => node.on_dblclick.clone(),
+          Slot::ContextMenu => node.on_contextmenu.clone(),
+          Slot::AuxClick => node.on_auxclick.clone(),
         };
         (mouse_cbs, node.on_event.clone())
       })
@@ -569,6 +578,17 @@ pub fn dispatch_mouse_up(
 
   bubble(tree, target_path, pos, Some(button), Slot::MouseUp);
 
+  // contextmenu on secondary-button release.
+  if button == MouseButton::Secondary {
+    // Use the release target (not common ancestor) for contextmenu.
+    bubble(tree, target_path, pos, Some(button), Slot::ContextMenu);
+  }
+
+  // auxclick on middle-button release.
+  if button == MouseButton::Middle {
+    bubble(tree, target_path, pos, Some(button), Slot::AuxClick);
+  }
+
   if button == MouseButton::Primary {
     if tree.interaction.selecting_text {
       if let Some(cursor) = text_cursor {
@@ -588,6 +608,16 @@ pub fn dispatch_mouse_up(
       let click_target = common_prefix(&press_path, target_path);
       if !suppress_click {
         bubble(tree, click_target, pos, Some(button), Slot::Click);
+
+        // Double-click detection: same element, within 300 ms.
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(tree.interaction.last_click_time);
+        let same_target = tree.interaction.last_click_path.as_deref() == Some(click_target);
+        if elapsed.as_millis() < 300 && same_target {
+          bubble(tree, click_target, pos, Some(button), Slot::DblClick);
+        }
+        tree.interaction.last_click_time = now;
+        tree.interaction.last_click_path = Some(click_target.to_vec());
       }
       // Check if click landed on a submit button inside a form.
       if let Some((form_path, submitter_path)) = submit_button_in_form(tree, click_target) {
