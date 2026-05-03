@@ -1,4 +1,5 @@
-use wgpu_html_models::common::{AlignItems, Display};
+use wgpu_html_models::common::JustifyContent::SpaceBetween;
+use wgpu_html_models::common::{AlignItems, BoxSizing, Display, FlexDirection};
 use wgpu_html_ui::style::Stylesheet;
 use wgpu_html_ui::{el, style, Component, Ctx, El, ShouldRender};
 
@@ -28,18 +29,33 @@ impl Component for TextInput {
     Self: Sized,
   {
     style::sheet([
-      style::rule("wrapper")
+      style::rule(".wrapper")
+        .width(style::px(240))
+        .display(Display::Flex)
+        .flex_direction(FlexDirection::Column)
+        .align_items(AlignItems::Center),
+      style::rule(".value")
+        .width(style::px(240))
+        .height(style::px(40))
+        .background_color("var(--bg-card)")
+        .border("1px solid var(--border-subtle)")
+        .border_radius(style::px(12))
+        .box_sizing(BoxSizing::BorderBox)
+        .padding(style::px(12))
+        .color("var(--text-primary)")
+        .font_size(style::px(16))
+        .font_family("sans-serif")
         .display(Display::Flex)
         .align_items(AlignItems::Center)
-        .gap(style::px(12)),
+        .justify_content(SpaceBetween),
     ])
   }
 
   fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El {
     el::div().class(ctx.scoped("wrapper"))
-      .child(
-        el::input()
-      )
+      .child(el::input().on_event(|e| {
+        println!("input event: {:?}", e);
+      }))
       .child(el::p().class(ctx.scoped("value")).text(&format!("You typed: {}", self.value)))
   }
 }

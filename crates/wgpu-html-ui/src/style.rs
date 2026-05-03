@@ -103,6 +103,10 @@ impl IntoF32 for u32 {
   }
 }
 
+pub fn var(v: impl Into<String>) -> String {
+  format!("var(--{})", v.into())
+}
+
 pub fn px(v: impl IntoF32) -> Val {
   Val::Px(v.into_f32())
 }
@@ -197,6 +201,14 @@ pub fn rule(selector: impl Into<String>) -> Rule {
     selector: selector.into(),
     decls: Vec::new(),
   }
+}
+
+pub fn rule_class(selector: impl Into<String>) -> Rule {
+  rule(format!(".{}", selector.into()))
+}
+
+pub fn rule_id(selector: impl Into<String>) -> Rule {
+  rule(format!("#{}", selector.into()))
 }
 
 impl Rule {

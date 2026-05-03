@@ -583,20 +583,13 @@ impl TextContext {
         }
 
         if entry.w > 0 && entry.h > 0 {
-          // Half-pixel UV inset prevents bilinear sampling from
-          // reading past the glyph rect.  The atlas packer inserts a
-          // 1px colour-dilated gutter between entries, but the inset
-          // keeps the sampler exactly pixel-centered within the
-          // valid range.
-          let half_px_x = 0.5 / atlas_w as f32;
-          let half_px_y = 0.5 / atlas_h as f32;
           let uv_min = [
-            entry.rect.x as f32 / atlas_w as f32 + half_px_x,
-            entry.rect.y as f32 / atlas_h as f32 + half_px_y,
+            entry.rect.x as f32 / atlas_w as f32,
+            entry.rect.y as f32 / atlas_h as f32,
           ];
           let uv_max = [
-            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32 - half_px_x,
-            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32 - half_px_y,
+            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
+            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
           ];
           glyphs.push(PositionedGlyph {
             x: pos_x,
@@ -868,15 +861,13 @@ impl TextContext {
         let quad_h = entry.h as f32 + 1.0;
 
         if entry.w > 0 && entry.h > 0 {
-          let half_px_x = 0.5 / atlas_w as f32;
-          let half_px_y = 0.5 / atlas_h as f32;
           let uv_min = [
-            entry.rect.x as f32 / atlas_w as f32 + half_px_x,
-            entry.rect.y as f32 / atlas_h as f32 + half_px_y,
+            entry.rect.x as f32 / atlas_w as f32,
+            entry.rect.y as f32 / atlas_h as f32,
           ];
           let uv_max = [
-            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32 - half_px_x,
-            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32 - half_px_y,
+            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
+            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
           ];
           all_glyphs.push(PositionedGlyph {
             x: pos_x,
