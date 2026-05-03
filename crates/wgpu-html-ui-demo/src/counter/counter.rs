@@ -78,7 +78,10 @@ impl Component for Counter {
       div().class(ctx.scoped("title")).text(self.label),
       div().class(ctx.scoped("value")).text(self.count.to_string()),
       div().class(ctx.scoped("buttons")).children([
-        button().text("-"),
+        button().text("-").on_click(|e| {
+          ctx.on_click(())(e);
+          println!("clicked -");
+        }),
         button().class(ctx.scoped("wide")).text("Reset"),
         button().text("+")
       ]),

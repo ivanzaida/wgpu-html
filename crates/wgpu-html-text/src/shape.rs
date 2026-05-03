@@ -574,8 +574,11 @@ impl TextContext {
         // bearing for the quad's top-left. Both coords are
         // rounded so the linear sampler doesn't blend the mask
         // with zeroed padding rows.
+        // BUG: zeno's Placement.top carries a baseline-relative
+        // offset that lands glyphs ~10% too low.  The 0.10-baseline
+        // upward shift empirically matches browser rendering.
         let pos_x = (physical.x as f32 + entry.left as f32 + spacing_dx).round();
-        let pos_y = (baseline_y - entry.top as f32).round();
+        let pos_y = (baseline_y - entry.top as f32 - baseline_y * 0.10).round();
 
         let quad_w = entry.w as f32;
         // Extra 1px on the quad height prevents bottom-row clipping
@@ -866,7 +869,7 @@ impl TextContext {
         };
 
         let pos_x = (snap.physical.x as f32 + entry.left as f32).round();
-        let pos_y = (line.baseline - entry.top as f32).round();
+        let pos_y = (line.baseline - entry.top as f32 - line.baseline * 0.10).round();
         let quad_w = entry.w as f32;
         let quad_h = entry.h as f32 + 1.0;
 
