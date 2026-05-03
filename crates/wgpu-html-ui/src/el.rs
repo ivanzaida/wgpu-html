@@ -315,6 +315,96 @@ impl El {
     self.node.on_event.push(cb);
     self
   }
+
+  pub fn on_keydown(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_keydown.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_keydown_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_keydown.push(cb);
+    self
+  }
+
+  pub fn on_keyup(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_keyup.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_keyup_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_keyup.push(cb);
+    self
+  }
+
+  pub fn on_focus(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_focus.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_focus_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_focus.push(cb);
+    self
+  }
+
+  pub fn on_blur(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_blur.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_blur_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_blur.push(cb);
+    self
+  }
+
+  pub fn on_focusin(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_focusin.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_focusin_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_focusin.push(cb);
+    self
+  }
+
+  pub fn on_focusout(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_focusout.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_focusout_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_focusout.push(cb);
+    self
+  }
+
+  pub fn on_input(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_input.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_input_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_input.push(cb);
+    self
+  }
+
+  pub fn on_change(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_change.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_change_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_change.push(cb);
+    self
+  }
+
+  pub fn on_wheel(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_wheel.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_wheel_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_wheel.push(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────

@@ -136,6 +136,54 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
     })
   }
 
+  /// Create an [`EventCallback`] that sends a fixed message on `input` events.
+  pub fn on_input(&self, msg: Msg) -> EventCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &HtmlEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create an [`EventCallback`] that sends a fixed message on `change` events.
+  pub fn on_change(&self, msg: Msg) -> EventCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &HtmlEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create an [`EventCallback`] that sends a fixed message on `keydown` events.
+  pub fn on_keydown(&self, msg: Msg) -> EventCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &HtmlEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create an [`EventCallback`] that sends a fixed message on `focus` events.
+  pub fn on_focus(&self, msg: Msg) -> EventCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &HtmlEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create an [`EventCallback`] that sends a fixed message on `blur` events.
+  pub fn on_blur(&self, msg: Msg) -> EventCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &HtmlEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create an [`EventCallback`] that sends a fixed message on `wheel` events.
+  pub fn on_wheel(&self, msg: Msg) -> EventCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &HtmlEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
   /// Get a clone of the message sender for building custom callbacks
   /// (e.g. parent-provided closures in props) or passing to
   /// [`Store::subscribe`](crate::Store::subscribe).

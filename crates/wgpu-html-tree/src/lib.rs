@@ -512,6 +512,25 @@ pub struct Node {
   /// Fires when the pointer leaves this node's subtree
   /// (deepest-first across the left chain).
   pub on_mouse_leave: Vec<MouseCallback>,
+  /// Fires on `keydown` dispatched to this node. Bubbles target → root.
+  /// Receives the full `HtmlEvent::Keyboard` variant.
+  pub on_keydown: Vec<EventCallback>,
+  /// Fires on `keyup` dispatched to this node. Bubbles target → root.
+  pub on_keyup: Vec<EventCallback>,
+  /// Fires on `focus` (does not bubble). Target only.
+  pub on_focus: Vec<EventCallback>,
+  /// Fires on `blur` (does not bubble). Target only.
+  pub on_blur: Vec<EventCallback>,
+  /// Fires on `focusin` (bubbles target → root).
+  pub on_focusin: Vec<EventCallback>,
+  /// Fires on `focusout` (bubbles target → root).
+  pub on_focusout: Vec<EventCallback>,
+  /// Fires on `input` dispatched to this node. Bubbles target → root.
+  pub on_input: Vec<EventCallback>,
+  /// Fires on `change` dispatched to this node. Bubbles target → root.
+  pub on_change: Vec<EventCallback>,
+  /// Fires on `wheel` dispatched to this node. Bubbles target → root.
+  pub on_wheel: Vec<EventCallback>,
   /// General-purpose handler that receives the full [`HtmlEvent`] for any
   /// event dispatched to this node, fired *after* the type-specific slot
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
@@ -536,6 +555,15 @@ impl std::fmt::Debug for Node {
       .field("on_mouse_move", &format!("{} handlers", self.on_mouse_move.len()))
       .field("on_mouse_enter", &format!("{} handlers", self.on_mouse_enter.len()))
       .field("on_mouse_leave", &format!("{} handlers", self.on_mouse_leave.len()))
+      .field("on_keydown", &format!("{} handlers", self.on_keydown.len()))
+      .field("on_keyup", &format!("{} handlers", self.on_keyup.len()))
+      .field("on_focus", &format!("{} handlers", self.on_focus.len()))
+      .field("on_blur", &format!("{} handlers", self.on_blur.len()))
+      .field("on_focusin", &format!("{} handlers", self.on_focusin.len()))
+      .field("on_focusout", &format!("{} handlers", self.on_focusout.len()))
+      .field("on_input", &format!("{} handlers", self.on_input.len()))
+      .field("on_change", &format!("{} handlers", self.on_change.len()))
+      .field("on_wheel", &format!("{} handlers", self.on_wheel.len()))
       .field("on_event", &format!("{} handlers", self.on_event.len()))
       .finish()
   }
@@ -553,6 +581,15 @@ impl Node {
       on_mouse_move: Vec::new(),
       on_mouse_enter: Vec::new(),
       on_mouse_leave: Vec::new(),
+      on_keydown: Vec::new(),
+      on_keyup: Vec::new(),
+      on_focus: Vec::new(),
+      on_blur: Vec::new(),
+      on_focusin: Vec::new(),
+      on_focusout: Vec::new(),
+      on_input: Vec::new(),
+      on_change: Vec::new(),
+      on_wheel: Vec::new(),
       on_event: Vec::new(),
       rect: None,
     }

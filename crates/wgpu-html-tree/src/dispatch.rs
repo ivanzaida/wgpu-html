@@ -777,11 +777,21 @@ fn fire_focus_event(
       break;
     }
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-    let on_evs = tree
+    let (dedicated, on_evs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
-      .map(|node| node.on_event.clone())
+      .map(|node| {
+        let d = match event_type {
+          ev::HtmlEventType::FOCUS => node.on_focus.clone(),
+          ev::HtmlEventType::BLUR => node.on_blur.clone(),
+          ev::HtmlEventType::FOCUSIN => node.on_focusin.clone(),
+          ev::HtmlEventType::FOCUSOUT => node.on_focusout.clone(),
+          ev::HtmlEventType::CHANGE => node.on_change.clone(),
+          _ => Vec::new(),
+        };
+        (d, node.on_event.clone())
+      })
       .unwrap_or_default();
     let event_phase = if current_path == target {
       ev::EventPhase::AtTarget
@@ -808,6 +818,9 @@ fn fire_focus_event(
     });
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
+    }
+    for cb in &dedicated {
+      cb(&html_ev);
     }
     for on_ev in &on_evs {
       on_ev(&html_ev);
@@ -913,11 +926,18 @@ fn bubble_keyboard(
   let depth = target_path.len();
   for i in 0..=depth {
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-    let on_evs = tree
+    let (dedicated, on_evs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
-      .map(|node| node.on_event.clone())
+      .map(|node| {
+        let d = if event_type == ev::HtmlEventType::KEYDOWN {
+          node.on_keydown.clone()
+        } else {
+          node.on_keyup.clone()
+        };
+        (d, node.on_event.clone())
+      })
       .unwrap_or_default();
     let mut html_ev = make_keyboard_html_event(
       event_type,
@@ -931,6 +951,9 @@ fn bubble_keyboard(
     );
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
+    }
+    for cb in &dedicated {
+      cb(&html_ev);
     }
     for on_ev in &on_evs {
       on_ev(&html_ev);
@@ -1033,11 +1056,11 @@ fn bubble_input(
   let depth = target_path.len();
   for i in 0..=depth {
     let current_path = target_path[..depth.saturating_sub(i)].to_vec();
-    let on_evs = tree
+    let (dedicated, on_evs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
-      .map(|node| node.on_event.clone())
+      .map(|node| (node.on_input.clone(), node.on_event.clone()))
       .unwrap_or_default();
     let mut html_ev = make_input_html_event(
       ev::HtmlEventType::INPUT,
@@ -1049,6 +1072,9 @@ fn bubble_input(
     );
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
+    }
+    for cb in &dedicated {
+      cb(&html_ev);
     }
     for on_ev in &on_evs {
       on_ev(&html_ev);
@@ -1142,11 +1168,11 @@ pub fn wheel_event(
   let depth = target.len();
   for i in 0..=depth {
     let current_path = target[..depth.saturating_sub(i)].to_vec();
-    let on_evs = tree
+    let (dedicated, on_evs) = tree
       .root
       .as_ref()
       .and_then(|root| root.at_path(&current_path))
-      .map(|node| node.on_event.clone())
+      .map(|node| (node.on_wheel.clone(), node.on_event.clone()))
       .unwrap_or_default();
     let mut html_ev = make_wheel_html_event(
       ev::HtmlEventType::WHEEL,
@@ -1162,6 +1188,9 @@ pub fn wheel_event(
     );
     if tree.emit_event(&mut html_ev).is_stop() {
       return;
+    }
+    for cb in &dedicated {
+      cb(&html_ev);
     }
     for on_ev in &on_evs {
       on_ev(&html_ev);
