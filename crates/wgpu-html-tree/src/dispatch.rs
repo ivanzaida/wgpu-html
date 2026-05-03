@@ -1227,6 +1227,52 @@ fn bubble_input(
   }
 }
 
+/// Bubble a `beforeinput` event target → root. Returns `true` if
+/// `preventDefault()` was called (caller should skip the mutation).
+fn bubble_beforeinput(
+  tree: &mut Tree,
+  target_path: &[usize],
+  data: Option<String>,
+  input_type: ev::enums::InputType,
+) -> bool {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let depth = target_path.len();
+  let mut prevented = false;
+  for i in 0..=depth {
+    let current_path = target_path[..depth.saturating_sub(i)].to_vec();
+    let (dedicated, on_evs) = tree
+      .root
+      .as_ref()
+      .and_then(|root| root.at_path(&current_path))
+      .map(|node| (node.on_beforeinput.clone(), node.on_event.clone()))
+      .unwrap_or_default();
+    let mut html_ev = make_input_html_event(
+      ev::HtmlEventType::BEFOREINPUT,
+      data.clone(),
+      input_type.clone(),
+      target_path,
+      current_path,
+      time_stamp,
+    );
+    if tree.emit_event(&mut html_ev).is_stop() {
+      return prevented;
+    }
+    for cb in &dedicated {
+      cb(&html_ev);
+      if html_ev.base().immediate_propagation_stopped.get() { break; }
+    }
+    if !html_ev.base().immediate_propagation_stopped.get() {
+      for on_ev in &on_evs {
+        on_ev(&html_ev);
+        if html_ev.base().immediate_propagation_stopped.get() { break; }
+      }
+    }
+    prevented = prevented || html_ev.base().default_prevented.get();
+    if html_ev.base().propagation_stopped.get() { break; }
+  }
+  prevented
+}
+
 // ── Wheel event ──────────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
@@ -1828,6 +1874,11 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     .clone()
     .unwrap_or_else(|| crate::EditCursor::collapsed(old_value.len()));
 
+  // Fire beforeinput — if cancelled, skip the mutation.
+  if bubble_beforeinput(tree, &focus_path, Some(text.to_owned()), ev::enums::InputType::InsertText) {
+    return true;
+  }
+
   let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
 
   // Write back.
@@ -1891,6 +1942,16 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
   // Mutation keys (blocked by readonly).
   if is_readonly {
     return false;
+  }
+
+  let input_type = match key {
+    "Backspace" => ev::enums::InputType::DeleteContentBackward,
+    "Delete" => ev::enums::InputType::DeleteContentForward,
+    "Enter" => ev::enums::InputType::InsertLineBreak,
+    _ => return false,
+  };
+  if bubble_beforeinput(tree, &focus_path, None, input_type) {
+    return true; // cancelled
   }
 
   let mutation: Option<(String, crate::EditCursor)> = match key {

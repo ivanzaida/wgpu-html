@@ -528,6 +528,9 @@ pub struct Node {
   pub on_focusout: Vec<EventCallback>,
   /// Fires on `input` dispatched to this node. Bubbles target → root.
   pub on_input: Vec<EventCallback>,
+  /// Fires on `beforeinput` before text mutation. Bubbles target → root.
+  /// `cancelable: true` — calling `ev.prevent_default()` skips the edit.
+  pub on_beforeinput: Vec<EventCallback>,
   /// Fires on `change` dispatched to this node. Bubbles target → root.
   pub on_change: Vec<EventCallback>,
   /// Fires on `wheel` dispatched to this node. Bubbles target → root.
@@ -600,6 +603,7 @@ impl std::fmt::Debug for Node {
       .field("on_focusin", &format!("{} handlers", self.on_focusin.len()))
       .field("on_focusout", &format!("{} handlers", self.on_focusout.len()))
       .field("on_input", &format!("{} handlers", self.on_input.len()))
+      .field("on_beforeinput", &format!("{} handlers", self.on_beforeinput.len()))
       .field("on_change", &format!("{} handlers", self.on_change.len()))
       .field("on_wheel", &format!("{} handlers", self.on_wheel.len()))
       .field("on_dblclick", &format!("{} handlers", self.on_dblclick.len()))
@@ -640,6 +644,7 @@ impl Node {
       on_focusin: Vec::new(),
       on_focusout: Vec::new(),
       on_input: Vec::new(),
+      on_beforeinput: Vec::new(),
       on_change: Vec::new(),
       on_wheel: Vec::new(),
       on_dblclick: Vec::new(),

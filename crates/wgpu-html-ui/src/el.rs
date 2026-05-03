@@ -386,6 +386,16 @@ impl El {
     self
   }
 
+  pub fn on_beforeinput(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_beforeinput.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_beforeinput_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_beforeinput.push(cb);
+    self
+  }
+
   pub fn on_change(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
     self.node.on_change.push(Arc::new(f));
     self
