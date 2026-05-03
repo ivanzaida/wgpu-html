@@ -3657,9 +3657,12 @@ fn make_text_leaf(
   // the full glyph quads so that no downstream clip / scissor can
   // accidentally cut off the bottom.  margin_rect / border_rect stay
   // at the CSS line-height so that sibling spacing isn't blown out.
+  // Add 1px safety margin to the glyph quads so boundary conditions
+  // (subpixel alignment, GPU rasterization, atlas placement) don't clip
+  // the bottom or right edge of any glyph.
   let content_h = run.as_ref().map_or(h, |r| {
     let max_g = r.glyphs.iter().map(|g| g.y + g.h).fold(0.0f32, f32::max);
-    h.max(max_g)
+    (h.max(max_g) + 1.0).ceil()
   });
   let r = Rect::new(origin_x, origin_y, box_w, h);
   let content_r = Rect::new(origin_x, origin_y, box_w, content_h);

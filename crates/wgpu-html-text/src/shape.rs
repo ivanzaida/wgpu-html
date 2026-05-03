@@ -578,7 +578,9 @@ impl TextContext {
         let pos_y = (baseline_y - entry.top as f32).round();
 
         let quad_w = entry.w as f32;
-        let quad_h = entry.h as f32;
+        // Extra 1px on the quad height prevents bottom-row clipping
+        // from GPU rasterisation boundary conditions.
+        let quad_h = entry.h as f32 + 1.0;
 
         // Track left/right ink extents. After the loop we shift all
         // glyphs so min_x = 0 and include the overshoot in run.width.
@@ -867,7 +869,7 @@ impl TextContext {
         let pos_x = (snap.physical.x as f32 + entry.left as f32).round();
         let pos_y = (line.baseline - entry.top as f32).round();
         let quad_w = entry.w as f32;
-        let quad_h = entry.h as f32;
+        let quad_h = entry.h as f32 + 1.0;
 
         if entry.w > 0 && entry.h > 0 {
           let half_px_x = 0.5 / atlas_w as f32;
