@@ -55,6 +55,7 @@
       image: None,
       background_image: None,
       children: Vec::new(),
+      is_fixed: false,
     }
   }
 
@@ -85,6 +86,7 @@
       image: None,
       background_image: None,
       children: Vec::new(),
+      is_fixed: false,
     };
     let mut leaf_b = leaf_a.clone();
     leaf_b.border_rect = wgpu_html_layout::Rect::new(50.0, 0.0, 50.0, 20.0);
@@ -177,6 +179,7 @@
       image: None,
       background_image: None,
       children: Vec::new(),
+      is_fixed: false,
     }
   }
 
@@ -256,6 +259,7 @@
       image: None,
       background_image: None,
       children: vec![text_box("Hello", 0.0), text_box("World", 0.0)],
+      is_fixed: false,
     };
     let mut tree = Tree::new(wgpu_html_tree::Node::new("root"));
     assert!(select_all_text(&mut tree, &root));
@@ -293,6 +297,7 @@
       image: None,
       background_image: None,
       children: vec![text_box("Hello ", 0.0), text_box("world", 48.0)],
+      is_fixed: false,
     };
     let root = LayoutBox {
       margin_rect: wgpu_html_layout::Rect::new(0.0, 0.0, 300.0, 60.0),
@@ -319,6 +324,7 @@
       image: None,
       background_image: None,
       children: vec![inline_parent, text_box("Second", 0.0)],
+      is_fixed: false,
     };
     let mut tree = Tree::new(wgpu_html_tree::Node::new("root"));
     tree.interaction.selection = Some(TextSelection {

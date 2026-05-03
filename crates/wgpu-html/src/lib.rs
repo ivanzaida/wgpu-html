@@ -110,9 +110,10 @@ pub fn paint_tree_returning_layout(
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
+  viewport_scroll_y: f32,
 ) -> (DisplayList, Option<LayoutBox>) {
   let (list, layout, _) =
-    paint_tree_returning_layout_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale);
+    paint_tree_returning_layout_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, viewport_scroll_y);
   (list, layout)
 }
 
@@ -123,6 +124,7 @@ pub fn paint_tree_returning_layout_profiled(
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
+  viewport_scroll_y: f32,
 ) -> (DisplayList, Option<LayoutBox>, PipelineTimings) {
   let (layout, mut timings) = compute_layout_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale);
   let mut list = DisplayList::new();
@@ -150,6 +152,7 @@ pub fn paint_tree_returning_layout_profiled(
       tree.interaction.selection.as_ref(),
       tree.interaction.selection_colors,
       &tree.interaction.scroll_offsets_y,
+      viewport_scroll_y,
       edit_caret_info.as_ref(),
     );
     list.finalize();
@@ -277,6 +280,7 @@ pub fn paint_tree_cached<'c>(
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
+  viewport_scroll_y: f32,
   cache: &'c mut PipelineCache,
 ) -> (DisplayList, Option<&'c LayoutBox>, PipelineTimings) {
   if let Some(prof) = &tree.profiler {
@@ -391,6 +395,7 @@ pub fn paint_tree_cached<'c>(
       tree.interaction.selection.as_ref(),
       tree.interaction.selection_colors,
       &tree.interaction.scroll_offsets_y,
+      viewport_scroll_y,
       edit_caret_info.as_ref(),
     );
     list.finalize();
@@ -495,7 +500,7 @@ pub fn screenshot_node_to(
   scale: f32,
   out_path: impl AsRef<std::path::Path>,
 ) -> Result<(), NodeScreenshotError> {
-  let (list, layout) = paint_tree_returning_layout(tree, text_ctx, image_cache, viewport_w, viewport_h, scale);
+  let (list, layout) = paint_tree_returning_layout(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, 0.0);
   let root_layout = layout.as_ref().ok_or(NodeScreenshotError::NoLayout)?;
   let target =
     layout_at_path(root_layout, layout_path).ok_or_else(|| NodeScreenshotError::NodeNotFound(layout_path.to_vec()))?;

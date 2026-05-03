@@ -83,6 +83,7 @@
       image: None,
       background_image: None,
       children: Vec::new(),
+      is_fixed: false,
     }
   }
 

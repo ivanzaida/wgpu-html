@@ -29,7 +29,7 @@ fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_htm
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
   let mut ctx = TextContext::new(64);
   let mut image_cache = wgpu_html_layout::ImageCache::new();
-  paint_tree_with_text(tree, &mut ctx, &mut image_cache, viewport_w, viewport_h, 1.0)
+  paint_tree_with_text(tree, &mut ctx, &mut image_cache, viewport_w, viewport_h, 1.0, 0.0)
 }
 
 /// Cascade + lay out + paint, threading a long-lived `TextContext`
@@ -44,6 +44,7 @@ pub fn paint_tree_with_text(
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
+  viewport_scroll_y: f32,
 ) -> DisplayList {
   text_ctx.sync_fonts(&tree.fonts);
   if let Some(ttl) = tree.asset_cache_ttl {
@@ -71,6 +72,7 @@ pub fn paint_tree_with_text(
       tree.interaction.selection_colors,
       &tree.interaction.scroll_offsets_y,
       0.0,
+      viewport_scroll_y,
       1.0,
       None,
     );
@@ -92,7 +94,7 @@ struct ClipFrame {
 
 /// Walk a laid-out tree, pushing one quad per styled background.
 pub fn paint_layout(root: &LayoutBox, list: &mut DisplayList) {
-  paint_layout_with_selection(root, list, None, SelectionColors::default());
+  paint_layout_with_selection(root, list, None, SelectionColors::default(), 0.0);
   list.finalize();
 }
 
@@ -103,6 +105,7 @@ pub fn paint_layout_with_selection(
   list: &mut DisplayList,
   selection: Option<&TextSelection>,
   selection_colors: SelectionColors,
+  viewport_scroll_y: f32,
 ) {
   let mut clip_stack: Vec<ClipFrame> = Vec::new();
   let mut path = Vec::new();
@@ -116,6 +119,7 @@ pub fn paint_layout_with_selection(
     selection_colors,
     &scroll_offsets_y,
     0.0,
+    viewport_scroll_y,
     1.0,
     None,
   );
@@ -129,8 +133,9 @@ pub fn paint_layout_with_interaction(
   selection: Option<&TextSelection>,
   selection_colors: SelectionColors,
   scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+  viewport_scroll_y: f32,
 ) {
-  paint_layout_full(root, list, selection, selection_colors, scroll_offsets_y, None);
+  paint_layout_full(root, list, selection, selection_colors, scroll_offsets_y, viewport_scroll_y, None);
 }
 
 /// Paint with full interaction state including the text editing caret.
@@ -140,6 +145,7 @@ pub fn paint_layout_full(
   selection: Option<&TextSelection>,
   selection_colors: SelectionColors,
   scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+  viewport_scroll_y: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
   let mut clip_stack: Vec<ClipFrame> = Vec::new();
@@ -153,6 +159,7 @@ pub fn paint_layout_full(
     selection_colors,
     scroll_offsets_y,
     0.0,
+    viewport_scroll_y,
     1.0,
     edit_caret,
   );
@@ -239,9 +246,15 @@ fn paint_box_in_clip(
   selection_colors: SelectionColors,
   scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
   paint_offset_y: f32,
+  viewport_scroll_y: f32,
   parent_opacity: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
+  let paint_offset_y = if b.is_fixed {
+    paint_offset_y + viewport_scroll_y
+  } else {
+    paint_offset_y
+  };
   let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
   let rect = to_renderer_rect_y(b.border_rect, paint_offset_y);
   let (rh, rv) = corner_radii(b);
@@ -532,6 +545,7 @@ fn paint_box_in_clip(
       selection_colors,
       scroll_offsets_y,
       child_offset_y,
+      viewport_scroll_y,
       opacity,
       edit_caret,
     );

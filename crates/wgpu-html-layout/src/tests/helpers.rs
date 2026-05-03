@@ -93,6 +93,7 @@ pub(crate) fn synthetic_text_layout() -> LayoutBox {
     image: None,
     background_image: None,
     children: Vec::new(),
+    is_fixed: false,
   }
 }
 

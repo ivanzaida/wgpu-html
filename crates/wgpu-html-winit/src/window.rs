@@ -414,6 +414,7 @@ impl HtmlWindow {
       size.width as f32,
       size.height as f32,
       scale,
+      self.scroll_y,
       &mut self.pipeline_cache,
     );
 
@@ -1200,6 +1201,7 @@ impl<'tree> WgpuHtmlWindow<'tree> {
       size.width as f32,
       size.height as f32,
       scale,
+      state.scroll_y,
       &mut state.pipeline_cache,
     );
     self

@@ -71,6 +71,7 @@
       image: None,
       background_image: None,
       children: Vec::new(),
+      is_fixed: false,
     }
   }
 
@@ -395,6 +396,7 @@
       children: Vec::new(),
       cursor: Cursor::Auto,
       z_index: None,
+      is_fixed: false,
     };
     let h2_rect = LR::new(0.0, 100.0, 200.0, 24.0);
     let h2 = LayoutBox {
@@ -443,6 +445,7 @@
       children: Vec::new(),
       cursor: Cursor::Auto,
       z_index: None,
+      is_fixed: false,
     };
     let body_rect = LR::new(0.0, 0.0, 800.0, 200.0);
     let body = LayoutBox {
@@ -470,6 +473,7 @@
       children: vec![textarea, h2],
       cursor: Cursor::Auto,
       z_index: None,
+      is_fixed: false,
 
     };
     let mut list = DisplayList::new();
@@ -997,7 +1001,7 @@
       background: [0.9, 0.8, 0.1, 0.4],
       foreground: [1.0, 1.0, 1.0, 1.0],
     };
-    paint_layout_with_selection(&root, &mut list, Some(&selection), colors);
+    paint_layout_with_selection(&root, &mut list, Some(&selection), colors, 0.0);
     list.finalize();
 
     assert_eq!(list.quads.len(), 1, "single line emits one merged highlight span");
@@ -1369,5 +1373,6 @@
       image: None,
       background_image: None,
       children: Vec::new(),
+      is_fixed: false,
     }
   }

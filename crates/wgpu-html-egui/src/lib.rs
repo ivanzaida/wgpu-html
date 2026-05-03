@@ -78,6 +78,7 @@ impl HtmlState {
       viewport_w,
       viewport_h,
       scale,
+      0.0,
     );
     self.display_list = list;
     self.last_layout = layout;

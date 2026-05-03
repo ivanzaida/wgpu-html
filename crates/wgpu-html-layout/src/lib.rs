@@ -1744,6 +1744,9 @@ pub struct LayoutBox {
   /// for `repeat` modes). The painter just iterates the tiles.
   pub background_image: Option<BackgroundImagePaint>,
   pub children: Vec<LayoutBox>,
+  /// `true` when `position: fixed` so paint knows to counter
+  /// viewport scroll translation.
+  pub is_fixed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2876,6 +2879,7 @@ fn layout_block(
     image: effective_image,
     background_image,
     children,
+    is_fixed: false,
   }
 }
 
@@ -3180,6 +3184,7 @@ fn layout_out_of_flow_block(
   let origin_x = left.map(|v| cb.x + v).unwrap_or(static_x);
   let origin_y = top.map(|v| cb.y + v).unwrap_or(static_y);
   let mut box_ = layout_block(node, origin_x, origin_y, cb.w, cb.h, cb, overrides, ctx);
+  box_.is_fixed = matches!(style.position, Some(Position::Fixed));
 
   if left.is_none()
     && let Some(right) = right
@@ -3621,6 +3626,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     image: None,
     background_image: None,
     children: Vec::new(),
+    is_fixed: false,
   }
 }
 
@@ -3691,6 +3697,7 @@ fn make_text_leaf(
     image: None,
     background_image: None,
     children: Vec::new(),
+    is_fixed: false,
   };
   (box_, w, h, ascent)
 }
@@ -3952,6 +3959,7 @@ fn layout_inline_subtree(
     image: None,
     background_image: None,
     children: final_children,
+    is_fixed: false,
   };
   InlineLayout {
     box_,
@@ -4132,6 +4140,7 @@ fn layout_atomic_inline_subtree(
       image: None,
       background_image: None,
       children,
+      is_fixed: false,
     },
     width: margin_rect.w,
     ascent: inline_ascent,
@@ -4637,6 +4646,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     image: None,
     background_image: None,
     children: Vec::new(),
+    is_fixed: false,
   }
 }
 
@@ -4848,6 +4858,7 @@ fn layout_inline_paragraph(
     image: None,
     background_image: None,
     children: Vec::new(),
+    is_fixed: false,
   };
   boxes.push(text_box);
 
