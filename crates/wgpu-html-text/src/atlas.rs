@@ -220,6 +220,55 @@ impl Atlas {
       let src_start = row * rect.w as usize;
       self.pixels[dst_start..dst_start + rect.w as usize].copy_from_slice(&src[src_start..src_start + rect.w as usize]);
     }
+    // Dilate the 1px padding gutter with the nearest edge pixel so
+    // bilinear filtering at glyph edges blends with the correct
+    // colour instead of black.  Each of the four sides, plus the
+    // four corners, is filled.
+    if rect.w > 0 && rect.h > 0 {
+      let x = rect.x as usize;
+      let y = rect.y as usize;
+      let w = rect.w as usize;
+      let h = rect.h as usize;
+      let last_col = x + w - 1;
+      let last_row = y + h - 1;
+      // Top edge: copy first row
+      if y > 0 {
+        let tmp: Vec<u8> = self.pixels[y * stride + x..y * stride + x + w].to_vec();
+        self.pixels[(y - 1) * stride + x..(y - 1) * stride + x + w].copy_from_slice(&tmp);
+      }
+      // Bottom edge: copy last row
+      if last_row + 1 < self.height as usize {
+        let tmp: Vec<u8> = self.pixels[last_row * stride + x..last_row * stride + x + w].to_vec();
+        self.pixels[(last_row + 1) * stride + x..(last_row + 1) * stride + x + w]
+          .copy_from_slice(&tmp);
+      }
+      // Left column + top-left / bottom-left corners
+      if x > 0 {
+        let prev = x - 1;
+        for row in y..y + h {
+          self.pixels[row * stride + prev] = self.pixels[row * stride + x];
+        }
+        if y > 0 {
+          self.pixels[(y - 1) * stride + prev] = self.pixels[y * stride + x];
+        }
+        if last_row + 1 < self.height as usize {
+          self.pixels[(last_row + 1) * stride + prev] = self.pixels[last_row * stride + x];
+        }
+      }
+      // Right column + top-right / bottom-right corners
+      if last_col + 1 < self.width as usize {
+        let next = last_col + 1;
+        for row in y..y + h {
+          self.pixels[row * stride + next] = self.pixels[row * stride + last_col];
+        }
+        if y > 0 {
+          self.pixels[(y - 1) * stride + next] = self.pixels[y * stride + last_col];
+        }
+        if last_row + 1 < self.height as usize {
+          self.pixels[(last_row + 1) * stride + next] = self.pixels[last_row * stride + last_col];
+        }
+      }
+    }
   }
 
   fn read_rect(&self, rect: AtlasRect) -> Vec<u8> {

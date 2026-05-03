@@ -1,6 +1,8 @@
 mod counter;
+mod text_input;
 
 use crate::counter::counter::{Counter, CounterProps};
+use crate::text_input::TextInput;
 use wgpu_html_models::common::css_enums::*;
 use wgpu_html_ui::{
   el, style::{self, px}, App, Component, Ctx, El,
@@ -56,6 +58,7 @@ impl Component for DemoApp {
   fn view(&self, _props: &DemoProps, ctx: &Ctx<DemoMsg>, _env: &()) -> El {
     el::div().class(ctx.scoped("root")).children([
       el::div().class(ctx.scoped("title")).text("wgpu-html-ui Demo"),
+      ctx.child::<TextInput>(()),
       el::div().class(ctx.scoped("counters")).children([
         ctx.child::<Counter>(CounterProps { label: "Clicks" }),
         ctx.child::<Counter>(CounterProps { label: "Score" }),

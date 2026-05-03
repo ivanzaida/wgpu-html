@@ -3,6 +3,13 @@ use wgpu_html_ui::el::{button, div};
 use wgpu_html_ui::style::{self, px, Stylesheet};
 use wgpu_html_ui::Component;
 
+#[derive(Clone)]
+pub enum CounterMsg {
+  Increment,
+  Decrement,
+  Reset,
+}
+
 pub struct Counter {
   count: i32,
   label: &'static str,
@@ -15,14 +22,19 @@ pub struct CounterProps {
 
 impl Component for Counter {
   type Props = CounterProps;
-  type Msg = ();
+  type Msg = CounterMsg;
   type Env = ();
 
   fn create(props: &CounterProps) -> Self {
     Counter { count: 0, label: props.label }
   }
 
-  fn update(&mut self, _msg: (), _props: &CounterProps) -> wgpu_html_ui::ShouldRender {
+  fn update(&mut self, msg: CounterMsg, _props: &CounterProps) -> wgpu_html_ui::ShouldRender {
+    match msg {
+      CounterMsg::Increment => self.count += 1,
+      CounterMsg::Decrement => self.count -= 1,
+      CounterMsg::Reset => self.count = 0,
+    }
     wgpu_html_ui::ShouldRender::Yes
   }
 
@@ -73,17 +85,15 @@ impl Component for Counter {
     ])
   }
 
-  fn view(&self, _props: &CounterProps, ctx: &wgpu_html_ui::Ctx<()>, _env: &()) -> wgpu_html_ui::El {
+
+  fn view(&self, _props: &CounterProps, ctx: &wgpu_html_ui::Ctx<CounterMsg>, _env: &()) -> wgpu_html_ui::El {
     div().class(ctx.scoped("root")).children([
       div().class(ctx.scoped("title")).text(self.label),
       div().class(ctx.scoped("value")).text(self.count.to_string()),
       div().class(ctx.scoped("buttons")).children([
-        button().text("-").on_click(|e| {
-          ctx.on_click(())(e);
-          println!("clicked -");
-        }),
-        button().class(ctx.scoped("wide")).text("Reset"),
-        button().text("+")
+        button().text("-").on_click_cb(ctx.on_click(CounterMsg::Decrement)),
+        button().class(ctx.scoped("wide")).text("Reset").on_click_cb(ctx.on_click(CounterMsg::Reset)),
+        button().text("+").on_click_cb(ctx.on_click(CounterMsg::Increment)),
       ]),
     ])
   }

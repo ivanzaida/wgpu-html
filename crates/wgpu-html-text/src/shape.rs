@@ -568,17 +568,8 @@ impl TextContext {
           }
         };
 
-        // Glyph position. `baseline_y` is this line's baseline
-        // in run-relative pixel coords (cosmic-text reports
-        // `run.line_y` per layout run). Subtract the bitmap top
-        // bearing for the quad's top-left. Both coords are
-        // rounded so the linear sampler doesn't blend the mask
-        // with zeroed padding rows.
-        // BUG: zeno's Placement.top carries a baseline-relative
-        // offset that lands glyphs ~10% too low.  The 0.10-baseline
-        // upward shift empirically matches browser rendering.
         let pos_x = (physical.x as f32 + entry.left as f32 + spacing_dx).round();
-        let pos_y = (baseline_y - entry.top as f32 - baseline_y * 0.10).round();
+        let pos_y = (baseline_y - entry.top as f32).round();
 
         let quad_w = entry.w as f32;
         // Extra 1px on the quad height prevents bottom-row clipping
@@ -592,17 +583,20 @@ impl TextContext {
         }
 
         if entry.w > 0 && entry.h > 0 {
-          // UVs span the exact pixel boundaries of the atlas entry.
-          // The atlas packer inserts a 1px gutter between entries to
-          // prevent bilinear bleed; we intentionally do NOT inset the
-          // UVs here so that the bottom-most pixel row is not lost.
+          // Half-pixel UV inset prevents bilinear sampling from
+          // reading past the glyph rect.  The atlas packer inserts a
+          // 1px colour-dilated gutter between entries, but the inset
+          // keeps the sampler exactly pixel-centered within the
+          // valid range.
+          let half_px_x = 0.5 / atlas_w as f32;
+          let half_px_y = 0.5 / atlas_h as f32;
           let uv_min = [
-            entry.rect.x as f32 / atlas_w as f32,
-            entry.rect.y as f32 / atlas_h as f32,
+            entry.rect.x as f32 / atlas_w as f32 + half_px_x,
+            entry.rect.y as f32 / atlas_h as f32 + half_px_y,
           ];
           let uv_max = [
-            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
-            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
+            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32 - half_px_x,
+            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32 - half_px_y,
           ];
           glyphs.push(PositionedGlyph {
             x: pos_x,
@@ -869,18 +863,20 @@ impl TextContext {
         };
 
         let pos_x = (snap.physical.x as f32 + entry.left as f32).round();
-        let pos_y = (line.baseline - entry.top as f32 - line.baseline * 0.10).round();
+        let pos_y = (line.baseline - entry.top as f32).round();
         let quad_w = entry.w as f32;
         let quad_h = entry.h as f32 + 1.0;
 
         if entry.w > 0 && entry.h > 0 {
+          let half_px_x = 0.5 / atlas_w as f32;
+          let half_px_y = 0.5 / atlas_h as f32;
           let uv_min = [
-            entry.rect.x as f32 / atlas_w as f32,
-            entry.rect.y as f32 / atlas_h as f32,
+            entry.rect.x as f32 / atlas_w as f32 + half_px_x,
+            entry.rect.y as f32 / atlas_h as f32 + half_px_y,
           ];
           let uv_max = [
-            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
-            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
+            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32 - half_px_x,
+            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32 - half_px_y,
           ];
           all_glyphs.push(PositionedGlyph {
             x: pos_x,

@@ -1,0 +1,56 @@
+:root {
+  --ifm-color-primary: #3578e5;
+  --ifm-color-primary-dark: #3066cc;
+  --ifm-color-primary-darker: #2d5ab3;
+  --ifm-color-primary-darkest: #254a94;
+  --ifm-color-primary-light: #538ee9;
+  --ifm-color-primary-lighter: #699eec;
+  --ifm-color-primary-lightest: #8db5f1;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #66b3ff;
+  --ifm-color-primary-dark: #4da3ff;
+  --ifm-color-primary-darker: #3393ff;
+  --ifm-color-primary-darkest: #0073e6;
+  --ifm-color-primary-light: #80c3ff;
+  --ifm-color-primary-lighter: #99d3ff;
+  --ifm-color-primary-lightest: #cce9ff;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Property index tables */
+.property-table {
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.property-table th {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.property-table td:first-child {
+  font-family: var(--ifm-font-family-monospace);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* Status badges */
+.status-done {
+  color: #28a745;
+}
+
+.status-partial {
+  color: #ffc107;
+}
+
+.status-not-done {
+  color: #dc3545;
+}
+
+.status-out-of-scope {
+  color: #6c757d;
+}
