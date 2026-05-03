@@ -587,13 +587,18 @@ impl TextContext {
         }
 
         if entry.w > 0 && entry.h > 0 {
+          // Half-pixel UV inset avoids sampling atlas padding pixels
+          // during bilinear filtering, preventing dark-edge bleed from
+          // neighbouring glyph entries.
+          let half_px_x = 0.5 / atlas_w as f32;
+          let half_px_y = 0.5 / atlas_h as f32;
           let uv_min = [
-            entry.rect.x as f32 / atlas_w as f32,
-            entry.rect.y as f32 / atlas_h as f32,
+            entry.rect.x as f32 / atlas_w as f32 + half_px_x,
+            entry.rect.y as f32 / atlas_h as f32 + half_px_y,
           ];
           let uv_max = [
-            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
-            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
+            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32 - half_px_x,
+            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32 - half_px_y,
           ];
           glyphs.push(PositionedGlyph {
             x: pos_x,
@@ -865,13 +870,15 @@ impl TextContext {
         let quad_h = entry.h as f32;
 
         if entry.w > 0 && entry.h > 0 {
+          let half_px_x = 0.5 / atlas_w as f32;
+          let half_px_y = 0.5 / atlas_h as f32;
           let uv_min = [
-            entry.rect.x as f32 / atlas_w as f32,
-            entry.rect.y as f32 / atlas_h as f32,
+            entry.rect.x as f32 / atlas_w as f32 + half_px_x,
+            entry.rect.y as f32 / atlas_h as f32 + half_px_y,
           ];
           let uv_max = [
-            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
-            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
+            (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32 - half_px_x,
+            (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32 - half_px_y,
           ];
           all_glyphs.push(PositionedGlyph {
             x: pos_x,

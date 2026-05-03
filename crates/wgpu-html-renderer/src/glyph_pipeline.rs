@@ -111,8 +111,9 @@ impl GlyphPipeline {
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
       label: Some("glyph atlas sampler"),
-      // Linear filtering smooths aliasing; the atlas is opaque
-      // padding (zero) so bleeding doesn't hurt.
+      // Bilinear filtering for smooth glyph edges; atlas packing
+      // pads entries with a 1px gutter, and UV coords are inset by
+      // 0.5px to avoid sampling the gutter.
       mag_filter: wgpu::FilterMode::Linear,
       min_filter: wgpu::FilterMode::Linear,
       mipmap_filter: wgpu::MipmapFilterMode::Nearest,

@@ -14,7 +14,11 @@
 //! - A shelf's height is fixed at the height of the first glyph put on it. Subsequent glyphs that don't fit vertically
 //!   open a new shelf.
 //! - There is no eviction or fragmentation reclamation — overflow returns `None` so the caller can decide what to do
-//!   (T7 brings LRU eviction; T2's caller can rebuild the atlas wholesale if needed).
+//! (T7 brings LRU eviction; T2's caller can rebuild the atlas wholesale if needed).
+
+/// One-pixel gutter around each glyph so bilinear filtering doesn't
+/// bleed zero pixels from neighbouring entries into glyph edges.
+const ATLAS_PAD: u32 = 1;
 
 /// Integer rectangle inside the atlas, in pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -181,30 +185,30 @@ impl Atlas {
 
   fn allocate(&mut self, w: u32, h: u32) -> Option<AtlasRect> {
     // First pass: find a shelf that has room horizontally and is
-    // tall enough.
+    // tall enough. Account for padding gutter between entries.
     for shelf in &mut self.shelves {
-      if shelf.cursor_x + w <= self.width && h <= shelf.h {
+      if shelf.cursor_x + w + ATLAS_PAD <= self.width && h <= shelf.h {
         let rect = AtlasRect {
           x: shelf.cursor_x,
           y: shelf.y,
           w,
           h,
         };
-        shelf.cursor_x += w;
+        shelf.cursor_x += w + ATLAS_PAD;
         return Some(rect);
       }
     }
     // No fit — open a new shelf below the previous ones.
-    if self.next_shelf_y + h > self.height {
+    if self.next_shelf_y + h + ATLAS_PAD > self.height {
       return None;
     }
     let shelf = Shelf {
       y: self.next_shelf_y,
       h,
-      cursor_x: w,
+      cursor_x: w + ATLAS_PAD,
     };
     let rect = AtlasRect { x: 0, y: shelf.y, w, h };
-    self.next_shelf_y += h;
+    self.next_shelf_y += h + ATLAS_PAD;
     self.shelves.push(shelf);
     Some(rect)
   }

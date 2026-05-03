@@ -24,59 +24,62 @@ fn insert_places_glyph_top_left() {
   }
 }
 
-#[test]
-fn second_insert_packs_on_same_shelf() {
-  let mut atlas = Atlas::new(64, 64);
-  let _a = atlas.insert(10, 8, &solid(10, 8, 0x10)).unwrap();
-  let b = atlas.insert(12, 6, &solid(12, 6, 0x20)).unwrap();
-  // Same shelf (y=0); next to the first.
-  assert_eq!(
-    b.rect,
-    AtlasRect {
-      x: 10,
-      y: 0,
-      w: 12,
-      h: 6
-    }
-  );
-}
+  #[test]
+  fn second_insert_packs_on_same_shelf() {
+    let mut atlas = Atlas::new(64, 64);
+    let _a = atlas.insert(10, 8, &solid(10, 8, 0x10)).unwrap();
+    let b = atlas.insert(12, 6, &solid(12, 6, 0x20)).unwrap();
+    // Same shelf (y=0); next to the first with 1px pad gutter.
+    assert_eq!(
+      b.rect,
+      AtlasRect {
+        x: 11,
+        y: 0,
+        w: 12,
+        h: 6
+      }
+    );
+  }
 
-#[test]
-fn shelf_height_is_first_insert_height() {
-  // Shelf height pinned to the first glyph (8). A taller glyph
-  // (10) should open a new shelf rather than fit into the first.
-  let mut atlas = Atlas::new(64, 64);
-  let _a = atlas.insert(10, 8, &solid(10, 8, 0)).unwrap();
-  let b = atlas.insert(10, 10, &solid(10, 10, 0)).unwrap();
-  assert_eq!(b.rect.y, 8); // bumped onto a new shelf below
-  assert_eq!(b.rect.x, 0);
-}
+  #[test]
+  fn shelf_height_is_first_insert_height() {
+    // Shelf height pinned to the first glyph (8). A taller glyph
+    // (10) should open a new shelf rather than fit into the first.
+    let mut atlas = Atlas::new(64, 64);
+    let _a = atlas.insert(10, 8, &solid(10, 8, 0)).unwrap();
+    let b = atlas.insert(10, 10, &solid(10, 10, 0)).unwrap();
+    assert_eq!(b.rect.y, 9); // bumped onto a new shelf below (8h + 1 pad)
+    assert_eq!(b.rect.x, 0);
+  }
 
-#[test]
-fn horizontal_overflow_opens_new_shelf() {
-  // 64-wide atlas; glyph 50 fits, next 20 doesn't on same shelf.
-  let mut atlas = Atlas::new(64, 64);
-  let _a = atlas.insert(50, 8, &solid(50, 8, 0)).unwrap();
-  let b = atlas.insert(20, 8, &solid(20, 8, 0)).unwrap();
-  assert_eq!(
-    b.rect,
-    AtlasRect {
-      x: 0,
-      y: 8,
-      w: 20,
-      h: 8
-    }
-  );
-}
+  #[test]
+  fn horizontal_overflow_opens_new_shelf() {
+    // 64-wide atlas; glyph 50 fits, next 20 doesn't on same shelf
+    // (50 + 1 pad + 20 = 71 > 64).
+    let mut atlas = Atlas::new(64, 64);
+    let _a = atlas.insert(50, 8, &solid(50, 8, 0)).unwrap();
+    let b = atlas.insert(20, 8, &solid(20, 8, 0)).unwrap();
+    assert_eq!(
+      b.rect,
+      AtlasRect {
+        x: 0,
+        y: 9,
+        w: 20,
+        h: 8
+      }
+    );
+  }
 
-#[test]
-fn full_atlas_returns_none() {
-  let mut atlas = Atlas::new(8, 8);
-  // First insert fills the whole atlas vertically.
-  let _ = atlas.insert(8, 8, &solid(8, 8, 0)).unwrap();
-  // Second insert can't fit anywhere.
-  assert!(atlas.insert(1, 1, &solid(1, 1, 0)).is_none());
-}
+  #[test]
+  fn full_atlas_returns_none() {
+    // 8×8 atlas with 1px pad: an 8×8 glyph would need
+    // next_shelf_y = 8+1 = 9 which overflows the atlas.
+    let mut atlas = Atlas::new(8, 8);
+    assert!(atlas.insert(8, 8, &solid(8, 8, 0)).is_none());
+    // A 7×7 fits; the next one doesn't.
+    let _ = atlas.insert(7, 7, &solid(7, 7, 0)).unwrap();
+    assert!(atlas.insert(1, 1, &solid(1, 1, 0)).is_none());
+  }
 
 #[test]
 fn glyph_wider_than_atlas_returns_none() {
@@ -112,15 +115,17 @@ fn flush_dirty_drains_and_returns_pixels() {
 }
 
 #[test]
-fn uv_extents_are_normalised() {
-  let mut atlas = Atlas::new(100, 50);
-  let entry = atlas.insert(10, 10, &solid(10, 10, 0)).unwrap();
-  let (w, h) = atlas.dimensions();
-  let lo = entry.uv_min(w, h);
-  let hi = entry.uv_max(w, h);
-  assert_eq!(lo, [0.0, 0.0]);
-  assert_eq!(hi, [0.10, 0.20]);
-}
+  fn uv_extents_are_normalised() {
+    let mut atlas = Atlas::new(100, 50);
+    let entry = atlas.insert(10, 10, &solid(10, 10, 0)).unwrap();
+    let (w, h) = atlas.dimensions();
+    let lo = entry.uv_min(w, h);
+    let hi = entry.uv_max(w, h);
+    // Edge-of-atlas rect — no inset used by this method (inset is
+    // applied at shape time).
+    assert_eq!(lo, [0.0, 0.0]);
+    assert_eq!(hi, [0.10, 0.20]);
+  }
 
 #[test]
 fn clear_resets_packer_and_marks_full_dirty() {
