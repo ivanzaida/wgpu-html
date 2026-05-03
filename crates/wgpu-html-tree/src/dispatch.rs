@@ -434,6 +434,7 @@ pub fn dispatch_pointer_move(
     if let Some(cursor) = text_cursor {
       if let Some(sel) = tree.interaction.selection.as_mut() {
         sel.focus = cursor;
+        selectionchange_event(tree);
       }
     }
   }
@@ -560,6 +561,7 @@ pub fn dispatch_mouse_down(
         focus: cursor,
       });
       tree.interaction.selecting_text = true;
+      selectionchange_event(tree);
     } else {
       tree.clear_selection();
     }
@@ -631,6 +633,7 @@ pub fn dispatch_mouse_up(
       if let Some(cursor) = text_cursor {
         if let Some(sel) = tree.interaction.selection.as_mut() {
           sel.focus = cursor;
+          selectionchange_event(tree);
         }
       }
     }
@@ -1415,6 +1418,72 @@ pub fn clipboard_event(
   prevented
 }
 
+/// Dispatch a `scroll` event on the element at `path` (non-bubbling,
+/// target only). Called after scroll offsets change.
+pub fn scroll_event(tree: &mut Tree, path: &[usize]) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let (dedicated, on_evs) = tree
+    .root
+    .as_ref()
+    .and_then(|root| root.at_path(path))
+    .map(|node| (node.on_scroll.clone(), node.on_event.clone()))
+    .unwrap_or_default();
+  let mut html_ev = ev::HtmlEvent::Generic(ev::events::Event {
+    event_type: ev::HtmlEventType::from(ev::HtmlEventType::SCROLL),
+    bubbles: false,
+    cancelable: false,
+    composed: false,
+    target: Some(path.to_vec()),
+    current_target: Some(path.to_vec()),
+    event_phase: ev::EventPhase::AtTarget,
+    default_prevented: Cell::new(false),
+    propagation_stopped: Cell::new(false),
+    immediate_propagation_stopped: Cell::new(false),
+    is_trusted: true,
+    time_stamp,
+  });
+  if tree.emit_event(&mut html_ev).is_stop() {
+    return;
+  }
+  for cb in &dedicated {
+    cb(&html_ev);
+  }
+  for on_ev in &on_evs {
+    on_ev(&html_ev);
+  }
+}
+
+/// Dispatch a `selectionchange` event on the document root.
+/// Called when text selection changes.
+pub fn selectionchange_event(tree: &mut Tree) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let on_evs = tree
+    .root
+    .as_ref()
+    .map(|node| node.on_event.clone())
+    .unwrap_or_default();
+  let mut html_ev = ev::HtmlEvent::Generic(ev::events::Event {
+    event_type: ev::HtmlEventType::from(ev::HtmlEventType::SELECTIONCHANGE),
+    bubbles: false,
+    cancelable: false,
+    composed: false,
+    target: Some(vec![]),
+    current_target: Some(vec![]),
+    event_phase: ev::EventPhase::AtTarget,
+    default_prevented: Cell::new(false),
+    propagation_stopped: Cell::new(false),
+    immediate_propagation_stopped: Cell::new(false),
+    is_trusted: true,
+    time_stamp,
+  });
+  if tree.emit_event(&mut html_ev).is_stop() {
+    return;
+  }
+  for on_ev in &on_evs {
+    on_ev(&html_ev);
+  }
+}
+
 // ── Submit / Form ─────────────────────────────────────────────────────────────
 
 /// Find the nearest `<form>` ancestor of the element at `path`.
@@ -1842,6 +1911,17 @@ impl Tree {
   /// See [`clipboard_event`].
   pub fn clipboard_event(&mut self, event_type: &'static str) -> bool {
     clipboard_event(self, event_type)
+  }
+
+  /// Dispatch a `scroll` event on an element. See [`scroll_event`].
+  pub fn scroll_event(&mut self, path: &[usize]) {
+    scroll_event(self, path)
+  }
+
+  /// Dispatch a `selectionchange` event on the document root.
+  /// See [`selectionchange_event`].
+  pub fn selectionchange_event(&mut self) {
+    selectionchange_event(self)
   }
 
   /// Process typed text on the focused form control. See [`text_input`].

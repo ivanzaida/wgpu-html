@@ -495,6 +495,16 @@ impl El {
     self.node.on_paste.push(cb);
     self
   }
+
+  pub fn on_scroll(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_scroll.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_scroll_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_scroll.push(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────

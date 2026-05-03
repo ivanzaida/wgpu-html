@@ -751,3 +751,38 @@ fn clipboard_event_prevent_default_returns_true() {
     let prevented = clipboard_event(&mut tree, ev::HtmlEventType::COPY);
     assert!(prevented);
 }
+
+// ── Scroll / Selectionchange tests ───────────────────────────────────────────
+
+#[test]
+fn scroll_event_dispatches_non_bubbling() {
+    let received = Arc::new(Mutex::new(Vec::<String>::new()));
+    let r = received.clone();
+    let mut tree = Tree::new(Node::new(m::Div::default()));
+    if let Some(n) = tree.root.as_mut() {
+        n.on_scroll.push(Arc::new(move |ev| {
+            r.lock().unwrap().push(ev.event_type().to_string());
+        }));
+    }
+
+    scroll_event(&mut tree, &[]);
+
+    let evs = received.lock().unwrap().clone();
+    assert!(evs.contains(&"scroll".to_string()), "expected scroll, got {evs:?}");
+}
+
+#[test]
+fn selectionchange_dispatches_on_root() {
+    let received = Arc::new(Mutex::new(Vec::<String>::new()));
+    let r = received.clone();
+    let mut tree = Tree::new(Node::new(m::Div::default()));
+    if let Some(n) = tree.root.as_mut() {
+        n.on_event.push(Arc::new(move |ev| {
+            r.lock().unwrap().push(ev.event_type().to_string());
+        }));
+    }
+
+    selectionchange_event(&mut tree);
+
+    assert!(received.lock().unwrap().contains(&"selectionchange".to_string()));
+}

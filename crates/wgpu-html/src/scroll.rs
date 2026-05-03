@@ -386,8 +386,9 @@ pub fn scroll_element_at(tree: &mut Tree, layout: &LayoutBox, doc_pos: (f32, f32
   if new <= 0.0 {
     tree.interaction.scroll_offsets_y.remove(&path);
   } else {
-    tree.interaction.scroll_offsets_y.insert(path, new);
+    tree.interaction.scroll_offsets_y.insert(path.clone(), new);
   }
+  tree.scroll_event(&path);
   true
 }
 
