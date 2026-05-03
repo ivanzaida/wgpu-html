@@ -627,6 +627,9 @@ pub fn dispatch_mouse_up(
       if let Some((form_path, submitter_path)) = submit_button_in_form(tree, click_target) {
         bubble_submit_event(tree, &form_path, Some(submitter_path));
       }
+
+      // Checkbox / radio toggle on click.
+      toggle_checkable(tree, click_target);
     }
   }
   true
@@ -1023,13 +1026,45 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
     return true;
   }
 
-  if key == "Enter" {
-    if let Some((form_path, submitter_path)) = enter_in_form_input(tree) {
-      bubble_submit_event(tree, &form_path, Some(submitter_path));
+  if key == "Enter" || key == " " {
+    if key == "Enter" {
+      if let Some((form_path, submitter_path)) = enter_in_form_input(tree) {
+        bubble_submit_event(tree, &form_path, Some(submitter_path));
+      }
     }
+    handle_activation_key(tree);
+    return true;
   }
 
   true
+}
+
+/// Activate the focused element via Enter or Space. Synthesises a
+/// `click` for buttons, links, and checkboxes.
+fn handle_activation_key(tree: &mut Tree) {
+  let Some(focus_path) = tree.interaction.focus_path.clone() else {
+    return;
+  };
+  let Some(root) = tree.root.as_ref() else {
+    return;
+  };
+  let Some(node) = root.at_path(&focus_path) else {
+    return;
+  };
+  use wgpu_html_models::common::html_enums::InputType;
+  let should_click = match &node.element {
+    Element::Button(_) => true,
+    Element::A(a) => a.href.is_some(),
+    Element::Input(inp) => matches!(inp.r#type, Some(InputType::Checkbox) | Some(InputType::Submit) | Some(InputType::Reset) | Some(InputType::Button)),
+    _ => false,
+  };
+  if should_click {
+    bubble(tree, &focus_path, (0.0, 0.0), Some(MouseButton::Primary), Slot::Click);
+    toggle_checkable(tree, &focus_path);
+    if let Some((form_path, submitter_path)) = submit_button_in_form(tree, &focus_path) {
+      bubble_submit_event(tree, &form_path, Some(submitter_path));
+    }
+  }
 }
 
 /// Dispatch `keyup` to the focused element (or document root if
@@ -1349,6 +1384,76 @@ fn enter_in_form_input(tree: &Tree) -> Option<(Vec<usize>, Vec<usize>)> {
   }
   let form_path = find_ancestor_form(tree, focus_path)?;
   Some((form_path, focus_path.to_vec()))
+}
+
+/// Toggle checkbox/radio state when clicked. Returns `true` if toggled.
+fn toggle_checkable(tree: &mut Tree, click_target: &[usize]) -> bool {
+  use wgpu_html_models::common::html_enums::InputType;
+  let Some(root) = tree.root.as_mut() else {
+    return false;
+  };
+  let Some(node) = root.at_path_mut(click_target) else {
+    return false;
+  };
+  match &mut node.element {
+    Element::Input(inp) => match inp.r#type {
+      Some(InputType::Checkbox) => {
+        let was = inp.checked.unwrap_or(false);
+        inp.checked = Some(!was);
+        tree.generation += 1;
+        bubble_input(tree, click_target, None, ev::enums::InputType::InsertText);
+        fire_change_event_at(tree, click_target);
+        return true;
+      }
+      Some(InputType::Radio) => {
+        if inp.checked.unwrap_or(false) {
+          return false;
+        }
+        inp.checked = Some(true);
+        tree.generation += 1;
+        let radio_name = inp.name.clone();
+        if click_target.len() >= 1 {
+          let parent_path = &click_target[..click_target.len() - 1];
+          if let Some(parent) = root.at_path_mut(parent_path) {
+            let this_idx = *click_target.last().unwrap();
+            for (i, sib) in parent.children.iter_mut().enumerate() {
+              if i == this_idx {
+                continue;
+              }
+              if let Element::Input(sib_inp) = &mut sib.element {
+                if matches!(sib_inp.r#type, Some(InputType::Radio))
+                  && sib_inp.name == radio_name
+                  && sib_inp.checked.unwrap_or(false)
+                {
+                  sib_inp.checked = Some(false);
+                }
+              }
+            }
+          }
+        }
+        bubble_input(tree, click_target, None, ev::enums::InputType::InsertText);
+        fire_change_event_at(tree, click_target);
+        return true;
+      }
+      _ => {}
+    },
+    _ => {}
+  }
+  false
+}
+
+/// Fire a `change` event on the element at `path` (bubbling).
+fn fire_change_event_at(tree: &mut Tree, path: &[usize]) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  fire_focus_event(
+    tree,
+    path,
+    ev::HtmlEventType::CHANGE,
+    /* bubbles */ true,
+    None,
+    time_stamp,
+    FocusBubbleKind::Bubble,
+  );
 }
 
 // ── Text editing ─────────────────────────────────────────────────────────────
