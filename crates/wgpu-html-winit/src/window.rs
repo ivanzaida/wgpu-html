@@ -263,6 +263,7 @@ impl HtmlWindow {
           self.scroll_y = clamp_scroll_y(self.scroll_y, layout, size.height as f32);
         }
         self.scrollbar_drag = None;
+        tree.resize_event();
         true
       }
       WindowEvent::CursorMoved { position, .. } => {
@@ -781,6 +782,7 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
           }
           state.scrollbar_drag = None;
         }
+        self.tree.resize_event();
         window.request_redraw();
       }
 

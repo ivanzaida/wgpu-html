@@ -22,7 +22,8 @@ pub mod tree_hook;
 
 pub use dispatch::{
   blur, clipboard_event, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move,
-  focus, focus_next, key_down, key_up, scroll_event, selectionchange_event, text_input, wheel_event,
+  focus, focus_next, key_down, key_up, resize_event, scroll_event, select_event, selectionchange_event, text_input,
+  wheel_event,
 };
 pub use events::{
   EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,
@@ -559,6 +560,9 @@ pub struct Node {
   /// Fires on `scroll` when this element's scroll position changes.
   /// Does not bubble (per DOM spec). Target only.
   pub on_scroll: Vec<EventCallback>,
+  /// Fires on `select` when text selection changes in an
+  /// `<input>` or `<textarea>`. Does not bubble. Target only.
+  pub on_select: Vec<EventCallback>,
   /// General-purpose handler that receives the full [`HtmlEvent`] for any
   /// event dispatched to this node, fired *after* the type-specific slot
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
@@ -603,6 +607,7 @@ impl std::fmt::Debug for Node {
       .field("on_cut", &format!("{} handlers", self.on_cut.len()))
       .field("on_paste", &format!("{} handlers", self.on_paste.len()))
       .field("on_scroll", &format!("{} handlers", self.on_scroll.len()))
+      .field("on_select", &format!("{} handlers", self.on_select.len()))
       .field("on_event", &format!("{} handlers", self.on_event.len()))
       .finish()
   }
@@ -640,6 +645,7 @@ impl Node {
       on_cut: Vec::new(),
       on_paste: Vec::new(),
       on_scroll: Vec::new(),
+      on_select: Vec::new(),
       on_event: Vec::new(),
       rect: None,
     }

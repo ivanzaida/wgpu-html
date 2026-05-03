@@ -505,6 +505,16 @@ impl El {
     self.node.on_scroll.push(cb);
     self
   }
+
+  pub fn on_select(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_select.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_select_cb(mut self, cb: EventCallback) -> Self {
+    self.node.on_select.push(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────

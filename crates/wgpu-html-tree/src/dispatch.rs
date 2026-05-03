@@ -1484,6 +1484,69 @@ pub fn selectionchange_event(tree: &mut Tree) {
   }
 }
 
+/// Dispatch a `select` event on the element at `path` (non-bubbling,
+/// target only). Called when the edit cursor selection range changes
+/// inside an `<input>` or `<textarea>`.
+pub fn select_event(tree: &mut Tree, path: &[usize]) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let (dedicated, on_evs) = tree
+    .root
+    .as_ref()
+    .and_then(|root| root.at_path(path))
+    .map(|node| (node.on_select.clone(), node.on_event.clone()))
+    .unwrap_or_default();
+  let mut html_ev = ev::HtmlEvent::Generic(ev::events::Event {
+    event_type: ev::HtmlEventType::from(ev::HtmlEventType::SELECT),
+    bubbles: false,
+    cancelable: false,
+    composed: false,
+    target: Some(path.to_vec()),
+    current_target: Some(path.to_vec()),
+    event_phase: ev::EventPhase::AtTarget,
+    default_prevented: Cell::new(false),
+    propagation_stopped: Cell::new(false),
+    immediate_propagation_stopped: Cell::new(false),
+    is_trusted: true,
+    time_stamp,
+  });
+  if tree.emit_event(&mut html_ev).is_stop() {
+    return;
+  }
+  for cb in &dedicated {
+    cb(&html_ev);
+  }
+  for on_ev in &on_evs {
+    on_ev(&html_ev);
+  }
+}
+
+/// Dispatch a `resize` event on the document root.
+pub fn resize_event(tree: &mut Tree) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let on_evs = tree
+    .root
+    .as_ref()
+    .map(|node| node.on_event.clone())
+    .unwrap_or_default();
+  let html_ev = ev::HtmlEvent::Generic(ev::events::Event {
+    event_type: ev::HtmlEventType::from(ev::HtmlEventType::RESIZE),
+    bubbles: false,
+    cancelable: false,
+    composed: false,
+    target: Some(vec![]),
+    current_target: Some(vec![]),
+    event_phase: ev::EventPhase::AtTarget,
+    default_prevented: Cell::new(false),
+    propagation_stopped: Cell::new(false),
+    immediate_propagation_stopped: Cell::new(false),
+    is_trusted: true,
+    time_stamp,
+  });
+  for on_ev in &on_evs {
+    on_ev(&html_ev);
+  }
+}
+
 // ── Submit / Form ─────────────────────────────────────────────────────────────
 
 /// Find the nearest `<form>` ancestor of the element at `path`.
@@ -1802,6 +1865,7 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
   if let Some(new_cursor) = nav_cursor {
     tree.interaction.edit_cursor = Some(new_cursor);
     tree.interaction.caret_blink_epoch = std::time::Instant::now();
+    select_event(tree, &focus_path);
     return true;
   }
 
@@ -1922,6 +1986,16 @@ impl Tree {
   /// See [`selectionchange_event`].
   pub fn selectionchange_event(&mut self) {
     selectionchange_event(self)
+  }
+
+  /// Dispatch a `select` event on an element. See [`select_event`].
+  pub fn select_event(&mut self, path: &[usize]) {
+    select_event(self, path)
+  }
+
+  /// Dispatch a `resize` event on the document root.
+  pub fn resize_event(&mut self) {
+    resize_event(self)
   }
 
   /// Process typed text on the focused form control. See [`text_input`].
