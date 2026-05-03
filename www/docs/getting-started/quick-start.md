@@ -118,6 +118,6 @@ The layout viewport width is the window's physical width (accounting for DPI sca
 
 ## Next Steps
 
-- Read about the [Component Framework](../../component-framework/) for building interactive UIs
-- Explore [CSS properties](../../css/property-index) to see what's supported
-- See [Rust Integration](../../rust-integration/overview) for advanced embedding patterns
+- Read about the [Component Framework](../component-framework/) for building interactive UIs
+- Explore [CSS properties](../css/property-index) to see what's supported
+- See [Rust Integration](../rust-integration/overview) for advanced embedding patterns

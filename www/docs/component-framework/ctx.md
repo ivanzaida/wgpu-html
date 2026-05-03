@@ -50,7 +50,7 @@ All `_cb` variants accept `Arc<dyn Fn(&MouseEvent)>` returned by Ctx methods.
 
 ## Event Callbacks
 
-### event_callback(|ev| Option<Msg>)
+### `event_callback(|ev| Option<Msg>)`
 
 Maps any `HtmlEvent` to an optional message. Return `None` to ignore the event:
 
@@ -121,7 +121,7 @@ This ensures CSS isolation without manual class name management.
 
 ## Child Component Embedding
 
-### child::<C>(props)
+### `child::<C>(props)`
 
 Embed a child component at the current position:
 
@@ -134,7 +134,7 @@ el::div().children([
 
 Returns an `El` containing a marker node — the runtime replaces it with the child's rendered output.
 
-### keyed_child::<C>(key, props)
+### `keyed_child::<C>(key, props)`
 
 Keyed variant for stable identity across re-renders:
 

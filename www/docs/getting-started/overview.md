@@ -19,7 +19,7 @@ wgpu-html is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes 
 - **Not a web browser** — no tab management, no address bar, no history, no web platform APIs
 - **Not an Electron alternative** — you embed wgpu-html inside your Rust application, and you control the window, input, and event loop via winit
 - **No JavaScript** — this is permanent. There is no `<script>` execution, no JS engine, no `eval`, no `addEventListener`. All logic lives in Rust.
-- **Not a full CSS engine** — many CSS3/4 features are intentionally out of scope. See the [Status page](../../status) for what is and isn't supported.
+- **Not a full CSS engine** — many CSS3/4 features are intentionally out of scope. See the [Status page](../status) for what is and isn't supported.
 
 ## Core Design Philosophy
 
@@ -63,10 +63,10 @@ wgpu-html is designed for **Rust applications** that need rich, styled UI withou
 
 ## Comparison to Web Browsers vs RmlUI
 
-wgpu-html sits between a full browser engine and RmlUI. Compared to **web browsers** (Servo, WebKit, Blink), wgpu-html is far smaller (no JavaScript, no Web APIs, no networking stack beyond image loading) and targets embedded UI rather than general web content. Compared to **RmlUI**, wgpu-html matches HTML/CSS semantics more closely (CSS Grid, custom properties, `calc()`/`var()`, the full CSS cascade) but lacks RmlUI's advanced visual features (animations, transforms, gradients, decorators, table/float layout). See the [full comparison](../../comparison-wgpu-html-vs-rmlui) for details.
+wgpu-html sits between a full browser engine and RmlUI. Compared to **web browsers** (Servo, WebKit, Blink), wgpu-html is far smaller (no JavaScript, no Web APIs, no networking stack beyond image loading) and targets embedded UI rather than general web content. Compared to **RmlUI**, wgpu-html matches HTML/CSS semantics more closely (CSS Grid, custom properties, `calc()`/`var()`, the full CSS cascade) but lacks RmlUI's advanced visual features (animations, transforms, gradients, decorators, table/float layout). See the [full comparison](../comparison-wgpu-html-vs-rmlui) for details.
 
 ## Next Steps
 
 - [Installation](./installation) — add wgpu-html to your `Cargo.toml`
 - [Quick Start](./quick-start) — get "Hello World" on screen in minutes
-- [Implementation Status](../../status) — see what's done and what's in progress
+- [Implementation Status](../status) — see what's done and what's in progress

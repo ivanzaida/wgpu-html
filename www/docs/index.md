@@ -40,4 +40,4 @@ Frame on wgpu surface
 
 ## First Steps
 
-New to wgpu-html? Start with the [Getting Started overview](../getting-started/overview) to understand what wgpu-html is, then follow the [Quick Start guide](../getting-started/quick-start) to get your first window on screen.
+New to wgpu-html? Start with the [Getting Started overview](getting-started/overview) to understand what wgpu-html is, then follow the [Quick Start guide](getting-started/quick-start) to get your first window on screen.

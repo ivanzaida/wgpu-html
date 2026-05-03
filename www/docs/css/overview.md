@@ -101,4 +101,4 @@ When interaction state changes, an incremental re-cascade runs: only the affecte
 - **No `float`** property
 - **Table display** parsed but falls through to block layout
 
-See the [Implementation Status](../../status) page for full details.
+See the [Implementation Status](../status) page for full details.
