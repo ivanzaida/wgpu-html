@@ -548,6 +548,12 @@ pub struct Node {
   /// Fires on `drop` when the dragged element is released over a target.
   /// Does not bubble — fires on the drop target element only.
   pub on_drop: Vec<MouseCallback>,
+  /// Fires on `drag` on the source element during pointer moves while dragging.
+  /// Does not bubble — fires on the source only.
+  pub on_drag: Vec<MouseCallback>,
+  /// Fires on `dragover` on the element under the pointer while dragging.
+  /// Does not bubble — fires on the hovered target only.
+  pub on_dragover: Vec<MouseCallback>,
   /// Whether this element can be dragged. When `true`, a primary-button
   /// mousedown followed by ≥5 px movement fires `dragstart`.
   pub draggable: bool,
@@ -602,6 +608,8 @@ impl std::fmt::Debug for Node {
       .field("on_dragstart", &format!("{} handlers", self.on_dragstart.len()))
       .field("on_dragend", &format!("{} handlers", self.on_dragend.len()))
       .field("on_drop", &format!("{} handlers", self.on_drop.len()))
+      .field("on_drag", &format!("{} handlers", self.on_drag.len()))
+      .field("on_dragover", &format!("{} handlers", self.on_dragover.len()))
       .field("draggable", &self.draggable)
       .field("on_copy", &format!("{} handlers", self.on_copy.len()))
       .field("on_cut", &format!("{} handlers", self.on_cut.len()))
@@ -640,6 +648,8 @@ impl Node {
       on_dragstart: Vec::new(),
       on_dragend: Vec::new(),
       on_drop: Vec::new(),
+      on_drag: Vec::new(),
+      on_dragover: Vec::new(),
       draggable: false,
       on_copy: Vec::new(),
       on_cut: Vec::new(),

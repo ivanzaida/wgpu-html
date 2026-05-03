@@ -119,6 +119,8 @@ enum Slot {
   ContextMenu,
   AuxClick,
   DragStart,
+  Drag,
+  DragOver,
   DragEnd,
   Drop,
 }
@@ -133,6 +135,8 @@ impl Slot {
       Slot::ContextMenu => ev::HtmlEventType::CONTEXTMENU,
       Slot::AuxClick => ev::HtmlEventType::AUXCLICK,
       Slot::DragStart => ev::HtmlEventType::DRAGSTART,
+      Slot::Drag => ev::HtmlEventType::DRAG,
+      Slot::DragOver => ev::HtmlEventType::DRAGOVER,
       Slot::DragEnd => ev::HtmlEventType::DRAGEND,
       Slot::Drop => ev::HtmlEventType::DROP,
     }
@@ -183,6 +187,8 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
           Slot::ContextMenu => node.on_contextmenu.clone(),
           Slot::AuxClick => node.on_auxclick.clone(),
           Slot::DragStart => node.on_dragstart.clone(),
+          Slot::Drag => node.on_drag.clone(),
+          Slot::DragOver => node.on_dragover.clone(),
           Slot::DragEnd => node.on_dragend.clone(),
           Slot::Drop => node.on_drop.clone(),
         };
@@ -221,6 +227,9 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
     }
     for cb in &event_cbs {
       cb(&html_ev);
+    }
+    if html_ev.base().propagation_stopped.get() {
+      return;
     }
   }
 }
@@ -463,6 +472,16 @@ pub fn dispatch_pointer_move(
       tree.interaction.drag_pending = None;
       tree.interaction.drag_active_source = Some(src_path.clone());
       bubble(tree, &src_path, pos, Some(MouseButton::Primary), Slot::DragStart);
+    }
+  }
+
+  // Fire drag/dragover while dragging.
+  let drag_src = tree.interaction.drag_active_source.clone();
+  let hover = tree.interaction.hover_path.clone();
+  if let Some(src) = drag_src {
+    bubble(tree, &src, pos, Some(MouseButton::Primary), Slot::Drag);
+    if let Some(tgt) = hover {
+      bubble(tree, &tgt, pos, Some(MouseButton::Primary), Slot::DragOver);
     }
   }
 
