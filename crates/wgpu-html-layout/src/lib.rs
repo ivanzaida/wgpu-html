@@ -3651,13 +3651,24 @@ fn make_text_leaf(
     .and_then(resolve_color)
     .unwrap_or([0.0, 0.0, 0.0, 1.0]);
   let decorations = resolve_text_decorations(style);
+  // The box height is determined by the line-height per CSS, but glyph
+  // bitmaps (especially round glyphs and descenders) routinely extend
+  // past the line box.  We keep the content_rect tall enough to cover
+  // the full glyph quads so that no downstream clip / scissor can
+  // accidentally cut off the bottom.  margin_rect / border_rect stay
+  // at the CSS line-height so that sibling spacing isn't blown out.
+  let content_h = run.as_ref().map_or(h, |r| {
+    let max_g = r.glyphs.iter().map(|g| g.y + g.h).fold(0.0f32, f32::max);
+    h.max(max_g)
+  });
   let r = Rect::new(origin_x, origin_y, box_w, h);
+  let content_r = Rect::new(origin_x, origin_y, box_w, content_h);
   let box_ = LayoutBox {
     margin_rect: r,
     border_rect: r,
-    content_rect: r,
+    content_rect: content_r,
     background: None,
-    background_rect: r,
+    background_rect: content_r,
     background_radii: CornerRadii::zero(),
     border: Insets::zero(),
     border_colors: BorderColors::default(),
