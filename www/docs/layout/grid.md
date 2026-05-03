@@ -1,5 +1,4 @@
 ---
-id: grid
 title: CSS Grid Layout
 ---
 

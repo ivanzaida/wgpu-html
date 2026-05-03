@@ -1,0 +1,27 @@
+{
+  "id": "rust-integration/overview",
+  "title": "Rust Integration Overview",
+  "description": "The wgpu-html crate is the top-level facade. It re-exports all sub-crates and provides convenient pipeline functions so you only need one dependency.",
+  "source": "@site/docs/rust-integration/overview.md",
+  "sourceDirName": "rust-integration",
+  "slug": "/rust-integration/overview",
+  "permalink": "/docs/rust-integration/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/rust-integration/overview.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Rust Integration Overview"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Scrolling",
+    "permalink": "/docs/interactivity/scrolling"
+  },
+  "next": {
+    "title": "Integration Guide",
+    "permalink": "/docs/rust-integration/integrating"
+  }
+}

@@ -1,5 +1,4 @@
 ---
-id: index
 title: Welcome to wgpu-html
 ---
 

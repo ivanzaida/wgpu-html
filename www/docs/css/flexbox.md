@@ -1,5 +1,4 @@
 ---
-id: css/flexbox
 title: Flexbox Layout
 ---
 

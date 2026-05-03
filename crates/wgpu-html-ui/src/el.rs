@@ -360,6 +360,562 @@ impl El {
   }
 }
 
+// ── Element-specific attribute traits ───────────────────────────────────────
+//
+// Each trait groups the setters for one (or a few related) element types.
+// All are implemented on `El`; a setter silently no-ops when the underlying
+// element doesn't match (same semantics as `configure()`).
+
+/// Helper macro that generates a trait + impl-on-El for element-specific attrs.
+///
+/// Supported field kinds:
+///   `string`      — `Option<String>`, setter takes `impl Into<String>`
+///   `bool`        — `Option<bool>`, setter takes `bool`
+///   `u32`         — `Option<u32>`, setter takes `u32`
+///   `i32`         — `Option<i32>`, setter takes `i32`
+///   `f64`         — `Option<f64>`, setter takes `f64`
+///   `enum(T)`     — `Option<T>`, setter takes `T`
+macro_rules! element_attrs {
+    (
+        $(#[$trait_meta:meta])*
+        $trait_name:ident for $model:ty {
+            $(
+                $(#[$meta:meta])*
+                $method:ident ($field:ident) : $kind:ident $(($inner:ty))?
+            );* $(;)?
+        }
+    ) => {
+        $(#[$trait_meta])*
+        pub trait $trait_name: Sized {
+            $(
+                $(#[$meta])*
+                element_attrs!(@sig $method $kind $(($inner))?);
+            )*
+        }
+
+        impl $trait_name for El {
+            $(
+                element_attrs!(@impl_method $model, $method, $field, $kind $(($inner))?);
+            )*
+        }
+    };
+
+    // ── Signature arms ────────────────────────────────────────────────────
+
+    (@sig $method:ident string) => {
+        fn $method(self, value: impl Into<String>) -> Self;
+    };
+    (@sig $method:ident bool) => {
+        fn $method(self, value: bool) -> Self;
+    };
+    (@sig $method:ident u32) => {
+        fn $method(self, value: u32) -> Self;
+    };
+    (@sig $method:ident i32) => {
+        fn $method(self, value: i32) -> Self;
+    };
+    (@sig $method:ident f64) => {
+        fn $method(self, value: f64) -> Self;
+    };
+    (@sig $method:ident enum($inner:ty)) => {
+        fn $method(self, value: $inner) -> Self;
+    };
+
+    // ── Implementation arms ───────────────────────────────────────────────
+
+    (@impl_method $model:ty, $method:ident, $field:ident, string) => {
+        fn $method(mut self, value: impl Into<String>) -> Self {
+            if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
+                m.$field = Some(value.into());
+            }
+            self
+        }
+    };
+    (@impl_method $model:ty, $method:ident, $field:ident, bool) => {
+        fn $method(mut self, value: bool) -> Self {
+            if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
+                m.$field = Some(value);
+            }
+            self
+        }
+    };
+    (@impl_method $model:ty, $method:ident, $field:ident, u32) => {
+        fn $method(mut self, value: u32) -> Self {
+            if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
+                m.$field = Some(value);
+            }
+            self
+        }
+    };
+    (@impl_method $model:ty, $method:ident, $field:ident, i32) => {
+        fn $method(mut self, value: i32) -> Self {
+            if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
+                m.$field = Some(value);
+            }
+            self
+        }
+    };
+    (@impl_method $model:ty, $method:ident, $field:ident, f64) => {
+        fn $method(mut self, value: f64) -> Self {
+            if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
+                m.$field = Some(value);
+            }
+            self
+        }
+    };
+    (@impl_method $model:ty, $method:ident, $field:ident, enum($inner:ty)) => {
+        fn $method(mut self, value: $inner) -> Self {
+            if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
+                m.$field = Some(value);
+            }
+            self
+        }
+    };
+}
+
+use m::common::html_enums::{
+    AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding, FormMethod,
+    ImageDecoding, InputType, LinkAs, LinkTarget, Loading, OlType, Preload,
+    ReferrerPolicy, SvgLength, TableHeaderScope, TextareaWrap, TrackKind,
+};
+
+// ── Form elements ─────────────────────────────────────────────────────────
+
+element_attrs! {
+    /// Attribute setters for `<input>` elements.
+    InputAttrs for m::Input {
+        input_type(r#type): enum(InputType);
+        name(name): string;
+        value(value): string;
+        placeholder(placeholder): string;
+        required(required): bool;
+        disabled(disabled): bool;
+        readonly(readonly): bool;
+        checked(checked): bool;
+        min(min): string;
+        max(max): string;
+        step(step): string;
+        minlength(minlength): u32;
+        maxlength(maxlength): u32;
+        pattern(pattern): string;
+        autocomplete(autocomplete): string;
+        autofocus(autofocus): bool;
+        multiple(multiple): bool;
+        accept(accept): string;
+        capture(capture): enum(CaptureMode);
+        size(size): u32;
+        list(list): string;
+        form_attr(form): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<textarea>` elements.
+    TextareaAttrs for m::Textarea {
+        name(name): string;
+        value(value): string;
+        placeholder(placeholder): string;
+        required(required): bool;
+        disabled(disabled): bool;
+        readonly(readonly): bool;
+        rows(rows): u32;
+        cols(cols): u32;
+        minlength(minlength): u32;
+        maxlength(maxlength): u32;
+        wrap(wrap): enum(TextareaWrap);
+        autocomplete(autocomplete): string;
+        autofocus(autofocus): bool;
+        form_attr(form): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<button>` elements.
+    ButtonAttrs for m::Button {
+        button_type(r#type): enum(ButtonType);
+        name(name): string;
+        value(value): string;
+        disabled(disabled): bool;
+        autofocus(autofocus): bool;
+        form_attr(form): string;
+        formaction(formaction): string;
+        formenctype(formenctype): enum(FormEncoding);
+        formmethod(formmethod): enum(FormMethod);
+        formnovalidate(formnovalidate): bool;
+        formtarget(formtarget): enum(LinkTarget)
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<select>` elements.
+    SelectAttrs for m::Select {
+        name(name): string;
+        required(required): bool;
+        disabled(disabled): bool;
+        multiple(multiple): bool;
+        size(size): u32;
+        autofocus(autofocus): bool;
+        form_attr(form): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<option>` elements.
+    OptionAttrs for m::OptionElement {
+        value(value): string;
+        label(label): string;
+        selected(selected): bool;
+        disabled(disabled): bool
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<optgroup>` elements.
+    OptgroupAttrs for m::Optgroup {
+        label(label): string;
+        disabled(disabled): bool
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<form>` elements.
+    FormAttrs for m::Form {
+        action(action): string;
+        method(method): enum(FormMethod);
+        enctype(enctype): enum(FormEncoding);
+        target(target): enum(LinkTarget);
+        form_autocomplete(autocomplete): enum(AutoComplete);
+        novalidate(novalidate): bool;
+        name(name): string;
+        rel(rel): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<label>` elements.
+    LabelAttrs for m::Label {
+        label_for(r#for): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<fieldset>` elements.
+    FieldsetAttrs for m::Fieldset {
+        disabled(disabled): bool;
+        form_attr(form): string;
+        name(name): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<output>` elements.
+    OutputAttrs for m::Output {
+        form_attr(form): string;
+        name(name): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<progress>` elements.
+    ProgressAttrs for m::Progress {
+        progress_value(value): f64;
+        progress_max(max): f64
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<meter>` elements.
+    MeterAttrs for m::Meter {
+        meter_value(value): f64;
+        meter_min(min): f64;
+        meter_max(max): f64;
+        low(low): f64;
+        high(high): f64;
+        optimum(optimum): f64
+    }
+}
+
+// ── Link / navigation elements ────────────────────────────────────────────
+
+element_attrs! {
+    /// Attribute setters for `<a>` (anchor) elements.
+    AnchorAttrs for m::A {
+        href(href): string;
+        target(target): enum(LinkTarget);
+        download(download): string;
+        rel(rel): string;
+        hreflang(hreflang): string;
+        link_type(r#type): string;
+        ping(ping): string;
+        referrerpolicy(referrerpolicy): enum(ReferrerPolicy)
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<link>` elements.
+    LinkAttrs for m::Link {
+        href(href): string;
+        rel(rel): string;
+        link_type(r#type): string;
+        media(media): string;
+        sizes(sizes): string;
+        hreflang(hreflang): string;
+        link_as(r#as): enum(LinkAs);
+        crossorigin(crossorigin): enum(CrossOrigin);
+        integrity(integrity): string;
+        referrerpolicy(referrerpolicy): enum(ReferrerPolicy)
+    }
+}
+
+// ── Media elements ────────────────────────────────────────────────────────
+
+element_attrs! {
+    /// Attribute setters for `<img>` elements.
+    ImgAttrs for m::Img {
+        src(src): string;
+        alt(alt): string;
+        width(width): u32;
+        height(height): u32;
+        srcset(srcset): string;
+        sizes(sizes): string;
+        loading(loading): enum(Loading);
+        decoding(decoding): enum(ImageDecoding);
+        crossorigin(crossorigin): enum(CrossOrigin);
+        usemap(usemap): string;
+        ismap(ismap): bool;
+        referrerpolicy(referrerpolicy): enum(ReferrerPolicy)
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<video>` elements.
+    VideoAttrs for m::Video {
+        src(src): string;
+        controls(controls): bool;
+        autoplay(autoplay): bool;
+        loop_attr(r#loop): bool;
+        muted(muted): bool;
+        poster(poster): string;
+        preload(preload): enum(Preload);
+        width(width): u32;
+        height(height): u32;
+        playsinline(playsinline): bool;
+        crossorigin(crossorigin): enum(CrossOrigin)
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<audio>` elements.
+    AudioAttrs for m::Audio {
+        src(src): string;
+        controls(controls): bool;
+        autoplay(autoplay): bool;
+        loop_attr(r#loop): bool;
+        muted(muted): bool;
+        preload(preload): enum(Preload);
+        crossorigin(crossorigin): enum(CrossOrigin)
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<source>` elements.
+    SourceAttrs for m::Source {
+        src(src): string;
+        srcset(srcset): string;
+        sizes(sizes): string;
+        media(media): string;
+        source_type(r#type): string;
+        width(width): u32;
+        height(height): u32
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<track>` elements.
+    TrackAttrs for m::Track {
+        src(src): string;
+        kind(kind): enum(TrackKind);
+        srclang(srclang): string;
+        label(label): string;
+        default(default): bool
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<iframe>` elements.
+    IframeAttrs for m::Iframe {
+        src(src): string;
+        srcdoc(srcdoc): string;
+        name(name): string;
+        width(width): u32;
+        height(height): u32;
+        allow(allow): string;
+        allowfullscreen(allowfullscreen): bool;
+        loading(loading): enum(Loading);
+        referrerpolicy(referrerpolicy): enum(ReferrerPolicy);
+        sandbox(sandbox): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<canvas>` elements.
+    CanvasAttrs for m::Canvas {
+        width(width): u32;
+        height(height): u32
+    }
+}
+
+// ── Table elements ────────────────────────────────────────────────────────
+
+element_attrs! {
+    /// Attribute setters for `<td>` elements.
+    TdAttrs for m::Td {
+        colspan(colspan): u32;
+        rowspan(rowspan): u32;
+        headers(headers): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<th>` elements.
+    ThAttrs for m::Th {
+        colspan(colspan): u32;
+        rowspan(rowspan): u32;
+        headers(headers): string;
+        scope(scope): enum(TableHeaderScope);
+        abbr(abbr): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<col>` elements.
+    ColAttrs for m::Col {
+        span(span): u32
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<colgroup>` elements.
+    ColgroupAttrs for m::Colgroup {
+        span(span): u32
+    }
+}
+
+// ── Metadata / head elements ──────────────────────────────────────────────
+
+element_attrs! {
+    /// Attribute setters for `<meta>` elements.
+    MetaAttrs for m::Meta {
+        name(name): string;
+        content(content): string;
+        charset(charset): string;
+        http_equiv(http_equiv): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<script>` elements.
+    ScriptAttrs for m::Script {
+        src(src): string;
+        script_type(r#type): string;
+        async_attr(r#async): bool;
+        defer(defer): bool;
+        crossorigin(crossorigin): enum(CrossOrigin);
+        integrity(integrity): string;
+        nomodule(nomodule): bool;
+        nonce(nonce): string;
+        referrerpolicy(referrerpolicy): enum(ReferrerPolicy)
+    }
+}
+
+// ── Misc elements ─────────────────────────────────────────────────────────
+
+element_attrs! {
+    /// Attribute setters for `<details>` elements.
+    DetailsAttrs for m::Details {
+        open(open): bool;
+        name(name): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<dialog>` elements.
+    DialogAttrs for m::Dialog {
+        open(open): bool
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<time>` elements.
+    TimeAttrs for m::Time {
+        datetime(datetime): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<ol>` elements.
+    OlAttrs for m::Ol {
+        reversed(reversed): bool;
+        start(start): i32;
+        ol_type(r#type): enum(OlType)
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<blockquote>` elements.
+    BlockquoteAttrs for m::Blockquote {
+        cite(cite): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<del>` elements.
+    DelAttrs for m::Del {
+        cite(cite): string;
+        datetime(datetime): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<ins>` elements.
+    InsAttrs for m::Ins {
+        cite(cite): string;
+        datetime(datetime): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<data>` elements.
+    DataElAttrs for m::Data {
+        data_value(value): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<svg>` elements.
+    SvgAttrs for m::Svg {
+        width(width): enum(SvgLength);
+        height(height): enum(SvgLength);
+        view_box(view_box): string;
+        xmlns(xmlns): string;
+        fill(fill): string;
+        stroke(stroke): string
+    }
+}
+
+element_attrs! {
+    /// Attribute setters for `<path>` (SVG) elements.
+    SvgPathAttrs for m::SvgPath {
+        d(d): string;
+        fill(fill): string;
+        stroke(stroke): string;
+        stroke_width(stroke_width): string;
+        fill_rule(fill_rule): string;
+        opacity(opacity): string;
+        transform(transform): string
+    }
+}
+
 // ── Element constructor functions ───────────────────────────────────────────
 
 macro_rules! el_constructors {

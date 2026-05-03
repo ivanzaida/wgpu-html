@@ -1,5 +1,4 @@
 ---
-id: text-selection
 title: Text Selection
 ---
 

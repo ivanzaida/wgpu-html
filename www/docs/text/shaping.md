@@ -1,5 +1,4 @@
 ---
-id: shaping
 title: Text Shaping
 ---
 

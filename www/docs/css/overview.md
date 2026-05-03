@@ -1,5 +1,4 @@
 ---
-id: css/overview
 title: CSS Overview
 ---
 

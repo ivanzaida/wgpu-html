@@ -1,5 +1,4 @@
 ---
-id: positioned
 title: Positioned Layout
 ---
 

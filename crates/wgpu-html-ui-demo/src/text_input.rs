@@ -20,6 +20,14 @@ impl Component for TextInput {
     ShouldRender::Yes
   }
 
+  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El {
+    el::div().class(ctx.scoped("wrapper"))
+      .child(el::input().on_event(|e| {
+        println!("input event: {:?}", e);
+      }))
+      .child(el::p().class(ctx.scoped("value")).text(&format!("You typed: {}", self.value)))
+  }
+
   fn scope() -> &'static str {
     "text-input"
   }
@@ -49,13 +57,5 @@ impl Component for TextInput {
         .align_items(AlignItems::Center)
         .justify_content(SpaceBetween),
     ])
-  }
-
-  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El {
-    el::div().class(ctx.scoped("wrapper"))
-      .child(el::input().on_event(|e| {
-        println!("input event: {:?}", e);
-      }))
-      .child(el::p().class(ctx.scoped("value")).text(&format!("You typed: {}", self.value)))
   }
 }

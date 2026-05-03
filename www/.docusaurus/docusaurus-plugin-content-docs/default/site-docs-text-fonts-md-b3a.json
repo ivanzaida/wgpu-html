@@ -1,0 +1,27 @@
+{
+  "id": "text/fonts",
+  "title": "Font System",
+  "description": "Fonts are per-document assets registered on Tree::fonts (FontRegistry). The wgpu-html-text crate consumes &FontRegistry to build its shaping-side database.",
+  "source": "@site/docs/text/fonts.md",
+  "sourceDirName": "text",
+  "slug": "/text/fonts",
+  "permalink": "/docs/text/fonts",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/text/fonts.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Font System"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Text Rendering Overview",
+    "permalink": "/docs/text/overview"
+  },
+  "next": {
+    "title": "Text Shaping",
+    "permalink": "/docs/text/shaping"
+  }
+}

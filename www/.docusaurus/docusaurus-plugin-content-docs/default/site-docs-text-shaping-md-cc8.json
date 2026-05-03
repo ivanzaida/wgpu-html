@@ -1,0 +1,27 @@
+{
+  "id": "text/shaping",
+  "title": "Text Shaping",
+  "description": "Text shaping converts a string + CSS font properties into positioned, atlas-packed glyphs. The pipeline lives in wgpu-html-text::shape.rs.",
+  "source": "@site/docs/text/shaping.md",
+  "sourceDirName": "text",
+  "slug": "/text/shaping",
+  "permalink": "/docs/text/shaping",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/text/shaping.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Text Shaping"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Font System",
+    "permalink": "/docs/text/fonts"
+  },
+  "next": {
+    "title": "Rendering Pipeline Overview",
+    "permalink": "/docs/rendering/overview"
+  }
+}

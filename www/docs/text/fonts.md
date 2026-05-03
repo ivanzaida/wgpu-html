@@ -1,5 +1,4 @@
 ---
-id: fonts
 title: Font System
 ---
 

@@ -1,5 +1,4 @@
 ---
-id: comparison-wgpu-html-vs-rmlui
 title: wgpu-html vs RmlUI
 ---
 

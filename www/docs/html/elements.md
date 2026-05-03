@@ -1,5 +1,4 @@
 ---
-id: html/elements
 title: Element Reference
 ---
 

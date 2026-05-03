@@ -1,0 +1,27 @@
+{
+  "id": "css/grid",
+  "title": "CSS Grid Layout",
+  "description": "wgpu-html implements a substantial subset of CSS Grid Layout Module Level 1. The grid system supports explicit track definitions with flexible fr units, implicit tracks, named line placement, spanning, auto-placement, and full alignment.",
+  "source": "@site/docs/css/grid.md",
+  "sourceDirName": "css",
+  "slug": "/css/grid",
+  "permalink": "/docs/css/grid",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/css/grid.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "CSS Grid Layout"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Flexbox Layout",
+    "permalink": "/docs/css/flexbox"
+  },
+  "next": {
+    "title": "Positioned Layout",
+    "permalink": "/docs/css/positioned"
+  }
+}

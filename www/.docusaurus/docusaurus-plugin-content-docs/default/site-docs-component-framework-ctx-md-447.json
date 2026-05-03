@@ -1,0 +1,27 @@
+{
+  "id": "component-framework/ctx",
+  "title": "Ctx Callback Factory",
+  "description": "Ctx is the callback factory passed to Component::view(). It creates event handlers that send messages to the component's update loop.",
+  "source": "@site/docs/component-framework/ctx.md",
+  "sourceDirName": "component-framework",
+  "slug": "/component-framework/ctx",
+  "permalink": "/docs/component-framework/ctx",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/component-framework/ctx.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": null,
+  "frontMatter": {
+    "title": "Ctx Callback Factory"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "El Builder DSL",
+    "permalink": "/docs/component-framework/el-dsl"
+  },
+  "next": {
+    "title": "Store — Reactive Shared State",
+    "permalink": "/docs/component-framework/store"
+  }
+}

@@ -1,5 +1,4 @@
 ---
-id: css/selectors
 title: CSS Selectors
 ---
 

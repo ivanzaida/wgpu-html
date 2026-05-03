@@ -1,0 +1,27 @@
+{
+  "id": "html/elements",
+  "title": "Element Reference",
+  "description": "This page provides detailed documentation for element attribute parsing, global attributes, and the most significant element types in wgpu-html.",
+  "source": "@site/docs/html/elements.md",
+  "sourceDirName": "html",
+  "slug": "/html/elements",
+  "permalink": "/docs/html/elements",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/html/elements.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Element Reference"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Element Index",
+    "permalink": "/docs/html/element-index"
+  },
+  "next": {
+    "title": "HTML Parser Internals",
+    "permalink": "/docs/html/parsing"
+  }
+}

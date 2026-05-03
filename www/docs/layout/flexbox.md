@@ -1,5 +1,4 @@
 ---
-id: flexbox
 title: Flexbox Layout
 ---
 

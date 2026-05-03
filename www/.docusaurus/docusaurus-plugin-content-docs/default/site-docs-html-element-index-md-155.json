@@ -1,0 +1,27 @@
+{
+  "id": "html/element-index",
+  "title": "Element Index",
+  "description": "This page lists every HTML element type recognized by wgpu-html. Each element is parsed into a typed Rust struct with per-element attribute parsing. Unknown tags are silently dropped.",
+  "source": "@site/docs/html/element-index.md",
+  "sourceDirName": "html",
+  "slug": "/html/element-index",
+  "permalink": "/docs/html/element-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/html/element-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819072000,
+  "frontMatter": {
+    "title": "Element Index"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "HTML Markup Language",
+    "permalink": "/docs/html/overview"
+  },
+  "next": {
+    "title": "Element Reference",
+    "permalink": "/docs/html/elements"
+  }
+}

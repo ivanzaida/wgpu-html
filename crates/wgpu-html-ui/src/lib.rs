@@ -74,7 +74,30 @@ pub use app::{
   mount::Mount,
 };
 pub use el::{Children, El};
+pub use el::{
+    InputAttrs, TextareaAttrs, ButtonAttrs, SelectAttrs, OptionAttrs,
+    OptgroupAttrs, FormAttrs, LabelAttrs, FieldsetAttrs, OutputAttrs,
+    ProgressAttrs, MeterAttrs,
+    AnchorAttrs, LinkAttrs,
+    ImgAttrs, VideoAttrs, AudioAttrs, SourceAttrs, TrackAttrs,
+    IframeAttrs, CanvasAttrs,
+    TdAttrs, ThAttrs, ColAttrs, ColgroupAttrs,
+    MetaAttrs, ScriptAttrs,
+    DetailsAttrs, DialogAttrs, TimeAttrs, OlAttrs,
+    BlockquoteAttrs, DelAttrs, InsAttrs, DataElAttrs,
+    SvgAttrs, SvgPathAttrs,
+};
 pub use store::Store;
+
+/// Re-export commonly-used HTML attribute enum types.
+pub mod html {
+    pub use wgpu_html_models::common::html_enums::{
+        AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding,
+        FormMethod, ImageDecoding, InputType, LinkAs, LinkTarget, Loading,
+        OlType, Preload, ReferrerPolicy, SvgLength, TableHeaderScope,
+        TextareaWrap, TrackKind,
+    };
+}
 
 /// Register platform system fonts with the tree under the given family alias.
 /// Call this once during app setup so text renders correctly.

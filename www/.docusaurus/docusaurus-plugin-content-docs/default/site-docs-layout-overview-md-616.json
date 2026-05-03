@@ -1,0 +1,27 @@
+{
+  "id": "layout/overview",
+  "title": "Layout Engine Overview",
+  "description": "The layout engine (wgpu-html-layout) converts a fully-cascaded style tree into a LayoutBox tree — a positioned, sized, shaped representation of every element in physical pixels. The renderer consumes LayoutBox directly; it never re-resolves CSS.",
+  "source": "@site/docs/layout/overview.md",
+  "sourceDirName": "layout",
+  "slug": "/layout/overview",
+  "permalink": "/docs/layout/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/layout/overview.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Layout Engine Overview"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "CSS Math Functions",
+    "permalink": "/docs/css/math-functions"
+  },
+  "next": {
+    "title": "Block Flow Layout",
+    "permalink": "/docs/layout/block"
+  }
+}

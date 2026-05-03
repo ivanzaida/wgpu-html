@@ -3,3 +3,4 @@
 /screenshot-*.png
 .pencil
 devtools-dump-*.html
+node_modules

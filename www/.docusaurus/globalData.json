@@ -1,0 +1,308 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/docs",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/docs",
+          "mainDocId": "index",
+          "docs": [
+            {
+              "id": "comparison-wgpu-html-vs-rmlui",
+              "path": "/docs/comparison-wgpu-html-vs-rmlui",
+              "sidebar": "docs"
+            },
+            {
+              "id": "component-framework/component-trait",
+              "path": "/docs/component-framework/component-trait",
+              "sidebar": "docs"
+            },
+            {
+              "id": "component-framework/ctx",
+              "path": "/docs/component-framework/ctx",
+              "sidebar": "docs"
+            },
+            {
+              "id": "component-framework/el-dsl",
+              "path": "/docs/component-framework/el-dsl",
+              "sidebar": "docs"
+            },
+            {
+              "id": "component-framework/index",
+              "path": "/docs/component-framework/",
+              "sidebar": "docs"
+            },
+            {
+              "id": "component-framework/rendering",
+              "path": "/docs/component-framework/rendering",
+              "sidebar": "docs"
+            },
+            {
+              "id": "component-framework/store",
+              "path": "/docs/component-framework/store",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/box-model",
+              "path": "/docs/css/box-model",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/cascade",
+              "path": "/docs/css/cascade",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/colors-backgrounds",
+              "path": "/docs/css/colors-backgrounds",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/flexbox",
+              "path": "/docs/css/flexbox",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/grid",
+              "path": "/docs/css/grid",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/math-functions",
+              "path": "/docs/css/math-functions",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/overflow",
+              "path": "/docs/css/overflow",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/overview",
+              "path": "/docs/css/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/positioned",
+              "path": "/docs/css/positioned",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/property-index",
+              "path": "/docs/css/property-index",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/selectors",
+              "path": "/docs/css/selectors",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/syntax",
+              "path": "/docs/css/syntax",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/typography",
+              "path": "/docs/css/typography",
+              "sidebar": "docs"
+            },
+            {
+              "id": "css/variables",
+              "path": "/docs/css/variables",
+              "sidebar": "docs"
+            },
+            {
+              "id": "devtools",
+              "path": "/docs/devtools",
+              "sidebar": "docs"
+            },
+            {
+              "id": "getting-started/installation",
+              "path": "/docs/getting-started/installation",
+              "sidebar": "docs"
+            },
+            {
+              "id": "getting-started/overview",
+              "path": "/docs/getting-started/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "getting-started/quick-start",
+              "path": "/docs/getting-started/quick-start",
+              "sidebar": "docs"
+            },
+            {
+              "id": "html/dom-api",
+              "path": "/docs/html/dom-api",
+              "sidebar": "docs"
+            },
+            {
+              "id": "html/element-index",
+              "path": "/docs/html/element-index",
+              "sidebar": "docs"
+            },
+            {
+              "id": "html/elements",
+              "path": "/docs/html/elements",
+              "sidebar": "docs"
+            },
+            {
+              "id": "html/overview",
+              "path": "/docs/html/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "html/parsing",
+              "path": "/docs/html/parsing",
+              "sidebar": "docs"
+            },
+            {
+              "id": "index",
+              "path": "/docs/",
+              "sidebar": "docs"
+            },
+            {
+              "id": "interactivity/events",
+              "path": "/docs/interactivity/events",
+              "sidebar": "docs"
+            },
+            {
+              "id": "interactivity/focus-keyboard",
+              "path": "/docs/interactivity/focus-keyboard",
+              "sidebar": "docs"
+            },
+            {
+              "id": "interactivity/forms",
+              "path": "/docs/interactivity/forms",
+              "sidebar": "docs"
+            },
+            {
+              "id": "interactivity/overview",
+              "path": "/docs/interactivity/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "interactivity/scrolling",
+              "path": "/docs/interactivity/scrolling",
+              "sidebar": "docs"
+            },
+            {
+              "id": "interactivity/text-selection",
+              "path": "/docs/interactivity/text-selection",
+              "sidebar": "docs"
+            },
+            {
+              "id": "layout/block",
+              "path": "/docs/layout/block",
+              "sidebar": "docs"
+            },
+            {
+              "id": "layout/flexbox",
+              "path": "/docs/layout/flexbox",
+              "sidebar": "docs"
+            },
+            {
+              "id": "layout/grid",
+              "path": "/docs/layout/grid",
+              "sidebar": "docs"
+            },
+            {
+              "id": "layout/inline",
+              "path": "/docs/layout/inline",
+              "sidebar": "docs"
+            },
+            {
+              "id": "layout/overview",
+              "path": "/docs/layout/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "layout/positioned",
+              "path": "/docs/layout/positioned",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rendering/overview",
+              "path": "/docs/rendering/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rendering/painting",
+              "path": "/docs/rendering/painting",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rendering/pipelines",
+              "path": "/docs/rendering/pipelines",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rust-integration/egui-backend",
+              "path": "/docs/rust-integration/egui-backend",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rust-integration/integrating",
+              "path": "/docs/rust-integration/integrating",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rust-integration/overview",
+              "path": "/docs/rust-integration/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rust-integration/profiling",
+              "path": "/docs/rust-integration/profiling",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rust-integration/screenshots",
+              "path": "/docs/rust-integration/screenshots",
+              "sidebar": "docs"
+            },
+            {
+              "id": "rust-integration/winit-harness",
+              "path": "/docs/rust-integration/winit-harness",
+              "sidebar": "docs"
+            },
+            {
+              "id": "status",
+              "path": "/docs/status",
+              "sidebar": "docs"
+            },
+            {
+              "id": "text/fonts",
+              "path": "/docs/text/fonts",
+              "sidebar": "docs"
+            },
+            {
+              "id": "text/overview",
+              "path": "/docs/text/overview",
+              "sidebar": "docs"
+            },
+            {
+              "id": "text/shaping",
+              "path": "/docs/text/shaping",
+              "sidebar": "docs"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docs": {
+              "link": {
+                "path": "/docs/",
+                "label": "Welcome"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

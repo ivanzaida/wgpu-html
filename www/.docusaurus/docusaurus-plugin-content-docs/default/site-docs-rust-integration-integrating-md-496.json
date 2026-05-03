@@ -1,0 +1,27 @@
+{
+  "id": "rust-integration/integrating",
+  "title": "Integration Guide",
+  "description": "This guide walks through embedding wgpu-html in a custom Rust application from scratch, with full control over the event loop.",
+  "source": "@site/docs/rust-integration/integrating.md",
+  "sourceDirName": "rust-integration",
+  "slug": "/rust-integration/integrating",
+  "permalink": "/docs/rust-integration/integrating",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/rust-integration/integrating.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": null,
+  "frontMatter": {
+    "title": "Integration Guide"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rust Integration Overview",
+    "permalink": "/docs/rust-integration/overview"
+  },
+  "next": {
+    "title": "Winit Harness (WgpuHtmlWindow)",
+    "permalink": "/docs/rust-integration/winit-harness"
+  }
+}

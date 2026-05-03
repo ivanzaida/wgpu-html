@@ -1,0 +1,27 @@
+{
+  "id": "component-framework/index",
+  "title": "Component Framework (wgpu-html-ui)",
+  "description": "wgpu-html-ui is an Elm-architecture component framework for building interactive UI with wgpu-html. It provides state management, scoped CSS, render caching, and a builder DSL — all in Rust.",
+  "source": "@site/docs/component-framework/index.md",
+  "sourceDirName": "component-framework",
+  "slug": "/component-framework/",
+  "permalink": "/docs/component-framework/",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/component-framework/index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": null,
+  "frontMatter": {
+    "title": "Component Framework (wgpu-html-ui)"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Profiling and Performance",
+    "permalink": "/docs/rust-integration/profiling"
+  },
+  "next": {
+    "title": "Component Trait",
+    "permalink": "/docs/component-framework/component-trait"
+  }
+}

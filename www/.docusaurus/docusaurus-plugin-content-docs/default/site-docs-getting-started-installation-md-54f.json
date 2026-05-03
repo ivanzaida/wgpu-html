@@ -1,0 +1,27 @@
+{
+  "id": "getting-started/installation",
+  "title": "Installation",
+  "description": "Add to Cargo.toml",
+  "source": "@site/docs/getting-started/installation.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/installation",
+  "permalink": "/docs/getting-started/installation",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/getting-started/installation.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819072000,
+  "frontMatter": {
+    "title": "Installation"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "What is wgpu-html?",
+    "permalink": "/docs/getting-started/overview"
+  },
+  "next": {
+    "title": "Quick Start",
+    "permalink": "/docs/getting-started/quick-start"
+  }
+}

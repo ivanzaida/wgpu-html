@@ -1,5 +1,4 @@
 ---
-id: css/cascade
 title: Cascade & Inheritance
 ---
 

@@ -1,0 +1,27 @@
+{
+  "id": "comparison-wgpu-html-vs-rmlui",
+  "title": "wgpu-html vs RmlUI",
+  "description": "Date: 2026-05-03",
+  "source": "@site/docs/comparison-wgpu-html-vs-rmlui.md",
+  "sourceDirName": ".",
+  "slug": "/comparison-wgpu-html-vs-rmlui",
+  "permalink": "/docs/comparison-wgpu-html-vs-rmlui",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/comparison-wgpu-html-vs-rmlui.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "wgpu-html vs RmlUI"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Devtools",
+    "permalink": "/docs/devtools"
+  },
+  "next": {
+    "title": "Implementation Status",
+    "permalink": "/docs/status"
+  }
+}

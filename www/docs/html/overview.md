@@ -1,5 +1,4 @@
 ---
-id: html/overview
 title: HTML Markup Language
 ---
 

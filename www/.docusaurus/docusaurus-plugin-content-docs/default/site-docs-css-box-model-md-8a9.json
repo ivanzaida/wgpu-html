@@ -1,0 +1,27 @@
+{
+  "id": "css/box-model",
+  "title": "Box Model",
+  "description": "wgpu-html implements the standard CSS box model with content, padding, border, and margin boxes. The box model affects layout geometry (spacing, sizing) and paint (background clipping, border rendering).",
+  "source": "@site/docs/css/box-model.md",
+  "sourceDirName": "css",
+  "slug": "/css/box-model",
+  "permalink": "/docs/css/box-model",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/css/box-model.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Box Model"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Cascade & Inheritance",
+    "permalink": "/docs/css/cascade"
+  },
+  "next": {
+    "title": "Colors & Backgrounds",
+    "permalink": "/docs/css/colors-backgrounds"
+  }
+}

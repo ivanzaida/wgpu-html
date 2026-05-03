@@ -1,0 +1,27 @@
+{
+  "id": "getting-started/overview",
+  "title": "What is wgpu-html?",
+  "description": "wgpu-html is a GPU-accelerated HTML/CSS rendering engine for Rust. It takes real HTML5 markup and CSS stylesheets, runs them through a full browser-style pipeline (parser → cascade → layout → paint → render), and draws the result on screen using wgpu — all without a web browser.",
+  "source": "@site/docs/getting-started/overview.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/overview",
+  "permalink": "/docs/getting-started/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/getting-started/overview.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819072000,
+  "frontMatter": {
+    "title": "What is wgpu-html?"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Welcome",
+    "permalink": "/docs/"
+  },
+  "next": {
+    "title": "Installation",
+    "permalink": "/docs/getting-started/installation"
+  }
+}

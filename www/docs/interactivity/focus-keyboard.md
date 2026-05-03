@@ -1,5 +1,4 @@
 ---
-id: focus-keyboard
 title: Focus + Keyboard
 ---
 

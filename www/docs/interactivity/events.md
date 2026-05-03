@@ -1,5 +1,4 @@
 ---
-id: events
 title: Event System
 ---
 

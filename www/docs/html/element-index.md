@@ -1,5 +1,4 @@
 ---
-id: html/element-index
 title: Element Index
 ---
 

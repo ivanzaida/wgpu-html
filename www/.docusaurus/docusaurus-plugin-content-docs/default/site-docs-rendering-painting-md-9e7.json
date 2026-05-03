@@ -1,0 +1,27 @@
+{
+  "id": "rendering/painting",
+  "title": "Paint Translation",
+  "description": "The paint stage (wgpu-html::paint) walks the LayoutBox tree depth-first and emits a backend-agnostic DisplayList. The renderer consumes the display list without any knowledge of CSS or layout.",
+  "source": "@site/docs/rendering/painting.md",
+  "sourceDirName": "rendering",
+  "slug": "/rendering/painting",
+  "permalink": "/docs/rendering/painting",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/rendering/painting.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Paint Translation"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "GPU Pipelines",
+    "permalink": "/docs/rendering/pipelines"
+  },
+  "next": {
+    "title": "Interactivity Overview",
+    "permalink": "/docs/interactivity/overview"
+  }
+}

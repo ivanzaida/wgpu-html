@@ -1,5 +1,4 @@
 ---
-id: css/positioned
 title: Positioned Layout
 ---
 

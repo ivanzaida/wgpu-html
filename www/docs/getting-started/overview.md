@@ -1,5 +1,4 @@
 ---
-id: overview
 title: What is wgpu-html?
 ---
 

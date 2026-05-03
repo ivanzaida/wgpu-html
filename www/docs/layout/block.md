@@ -1,5 +1,4 @@
 ---
-id: block
 title: Block Flow Layout
 ---
 

@@ -1,5 +1,4 @@
 ---
-id: css/colors-backgrounds
 title: Colors & Backgrounds
 ---
 

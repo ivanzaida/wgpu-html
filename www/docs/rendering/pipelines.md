@@ -1,5 +1,4 @@
 ---
-id: pipelines
 title: GPU Pipelines
 ---
 

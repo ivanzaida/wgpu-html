@@ -1,5 +1,4 @@
 ---
-id: html/parsing
 title: HTML Parser Internals
 ---
 

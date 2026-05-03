@@ -1,5 +1,4 @@
 ---
-id: html/dom-api
 title: DOM-style API
 ---
 

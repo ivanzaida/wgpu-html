@@ -1,5 +1,4 @@
 ---
-id: css/box-model
 title: Box Model
 ---
 

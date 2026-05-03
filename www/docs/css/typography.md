@@ -1,5 +1,4 @@
 ---
-id: css/typography
 title: Typography & Text Properties
 ---
 

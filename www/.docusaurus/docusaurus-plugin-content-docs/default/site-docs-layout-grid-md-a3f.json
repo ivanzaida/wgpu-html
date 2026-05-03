@@ -1,0 +1,27 @@
+{
+  "id": "layout/grid",
+  "title": "CSS Grid Layout",
+  "description": "The grid formatting context implements CSS Grid Layout Level 1 (§6–§11). display: grid dispatches into layoutgridchildren().",
+  "source": "@site/docs/layout/grid.md",
+  "sourceDirName": "layout",
+  "slug": "/layout/grid",
+  "permalink": "/docs/layout/grid",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/layout/grid.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "CSS Grid Layout"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Flexbox Layout",
+    "permalink": "/docs/layout/flexbox"
+  },
+  "next": {
+    "title": "Positioned Layout",
+    "permalink": "/docs/layout/positioned"
+  }
+}

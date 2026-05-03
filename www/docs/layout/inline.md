@@ -1,5 +1,4 @@
 ---
-id: inline
 title: Inline Formatting Context
 ---
 

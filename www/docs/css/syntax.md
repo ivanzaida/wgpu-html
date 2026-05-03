@@ -1,5 +1,4 @@
 ---
-id: css/syntax
 title: CSS Syntax & Data Types
 ---
 

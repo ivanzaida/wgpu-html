@@ -1,5 +1,4 @@
 ---
-id: css/property-index
 title: CSS Property Index
 ---
 

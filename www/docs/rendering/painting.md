@@ -1,5 +1,4 @@
 ---
-id: painting
 title: Paint Translation
 ---
 

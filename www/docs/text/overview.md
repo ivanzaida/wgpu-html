@@ -1,5 +1,4 @@
 ---
-id: overview
 title: Text Rendering Overview
 ---
 

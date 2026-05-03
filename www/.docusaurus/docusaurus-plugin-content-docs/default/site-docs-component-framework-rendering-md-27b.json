@@ -1,0 +1,27 @@
+{
+  "id": "component-framework/rendering",
+  "title": "Component Rendering Model",
+  "description": "The runtime (wgpu-html-ui::runtime) manages mounted components and selects one of three render paths per frame to minimize work.",
+  "source": "@site/docs/component-framework/rendering.md",
+  "sourceDirName": "component-framework",
+  "slug": "/component-framework/rendering",
+  "permalink": "/docs/component-framework/rendering",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/component-framework/rendering.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": null,
+  "frontMatter": {
+    "title": "Component Rendering Model"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Store — Reactive Shared State",
+    "permalink": "/docs/component-framework/store"
+  },
+  "next": {
+    "title": "Devtools",
+    "permalink": "/docs/devtools"
+  }
+}

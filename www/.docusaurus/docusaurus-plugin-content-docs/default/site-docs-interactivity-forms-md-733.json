@@ -1,0 +1,27 @@
+{
+  "id": "interactivity/forms",
+  "title": "Form Controls",
+  "description": "Form control editing is implemented in wgpu-html-tree::text_edit (252 lines) and driven by keyboard input dispatch.",
+  "source": "@site/docs/interactivity/forms.md",
+  "sourceDirName": "interactivity",
+  "slug": "/interactivity/forms",
+  "permalink": "/docs/interactivity/forms",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/interactivity/forms.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Form Controls"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Focus + Keyboard",
+    "permalink": "/docs/interactivity/focus-keyboard"
+  },
+  "next": {
+    "title": "Text Selection",
+    "permalink": "/docs/interactivity/text-selection"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "css/colors-backgrounds",
+  "title": "Colors & Backgrounds",
+  "description": "wgpu-html supports a broad range of CSS color formats and background properties. Colors are parsed into a typed CssColor enum and resolved to [r, g, b, a] linear sRGB at paint time for GPU consumption.",
+  "source": "@site/docs/css/colors-backgrounds.md",
+  "sourceDirName": "css",
+  "slug": "/css/colors-backgrounds",
+  "permalink": "/docs/css/colors-backgrounds",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/wgpu-html/wgpu-html/tree/master/www/docs/css/colors-backgrounds.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedAt": 1777819878000,
+  "frontMatter": {
+    "title": "Colors & Backgrounds"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Box Model",
+    "permalink": "/docs/css/box-model"
+  },
+  "next": {
+    "title": "Typography & Text Properties",
+    "permalink": "/docs/css/typography"
+  }
+}
