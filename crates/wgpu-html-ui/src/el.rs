@@ -435,6 +435,36 @@ impl El {
     self.node.on_auxclick.push(cb);
     self
   }
+
+  pub fn on_dragstart(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_dragstart.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_dragstart_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_dragstart.push(cb);
+    self
+  }
+
+  pub fn on_dragend(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_dragend.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_dragend_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_dragend.push(cb);
+    self
+  }
+
+  pub fn on_drop(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_drop.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_drop_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_drop.push(cb);
+    self
+  }
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────

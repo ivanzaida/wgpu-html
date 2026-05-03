@@ -118,6 +118,9 @@ enum Slot {
   DblClick,
   ContextMenu,
   AuxClick,
+  DragStart,
+  DragEnd,
+  Drop,
 }
 
 impl Slot {
@@ -129,6 +132,9 @@ impl Slot {
       Slot::DblClick => ev::HtmlEventType::DBLCLICK,
       Slot::ContextMenu => ev::HtmlEventType::CONTEXTMENU,
       Slot::AuxClick => ev::HtmlEventType::AUXCLICK,
+      Slot::DragStart => ev::HtmlEventType::DRAGSTART,
+      Slot::DragEnd => ev::HtmlEventType::DRAGEND,
+      Slot::Drop => ev::HtmlEventType::DROP,
     }
   }
   fn detail(self) -> i32 {
@@ -176,6 +182,9 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
           Slot::DblClick => node.on_dblclick.clone(),
           Slot::ContextMenu => node.on_contextmenu.clone(),
           Slot::AuxClick => node.on_auxclick.clone(),
+          Slot::DragStart => node.on_dragstart.clone(),
+          Slot::DragEnd => node.on_dragend.clone(),
+          Slot::Drop => node.on_drop.clone(),
         };
         (mouse_cbs, node.on_event.clone())
       })
@@ -443,6 +452,19 @@ pub fn dispatch_pointer_move(
     bubble_mouse_move(tree, &target, pos);
   }
 
+  // Drag-start detection: if drag_pending and moved ≥ 5 px, fire dragstart.
+  if let Some((ref drag_src, (start_x, start_y))) = tree.interaction.drag_pending {
+    let dx = pos.0 - start_x;
+    let dy = pos.1 - start_y;
+    if (dx * dx + dy * dy) >= 25.0 {
+      // sqrt(25) = 5, so 5px Euclidean distance
+      let src_path = drag_src.clone();
+      tree.interaction.drag_pending = None;
+      tree.interaction.drag_active_source = Some(src_path.clone());
+      bubble(tree, &src_path, pos, Some(MouseButton::Primary), Slot::DragStart);
+    }
+  }
+
   changed
 }
 
@@ -544,6 +566,13 @@ pub fn dispatch_mouse_down(
   }
   bubble(tree, target_path, pos, Some(button), Slot::MouseDown);
 
+  // Record drag-pending if the target is draggable.
+  if button == MouseButton::Primary {
+    if element_is_draggable(tree, target_path) {
+      tree.interaction.drag_pending = Some((target_path.to_vec(), pos));
+    }
+  }
+
   // Browser-style focus update: a primary press on a focusable
   // element (or one of its focusable ancestors) moves focus
   // there. A press anywhere else clears focus. Mirrors the
@@ -594,6 +623,10 @@ pub fn dispatch_mouse_up(
   }
 
   if button == MouseButton::Primary {
+    // Drag cleanup: clear pending drag, or finalise active drag.
+    tree.interaction.drag_pending = None;
+    let drag_was_active = tree.interaction.drag_active_source.take();
+
     if tree.interaction.selecting_text {
       if let Some(cursor) = text_cursor {
         if let Some(sel) = tree.interaction.selection.as_mut() {
@@ -602,12 +635,20 @@ pub fn dispatch_mouse_up(
       }
     }
     let press = tree.interaction.active_path.take();
-    let suppress_click = tree
-      .interaction
-      .selection
-      .as_ref()
-      .is_some_and(|sel| tree.interaction.selecting_text && !sel.is_collapsed());
+    let suppress_click = drag_was_active.is_some()
+      || tree
+        .interaction
+        .selection
+        .as_ref()
+        .is_some_and(|sel| tree.interaction.selecting_text && !sel.is_collapsed());
     tree.interaction.selecting_text = false;
+
+    // Finalise drag: fire dragend on source, drop on release target.
+    if let Some(drag_src) = drag_was_active {
+      bubble(tree, &drag_src, pos, Some(button), Slot::DragEnd);
+      bubble(tree, target_path, pos, Some(button), Slot::Drop);
+    }
+
     if let Some(press_path) = press {
       let click_target = common_prefix(&press_path, target_path);
       if !suppress_click {
@@ -1065,6 +1106,13 @@ fn handle_activation_key(tree: &mut Tree) {
       bubble_submit_event(tree, &form_path, Some(submitter_path));
     }
   }
+}
+
+/// Check whether the element at `path` has `draggable` set to true.
+fn element_is_draggable(tree: &Tree, path: &[usize]) -> bool {
+  let Some(root) = tree.root.as_ref() else { return false };
+  let Some(node) = root.at_path(path) else { return false };
+  node.draggable
 }
 
 /// Dispatch `keyup` to the focused element (or document root if

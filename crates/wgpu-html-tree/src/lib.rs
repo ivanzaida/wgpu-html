@@ -538,6 +538,18 @@ pub struct Node {
   pub on_contextmenu: Vec<MouseCallback>,
   /// Fires on `auxclick` (middle-button release). Bubbles target → root.
   pub on_auxclick: Vec<MouseCallback>,
+  /// Fires on `dragstart` (mousedown + ≥5 px movement on draggable element).
+  /// Does not bubble — fires on the source element only.
+  pub on_dragstart: Vec<MouseCallback>,
+  /// Fires on `dragend` when the drag operation ends (mouseup after dragstart).
+  /// Does not bubble — fires on the source element only.
+  pub on_dragend: Vec<MouseCallback>,
+  /// Fires on `drop` when the dragged element is released over a target.
+  /// Does not bubble — fires on the drop target element only.
+  pub on_drop: Vec<MouseCallback>,
+  /// Whether this element can be dragged. When `true`, a primary-button
+  /// mousedown followed by ≥5 px movement fires `dragstart`.
+  pub draggable: bool,
   /// General-purpose handler that receives the full [`HtmlEvent`] for any
   /// event dispatched to this node, fired *after* the type-specific slot
   /// (e.g. `on_click`). Use this for keyboard, focus, wheel, or any event
@@ -574,6 +586,10 @@ impl std::fmt::Debug for Node {
       .field("on_dblclick", &format!("{} handlers", self.on_dblclick.len()))
       .field("on_contextmenu", &format!("{} handlers", self.on_contextmenu.len()))
       .field("on_auxclick", &format!("{} handlers", self.on_auxclick.len()))
+      .field("on_dragstart", &format!("{} handlers", self.on_dragstart.len()))
+      .field("on_dragend", &format!("{} handlers", self.on_dragend.len()))
+      .field("on_drop", &format!("{} handlers", self.on_drop.len()))
+      .field("draggable", &self.draggable)
       .field("on_event", &format!("{} handlers", self.on_event.len()))
       .finish()
   }
@@ -603,6 +619,10 @@ impl Node {
       on_dblclick: Vec::new(),
       on_contextmenu: Vec::new(),
       on_auxclick: Vec::new(),
+      on_dragstart: Vec::new(),
+      on_dragend: Vec::new(),
+      on_drop: Vec::new(),
+      draggable: false,
       on_event: Vec::new(),
       rect: None,
     }

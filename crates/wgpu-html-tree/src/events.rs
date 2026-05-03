@@ -225,6 +225,13 @@ pub struct InteractionState {
   /// `click` synthesis. Compared with the next click target to
   /// decide `dblclick`.
   pub last_click_path: Option<Vec<usize>>,
+  /// Pending drag source: (path, press_position). Set on mousedown
+  /// when `draggable` is true; cleared when pointer moves > 5 px
+  /// (fire `dragstart`) or mouseup (cancel).
+  pub drag_pending: Option<(Vec<usize>, (f32, f32))>,
+  /// Active drag source path. Set after `dragstart` fires; cleared
+  /// on mouseup (which fires `dragend` on this element).
+  pub drag_active_source: Option<Vec<usize>>,
 }
 
 impl Default for InteractionState {
@@ -246,6 +253,8 @@ impl Default for InteractionState {
       focus_value_snapshot: None,
       last_click_time: Instant::now(),
       last_click_path: None,
+      drag_pending: None,
+      drag_active_source: None,
     }
   }
 }

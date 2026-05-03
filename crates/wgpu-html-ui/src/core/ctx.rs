@@ -208,6 +208,30 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
     })
   }
 
+  /// Create a [`MouseCallback`] that sends a fixed message on `dragstart`.
+  pub fn on_dragstart(&self, msg: Msg) -> MouseCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &MouseEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create a [`MouseCallback`] that sends a fixed message on `dragend`.
+  pub fn on_dragend(&self, msg: Msg) -> MouseCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &MouseEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
+  /// Create a [`MouseCallback`] that sends a fixed message on `drop`.
+  pub fn on_drop(&self, msg: Msg) -> MouseCallback {
+    let sender = self.sender.clone();
+    Arc::new(move |_: &MouseEvent| {
+      sender.send(msg.clone());
+    })
+  }
+
   /// Get a clone of the message sender for building custom callbacks
   /// (e.g. parent-provided closures in props) or passing to
   /// [`Store::subscribe`](crate::Store::subscribe).
