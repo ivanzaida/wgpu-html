@@ -8,17 +8,17 @@ hide_table_of_contents: true
 GPU-accelerated HTML/CSS renderer for Rust.
 
 <div style={{ textAlign: 'center', margin: '3rem 0' }}>
-  <a href="/docs/" className="button button--primary button--lg">
+  <a href="/wgpu-html/docs/" className="button button--primary button--lg">
     Read the Documentation
   </a>
 </div>
 
 :::tip Quick Links
 
-- **[Quick Start Guide](/docs/getting-started/quick-start)** — get a window on screen in 30 lines
-- **[CSS Property Index](/docs/css/property-index)** — all supported CSS properties
-- **[vs RmlUI Comparison](/docs/comparison-wgpu-html-vs-rmlui)** — see how wgpu-html stacks up
-- **[GitHub](https://github.com/wgpu-html/wgpu-html)**
+- **[Quick Start Guide](/wgpu-html/docs/getting-started/quick-start)** — get a window on screen in 30 lines
+- **[CSS Property Index](/wgpu-html/docs/css/property-index)** — all supported CSS properties
+- **[vs RmlUI Comparison](/wgpu-html/docs/comparison-wgpu-html-vs-rmlui)** — see how wgpu-html stacks up
+- **[GitHub](https://github.com/ivanzaida/wgpu-html)**
 
 :::
 

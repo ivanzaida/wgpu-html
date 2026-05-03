@@ -7,10 +7,10 @@ const config = {
   tagline: 'GPU-accelerated HTML/CSS renderer for Rust',
   favicon: 'img/favicon.ico',
 
-  url: 'https://wgpu-html.dev',
-  baseUrl: '/',
+  url: 'https://ivanzaida.github.io',
+  baseUrl: '/wgpu-html/',
 
-  organizationName: 'wgpu-html',
+  organizationName: 'ivanzaida',
   projectName: 'wgpu-html',
 
   onBrokenLinks: 'warn',
@@ -42,6 +42,20 @@ const config = {
           customCss: require.resolve('./src/css/custom.css'),
         },
       }),
+    ],
+  ],
+
+  plugins: [
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        language: ['en'],
+        indexDocs: true,
+        indexPages: true,
+        docsRouteBasePath: 'docs',
+        highlightSearchTermsOnTargetPage: true,
+      },
     ],
   ],
 
