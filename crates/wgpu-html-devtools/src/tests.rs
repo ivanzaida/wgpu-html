@@ -1,6 +1,4 @@
-use wgpu_html_tree::{Node, Tree};
-
-use crate::Devtools;
+use wgpu_html_tree::Node;
 
 #[allow(dead_code)]
 fn first_path_with_class(node: &Node, class: &str, path: &mut Vec<usize>) -> Option<Vec<usize>> {

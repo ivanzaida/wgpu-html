@@ -3,7 +3,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use wgpu_html_tree::{Element, Node, Tree};
-use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
+use wgpu_html_ui::{el, el::El, Component, Ctx, ShouldRender};
 
 use crate::tags::*;
 
@@ -116,9 +116,9 @@ fn emit_tree_node(
       if has_vis {
         // Auto-collapse beyond the configured depth unless
         // the user explicitly expanded this node.
-        let explicitly_collapsed = collapsed.contains(path.as_slice());
-        let is_collapsed =
-          explicitly_collapsed || (depth >= auto_collapse_depth && !collapsed.contains(path.as_slice()));
+        // let explicitly_collapsed = collapsed.contains(path.as_slice());
+        // let is_collapsed =
+        //   explicitly_collapsed || (depth >= auto_collapse_depth && !collapsed.contains(path.as_slice()));
         // If user toggled an auto-collapsed node, treat it as expanded.
         // We use a trick: if it's in the collapsed set AND beyond auto depth,
         // that means the user toggled it open (the set acts as an override).

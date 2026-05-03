@@ -6,18 +6,19 @@
 //! process).
 
 use std::sync::{
-  Arc,
   atomic::{AtomicBool, Ordering},
+  Arc,
 };
 
 use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 use wgpu_html_winit::HtmlWindow;
 use winit::{
-  event::{ElementState, WindowEvent},
+  event::WindowEvent,
   event_loop::ActiveEventLoop,
   window::WindowId,
 };
+
 
 use crate::component::{DevtoolsComponent, DevtoolsProps};
 
