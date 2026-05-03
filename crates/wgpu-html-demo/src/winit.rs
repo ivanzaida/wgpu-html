@@ -59,6 +59,34 @@ pub(crate) fn install_demo_callbacks(tree: &mut Tree, click_count: &Arc<AtomicUs
     panel.on_mouse_leave.push(Arc::new(|_| {}));
     panel.on_click.push(Arc::new(|_| {}));
   }
+
+  // Wire logging for events-test.html — print event type to stderr.
+  let log_ids = [
+    "zone-click", "zone-mousedown", "zone-mouseup", "zone-dblclick",
+    "zone-auxclick", "zone-contextmenu", "zone-enterleave", "zone-mousemove",
+    "zone-buttons", "zone-wheel", "zone-keydown", "zone-focus-input",
+    "zone-input", "zone-checkbox", "zone-form", "zone-clipboard",
+    "zone-dragsource", "zone-droptarget", "zone-activate-btn", "zone-activate-link",
+    "zone-submit-btn", "zone-form-input",
+  ];
+  for id in log_ids {
+    if let Some(el) = tree.get_element_by_id(id) {
+      let id = id.to_string();
+      el.on_event.push(Arc::new(move |ev| {
+        eprintln!(
+          "[EVENT] {id} → {}  target={:?}  phase={:?}",
+          ev.event_type(),
+          ev.base().target,
+          ev.base().event_phase,
+        );
+      }));
+    }
+  }
+
+  // Make drag source draggable.
+  if let Some(el) = tree.get_element_by_id("zone-dragsource") {
+    el.draggable = true;
+  }
 }
 
 // ── Profiling hook ──────────────────────────────────────────────────────────

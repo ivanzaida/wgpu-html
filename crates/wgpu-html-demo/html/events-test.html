@@ -178,17 +178,17 @@ ggg<style>
         <div class="zone-name">mouseup</div>
         <div class="zone-desc">primary button release</div>
     </div>
-    <div id="zone-dblclick" class="zone stub">
+    <div id="zone-dblclick" class="zone live">
         <div class="zone-name">dblclick</div>
-        <div class="zone-desc">double-click synthesis</div>
+        <div class="zone-desc">double-click synthesis (300ms)</div>
     </div>
-    <div id="zone-auxclick" class="zone stub">
+    <div id="zone-auxclick" class="zone live">
         <div class="zone-name">auxclick</div>
-        <div class="zone-desc">non-primary button click</div>
+        <div class="zone-desc">middle-button click</div>
     </div>
-    <div id="zone-contextmenu" class="zone stub">
+    <div id="zone-contextmenu" class="zone live">
         <div class="zone-name">contextmenu</div>
-        <div class="zone-desc">right-click / context key</div>
+        <div class="zone-desc">right-click</div>
     </div>
 </div>
 
@@ -199,7 +199,7 @@ ggg<style>
         <div class="zone-name">mouseenter · mouseleave</div>
         <div class="zone-desc">enter this box to fire enter<br>leave it to fire leave</div>
     </div>
-    <div id="zone-mousemove" class="zone stub">
+    <div id="zone-mousemove" class="zone live">
         <div class="zone-name">mousemove</div>
         <div class="zone-desc">pointer moves inside element</div>
     </div>
@@ -255,7 +255,7 @@ ggg<style>
 <!-- ═══════════════════════════════════════════════════════ -->
 <h2>Wheel Events</h2>
 <div class="row">
-    <div id="zone-wheel" class="zone stub">
+    <div id="zone-wheel" class="zone live">
         <div class="zone-name">wheel</div>
         <div class="zone-desc">deltaX · deltaY · deltaMode</div>
     </div>
@@ -270,11 +270,11 @@ ggg<style>
 <!-- ═══════════════════════════════════════════════════════ -->
 <h2>Keyboard Events</h2>
 <div class="row">
-    <div id="zone-keydown" class="zone stub">
-        <div class="zone-name">keydown</div>
+    <div id="zone-keydown" class="zone live">
+        <div class="zone-name">keydown · keyup</div>
         <div class="zone-desc">key · code · location · repeat</div>
     </div>
-    <div id="zone-keyup" class="zone stub">
+    <div id="zone-keyup" class="zone live">
         <div class="zone-name">keyup</div>
     </div>
 </div>
@@ -282,216 +282,77 @@ ggg<style>
 <!-- ═══════════════════════════════════════════════════════ -->
 <h2>Focus Events</h2>
 <div class="row">
-    <div id="zone-focus" class="zone stub">
-        <div class="zone-name">focus</div>
-        <div class="zone-desc">does not bubble</div>
-    </div>
-    <div id="zone-blur" class="zone stub">
-        <div class="zone-name">blur</div>
-        <div class="zone-desc">does not bubble</div>
-    </div>
-    <div id="zone-focusin" class="zone stub">
-        <div class="zone-name">focusin</div>
-        <div class="zone-desc">bubbles</div>
-    </div>
-    <div id="zone-focusout" class="zone stub">
-        <div class="zone-name">focusout</div>
-        <div class="zone-desc">bubbles</div>
-    </div>
+    <input type="text" id="zone-focus-input" placeholder="focus / blur / focusin / focusout" style="background:#1a1a1a; color:#4caf50; border-color:#1e3d1e; padding:10px 16px; border-radius:6px; min-width:280px;">
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<h2>Input &amp; Composition Events</h2>
+<h2>Input & Change Events</h2>
+<div class="row" style="gap:10px;">
+    <input type="text" id="zone-input" placeholder="type here → input + change" style="background:#1a1a1a; color:#4caf50; border-color:#1e3d1e; padding:10px 16px; border-radius:6px; width:200px;">
+    <input type="checkbox" id="zone-checkbox" checked style="accent-color:#4caf50; width:20px; height:20px; margin-top:8px;">
+    <label style="font-size:11px; color:#4caf50; padding-top:8px;">checkbox → input + change</label>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>Submit Event</h2>
 <div class="row">
-    <div id="zone-beforeinput" class="zone stub">
-        <div class="zone-name">beforeinput</div>
-        <div class="zone-desc">data · inputType · isComposing</div>
-    </div>
-    <div id="zone-input" class="zone stub">
-        <div class="zone-name">input</div>
-    </div>
-    <div id="zone-change" class="zone stub">
-        <div class="zone-name">change</div>
-    </div>
-    <div id="zone-compositionstart" class="zone stub">
-        <div class="zone-name">compositionstart</div>
-    </div>
-    <div id="zone-compositionupdate" class="zone stub">
-        <div class="zone-name">compositionupdate</div>
-    </div>
-    <div id="zone-compositionend" class="zone stub">
-        <div class="zone-name">compositionend</div>
-        <div class="zone-desc">data string</div>
-    </div>
+    <form id="zone-form" style="display:flex; gap:6px;">
+        <input type="text" id="zone-form-input" placeholder="Enter → submit" style="background:#1a1a1a; color:#4caf50; border-color:#1e3d1e; padding:10px 16px; border-radius:6px; width:180px;">
+        <button id="zone-submit-btn" type="submit" style="background:#1e3d1e; color:#4caf50; border:1px solid #3a6a3a; border-radius:6px; padding:10px 20px; cursor:pointer;">Submit</button>
+    </form>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ -->
 <h2>Clipboard Events</h2>
 <div class="row">
-    <div id="zone-cut" class="zone stub">
-        <div class="zone-name">cut</div>
-    </div>
-    <div id="zone-copy" class="zone stub">
-        <div class="zone-name">copy</div>
-        <div class="zone-desc">clipboardData handle</div>
-    </div>
-    <div id="zone-paste" class="zone stub">
-        <div class="zone-name">paste</div>
-    </div>
+    <input type="text" id="zone-clipboard" value="select & Ctrl+C/X/V" style="background:#1a1a1a; color:#4caf50; border-color:#1e3d1e; padding:10px 16px; border-radius:6px; width:280px;">
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<h2>Drag &amp; Drop Events</h2>
+<h2>Drag Events</h2>
 <div class="row">
-    <div id="zone-dragstart" class="zone stub">
-        <div class="zone-name">dragstart</div>
+    <div id="zone-dragsource" class="zone live">
+        <div class="zone-name">dragstart · dragend</div>
+        <div class="zone-desc">click & drag this box ≥5px</div>
     </div>
-    <div id="zone-drag" class="zone stub">
-        <div class="zone-name">drag</div>
-        <div class="zone-desc">dataTransfer handle</div>
-    </div>
-    <div id="zone-dragenter" class="zone stub">
-        <div class="zone-name">dragenter</div>
-    </div>
-    <div id="zone-dragover" class="zone stub">
-        <div class="zone-name">dragover</div>
-    </div>
-    <div id="zone-dragleave" class="zone stub">
-        <div class="zone-name">dragleave</div>
-    </div>
-    <div id="zone-drop" class="zone stub">
-        <div class="zone-name">drop</div>
-    </div>
-    <div id="zone-dragend" class="zone stub">
-        <div class="zone-name">dragend</div>
+    <div id="zone-droptarget" class="zone live">
+        <div class="zone-name">drop target</div>
+        <div class="zone-desc">release drag over this</div>
     </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<h2>Touch Events</h2>
+<h2>Enter/Space Activation</h2>
 <div class="row">
-    <div id="zone-touchstart" class="zone stub">
-        <div class="zone-name">touchstart</div>
-        <div class="zone-desc">touches · targetTouches</div>
-    </div>
-    <div id="zone-touchmove" class="zone stub">
-        <div class="zone-name">touchmove</div>
-    </div>
-    <div id="zone-touchend" class="zone stub">
-        <div class="zone-name">touchend</div>
-        <div class="zone-desc">changedTouches</div>
-    </div>
-    <div id="zone-touchcancel" class="zone stub">
-        <div class="zone-name">touchcancel</div>
-    </div>
+    <button id="zone-activate-btn" style="background:#1e3d1e; color:#4caf50; border:1px solid #3a6a3a; border-radius:6px; padding:10px 20px; cursor:pointer;">Tab here → Enter/Space = click</button>
+    <a id="zone-activate-link" href="#" style="background:#1a1a1a; color:#4caf50; border:1px solid #1e3d1e; border-radius:6px; padding:10px 20px; text-decoration:none; font-size:12px;">link → Enter = click</a>
 </div>
 
+
 <!-- ═══════════════════════════════════════════════════════ -->
-<h2>Animation Events</h2>
+<h2>Remaining Stubs (not yet dispatched)</h2>
 <div class="row">
-    <div id="zone-animationstart" class="zone stub">
-        <div class="zone-name">animationstart</div>
-        <div class="zone-desc">animationName · elapsedTime</div>
-    </div>
-    <div id="zone-animationend" class="zone stub">
-        <div class="zone-name">animationend</div>
-    </div>
-    <div id="zone-animationiteration" class="zone stub">
-        <div class="zone-name">animationiteration</div>
-    </div>
-    <div id="zone-animationcancel" class="zone stub">
-        <div class="zone-name">animationcancel</div>
-    </div>
+    <div class="zone stub"><div class="zone-name">scroll</div></div>
+    <div class="zone stub"><div class="zone-name">select</div></div>
+    <div class="zone stub"><div class="zone-name">pointer*</div><div class="zone-desc">(6 events)</div></div>
+    <div class="zone stub"><div class="zone-name">touch*</div><div class="zone-desc">(3 events)</div></div>
+    <div class="zone stub"><div class="zone-name">drag/over/enter/leave</div></div>
+    <div class="zone stub"><div class="zone-name">beforeinput</div></div>
+    <div class="zone stub"><div class="zone-name">composition*</div><div class="zone-desc">(3 events)</div></div>
+    <div class="zone stub"><div class="zone-name">animation*</div><div class="zone-desc">(3 events)</div></div>
+    <div class="zone stub"><div class="zone-name">transition*</div><div class="zone-desc">(4 events)</div></div>
+    <div class="zone stub"><div class="zone-name">toggle</div></div>
+    <div class="zone stub"><div class="zone-name">resize</div></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<h2>Transition Events</h2>
-<div class="row">
-    <div id="zone-transitionrun" class="zone stub">
-        <div class="zone-name">transitionrun</div>
-    </div>
-    <div id="zone-transitionstart" class="zone stub">
-        <div class="zone-name">transitionstart</div>
-        <div class="zone-desc">propertyName · elapsedTime</div>
-    </div>
-    <div id="zone-transitionend" class="zone stub">
-        <div class="zone-name">transitionend</div>
-    </div>
-    <div id="zone-transitioncancel" class="zone stub">
-        <div class="zone-name">transitioncancel</div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<h2>Form Events</h2>
-<div class="row">
-    <div id="zone-submit" class="zone stub">
-        <div class="zone-name">submit</div>
-        <div class="zone-desc">submitter node</div>
-    </div>
-    <div id="zone-reset" class="zone stub">
-        <div class="zone-name">reset</div>
-    </div>
-    <div id="zone-invalid" class="zone stub">
-        <div class="zone-name">invalid</div>
-    </div>
-    <div id="zone-formdata" class="zone stub">
-        <div class="zone-name">formdata</div>
-        <div class="zone-desc">FormDataId handle</div>
-    </div>
-    <div id="zone-select" class="zone stub">
-        <div class="zone-name">select</div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<h2>Toggle Events</h2>
-<div class="row">
-    <div id="zone-toggle" class="zone stub">
-        <div class="zone-name">toggle</div>
-        <div class="zone-desc">oldState · newState</div>
-    </div>
-    <div id="zone-beforetoggle" class="zone stub">
-        <div class="zone-name">beforetoggle</div>
-        <div class="zone-desc">cancelable</div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<h2>Progress &amp; Resource Events</h2>
-<div class="row">
-    <div id="zone-loadstart" class="zone stub">
-        <div class="zone-name">loadstart</div>
-    </div>
-    <div id="zone-progress" class="zone stub">
-        <div class="zone-name">progress</div>
-        <div class="zone-desc">loaded · total · lengthComputable</div>
-    </div>
-    <div id="zone-loadend" class="zone stub">
-        <div class="zone-name">loadend</div>
-    </div>
-    <div id="zone-load" class="zone stub">
-        <div class="zone-name">load</div>
-    </div>
-    <div id="zone-error" class="zone stub">
-        <div class="zone-name">error</div>
-    </div>
-    <div id="zone-abort" class="zone stub">
-        <div class="zone-name">abort</div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<!-- fixed log footer (static; real output goes to terminal) -->
 <div id="log-bar">
     <div id="log-bar-title">Terminal event log</div>
-    <div class="log-hint">
-        ● Live events (green zones) are wired in the demo — run with:
-    </div>
-    <div class="log-hint2">
-        cargo run -p wgpu-html-demo -- crates/wgpu-html-demo/html/events-test.html
-    </div>
+    <div class="log-hint">Run with:</div>
+    <div class="log-hint2">cargo run -p wgpu-html-demo -- html/events-test.html</div>
     <div class="log-hint2" style="margin-top:6px;">
-        Dispatched now: mousedown · mouseup · click · mouseenter · mouseleave
+        Dispatched (25 slots): click · dblclick · auxclick · contextmenu · mousedown · mouseup · mousemove · mouseenter · mouseleave
+        · keydown · keyup · focus · blur · focusin · focusout · input · change · wheel · submit
+        · dragstart · dragend · drop · copy · cut · paste
     </div>
 </div>
