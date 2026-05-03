@@ -22,7 +22,7 @@ pub mod tree_hook;
 
 pub use dispatch::{
   blur, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move, focus, focus_next,
-  key_down, key_up, text_input,
+  key_down, key_up, text_input, wheel_event,
 };
 pub use events::{
   EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,

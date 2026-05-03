@@ -25,12 +25,15 @@
 - [x] **`focusin`** — bubbles target→root
 - [x] **`focusout`** — bubbles target→root
 
+### Core Events Now Dispatched (Phase 1 - DONE)
+
+- [x] **`input`** — `text_input()` and `handle_edit_key()` fire `InputEvent`
+- [x] **`change`** — fires on blur when text-editable value differs from focus snapshot
+- [x] **`wheel`** — `Tree::wheel_event()` fires before imperative scroll
+- [x] **`submit`** — Enter in form input + click on submit button fire `SubmitEvent`
+
 ### Type System Ready But Never Emitted
 
-- [ ] **`input`** — `InputEvent` struct exists; `text_input()` mutates value silently
-- [ ] **`wheel`** — `WheelEvent` struct exists; scroll is imperative only
-- [ ] **`submit`** — `SubmitEvent` struct exists; no form submission
-- [ ] **`change`** — type constant exists; no change detection
 - [ ] **`dblclick`** — type constant exists; click-count infra in harness, not synthesized
 - [ ] **`contextmenu`** — type constant exists; right-click not special-cased
 - [ ] **`auxclick`** — type constant exists; middle-button not special-cased
@@ -50,59 +53,50 @@
 
 ---
 
-## Phase 1 — Core Wiring Gaps `[High Priority]`
+## Phase 1 — Core Wiring Gaps `[DONE]`
 
 Wire events that have structs but are never emitted. These are the
 smallest diffs with the biggest practical impact.
 
-### 1.1 `input` Event
+### 1.1 `input` Event ✅
 
-- [ ] Emit `InputEvent` in `dispatch.rs:text_input()` after value mutation
-- [ ] Event carries `input_type: InputType` (default: `InsertText`)
-- [ ] Bubbles target→root
-- [ ] Fires on: typed character insert, backspace, delete, cut/paste
-- [ ] Does **not** fire on: arrow-key navigation, Home/End (those are `selectionchange`)
+- [x] Emit `InputEvent` in `dispatch.rs:text_input()` after value mutation
+- [x] Event carries `input_type: InputType` (default: `InsertText`)
+- [x] Bubbles target→root
+- [x] Fires on: typed character insert, backspace, delete, line-break in textarea
+- [x] Does **not** fire on: arrow-key navigation, Home/End (those are `selectionchange`)
 
-**Tests needed:**
-- [ ] `input_event_fires_on_text_insert`
-- [ ] `input_event_bubbles_to_ancestor`
-- [ ] `input_event_does_not_fire_on_arrow_keys`
+**Tests:** `text_input_fires_input_event`, `text_input_does_not_fire_input_on_non_editable`, `backspace_fires_input_with_delete_content_backward`
 
-### 1.2 `change` Event
+### 1.2 `change` Event ✅
 
-- [ ] Detect value commit on blur for `<input>` / `<textarea>`
+- [x] Detect value commit on blur for `<input>` / `<textarea>`
+- [x] `focus_value_snapshot` in `InteractionState` tracks value at focus-gain
+- [x] Compared on blur; fires `change` (bubbling) if value differs
 - [ ] Detect checkbox/radio toggle (once 5.1 lands)
 - [ ] Detect `<select>` option change (once 5.2 lands)
-- [ ] Bubbles target→root
 
-**Tests needed:**
-- [ ] `change_event_fires_on_input_blur_when_value_changed`
-- [ ] `change_event_does_not_fire_on_blur_when_value_unchanged`
-- [ ] `change_event_bubbles`
+**Tests:** `change_event_fires_when_value_mutated_then_blurred`, `change_event_does_not_fire_when_value_unchanged_on_blur`
 
-### 1.3 `wheel` Event
+### 1.3 `wheel` Event ✅
 
-- [ ] Emit `WheelEvent` before doing imperative scroll
-- [ ] `cancelable: true` — user code can call `preventDefault()` (once 4.1 lands)
-- [ ] Bubbles from deepest scrollable element to root
-- [ ] Carry `delta_x`, `delta_y`, `delta_mode` (pixel/line/page)
+- [x] `Tree::wheel_event(pos, delta_x, delta_y, delta_mode)` dispatches to hovered element
+- [x] `cancelable: true` — ready for `preventDefault()` (once 4.1 lands)
+- [x] Bubbles from hovered element to root
+- [x] Carry `delta_x`, `delta_y`, `delta_mode` (pixel/line)
+- [x] Winit harness calls `tree.wheel_event()` before scroll in both old and new handlers
 
-**Tests needed:**
-- [ ] `wheel_event_fires_before_scroll`
-- [ ] `wheel_event_bubbles_from_scrollable_to_root`
-- [ ] `wheel_event_has_delta_and_modifiers`
+**Tests:** `wheel_event_dispatches_to_hovered_element`, `wheel_event_with_no_hover_dispatches_to_root`
 
-### 1.4 `submit` Event
+### 1.4 `submit` Event ✅
 
-- [ ] Detect Enter in focused `<input>` inside a `<form>`
-- [ ] Detect click on `<button type="submit">` inside a `<form>`
-- [ ] Emit `SubmitEvent` on the `<form>` element
-- [ ] `cancelable: true` — user can prevent implicit submission
+- [x] Detect Enter in focused `<input>` inside a `<form>`
+- [x] Detect click on `<button type="submit">` (or `<button>` without type) inside a `<form>`
+- [x] Emit `SubmitEvent` on the `<form>` element (with `submitter` path)
+- [x] `cancelable: true` — user can prevent implicit submission
+- [x] `find_ancestor_form(path)` walks up the tree to find `<form>` parent
 
-**Tests needed:**
-- [ ] `submit_event_fires_on_enter_in_form_input`
-- [ ] `submit_event_fires_on_submit_button_click`
-- [ ] `submit_event_does_not_fire_on_button_outside_form`
+**Tests:** `enter_in_form_input_fires_submit`, `enter_in_non_form_input_does_not_fire_submit`
 - [ ] `submit_event_does_not_fire_on_type_button`
 
 ---

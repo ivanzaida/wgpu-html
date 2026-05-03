@@ -370,17 +370,23 @@ See `spec/interactivity.md` for the full phase breakdown.
 - `scroll_offsets_y: BTreeMap<Vec<usize>, f32>` on `InteractionState`
 - Viewport scroll position + drag-scrollbar; `MouseWheel` scrolls
   viewport and detects deepest scrollable element
-- Scrollbar quads painted in `paint.rs`
+- Per-element scroll offsets applied at paint time; scrollbar quads painted
 - Public `wgpu_html::scroll` module exposes scrollbar geometry,
   hit-tests, painters, and document/element scroll utilities
 - `Wheel` events are not forwarded to element `on_event` callbacks yet
+- Hit-testing inside scroll containers does not yet subtract scroll offset (handled in harness only)
 
 **DOM-style query helpers ✅**
 
-- `wgpu_html_tree::query`: `CompoundSelector`, `Tree::query_selector(sel)`,
-  `query_selector_all`, `query_selector_path`, `query_selector_all_paths`
-  (and `Node::*` mirrors). Supports `tag` / `#id` / `.class` compound
-  selectors (`a.btn#cta`); no combinators or pseudo-classes.
+- `wgpu_html_tree::query`: `SelectorList`, `ComplexSelector`, `CompoundSelector`,
+  `Combinator`, `Tree::query_selector(sel)`, `query_selector_all`, `query_selector_path`,
+  `query_selector_all_paths` (and `Node::*` mirrors). Supports **full CSS Level 4 selectors**:
+  all four combinators (` `, `>`, `+`, `~`), all six attribute operators with case flags,
+  `:is()`, `:where()`, `:not()`, `:has()` (relative), structural pseudos (`:nth-child`,
+  `:first-of-type`, etc.), state pseudos (`:disabled`, `:checked`, `:placeholder-shown`,
+  etc.), interaction pseudos (`:hover`, `:focus`, `:active`, `:focus-within`),
+  `:lang()`, `:dir()`, `:root`, `:scope`, `:empty`. Pseudo-elements accepted but
+  always return no match.
 
 **`wgpu-html-winit` harness ✅**
 
@@ -440,7 +446,7 @@ M-INTER-6 (re-cascade caching).
 - `clip-path` / SDF non-rectangular clips
 - `wgpu-html-profiler` crate with ring-buffer history, GPU timing, and
   trace export (see `spec/profiler.md`)
-- `wgpu-html-devtools` inspector crate (see `spec/devtools.md`)
+- `wgpu-html-devtools` inspector crate (partially built — component tree browser, styles inspector, breadcrumb bar exist; self-hosted panel not yet)
 - Render-loop hooks for engine-side animation (no JS; timeline-driven)
 
 ## Versioning

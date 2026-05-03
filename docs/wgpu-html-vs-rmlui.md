@@ -282,7 +282,7 @@
 | **Render Caching** | ✅ 3-path: clean fast-path, skeleton patch-path, full render | ❌ |
 | **Devtools** | ✅ Visual panel: component tree browser, styles inspector, breadcrumb bar | ✅ Runtime visual debugging suite |
 | **Query Selector API** | ✅ Full CSS Level 4: all combinators, all attribute operators, extensive pseudo-classes | ✅ `QuerySelector()` / `QuerySelectorAll()` |
-| **`querySelectorAll`** | ✅ Full CSS Level 4 selectors (child/sibling combinators, attribute selectors, :nth-child, :has(), :is(), :where(), etc.) | ✅ CSS2 + CSS3 selectors |
+| **`querySelectorAll`** | ✅ Full CSS Level 4 selectors (child/sibling combinators, attribute selectors, :nth-child, :has(), :is(), :where(), :not(), :focus-within, etc.) | ✅ CSS2 + CSS3 selectors |
 | **`matches()` / `closest()`** | ✅ | ✅ |
 
 ---
@@ -383,7 +383,7 @@
 - **No animations/transitions/transforms** — elements are static
 - **No gradients or box-shadows** — flat visual design only
 - **No decorator system** — harder to skin elements beyond CSS
-- **Limited CSS selector support in cascade** — only descendant combinator, no attribute selectors or structural pseudo-classes
+- **Limited CSS selector support in cascade** — only descendant combinator, no attribute selectors or structural pseudo-classes in stylesheet parser (note: the `querySelector` API has full CSS Level 4 selector support)
 - **No Lua/scripting** — by design, but limits customization
 - **No data binding** — component framework is different paradigm
 - **Immature** — not production-tested

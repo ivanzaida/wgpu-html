@@ -13,12 +13,13 @@ phases produce **data** and **overlays**, the later phases produce
 Companion to `roadmap.md` (engine milestones) and `status.md`
 (implementation snapshot).
 
-> **Status (2026-04-29):** Not yet built. The `wgpu-html-devtools`
-> crate does not exist. However all the engine surface D1–D4 require
-> is already present: `find_element_from_point`, `LayoutBox` box-model
-> rectangles, `Node::ancestry_at_path_mut`, `cascade` (a
-> `cascade_with_trace` variant still needs to be added), and element
-> mutation via inline-style overrides. D1–D4 are buildable today.
+> **Status (2026-05-03):** Partially built. The `wgpu-html-devtools`
+> crate exists with modules for component tree browsing (`tree_panel`),
+> styles inspection (`styles_panel`, `style_extract`, `css_fmt`),
+> breadcrumb navigation (`breadcrumb`), and a `Devtools` entry point
+> (`devtools.rs`) that attaches to a host tree via `Devtools::attach`.
+> The self-hosted panel (D5) and matched-rule tracing (`cascade_with_trace`)
+> are not yet built. D1–D4 engine prerequisites are all present.
 
 ---
 

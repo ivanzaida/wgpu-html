@@ -81,8 +81,7 @@ exist for any of it to behave like a browser.
   scroll, scrollbar drag, clipboard, F12 screenshot. The demo's
   `App` + `ApplicationHandler` are gone; profiling is now an
   `AppHook` impl. See §15 for the API surface.
-- **M-INTER-2, M-INTER-6 ❌ not yet done.** `pointer-events: none`
-  in hit-test, double-click,
+- **M-INTER-2, M-INTER-6 ❌ not yet done.** double-click,
   `:focus-within`, `:focus-visible`, `:disabled`, re-cascade caching.
 
 Companion to `spec/events.md` (typed event structs and dispatch
@@ -218,12 +217,6 @@ That contract stays.
 
 **Still missing / mocked:**
 
-- **`pointer-events: none`.** A box with `pointer_events == None`
-  is invisible to hit-testing — both itself and (per CSS) its
-  descendants if they don't override back to `auto`. Implementation:
-  `collect_hit_path` skips boxes whose cascaded style sets
-  `pointer-events: none`, walks into descendants only when the
-  parent is `auto` or the descendant explicitly re-enables.
 - **Scroll offset.** Once scrolling exists (§12), descendants of a
   scroll container are hit-tested against `point − scroll_offset`,
   applied at the boundary. The winit harness accounts for viewport
@@ -354,23 +347,20 @@ caret on text".
 ## 10. `pointer-events` and `user-select`
 
 Already modelled (`crates/wgpu-html-models/src/common/css_enums.rs:209`,
-`:215`) and parsed into `Style`, but not honoured downstream:
+`:215`) and parsed into `Style`, **and now honoured downstream**:
 
-- `pointer-events: none` — described in §5. Should inherit once
-  implemented.
-- `user-select: none` — the text leaves under it are excluded
-  from drag-selection (§11) and clicks on them never start a
-  selection. Should inherit once implemented.
-- `user-select: text` (the default) — selectable.
+- `pointer-events: none` — element and its text are invisible to hit-testing.
+  Children with explicit `pointer-events: auto` remain hittable.
+- `user-select: none` — text leaves under it are excluded from selection
+  cursor hit-testing (`hit_text_cursor` returns `None`). Inherited through
+  cascade.
+- `user-select: text` (and the default) — selectable.
 - `user-select: all` — a single click anywhere inside the subtree
-  selects the whole subtree. Useful for code blocks.
+  selects the whole subtree. Useful for code blocks (not yet implemented).
 - `user-select: auto` — same as `text` for text leaves, `none`
-  for non-text. CSS quirk preserved.
+  for non-text. CSS quirk preserved (not yet implemented).
 
-The cascade does not currently inherit either property; `cursor` is
-the only interaction-adjacent property in the typed inheriting set.
-Add `pointer-events` / `user-select` inheritance only when their
-behavior is actually enforced.
+Both properties are now inherited through the cascade.
 
 ## 11. Text selection
 
@@ -405,8 +395,9 @@ range. Form-control internal value / placeholder text is marked
 `text_unselectable`, so document-level drag selection skips it.
 
 **Still missing:** word select (double-click), line select
-(triple-click), Shift+click extension, and `user-select` enforcement
-(`none`, `text`, `all`, `auto`).
+(triple-click), Shift+click extension, and `user-select: all` /
+`user-select: auto` semantics (`user-select: none` is enforced via
+`hit_text_cursor`).
 
 Copy: `wgpu-html` exposes `select_all_text` / `selected_text`; the
 winit harness wires document-level `Ctrl+A` / `Ctrl+C` through
@@ -636,7 +627,9 @@ wgpu-html-layout
   + Flex max-content intrinsic for non-text non-replaced items           ✅
     (text_intrinsic_main recurses into descendants)
   + overflow-hidden/scroll/auto clip in hit test                          ✅ M-INTER-2
-  + pointer-events skip in hit test                                       ❌ M-INTER-2
+  + pointer-events none hit-test skip                                       ✅
+  + user-select none text-cursor skip                                      ✅
+  + pointer-events / user-select cascade-inheritance entries               ✅ (partial — none enforced; all/auto not yet)
   + scroll_offset on LayoutBox                                            ❌ M-INTER-4 (offset stays on Tree)
 
 wgpu-html (facade)
@@ -705,7 +698,8 @@ text spec's T1..T7.
 **Done** (out of order with the original phase plan; landed
 during the focus / keyboard slice):
 
-- Ancestor `overflow != visible` clipping in `LayoutBox::hit_path`.
+- Ancestor `overflow != visible` clipping in `LayoutBox::hit_path`. ✅
+- `pointer-events: none` hit-test skip (self + descendant-exclusion logic). ✅
 - `:focus` cascade (exact-match, no propagation) via
   `MatchContext::for_path` reading `state.focus_path`.
 - Focus state on `InteractionState` (`focus_path`).
@@ -713,7 +707,6 @@ during the focus / keyboard slice):
 
 **Not yet:**
 
-- Hit test honours `pointer-events: none` (self + descendants).
 - Double-click synthesis.
 - ContextMenu / AuxClick synthesis.
 - `:focus-visible` (set on Tab focus, cleared on press) and
@@ -721,7 +714,6 @@ during the focus / keyboard slice):
 - `:disabled` for `<button disabled>`, `<input disabled>`, etc.
   (`is_focusable` already excludes disabled controls; the cascade
   still needs to match `:disabled`.)
-- `user-select: none` recognised but not yet acted on.
 
 ### M-INTER-3 — Text selection + caret + clipboard ⚠️ Partial
 
@@ -843,11 +835,10 @@ typed structs for future events). Cascade reads interaction state via
 clipboard shortcuts, viewport/element scrollbars, and scrollbar drag
 are wired in the winit harness.
 
-Remaining work: `pointer-events` skip in hit test, scroll-offset-aware
-generic hit testing, double-click/contextmenu/auxclick/wheel DOM event
+Remaining work: double-click/contextmenu/auxclick/wheel DOM event
 dispatch, `InputEvent` / clipboard DOM event dispatch,
-`:focus-visible` / `:focus-within` / `:disabled`, `user-select`
-enforcement, word/line selection, button/link keyboard activation,
+`:focus-visible` / `:focus-within` / `:disabled`,
+word/line selection, button/link keyboard activation,
 and re-cascade caching.
 
 There is still no JavaScript and no animation/transition runtime.

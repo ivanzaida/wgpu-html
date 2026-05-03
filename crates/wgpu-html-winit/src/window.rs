@@ -29,6 +29,7 @@ use wgpu_html::{
     scrollbar_geometry, translate_display_list_y, viewport_to_document,
   },
 };
+use wgpu_html::events as ev;
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{Tree, TreeHook, TreeLifecycleStage, TreeRenderEvent, TreeRenderViewport};
 use winit::{
@@ -355,8 +356,24 @@ impl HtmlWindow {
           return false;
         };
         let scale = tree.effective_dpi_scale(self.window.scale_factor() as f32);
-        let dy = scroll_delta_to_pixels(*delta, scale);
         let doc_pos = viewport_to_document(pos, self.scroll_y);
+
+        // Fire wheel event first so listeners can preventDefault.
+        match delta {
+          MouseScrollDelta::LineDelta(x, y) => {
+            tree.wheel_event(doc_pos, *x as f64, *y as f64, ev::WheelDeltaMode::Line);
+          }
+          MouseScrollDelta::PixelDelta(phys_pos) => {
+            tree.wheel_event(
+              doc_pos,
+              phys_pos.x / scale as f64,
+              phys_pos.y / scale as f64,
+              ev::WheelDeltaMode::Pixel,
+            );
+          }
+        }
+
+        let dy = scroll_delta_to_pixels(*delta, scale);
         if scroll_element_at(tree, layout, doc_pos, dy) {
           interactivity::pointer_move(tree, layout, doc_pos);
           return true;
@@ -785,8 +802,12 @@ impl<'tree> ApplicationHandler for WgpuHtmlWindow<'tree> {
       }
 
       WindowEvent::MouseWheel { delta, .. } => {
-        let dy = scroll_delta_to_pixels(delta, self.tree.effective_dpi_scale(window.scale_factor() as f32));
-        self.handle_wheel(dy, &window);
+        let pos = self
+          .state
+          .as_ref()
+          .and_then(|s| s.cursor_pos)
+          .unwrap_or((0.0, 0.0));
+        self.handle_wheel(delta, pos, &window);
       }
 
       WindowEvent::KeyboardInput { event, .. } => {
@@ -919,16 +940,34 @@ impl<'tree> WgpuHtmlWindow<'tree> {
     window.request_redraw();
   }
 
-  fn handle_wheel(&mut self, dy: f32, window: &Window) {
+  fn handle_wheel(&mut self, delta: MouseScrollDelta, pos: (f32, f32), window: &Window) {
     let Some(state) = self.state.as_mut() else {
       return;
     };
     let Some(layout) = state.last_layout.as_ref() else {
       return;
     };
-    let Some(pos) = state.cursor_pos else { return };
 
     let doc_pos = viewport_to_document(pos, state.scroll_y);
+
+    // Fire the wheel event first so listeners can preventDefault.
+    let scale = self.tree.effective_dpi_scale(window.scale_factor() as f32);
+    match delta {
+      MouseScrollDelta::LineDelta(x, y) => {
+        self.tree.wheel_event(doc_pos, x as f64, y as f64, ev::WheelDeltaMode::Line);
+      }
+      MouseScrollDelta::PixelDelta(phys_pos) => {
+        self.tree.wheel_event(
+          doc_pos,
+          phys_pos.x / scale as f64,
+          phys_pos.y / scale as f64,
+          ev::WheelDeltaMode::Pixel,
+        );
+      }
+    }
+
+    let dy = scroll_delta_to_pixels(delta, scale);
+
     // Element-level scroll first (overflow:scroll containers).
     if scroll_element_at(self.tree, layout, doc_pos, dy) {
       interactivity::pointer_move(self.tree, layout, doc_pos);

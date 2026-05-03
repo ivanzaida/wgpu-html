@@ -589,6 +589,10 @@ pub fn dispatch_mouse_up(
       if !suppress_click {
         bubble(tree, click_target, pos, Some(button), Slot::Click);
       }
+      // Check if click landed on a submit button inside a form.
+      if let Some((form_path, submitter_path)) = submit_button_in_form(tree, click_target) {
+        bubble_submit_event(tree, &form_path, Some(submitter_path));
+      }
     }
   }
   true
@@ -634,7 +638,30 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
 
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
 
+  // Fire change event if the previous focus target had its value mutated.
   if let Some(old) = old_path.as_deref() {
+    let old_snapshot = tree.interaction.focus_value_snapshot.take();
+    if let Some(snap) = old_snapshot {
+      let current_val = tree
+        .root
+        .as_ref()
+        .and_then(|root| root.at_path(old))
+        .and_then(|node| read_editable_value(node).map(|(v, _, _)| v));
+      if let Some(current) = current_val {
+        if current != snap {
+          fire_focus_event(
+            tree,
+            old,
+            ev::HtmlEventType::CHANGE,
+            /* bubbles */ true,
+            None,
+            time_stamp,
+            FocusBubbleKind::Bubble,
+          );
+        }
+      }
+    }
+
     fire_focus_event(
       tree,
       old,
@@ -691,6 +718,14 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
     }
   });
   tree.interaction.caret_blink_epoch = std::time::Instant::now();
+
+  // Snapshot the value for change-event detection.
+  tree.interaction.focus_value_snapshot = new_path
+    .as_deref()
+    .and_then(|path| {
+      let node = tree.root.as_ref()?.at_path(path)?;
+      read_editable_value(node).map(|(v, _, _)| v)
+    });
 
   if let Some(new) = new_path.as_deref() {
     fire_focus_event(
@@ -924,7 +959,15 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   if key == "Tab" {
     let reverse = tree.interaction.modifiers.shift;
     focus_next(tree, reverse);
+    return true;
   }
+
+  if key == "Enter" {
+    if let Some((form_path, submitter_path)) = enter_in_form_input(tree) {
+      bubble_submit_event(tree, &form_path, Some(submitter_path));
+    }
+  }
+
   true
 }
 
@@ -941,6 +984,285 @@ pub fn key_up(tree: &mut Tree, key: &str, code: &str) -> bool {
     /* repeat */ false,
   );
   true
+}
+
+// ── Input event ──────────────────────────────────────────────────────────────
+
+fn make_input_html_event(
+  event_type: &'static str,
+  data: Option<String>,
+  input_type: ev::enums::InputType,
+  target_path: &[usize],
+  current_path: Vec<usize>,
+  time_stamp: f64,
+) -> ev::HtmlEvent {
+  let event_phase = if current_path.as_slice() == target_path {
+    ev::EventPhase::AtTarget
+  } else {
+    ev::EventPhase::BubblingPhase
+  };
+  ev::HtmlEvent::Input(ev::events::InputEvent {
+    base: ev::events::UIEvent {
+      base: ev::events::Event {
+        event_type: ev::HtmlEventType::from(event_type),
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        target: Some(target_path.to_vec()),
+        current_target: Some(current_path),
+        event_phase,
+        default_prevented: false,
+        is_trusted: true,
+        time_stamp,
+      },
+      detail: 0,
+    },
+    data,
+    input_type,
+    is_composing: false,
+  })
+}
+
+fn bubble_input(
+  tree: &mut Tree,
+  target_path: &[usize],
+  data: Option<String>,
+  input_type: ev::enums::InputType,
+) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let depth = target_path.len();
+  for i in 0..=depth {
+    let current_path = target_path[..depth.saturating_sub(i)].to_vec();
+    let on_evs = tree
+      .root
+      .as_ref()
+      .and_then(|root| root.at_path(&current_path))
+      .map(|node| node.on_event.clone())
+      .unwrap_or_default();
+    let mut html_ev = make_input_html_event(
+      ev::HtmlEventType::INPUT,
+      data.clone(),
+      input_type.clone(),
+      target_path,
+      current_path,
+      time_stamp,
+    );
+    if tree.emit_event(&mut html_ev).is_stop() {
+      return;
+    }
+    for on_ev in &on_evs {
+      on_ev(&html_ev);
+    }
+  }
+}
+
+// ── Wheel event ──────────────────────────────────────────────────────────────
+
+#[allow(clippy::too_many_arguments)]
+fn make_wheel_html_event(
+  event_type: &'static str,
+  delta_x: f64,
+  delta_y: f64,
+  delta_mode: ev::enums::WheelDeltaMode,
+  pos: (f32, f32),
+  buttons_down: u16,
+  modifiers: Modifiers,
+  target_path: &[usize],
+  current_path: Vec<usize>,
+  time_stamp: f64,
+) -> ev::HtmlEvent {
+  let event_phase = if current_path.as_slice() == target_path {
+    ev::EventPhase::AtTarget
+  } else {
+    ev::EventPhase::BubblingPhase
+  };
+  ev::HtmlEvent::Wheel(ev::events::WheelEvent {
+    base: ev::events::MouseEvent {
+      base: ev::events::UIEvent {
+        base: ev::events::Event {
+          event_type: ev::HtmlEventType::from(event_type),
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          target: Some(target_path.to_vec()),
+          current_target: Some(current_path),
+          event_phase,
+          default_prevented: false,
+          is_trusted: true,
+          time_stamp,
+        },
+        detail: 0,
+      },
+      screen_x: 0.0,
+      screen_y: 0.0,
+      client_x: pos.0 as f64,
+      client_y: pos.1 as f64,
+      offset_x: 0.0,
+      offset_y: 0.0,
+      page_x: pos.0 as f64,
+      page_y: pos.1 as f64,
+      movement_x: 0.0,
+      movement_y: 0.0,
+      button: 0,
+      buttons: buttons_down,
+      ctrl_key: modifiers.ctrl,
+      shift_key: modifiers.shift,
+      alt_key: modifiers.alt,
+      meta_key: modifiers.meta,
+      related_target: None,
+    },
+    delta_x,
+    delta_y,
+    delta_z: 0.0,
+    delta_mode,
+  })
+}
+
+/// Dispatch a `wheel` event to the element under the pointer (or
+/// document root if nothing is hovered), bubbling target → root.
+///
+/// `delta_mode` should be [`WheelDeltaMode::Pixel`] when the host
+/// has already converted the winit delta to screen pixels, or
+/// `Line` when using winit's `LineDelta`.
+///
+/// Returns the wheel event so the caller can inspect
+/// `default_prevented` to decide whether to skip the default
+/// scroll action.
+pub fn wheel_event(
+  tree: &mut Tree,
+  pos: (f32, f32),
+  delta_x: f64,
+  delta_y: f64,
+  delta_mode: ev::enums::WheelDeltaMode,
+) {
+  let target = tree.interaction.hover_path.clone().unwrap_or_else(Vec::new);
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let buttons_down = tree.interaction.buttons_down;
+  let modifiers = tree.interaction.modifiers;
+  let depth = target.len();
+  for i in 0..=depth {
+    let current_path = target[..depth.saturating_sub(i)].to_vec();
+    let on_evs = tree
+      .root
+      .as_ref()
+      .and_then(|root| root.at_path(&current_path))
+      .map(|node| node.on_event.clone())
+      .unwrap_or_default();
+    let mut html_ev = make_wheel_html_event(
+      ev::HtmlEventType::WHEEL,
+      delta_x,
+      delta_y,
+      delta_mode,
+      pos,
+      buttons_down,
+      modifiers,
+      &target,
+      current_path,
+      time_stamp,
+    );
+    if tree.emit_event(&mut html_ev).is_stop() {
+      return;
+    }
+    for on_ev in &on_evs {
+      on_ev(&html_ev);
+    }
+  }
+}
+
+// ── Submit / Form ─────────────────────────────────────────────────────────────
+
+/// Find the nearest `<form>` ancestor of the element at `path`.
+/// Returns the path to the form element, or `None`.
+fn find_ancestor_form(tree: &Tree, path: &[usize]) -> Option<Vec<usize>> {
+  let root = tree.root.as_ref()?;
+  for prefix_len in (0..=path.len()).rev() {
+    let prefix = &path[..prefix_len];
+    if let Some(node) = root.at_path(prefix) {
+      if let Element::Form(_) = &node.element {
+        return Some(prefix.to_vec());
+      }
+    }
+  }
+  None
+}
+
+/// Bubble a `submit` event on the form element at `form_path`,
+/// with `submitter_path` as the submitter (the button or input
+/// that triggered the submission).
+fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Option<Vec<usize>>) {
+  let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+  let on_evs = tree
+    .root
+    .as_ref()
+    .and_then(|root| root.at_path(form_path))
+    .map(|node| node.on_event.clone())
+    .unwrap_or_default();
+  let mut html_ev = ev::HtmlEvent::Submit(ev::events::SubmitEvent {
+    base: ev::events::Event {
+      event_type: ev::HtmlEventType::from(ev::HtmlEventType::SUBMIT),
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      target: Some(form_path.to_vec()),
+      current_target: Some(form_path.to_vec()),
+      event_phase: ev::EventPhase::AtTarget,
+      default_prevented: false,
+      is_trusted: true,
+      time_stamp,
+    },
+    submitter: submitter_path,
+  });
+  if tree.emit_event(&mut html_ev).is_stop() {
+    return;
+  }
+  for on_ev in &on_evs {
+    on_ev(&html_ev);
+  }
+}
+
+/// Check if the element at `path` is a submit button (`<button>` or
+/// `<input type="submit">`) and returns its containing form path if
+/// found.
+fn submit_button_in_form(tree: &Tree, path: &[usize]) -> Option<(Vec<usize>, Vec<usize>)> {
+  use wgpu_html_models::common::html_enums::InputType;
+  let root = tree.root.as_ref()?;
+  let node = root.at_path(path)?;
+  let is_submitter = match &node.element {
+    Element::Button(btn) => {
+      use wgpu_html_models::common::html_enums::ButtonType;
+      !matches!(btn.r#type, Some(ButtonType::Reset | ButtonType::Button))
+    }
+    Element::Input(inp) => matches!(inp.r#type, Some(InputType::Submit)),
+    _ => false,
+  };
+  if !is_submitter {
+    return None;
+  }
+  let form_path = find_ancestor_form(tree, path)?;
+  Some((form_path, path.to_vec()))
+}
+
+/// Check if `Enter` on the focused element should trigger form
+/// submission. Returns the form path if so.
+fn enter_in_form_input(tree: &Tree) -> Option<(Vec<usize>, Vec<usize>)> {
+  let focus_path = tree.interaction.focus_path.as_deref()?;
+  let root = tree.root.as_ref()?;
+  let node = root.at_path(focus_path)?;
+  match &node.element {
+    Element::Input(inp) => {
+      use wgpu_html_models::common::html_enums::InputType;
+      if matches!(
+        inp.r#type,
+        Some(InputType::Hidden | InputType::Checkbox | InputType::Radio | InputType::File | InputType::Image | InputType::Color | InputType::Range | InputType::Button | InputType::Submit | InputType::Reset)
+      ) {
+        return None;
+      }
+    }
+    Element::Textarea(_) => return None,
+    _ => return None,
+  }
+  let form_path = find_ancestor_form(tree, focus_path)?;
+  Some((form_path, focus_path.to_vec()))
 }
 
 // ── Text editing ─────────────────────────────────────────────────────────────
@@ -1047,6 +1369,8 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
   tree.interaction.caret_blink_epoch = std::time::Instant::now();
   tree.generation += 1;
 
+  bubble_input(tree, &focus_path, Some(text.to_owned()), ev::enums::InputType::InsertText);
+
   true
 }
 
@@ -1112,6 +1436,14 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
         write_value(node, new_value);
       }
       tree.generation += 1;
+
+      let input_type = match key {
+        "Backspace" => ev::enums::InputType::DeleteContentBackward,
+        "Delete" => ev::enums::InputType::DeleteContentForward,
+        "Enter" => ev::enums::InputType::InsertLineBreak,
+        _ => ev::enums::InputType::InsertText,
+      };
+      bubble_input(tree, &focus_path, None, input_type);
     }
     tree.interaction.edit_cursor = Some(new_cursor);
     tree.interaction.caret_blink_epoch = std::time::Instant::now();
@@ -1175,6 +1507,22 @@ impl Tree {
   /// Dispatch `keyup` to the focused element. See [`key_up`].
   pub fn key_up(&mut self, key: &str, code: &str) -> bool {
     key_up(self, key, code)
+  }
+
+  /// Dispatch a `wheel` event to the hovered element. See [`wheel_event`].
+  pub fn wheel_event(
+    &mut self,
+    pos: (f32, f32),
+    delta_x: f64,
+    delta_y: f64,
+    delta_mode: ev::enums::WheelDeltaMode,
+  ) {
+    wheel_event(self, pos, delta_x, delta_y, delta_mode)
+  }
+
+  /// Process typed text on the focused form control. See [`text_input`].
+  pub fn text_input(&mut self, text: &str) -> bool {
+    text_input(self, text)
   }
 
   /// The pointer left the surface — clear hover state and fire

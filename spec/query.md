@@ -12,7 +12,7 @@ today and where it's heading".
 
 ---
 
-## 0. Status (2026-04-29)
+## 0. Status (2026-05-03)
 
 | Phase | Feature | State |
 |---|---|---|
@@ -34,17 +34,17 @@ today and where it's heading".
 | 1 | Child `>` | ✅ |
 | 1 | Next sibling `+` | ✅ |
 | 1 | Subsequent sibling `~` | ✅ |
-| 2 | `:root`, `:scope`, `:empty` | ❌ |
-| 2 | `:first-child`, `:last-child`, `:only-child` | ❌ |
-| 2 | `:nth-child()`, `:nth-last-child()` | ❌ |
-| 2 | `:first-of-type`, `:last-of-type`, `:nth-of-type()` | ❌ |
-| 3 | `:is()`, `:where()`, `:not()` | ❌ |
-| 3 | `:has()` | ❌ |
-| 4 | `:hover`, `:focus`, `:active`, `:focus-within` | ❌ |
-| 4 | `:disabled`, `:enabled`, `:checked`, `:required`, `:optional` | ⚠️ via `[attr]` |
-| 4 | `:read-only`, `:read-write`, `:placeholder-shown` | ❌ |
-| 4 | `:lang(...)`, `:dir(...)` | ❌ |
-| ext | Pseudo-elements (`::before`, `::after`, `::first-line`) | ❌ |
+| 2 | `:root`, `:scope`, `:empty` | ✅ |
+| 2 | `:first-child`, `:last-child`, `:only-child` | ✅ |
+| 2 | `:nth-child()`, `:nth-last-child()` | ✅ |
+| 2 | `:first-of-type`, `:last-of-type`, `:nth-of-type()` | ✅ |
+| 3 | `:is()`, `:where()`, `:not()` | ✅ |
+| 3 | `:has()` | ✅ |
+| 4 | `:hover`, `:focus`, `:active`, `:focus-within` | ✅ |
+| 4 | `:disabled`, `:enabled`, `:checked`, `:required`, `:optional` | ✅ |
+| 4 | `:read-only`, `:read-write`, `:placeholder-shown` | ✅ |
+| 4 | `:lang(...)`, `:dir(...)` | ✅ |
+| ext | Pseudo-elements (`::before`, `::after`, `::first-line`) | ⚠️ Parse accepted; always match nothing |
 | ext | Namespace prefixes (`svg\|circle`) | ❌ |
 | ext | CSS escape sequences in identifiers | ❌ |
 | ext | `:has()` / scope-relative selectors | ❌ |
@@ -417,14 +417,7 @@ selector subset.
 
 ## 9. Limitations and known gaps
 
-- **No pseudo-classes.** Anything starting with `:` parses as an
-  error. `[disabled]` etc. cover the common form-state cases for
-  now; `:hover` / `:focus` etc. require integration with
-  `InteractionState` (see `spec/interactivity.md` §4) and aren't
-  wired yet.
-- **No pseudo-elements.** `::before` / `::after` etc. don't parse.
-  The CSS spec says `querySelector` should match them as if they
-  weren't there (i.e. never), but we don't even accept the syntax.
+- **Pseudo-elements like `::before`/`::after`** are parsed but always return no match. Per CSS spec, `querySelector` should ignore pseudo-elements.
 - **No namespace prefixes.** `svg|circle` doesn't parse. Our model
   doesn't carry namespaces anyway.
 - **No CSS escape sequences.** Selectors like `#has\.dot` or
@@ -434,45 +427,17 @@ selector subset.
   because the tree doesn't maintain an id index. If id lookup
   becomes a bottleneck in larger trees, we'll add a lazy
   `HashMap<String, Vec<usize>>` keyed by id; see roadmap.
-- **No `:scope` / `:root`.** When we add structural pseudo-classes
-  (Phase 2), `Node::query_selector` will define `:scope` as "the
-  receiver" and `:root` as "an `Element::Html` element whose path
-  is empty in the document tree".
 
 ## 10. Extension plan
 
-Follow-ups, roughly in expected priority order:
+Remaining items, in expected priority order:
 
-1. **Logical pseudo-classes.** `:not()`, `:is()`, `:where()`. Each
-   takes a nested `SelectorList`, so the parser already tracks
-   `()` depth — we just need to recognise the pseudo-class name
-   and recurse. Specificity isn't needed because `query_selector`
-   is binary.
-2. **Structural pseudo-classes.** `:first-child`, `:last-child`,
-   `:only-child`, `:nth-child(An+B)`. Require knowing the candidate's
-   parent and its index — the matcher already computes both for
-   sibling combinators.
-3. **State pseudo-classes.** `:disabled`, `:checked`, `:required`,
-   `:optional`, `:read-only`, `:read-write`, `:placeholder-shown`.
-   Mostly thin wrappers over the existing `Element::attr` lookups.
-4. **Interaction pseudo-classes.** `:hover`, `:active`, `:focus`,
-   `:focus-within`. Read from `tree.interaction.hover_path` /
-   `focus_path`. The matcher needs the `InteractionState` reference;
-   either thread it through `SelectorList::matches` or expose a
-   `query_selector_in_state` variant.
-5. **`:has()`.** Subtree existence test. Requires forward walking
-   from the candidate; no longer pure right-to-left. Implement
-   *after* logical pseudo-classes so we share the
-   `parse_nested_selector_list` plumbing.
-6. **`:lang()` / `:dir()`.** Need cascade integration (the `lang`
-   attribute inherits) — sketch this once cascade exposes a
-   `computed_lang(path)` query.
-7. **Indexed id lookup.** Behind a feature flag that maintains
+1. **Pseudo-elements.** `::before` / `::after` currently parse but always return no match. CSS spec says `querySelector` should ignore them — current behavior is conformant but could be more explicit.
+2. **CSS escape sequences.** Backslash-escaped identifiers (e.g. `#has\.dot`).
+3. **Namespace prefixes.** `svg|circle` style selectors for future SVG namespace support.
+4. **Indexed id lookup.** Behind a feature flag that maintains
    `HashMap<String, Vec<usize>>` on tree mutation. Needed only if
    profiling shows id lookup dominating.
-
-Each milestone is additive — none of them require breaking the
-current `Into<SelectorList>` API.
 
 ---
 

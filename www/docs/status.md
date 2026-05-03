@@ -4,7 +4,7 @@ title: Implementation Status
 
 # Implementation Status
 
-> **Date:** 2026-05-02
+> **Date:** 2026-05-03
 > **Scope:** GPU-accelerated HTML/CSS renderer via `wgpu`. **No JavaScript — ever.**
 
 ## Summary Table
@@ -16,6 +16,7 @@ title: Implementation Status
 | CSS stylesheet / selectors | ✅ Done (tag, id, class, *, descendant) |
 | `!important` | ✅ Done |
 | CSS-wide keywords (inherit/initial/unset) | ✅ Done |
+| `@media` queries | ✅ Done (width/height/orientation, min/max, not) |
 | UA default stylesheet | ✅ Done (headings, body margin, inline emphasis, display:none) |
 | Style inheritance | ✅ Done (color, font-*, text-*, line-height, visibility, etc.) |
 | `:hover` / `:active` / `:focus` cascade integration | ✅ Done |
@@ -41,7 +42,7 @@ title: Implementation Status
 | Per-element scroll containers | ⚠️ Partial (scroll offset + scrollbar paint; no `Wheel`→`on_event` dispatch) |
 | Screenshot (F12 → PNG) | ✅ Done |
 | Positioned layout (absolute/relative/fixed) | ✅ Done (sticky degraded to relative) |
-| z-index | ❌ Not done (parsed, not consumed) |
+| z-index | ❌ Not done (parsed, stored on LayoutBox, paint order is tree DFS) |
 | Floats | ❌ Not done |
 | Table layout | ❌ Not done (parsed, falls through to block) |
 | Gradients | ❌ Not done (parsed as raw string, skipped in layout) |
@@ -52,6 +53,7 @@ title: Implementation Status
 | Keyboard event dispatch | ✅ Done |
 | Tab / Shift+Tab focus traversal | ✅ Done |
 | Focus state | ✅ Done |
+| `querySelector` / `matches` engine | ✅ Done (full CSS Level 4: all combinators, attribute operators, pseudo-classes) |
 | Placeholder rendering | ✅ Done |
 | Text editing + caret navigation | ✅ Done (insert, delete, arrow keys, Home/End, Shift-select, word/line click-select) |
 | Checkbox / radio click toggle, select menu, form submit | ❌ Not done |

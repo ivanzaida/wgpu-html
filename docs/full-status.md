@@ -310,7 +310,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 
 ### Layout Gaps
 - **Positioned layout** (`absolute` / `relative` / `fixed`) — fully implemented. `layout_out_of_flow_block()` resolves containing blocks, insets, shrink-to-fit, right/bottom anchoring. `apply_relative_position()` handles relative and sticky (sticky is degraded to relative — no scroll-pinning). 6 tests cover absolute/fixed/relative scenarios.
-- **No `z-index`** — parsed and stored on `Style`, but no `LayoutBox` field; paint order is tree DFS only.
+- **No `z-index`** — parsed and stored on `LayoutBox`, but paint order is tree DFS only (no stacking-context reordering).
 - **No floats** (`float: left/right`) — `float` property is not even parsed.
 - **No table layout** (`display: table` and friends) — all 9 table `Display` variants are parsed but fall through to block layout.
 - **No `display: inline / inline-block`** as an author-set value (IFC is auto-detected from content, not from `display`).
@@ -388,7 +388,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 | Inline pipeline profiling (`PipelineTimings`) | ⚠️ Partial (CPU stage timing + hover latency; no `wgpu-html-profiler` crate) |
 | Screenshot (F12 → PNG) | ✅ Done |
 | Positioned layout (absolute/relative/fixed) | ✅ Done (sticky degraded to relative) |
-| z-index | ❌ Not done (parsed, not consumed) |
+| z-index | ❌ Not done (parsed, stored on LayoutBox, not consumed — paint order is tree DFS) |
 | Floats | ❌ Not done |
 | Table layout | ❌ Not done (parsed, falls through to block) |
 | Gradients | ❌ Not done (parsed as raw string, skipped in layout) |

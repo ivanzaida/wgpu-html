@@ -213,6 +213,10 @@ pub struct InteractionState {
   /// to animate caret blink (500 ms on, 500 ms off, restarting on
   /// every mutation so the caret stays visible while typing).
   pub caret_blink_epoch: Instant,
+  /// Snapshot of the text-editable value at the moment the element
+  /// gained focus. Compared with the current value on `blur` to
+  /// decide whether to fire a `change` event.
+  pub focus_value_snapshot: Option<String>,
 }
 
 impl Default for InteractionState {
@@ -231,6 +235,7 @@ impl Default for InteractionState {
       modifiers: Modifiers::default(),
       edit_cursor: None,
       caret_blink_epoch: Instant::now(),
+      focus_value_snapshot: None,
     }
   }
 }

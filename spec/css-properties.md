@@ -385,7 +385,7 @@ section and known deprecated legacy aliases.
 | `place-content` | Deferred | Shorthand recognized; underlying align/justify consumed where set directly. |
 | `place-items` | Deferred | Shorthand recognized; underlying align/justify consumed where set directly. |
 | `place-self` | Deferred | Shorthand recognized; underlying align/justify consumed where set directly. |
-| `pointer-events` | Parsed only | Stored but hit-testing does not honor `none`; not inherited yet. |
+| `pointer-events` | Yes | Hit-testing skips `none`; children with `auto` remain hittable. Inherited. |
 | `position` | Partial | Static/relative/absolute/fixed mostly work; sticky lacks sticky scroll behavior. |
 | `position-anchor` | No | Anchor positioning not modeled. |
 | `position-area` | No | Anchor positioning not modeled. |
@@ -509,7 +509,7 @@ section and known deprecated legacy aliases.
 | `transition-timing-function` | Deferred | Stored as transition metadata, not consumed. |
 | `translate` | No | Individual transform property not consumed. |
 | `unicode-bidi` | Deferred | Stored, but bidi layout semantics not implemented. |
-| `user-select` | Parsed only | Stored but selection behavior ignores it; not inherited yet. |
+| `user-select` | Partial | `none` enforced in text cursor hit-testing; `text`/`all`/`auto` not yet. Inherited. |
 | `vector-effect` | No | SVG vector effects not modeled. |
 | `vertical-align` | No | Inline/table vertical alignment not modeled. |
 | `view-timeline` | Deferred | Stored, no view-timeline runtime. |
@@ -529,5 +529,5 @@ section and known deprecated legacy aliases.
 | `writing-mode` | No | Vertical/logical writing modes not modeled. |
 | `x` | No | SVG geometry property not modeled. |
 | `y` | No | SVG geometry property not modeled. |
-| `z-index` | Parsed only | Stored but no stacking-context/paint-order effect. |
+| `z-index` | Partial | Stored on LayoutBox; paint order is tree DFS (no stacking-context reordering). |
 | `zoom` | No | Viewport/layout zoom property not modeled. |
