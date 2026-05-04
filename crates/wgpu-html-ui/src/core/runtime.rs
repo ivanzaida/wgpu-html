@@ -268,12 +268,22 @@ impl Runtime {
 
   /// Write the component output into the tree and bump the generation.
   fn apply_node(&self, tree: &mut Tree, node: Node) {
+    // Compute selector fingerprint of the new node *before* we
+    // throw away the old root.  If the fingerprint is unchanged,
+    // only inline styles / text changed, so the cascade can be
+    // skipped on the next frame (PipelineAction::LayoutOnly).
+    let old_fp = tree.root.as_ref().map(|r| wgpu_html_tree::node_selector_fingerprint(r));
+    let new_fp = wgpu_html_tree::node_selector_fingerprint(&node);
+
     if self.direct_root {
       tree.root = Some(node);
     } else {
       Self::replace_component_node(tree, node);
     }
     tree.generation += 1;
+    if Some(new_fp) != old_fp {
+      tree.cascade_generation += 1;
+    }
   }
 
   /// Replace the component's node inside the tree structure.

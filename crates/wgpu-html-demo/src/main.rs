@@ -1,12 +1,13 @@
 //! wgpu-html demo launcher.
 
-use std::{env, path::PathBuf, process::ExitCode};
-
 mod egui;
+mod examples;
+mod parse_cmd;
 mod winit;
 
-const DEFAULT_DOC: &str = include_str!("../html/flex-browser-like.html");
-const DEFAULT_DOC_PATH: &str = "crates/wgpu-html-demo/html/flex-browser-like.html";
+use std::{path::PathBuf, process::ExitCode};
+
+const DEFAULT_EXAMPLE: &str = "flex_browser_like";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RendererKind {
@@ -14,93 +15,98 @@ enum RendererKind {
   Egui,
 }
 
+// ── CLI dispatch ──────────────────────────────────────────────────────────
+
 fn print_usage(program: &str) {
-  println!("Usage: {program} [--renderer=winit|egui] [--profile] [HTML_FILE]");
+  println!("Usage: {program} [--renderer=winit|egui] [--profile] [--example=NAME | HTML_FILE]");
   println!();
-  println!("If HTML_FILE is omitted, the built-in demo document is used:");
-  println!("  {DEFAULT_DOC_PATH}");
+  println!("If no argument is given, the built-in demo runs ({DEFAULT_EXAMPLE}).");
   println!();
   println!("Options:");
   println!("  --renderer=winit|egui   choose integration backend (default: winit)");
   println!("  --profile               enable per-frame profiling logs at startup");
+  println!("  --example=NAME          run a named example (see --examples)");
+  println!("  --examples              list available examples");
   println!();
-  println!("Examples:");
-  println!("  {program}");
-  println!("  {program} --renderer=egui");
-  println!("  {program} --renderer=winit --profile");
-  println!("  {program} --renderer=egui crates/wgpu-html-demo/html/flex-browser-like.html");
+  println!("You can also pass an HTML file path directly:");
+  println!("  {program} crates/wgpu-html-demo/html/flex-browser-like.html");
 }
 
-fn resolve_args() -> Result<(String, String, bool, RendererKind), ExitCode> {
-  let mut args = env::args_os();
-  let program = args
-    .next()
-    .map(|arg| arg.to_string_lossy().into_owned())
-    .unwrap_or_else(|| "wgpu-html-demo".to_owned());
+fn print_examples() {
+  println!("Available examples:");
+  for name in examples::list_examples() {
+    println!("  {name}");
+  }
+}
 
-  let mut profiling_enabled = false;
-  let mut renderer = RendererKind::Winit;
-  let mut doc_arg: Option<std::ffi::OsString> = None;
+fn run() -> ExitCode {
+  let program = std::env::args().next().unwrap_or_else(|| "wgpu-html-demo".into());
+  let cmd = parse_cmd::parse_command_line();
 
-  for arg in args {
-    let text = arg.to_string_lossy();
-    match text.as_ref() {
-      "-h" | "--help" => {
-        print_usage(&program);
-        return Err(ExitCode::SUCCESS);
-      }
-      "--profile" => profiling_enabled = true,
-      "--renderer=winit" => renderer = RendererKind::Winit,
-      "--renderer=egui" => renderer = RendererKind::Egui,
-      _ if text.starts_with("--renderer=") => {
-        eprintln!("demo: unknown renderer: {text}\n");
-        print_usage(&program);
-        return Err(ExitCode::FAILURE);
-      }
-      _ if text.starts_with('-') => {
-        eprintln!("demo: unknown flag: {text}\n");
-        print_usage(&program);
-        return Err(ExitCode::FAILURE);
-      }
-      _ => {
-        if let Some(extra) = doc_arg.replace(arg) {
-          eprintln!("demo: unexpected extra argument: {}\n", extra.to_string_lossy());
-          print_usage(&program);
-          return Err(ExitCode::FAILURE);
-        }
-      }
-    }
+  if cmd.flags.contains_key("-h") || cmd.flags.contains_key("--help") {
+    print_usage(&program);
+    return ExitCode::SUCCESS;
+  }
+  if cmd.flags.contains_key("--examples") {
+    print_examples();
+    return ExitCode::SUCCESS;
   }
 
-  let Some(doc_arg) = doc_arg else {
-    return Ok((
-      DEFAULT_DOC.to_owned(),
-      format!("embedded default ({DEFAULT_DOC_PATH})"),
-      profiling_enabled,
-      renderer,
-    ));
-  };
+  let profiling = cmd.flags.contains_key("--profile");
 
-  let path = PathBuf::from(doc_arg);
-  let html = match std::fs::read_to_string(&path) {
-    Ok(html) => html,
-    Err(err) => {
-      eprintln!("demo: failed to read HTML document '{}': {err}", path.display());
-      return Err(ExitCode::FAILURE);
+  let renderer = match cmd.flag_str("--renderer").as_deref() {
+    Some("winit") | None => RendererKind::Winit,
+    Some("egui") => RendererKind::Egui,
+    Some(other) => {
+      eprintln!("demo: unknown renderer: {other}\n");
+      print_usage(&program);
+      return ExitCode::FAILURE;
     }
   };
 
-  Ok((html, path.display().to_string(), profiling_enabled, renderer))
+  if let Some(name) = cmd.flag_str("--example") {
+    return run_example(&name, profiling, renderer);
+  }
+
+  if let Some(pos) = cmd.positional.first() {
+    if examples::get_example_tree(pos).is_some() {
+      return run_example(pos, profiling, renderer);
+    }
+    return run_file(PathBuf::from(pos), profiling, renderer);
+  }
+
+  run_example(DEFAULT_EXAMPLE, profiling, renderer)
+}
+
+fn run_example(name: &str, profiling: bool, renderer: RendererKind) -> ExitCode {
+  match examples::get_example_tree(name) {
+    Some(tree) => launch(tree.to_html(), format!("example:{name}"), profiling, renderer),
+    None => {
+      eprintln!("demo: unknown example: {name}");
+      println!();
+      print_examples();
+      ExitCode::FAILURE
+    }
+  }
+}
+
+fn run_file(path: PathBuf, profiling: bool, renderer: RendererKind) -> ExitCode {
+  match std::fs::read_to_string(&path) {
+    Ok(html) => launch(html, path.display().to_string(), profiling, renderer),
+    Err(err) => {
+      eprintln!("demo: failed to read HTML document '{}': {err}", path.display());
+      ExitCode::FAILURE
+    }
+  }
+}
+
+fn launch(html: String, source: String, profiling: bool, renderer: RendererKind) -> ExitCode {
+  match renderer {
+    RendererKind::Winit => winit::run(html, source, profiling),
+    RendererKind::Egui => egui::run(html, source, profiling),
+  }
 }
 
 fn main() -> ExitCode {
-  let (doc_html, doc_source, profiling_enabled, renderer) = match resolve_args() {
-    Ok(v) => v,
-    Err(code) => return code,
-  };
-
-  match renderer {
-    RendererKind::Winit => winit::run(doc_html, doc_source, profiling_enabled),
-    RendererKind::Egui => egui::run(doc_html, doc_source, profiling_enabled),
-  }
+  run()
 }

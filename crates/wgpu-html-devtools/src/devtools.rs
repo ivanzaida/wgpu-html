@@ -82,6 +82,7 @@ body {
 .main { display: flex; flex-grow: 1; min-height: 0; }
 .tree-panel {
     display: flex; flex-direction: column; width: 50%; min-width: 0;
+    flex-shrink: 0;
     background: var(--bg-primary);
 }
 .divider {

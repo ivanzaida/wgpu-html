@@ -185,6 +185,10 @@ pub enum PipelineAction {
   /// Only pseudo-class state changed (hover / active / focus).
   /// Run incremental re-cascade on affected nodes, then relayout + repaint.
   PartialCascade,
+  /// The DOM changed but element selectors (tag / id / class) are
+  /// unchanged — the cascaded CSS tree is still valid.  Only
+  /// re-layout and repaint; skip the full cascade.
+  LayoutOnly,
   /// Layout is unchanged; only repaint (scroll / selection / caret changed).
   RepaintOnly,
 }
@@ -197,6 +201,7 @@ pub struct PipelineCache {
   scale: f32,
   font_generation: u64,
   tree_generation: u64,
+  cascade_generation: u64,
   layout: Option<LayoutBox>,
   /// Cached cascade result for incremental re-cascade.
   cascaded: Option<wgpu_html_style::CascadedTree>,
@@ -221,6 +226,7 @@ impl PipelineCache {
       scale: 0.0,
       font_generation: u64::MAX, // force first frame to run
       tree_generation: u64::MAX,
+      cascade_generation: u64::MAX,
       layout: None,
       cascaded: None,
       paint_only_pseudo_rules: false,
@@ -236,6 +242,11 @@ impl PipelineCache {
   /// Borrow the cached layout (if any).
   pub fn layout(&self) -> Option<&LayoutBox> {
     self.layout.as_ref()
+  }
+
+  /// The viewport used for the last full pipeline render.
+  pub fn viewport(&self) -> (f32, f32) {
+    self.viewport
   }
 }
 
@@ -264,6 +275,11 @@ pub fn classify_frame(
     return PipelineAction::FullPipeline;
   }
   if tree.generation != cache.tree_generation {
+    // If only inline styles / text changed (same selectors)
+    // we can skip the CSS cascade and just re-layout.
+    if tree.cascade_generation == cache.cascade_generation {
+      return PipelineAction::LayoutOnly;
+    }
     return PipelineAction::FullPipeline;
   }
   if tree.fonts.generation() != cache.font_generation {
@@ -375,6 +391,24 @@ pub fn paint_tree_cached<'c>(
         }
       }
       cache.snapshot = tree.interaction.cascade_snapshot();
+    }
+    PipelineAction::LayoutOnly => {
+      // Re-use the cached cascade — only inline styles or text
+      // changed, so the cascaded CSS tree is still valid.
+      let layout_t0 = Instant::now();
+      {
+        wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
+        if let Some(cascaded) = &cache.cascaded {
+          cache.layout =
+            wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+        }
+      }
+      timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
+
+      cache.snapshot = tree.interaction.cascade_snapshot();
+      cache.viewport = (viewport_w, viewport_h);
+      cache.scale = scale;
+      cache.tree_generation = tree.generation;
     }
     PipelineAction::RepaintOnly => {}
   }

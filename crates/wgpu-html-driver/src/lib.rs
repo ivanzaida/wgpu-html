@@ -37,13 +37,13 @@
 //! rt.render_frame(&mut tree);
 //! ```
 
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, time::{Duration, Instant}};
 
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use wgpu_html::{
   PipelineCache, PipelineTimings, events as ev, interactivity,
   layout::{Cursor, LayoutBox},
-  renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Quad, Rect, Renderer},
+  renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Renderer},
   scroll::{
     ElementScrollbarDrag, clamp_scroll_y, paint_viewport_scrollbar, rect_contains, scroll_element_at,
     scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
@@ -102,6 +102,9 @@ pub struct Runtime<D: Driver> {
   scrollbar_drag: Option<ScrollbarDrag>,
   /// GPU-rendered profiling bar chart.
   pub profiling: ProfilingOverlay,
+  /// When the currently-in-progress resize cooldown ends.
+  /// While active, full cascade+layout is suppressed.
+  resize_deadline: Option<Instant>,
 }
 
 /// Tracks multi-click (double / triple) state.
@@ -124,7 +127,7 @@ enum ScrollbarDrag {
 
 /// GPU-visual profiling overlay drawn directly into the [`DisplayList`]
 /// (no tree modification). Shows a bar chart of per-stage timings and
-/// a rolling FPS counter.
+/// an FPS counter.
 pub struct ProfilingOverlay {
   pub enabled: bool,
   frame_budget_ms: f32,
@@ -132,11 +135,9 @@ pub struct ProfilingOverlay {
   bar_height: f32,
   bar_gap: f32,
   margin: f32,
-  /// Rolling average FPS over the last 60 frames.
   fps: f32,
   frame_times: [f64; 60],
   frame_time_idx: usize,
-  /// Smoothed per-stage timing averages.
   cascade_avg: f32,
   layout_avg: f32,
   paint_avg: f32,
@@ -148,7 +149,7 @@ impl ProfilingOverlay {
     Self {
       enabled: false,
       frame_budget_ms: 1000.0 / 60.0,
-      bar_width: 120.0,
+      bar_width: 140.0,
       bar_height: 5.0,
       bar_gap: 1.0,
       margin: 8.0,
@@ -162,11 +163,9 @@ impl ProfilingOverlay {
     }
   }
 
-  /// Exponential moving average smoothing factor.
   const ALPHA: f32 = 0.1;
 
   fn record(&mut self, timings: &PipelineTimings, frame_ms: f64) {
-    // Update rolling FPS.
     self.frame_times[self.frame_time_idx % 60] = frame_ms;
     self.frame_time_idx = self.frame_time_idx.wrapping_add(1);
     let count = (self.frame_time_idx.min(60)) as usize;
@@ -174,7 +173,6 @@ impl ProfilingOverlay {
       let avg_ms = self.frame_times[..count].iter().sum::<f64>() / count as f64;
       self.fps = if avg_ms > 0.0 { (1000.0 / avg_ms) as f32 } else { 0.0 };
     }
-
     let a = Self::ALPHA;
     self.cascade_avg = a * timings.cascade_ms as f32 + (1.0 - a) * self.cascade_avg;
     self.layout_avg = a * timings.layout_ms as f32 + (1.0 - a) * self.layout_avg;
@@ -186,21 +184,25 @@ impl ProfilingOverlay {
     self.render_avg = a * render_ms as f32 + (1.0 - a) * self.render_avg;
   }
 
-  fn draw(&self, list: &mut DisplayList, viewport_w: f32, viewport_h: f32) {
+  /// Human-readable summary line (FPS + per-stage ms).
+  pub fn summary(&self) -> String {
+    format!(
+      "FPS:{:.0} c:{:.2} l:{:.2} p:{:.2} r:{:.2}",
+      self.fps, self.cascade_avg, self.layout_avg, self.paint_avg, self.render_avg,
+    )
+  }
+
+  fn draw_bars(&self, list: &mut DisplayList, viewport_w: f32, viewport_h: f32) {
     let panel_w = self.bar_width + self.margin * 2.0;
-    let panel_h = 37.0;
+    let panel_h = self.margin * 2.0 + (self.bar_height + self.bar_gap) * 4.0;
     let x = viewport_w - panel_w - self.margin;
     let y = viewport_h - panel_h - self.margin;
 
-    // Background panel.
-    list.quads.push(Quad {
-      rect: Rect { x, y, w: panel_w, h: panel_h },
-      color: [0.0, 0.0, 0.0, 0.65],
-      radii_h: [4.0; 4],
-      radii_v: [4.0; 4],
-      stroke: [0.0; 4],
-      pattern: [0.0; 4],
-    });
+    list.push_quad_rounded(
+      Rect { x, y, w: panel_w, h: panel_h },
+      [0.0, 0.0, 0.0, 0.65],
+      [4.0; 4],
+    );
 
     let stages: [(&str, f32, [f32; 3]); 4] = [
       ("c", self.cascade_avg, [0.9, 0.3, 0.3]),
@@ -209,23 +211,73 @@ impl ProfilingOverlay {
       ("r", self.render_avg, [0.9, 0.8, 0.2]),
     ];
 
-    let bar_x = x + self.margin + 16.0;
-    let bar_w = self.bar_width - 16.0;
+    let bar_x = x + self.margin;
+    let bar_w = self.bar_width;
 
     for (i, (_label, ms, rgb)) in stages.iter().enumerate() {
       let bar_y = y + self.margin + i as f32 * (self.bar_height + self.bar_gap);
       let w = ((*ms / self.frame_budget_ms).min(1.0) * bar_w).max(1.0);
-      list.quads.push(Quad {
-        rect: Rect { x: bar_x, y: bar_y, w, h: self.bar_height },
-        color: [rgb[0], rgb[1], rgb[2], 0.9],
-        radii_h: [1.5; 4],
-        radii_v: [1.5; 4],
-        stroke: [0.0; 4],
-        pattern: [0.0; 4],
-      });
+      list.push_quad_rounded(
+        Rect { x: bar_x, y: bar_y, w, h: self.bar_height },
+        [rgb[0], rgb[1], rgb[2], 0.9],
+        [1.5; 4],
+      );
     }
   }
-}
+
+  /// Inject or update the profiling overlay `<div>` in the tree.
+  fn sync_overlay(&mut self, tree: &mut Tree) {
+    let id = "__wgpu_profiling";
+    let label = self.summary();
+
+    // Update existing overlay text in-place.
+    if let Some(div) = tree.get_element_by_id(id) {
+      if let Some(span) = div.children.first_mut() {
+        if let Some(text) = span.children.first_mut() {
+          text.element = wgpu_html_tree::Element::Text(label);
+        }
+      }
+      return;
+    }
+
+    // First frame: inject the overlay.
+    let html = format!(
+      r#"<div id="{id}" style="
+        position:fixed;bottom:8px;right:8px;z-index:99999;
+        pointer-events:none;font:11px monospace;
+        background:rgba(0,0,0,0.65);color:#0f0;
+        padding:4px 6px;border-radius:4px;
+      "><span>{label}</span></div>"#
+    );
+
+    let overlay_tree = wgpu_html::parser::parse(&html);
+    let Some(overlay_root) = overlay_tree.root else { return };
+
+    let Some(root) = &mut tree.root else { return };
+
+    let body_idx = root.children.iter()
+        .position(|c| matches!(c.element, wgpu_html_tree::Element::Html(_)))
+        .and_then(|hi| {
+          root.children[hi].children.iter()
+            .position(|c| matches!(c.element, wgpu_html_tree::Element::Body(_)))
+            .map(|bi| (hi, bi))
+        });
+
+      let target = match body_idx {
+        Some((hi, bi)) => &mut root.children[hi].children[bi],
+        None => root,
+      };
+
+      let overlay_body = overlay_root.children.iter()
+        .find(|c| matches!(c.element, wgpu_html_tree::Element::Html(_)))
+        .and_then(|h| h.children.iter().find(|c| matches!(c.element, wgpu_html_tree::Element::Body(_))));
+      if let Some(ob) = overlay_body {
+        if let Some(div) = ob.children.first() {
+      target.children.push(div.clone());
+        }
+      }
+    }
+  }
 
 impl Default for ProfilingOverlay {
   fn default() -> Self { Self::new() }
@@ -258,6 +310,7 @@ impl<D: Driver> Runtime<D> {
       last_click: None,
       scrollbar_drag: None,
       profiling: ProfilingOverlay::new(),
+      resize_deadline: None,
     }
   }
 
@@ -276,18 +329,47 @@ impl<D: Driver> Runtime<D> {
   /// Run the full cascade → layout → paint → GPU-render pipeline.
   ///
   /// Returns per-stage timings.
+  ///
+  /// During an active window resize the renderer skips cascade+layout
+  /// and repaints from the cached layout at the previous size.  Full
+  /// pipeline work is deferred until the resize cooldown (150 ms of
+  /// no resize events) expires.
   pub fn render_frame(&mut self, tree: &mut Tree) -> PipelineTimings {
     let frame_t0 = Instant::now();
+
+    // Inject profiling overlay div into the tree.
+    if self.profiling.enabled {
+      self.profiling.sync_overlay(tree);
+    }
+
     self.text_ctx.sync_fonts(&tree.fonts);
     let (w, h) = self.driver.logical_size();
     let scale = tree.effective_dpi_scale(self.driver.scale_factor() as f32);
+
+    // Resize debounce: during interactive resize, feed the *stale*
+    // viewport to paint_tree_cached so classify_frame returns
+    // RepaintOnly instead of FullPipeline.  Once the cooldown
+    // expires we invalidate and run the real pipeline with the
+    // current size.
+    let (paint_w, paint_h) = if let Some(deadline) = self.resize_deadline {
+      if Instant::now() < deadline {
+        let (cw, ch) = self.pipeline_cache.viewport();
+        if cw > 0.0 && ch > 0.0 { (cw, ch) } else { (w as f32, h as f32) }
+      } else {
+        self.pipeline_cache.invalidate();
+        self.resize_deadline = None;
+        (w as f32, h as f32)
+      }
+    } else {
+      (w as f32, h as f32)
+    };
 
     let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
       tree,
       &mut self.text_ctx,
       &mut self.image_cache,
-      w as f32,
-      h as f32,
+      paint_w,
+      paint_h,
       scale,
       self.scroll_y,
       &mut self.pipeline_cache,
@@ -302,17 +384,17 @@ impl<D: Driver> Runtime<D> {
     }
     self.last_layout = self.pipeline_cache.layout().cloned();
 
+    // Record frame timings and draw the bar chart.
+    if self.profiling.enabled {
+      let frame_ms = frame_t0.elapsed().as_secs_f64() * 1000.0;
+      self.profiling.record(&timings, frame_ms);
+      self.profiling.draw_bars(&mut list, w as f32, h as f32);
+    }
+
     self
       .text_ctx
       .atlas
       .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
-
-    // Draw profiling overlay (uses previous frame's render_ms).
-    if self.profiling.enabled {
-      let frame_ms = frame_t0.elapsed().as_secs_f64() * 1000.0;
-      self.profiling.record(&timings, frame_ms);
-      self.profiling.draw(&mut list, w as f32, h as f32);
-    }
 
     let render_t0 = Instant::now();
     match self.renderer.render(&list) {
@@ -342,12 +424,25 @@ impl<D: Driver> Runtime<D> {
     let (w, h) = self.driver.logical_size();
     let scale = tree.effective_dpi_scale(self.driver.scale_factor() as f32);
 
+    let (paint_w, paint_h) = if let Some(deadline) = self.resize_deadline {
+      if Instant::now() < deadline {
+        let (cw, ch) = self.pipeline_cache.viewport();
+        if cw > 0.0 && ch > 0.0 { (cw, ch) } else { (w as f32, h as f32) }
+      } else {
+        self.pipeline_cache.invalidate();
+        self.resize_deadline = None;
+        (w as f32, h as f32)
+      }
+    } else {
+      (w as f32, h as f32)
+    };
+
     let (list, layout, timings) = wgpu_html::paint_tree_cached(
       tree,
       &mut self.text_ctx,
       &mut self.image_cache,
-      w as f32,
-      h as f32,
+      paint_w,
+      paint_h,
       scale,
       self.scroll_y,
       &mut self.pipeline_cache,
@@ -559,13 +654,20 @@ impl<D: Driver> Runtime<D> {
   }
 
   /// Handle a window resize.
+  ///
+  /// The GPU surface is resized immediately (cheap). Full cascade +
+  /// layout + paint is deferred until the resize cooldown expires
+  /// (150 ms of no resize events) to avoid frame drops during
+  /// interactive window dragging.
   pub fn on_resize(&mut self, tree: &mut Tree, width: u32, height: u32) {
     self.renderer.resize(width, height);
     if let Some(layout) = self.last_layout.as_ref() {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, height as f32);
     }
     self.scrollbar_drag = None;
-    self.pipeline_cache.invalidate();
+    // Defer the heavy cascade+layout+paint until resize stabilizes.
+    // Each new resize event pushes the deadline further out.
+    self.resize_deadline = Some(Instant::now() + Duration::from_millis(150));
     tree.resize_event();
   }
 

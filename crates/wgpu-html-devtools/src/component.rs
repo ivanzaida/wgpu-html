@@ -2,8 +2,9 @@
 //!
 //! `type Env = Tree` — receives `&Tree` (the host tree) in `view()`.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, sync::Arc};
 
+use wgpu_html_models::Style;
 use wgpu_html_style::cascade;
 use wgpu_html_tree::Tree;
 use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
@@ -40,6 +41,9 @@ pub struct DevtoolsComponent {
   drag_start_x: Option<f32>,
   /// split_ratio at the moment drag started.
   drag_start_ratio: f32,
+  /// Cached `(path, cascaded_style)` so we don't re-run the host
+  /// tree cascade on every frame during divider drag or hover.
+  cached_style: RefCell<Option<(Vec<usize>, Style)>>,
 }
 
 impl Component for DevtoolsComponent {
@@ -55,6 +59,7 @@ impl Component for DevtoolsComponent {
       split_ratio: 0.5,
       drag_start_x: None,
       drag_start_ratio: 0.5,
+      cached_style: RefCell::new(None),
     }
   }
 
@@ -62,6 +67,7 @@ impl Component for DevtoolsComponent {
     match msg {
       DevtoolsMsg::SelectRow(ref path) => {
         self.selected_path = Some(path.clone());
+        self.cached_style.borrow_mut().take();
       }
       DevtoolsMsg::ToggleCollapse(ref path) => {
         if !self.collapsed.remove(path) {
@@ -114,10 +120,23 @@ impl Component for DevtoolsComponent {
     };
 
     let cascaded_style = self.selected_path.as_deref().and_then(|path| {
+      // Re-use the cached cascaded style when the selected element
+      // hasn't changed.  This avoids a full host-tree cascade on
+      // every frame during drag / hover.
+      {
+        let cache = self.cached_style.borrow();
+        if let Some((cached_path, style)) = cache.as_ref() {
+          if cached_path.as_slice() == path {
+            return Some(style.clone());
+          }
+        }
+      }
       let cascaded = cascade(env);
       let root = cascaded.root.as_ref()?;
       let node = if path.is_empty() { root } else { root.at_path(path)? };
-      Some(node.style.clone())
+      let style = node.style.clone();
+      self.cached_style.borrow_mut().replace((path.to_vec(), style.clone()));
+      Some(style)
     });
 
     let styles_props = StylesPanelProps {

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {
+    margin: 20px;
+    font-family: sans-serif;
+    font-size: 14px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  h2 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: #8ab4f8;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .card {
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px;
+    background: #16213e;
+  }
+
+  /* ── resize: both ─────────────────────── */
+  .resize-both {
+    overflow: auto;
+    resize: both;
+    width: 200px;
+    height: 120px;
+    background: #0f3460;
+    border: 2px dashed #e94560;
+    border-radius: 4px;
+    padding: 10px;
+    min-width: 100px;
+    min-height: 60px;
+    max-width: 400px;
+    max-height: 300px;
+  }
+
+  /* ── resize: horizontal ───────────────── */
+  .resize-horizontal {
+    overflow: auto;
+    resize: horizontal;
+    width: 200px;
+    height: 80px;
+    background: #1a1a2e;
+    border: 2px dashed #e94560;
+    border-radius: 4px;
+    padding: 10px;
+    min-width: 100px;
+    max-width: 400px;
+  }
+
+  /* ── resize: vertical ─────────────────── */
+  .resize-vertical {
+    overflow: auto;
+    resize: vertical;
+    width: 250px;
+    height: 100px;
+    background: #1a1a2e;
+    border: 2px dashed #e94560;
+    border-radius: 4px;
+    padding: 10px;
+    min-height: 60px;
+    max-height: 250px;
+  }
+
+  /* ── textarea (UA default resize: both) ── */
+  textarea {
+    width: 250px;
+    height: 80px;
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 2px dashed #e94560;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  /* ── resize: none (comparison) ────────── */
+  .resize-none {
+    overflow: auto;
+    resize: none;
+    width: 200px;
+    height: 80px;
+    background: #1a1a2e;
+    border: 2px solid #555;
+    border-radius: 4px;
+    padding: 10px;
+  }
+
+  .label {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>resize: both</h2>
+    <div class="label">Drag bottom-right corner to resize</div>
+    <div class="resize-both">
+      I can be resized both horizontally and vertically.
+      Drag the handle at my bottom-right corner.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>resize: horizontal</h2>
+    <div class="label">Drag right edge to resize width only</div>
+    <div class="resize-horizontal">
+      Only my width can change.
+      Drag the right edge handle.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>resize: vertical</h2>
+    <div class="label">Drag bottom edge to resize height only</div>
+    <div class="resize-vertical">
+      Only my height can change.
+      Drag the bottom edge handle.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>textarea (UA resize: both)</h2>
+    <div class="label">Default browser-style resize handle</div>
+    <textarea>This textarea should have a resize handle by default (UA stylesheet sets resize: both). Resize me by dragging the bottom-right corner.</textarea>
+  </div>
+
+  <div class="card">
+    <h2>resize: none</h2>
+    <div class="label">No resize handle — fixed size</div>
+    <div class="resize-none">
+      I cannot be resized.
+      No resize handle is shown.
+    </div>
+  </div>
+
+</body>
+</html>

@@ -90,6 +90,11 @@ pub struct Tree {
   /// values, etc.). The pipeline cache compares this against its
   /// stored value to detect mutations that require re-cascade + relayout.
   pub generation: u64,
+  /// Bumped only when stylesheets or element selectors (tag / id /
+  /// class) change.  Stays stable across inline-style-only edits
+  /// so that [`wgpu_html::PipelineAction::LayoutOnly`] can skip the
+  /// full CSS cascade.
+  pub cascade_generation: u64,
   /// Optional per-frame profiler. When `Some`, the cascade → layout
   /// → paint pipeline records each stage's wall-clock duration.
   /// Cleared at the start of every frame.
@@ -112,6 +117,7 @@ impl Tree {
       linked_stylesheets: HashMap::new(),
       hooks: Vec::new(),
       generation: 0,
+      cascade_generation: 0,
       profiler: None,
       asset_root: None,
     }
@@ -192,6 +198,7 @@ impl Tree {
     }
     self.linked_stylesheets.insert(href, css.into());
     self.generation += 1;
+    self.cascade_generation += 1;
   }
 
   /// Remove a previously registered linked stylesheet.
@@ -199,6 +206,7 @@ impl Tree {
     let removed = self.linked_stylesheets.remove(href);
     if removed.is_some() {
       self.generation += 1;
+      self.cascade_generation += 1;
     }
     removed
   }
@@ -1748,5 +1756,33 @@ fn collect_tag_name_nodes<'a>(node: &'a Node, tag_name: &str, out: &mut Vec<&'a 
   }
   for child in &node.children {
     collect_tag_name_nodes(child, tag_name, out);
+  }
+}
+
+/// Stable hash of the tree's selector-relevant surface: tag name,
+/// id, class, and child structure — everything but inline styles
+/// and text content.
+///
+/// Two trees with the same fingerprint produce identical cascade
+/// results, so [`wgpu_html::PipelineAction::LayoutOnly`] can skip
+/// re-cascading.
+pub fn node_selector_fingerprint(node: &Node) -> u64 {
+  use std::hash::Hasher;
+  let mut h = std::collections::hash_map::DefaultHasher::new();
+  selector_fingerprint_impl(node, &mut h);
+  h.finish()
+}
+
+fn selector_fingerprint_impl(node: &Node, h: &mut std::collections::hash_map::DefaultHasher) {
+  use std::hash::Hash;
+  node.element.tag_name().hash(h);
+  if let Some(id) = node.element.id() {
+    id.hash(h);
+  }
+  if let Some(cls) = node.element.class() {
+    cls.hash(h);
+  }
+  for child in &node.children {
+    selector_fingerprint_impl(child, h);
   }
 }
