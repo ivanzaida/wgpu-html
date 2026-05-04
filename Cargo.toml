@@ -4,6 +4,10 @@ members = [
     "crates/wgpu-html",
     "crates/wgpu-html-demo",
     "crates/wgpu-html-devtools",
+    "crates/wgpu-html-driver",
+    "crates/wgpu-html-driver-bevy",
+    "crates/wgpu-html-driver-egui",
+    "crates/wgpu-html-driver-winit",
     "crates/wgpu-html-egui",
     "crates/wgpu-html-events",
     "crates/wgpu-html-layout",
@@ -30,6 +34,10 @@ wgpu-html-renderer     = { path = "crates/wgpu-html-renderer" }
 wgpu-html-style        = { path = "crates/wgpu-html-style" }
 wgpu-html-text         = { path = "crates/wgpu-html-text" }
 wgpu-html-tree         = { path = "crates/wgpu-html-tree" }
+wgpu-html-driver       = { path = "crates/wgpu-html-driver" }
+wgpu-html-driver-bevy  = { path = "crates/wgpu-html-driver-bevy" }
+wgpu-html-driver-egui  = { path = "crates/wgpu-html-driver-egui" }
+wgpu-html-driver-winit = { path = "crates/wgpu-html-driver-winit" }
 wgpu-html-winit        = { path = "crates/wgpu-html-winit" }
 wgpu-html-ui           = { path = "crates/wgpu-html-ui" }
 
