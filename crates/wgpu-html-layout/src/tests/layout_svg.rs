@@ -1,5 +1,5 @@
-use crate::*;
 use super::helpers::*;
+use crate::*;
 #[test]
 fn svg_replaced_element_size_from_attributes() {
   // <svg width="100px" height="80px"> should produce a 100×80 layout box
@@ -139,8 +139,7 @@ fn tree_row_fixed_width_50px_spans_no_overlap() {
   // must be ≤ next span's left edge. This is the strongest check
   // against visual overlap.
   for i in 1..row.children.len() {
-    let prev_right =
-      row.children[i - 1].content_rect.x + row.children[i - 1].content_rect.w;
+    let prev_right = row.children[i - 1].content_rect.x + row.children[i - 1].content_rect.w;
     assert!(
       row.children[i].content_rect.x >= prev_right - 0.5,
       "span {i} at x={:.1} overlaps span {} ending at {prev_right:.1}",

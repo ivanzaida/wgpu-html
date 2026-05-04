@@ -1,7 +1,11 @@
-use wgpu_html_models::common::{AlignItems, BoxSizing, Cursor, Display, FlexDirection, FontWeight, JustifyContent, Overflow, UserSelect};
-use wgpu_html_ui::el::{button, div};
-use wgpu_html_ui::style::{self, px, Stylesheet};
-use wgpu_html_ui::Component;
+use wgpu_html_models::common::{
+  AlignItems, BoxSizing, Cursor, Display, FlexDirection, FontWeight, JustifyContent, Overflow, UserSelect,
+};
+use wgpu_html_ui::{
+  Component,
+  el::{button, div},
+  style::{self, Stylesheet, px},
+};
 
 #[derive(Clone)]
 pub enum CounterMsg {
@@ -26,7 +30,10 @@ impl Component for Counter {
   type Env = ();
 
   fn create(props: &CounterProps) -> Self {
-    Counter { count: 0, label: props.label }
+    Counter {
+      count: 0,
+      label: props.label,
+    }
   }
 
   fn update(&mut self, msg: CounterMsg, _props: &CounterProps) -> wgpu_html_ui::ShouldRender {
@@ -58,11 +65,10 @@ impl Component for Counter {
         .border_radius(px(12))
         .gap(px(12))
         .padding(px(24)),
-      style::rule(".title")
-        .color("var(--text-secondary)")
-        .font_size(px(12)),
+      style::rule(".title").color("var(--text-secondary)").font_size(px(12)),
       style::rule(".value")
-        .color("var(--text-primary)").font_size(px(40))
+        .color("var(--text-primary)")
+        .font_size(px(40))
         .font_weight(FontWeight::Bold),
       style::rule(".buttons")
         .display(Display::Flex)
@@ -80,11 +86,9 @@ impl Component for Counter {
       style::rule("button:hover")
         .background_color("var(--bg-hover)")
         .cursor(Cursor::Pointer),
-      style::rule("button.wide")
-        .width(px(64))
+      style::rule("button.wide").width(px(64)),
     ])
   }
-
 
   fn view(&self, _props: &CounterProps, ctx: &wgpu_html_ui::Ctx<CounterMsg>, _env: &()) -> wgpu_html_ui::El {
     div().class(ctx.scoped("root")).children([
@@ -92,7 +96,10 @@ impl Component for Counter {
       div().class(ctx.scoped("value")).text(self.count.to_string()),
       div().class(ctx.scoped("buttons")).children([
         button().text("-").on_click_cb(ctx.on_click(CounterMsg::Decrement)),
-        button().class(ctx.scoped("wide")).text("Reset").on_click_cb(ctx.on_click(CounterMsg::Reset)),
+        button()
+          .class(ctx.scoped("wide"))
+          .text("Reset")
+          .on_click_cb(ctx.on_click(CounterMsg::Reset)),
         button().text("+").on_click_cb(ctx.on_click(CounterMsg::Increment)),
       ]),
     ])

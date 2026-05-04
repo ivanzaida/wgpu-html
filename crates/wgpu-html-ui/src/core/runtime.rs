@@ -356,21 +356,16 @@ impl Runtime {
   ///
   /// Three paths, from cheapest to most expensive:
   ///
-  /// 1. **Clean fast-path** (`!needs_render && !subtree_dirty`):
-  ///    Return `last_node` directly.  No allocations, no `view()` call.
+  /// 1. **Clean fast-path** (`!needs_render && !subtree_dirty`): Return `last_node` directly.  No allocations, no
+  ///    `view()` call.
   ///
-  /// 2. **Patch path** (`!needs_render && subtree_dirty`):
-  ///    The component itself is unchanged so `view()` is **skipped**.
-  ///    Clone the stored `skeleton_node` (tiny — contains placeholder divs
-  ///    instead of full child subtrees) and re-substitute every child:
-  ///    dirty children re-render recursively; clean children return their
-  ///    own `last_node`.  Saves one `view()` call per ancestor of every
-  ///    updated leaf.
+  /// 2. **Patch path** (`!needs_render && subtree_dirty`): The component itself is unchanged so `view()` is
+  ///    **skipped**. Clone the stored `skeleton_node` (tiny — contains placeholder divs instead of full child subtrees)
+  ///    and re-substitute every child: dirty children re-render recursively; clean children return their own
+  ///    `last_node`.  Saves one `view()` call per ancestor of every updated leaf.
   ///
-  /// 3. **Full render** (`needs_render`, or first render):
-  ///    Call `view()`, reconcile the child set (add/remove/update),
-  ///    store the raw output as `skeleton_node`, substitute children,
-  ///    cache the resolved result as `last_node`.
+  /// 3. **Full render** (`needs_render`, or first render): Call `view()`, reconcile the child set (add/remove/update),
+  ///    store the raw output as `skeleton_node`, substitute children, cache the resolved result as `last_node`.
   fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>, env: &dyn Any) -> Node {
     // ── Path 1: clean fast-path ─────────────────────────────────────
     if !mounted.needs_render && !mounted.subtree_dirty {

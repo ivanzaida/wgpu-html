@@ -502,7 +502,16 @@ pub fn dispatch_pointer_move(
       // dragleave on old \ new (deepest first)
       if let Some(old) = &old_drag {
         if old.len() > common_len {
-          fire_chain_segment(tree, old, common_len, old.len(), true, pos, Some(old.as_slice()), HoverSlot::DragLeave);
+          fire_chain_segment(
+            tree,
+            old,
+            common_len,
+            old.len(),
+            true,
+            pos,
+            Some(old.as_slice()),
+            HoverSlot::DragLeave,
+          );
         }
         if hover.is_none() {
           fire_root_hover_event(tree, pos, old, HoverSlot::DragLeave);
@@ -514,7 +523,16 @@ pub fn dispatch_pointer_move(
           fire_root_hover_event(tree, pos, new, HoverSlot::DragEnter);
         }
         if new.len() > common_len {
-          fire_chain_segment(tree, new, common_len, new.len(), false, pos, Some(new.as_slice()), HoverSlot::DragEnter);
+          fire_chain_segment(
+            tree,
+            new,
+            common_len,
+            new.len(),
+            false,
+            pos,
+            Some(new.as_slice()),
+            HoverSlot::DragEnter,
+          );
         }
       }
       tree.interaction.drag_target_path = hover;
@@ -787,7 +805,7 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
         .root
         .as_ref()
         .and_then(|root| root.at_path(old))
-        .and_then(|node| read_editable_value(node).map(|(v, _, _)| v));
+        .and_then(|node| read_editable_value(node).map(|(v, ..)| v));
       if let Some(current) = current_val {
         if current != snap {
           fire_focus_event(
@@ -861,12 +879,10 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
   tree.interaction.caret_blink_epoch = std::time::Instant::now();
 
   // Snapshot the value for change-event detection.
-  tree.interaction.focus_value_snapshot = new_path
-    .as_deref()
-    .and_then(|path| {
-      let node = tree.root.as_ref()?.at_path(path)?;
-      read_editable_value(node).map(|(v, _, _)| v)
-    });
+  tree.interaction.focus_value_snapshot = new_path.as_deref().and_then(|path| {
+    let node = tree.root.as_ref()?.at_path(path)?;
+    read_editable_value(node).map(|(v, ..)| v)
+  });
 
   if let Some(new) = new_path.as_deref() {
     fire_focus_event(
@@ -950,8 +966,8 @@ fn fire_focus_event(
           current_target: Some(current_path),
           event_phase,
           default_prevented: Cell::new(false),
-        propagation_stopped: Cell::new(false),
-        immediate_propagation_stopped: Cell::new(false),
+          propagation_stopped: Cell::new(false),
+          immediate_propagation_stopped: Cell::new(false),
           is_trusted: true,
           time_stamp,
         },
@@ -1159,7 +1175,10 @@ fn handle_activation_key(tree: &mut Tree) {
   let should_click = match &node.element {
     Element::Button(_) => true,
     Element::A(a) => a.href.is_some(),
-    Element::Input(inp) => matches!(inp.r#type, Some(InputType::Checkbox) | Some(InputType::Submit) | Some(InputType::Reset) | Some(InputType::Button)),
+    Element::Input(inp) => matches!(
+      inp.r#type,
+      Some(InputType::Checkbox) | Some(InputType::Submit) | Some(InputType::Reset) | Some(InputType::Button)
+    ),
     _ => false,
   };
   if should_click {
@@ -1232,12 +1251,7 @@ fn make_input_html_event(
   })
 }
 
-fn bubble_input(
-  tree: &mut Tree,
-  target_path: &[usize],
-  data: Option<String>,
-  input_type: ev::enums::InputType,
-) {
+fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, input_type: ev::enums::InputType) {
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
   let depth = target_path.len();
   for i in 0..=depth {
@@ -1300,16 +1314,22 @@ fn bubble_beforeinput(
     }
     for cb in &dedicated {
       cb(&html_ev);
-      if html_ev.base().immediate_propagation_stopped.get() { break; }
+      if html_ev.base().immediate_propagation_stopped.get() {
+        break;
+      }
     }
     if !html_ev.base().immediate_propagation_stopped.get() {
       for on_ev in &on_evs {
         on_ev(&html_ev);
-        if html_ev.base().immediate_propagation_stopped.get() { break; }
+        if html_ev.base().immediate_propagation_stopped.get() {
+          break;
+        }
       }
     }
     prevented = prevented || html_ev.base().default_prevented.get();
-    if html_ev.base().propagation_stopped.get() { break; }
+    if html_ev.base().propagation_stopped.get() {
+      break;
+    }
   }
   prevented
 }
@@ -1346,8 +1366,8 @@ fn make_wheel_html_event(
           current_target: Some(current_path),
           event_phase,
           default_prevented: Cell::new(false),
-        propagation_stopped: Cell::new(false),
-        immediate_propagation_stopped: Cell::new(false),
+          propagation_stopped: Cell::new(false),
+          immediate_propagation_stopped: Cell::new(false),
           is_trusted: true,
           time_stamp,
         },
@@ -1453,10 +1473,7 @@ pub fn wheel_event(
 ///
 /// Returns `true` if `preventDefault()` was called on the event,
 /// signalling the caller to skip the default clipboard operation.
-pub fn clipboard_event(
-  tree: &mut Tree,
-  event_type: &'static str,
-) -> bool {
+pub fn clipboard_event(tree: &mut Tree, event_type: &'static str) -> bool {
   let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
   let depth = target.len();
@@ -1563,11 +1580,7 @@ pub fn scroll_event(tree: &mut Tree, path: &[usize]) {
 /// Called when text selection changes.
 pub fn selectionchange_event(tree: &mut Tree) {
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
-  let on_evs = tree
-    .root
-    .as_ref()
-    .map(|node| node.on_event.clone())
-    .unwrap_or_default();
+  let on_evs = tree.root.as_ref().map(|node| node.on_event.clone()).unwrap_or_default();
   let mut html_ev = ev::HtmlEvent::Generic(ev::events::Event {
     event_type: ev::HtmlEventType::from(ev::HtmlEventType::SELECTIONCHANGE),
     bubbles: false,
@@ -1629,11 +1642,7 @@ pub fn select_event(tree: &mut Tree, path: &[usize]) {
 /// Dispatch a `resize` event on the document root.
 pub fn resize_event(tree: &mut Tree) {
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
-  let on_evs = tree
-    .root
-    .as_ref()
-    .map(|node| node.on_event.clone())
-    .unwrap_or_default();
+  let on_evs = tree.root.as_ref().map(|node| node.on_event.clone()).unwrap_or_default();
   let html_ev = ev::HtmlEvent::Generic(ev::events::Event {
     event_type: ev::HtmlEventType::from(ev::HtmlEventType::RESIZE),
     bubbles: false,
@@ -1739,7 +1748,18 @@ fn enter_in_form_input(tree: &Tree) -> Option<(Vec<usize>, Vec<usize>)> {
       use wgpu_html_models::common::html_enums::InputType;
       if matches!(
         inp.r#type,
-        Some(InputType::Hidden | InputType::Checkbox | InputType::Radio | InputType::File | InputType::Image | InputType::Color | InputType::Range | InputType::Button | InputType::Submit | InputType::Reset)
+        Some(
+          InputType::Hidden
+            | InputType::Checkbox
+            | InputType::Radio
+            | InputType::File
+            | InputType::Image
+            | InputType::Color
+            | InputType::Range
+            | InputType::Button
+            | InputType::Submit
+            | InputType::Reset
+        )
       ) {
         return None;
       }
@@ -1916,7 +1936,12 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     .unwrap_or_else(|| crate::EditCursor::collapsed(old_value.len()));
 
   // Fire beforeinput — if cancelled, skip the mutation.
-  if bubble_beforeinput(tree, &focus_path, Some(text.to_owned()), ev::enums::InputType::InsertText) {
+  if bubble_beforeinput(
+    tree,
+    &focus_path,
+    Some(text.to_owned()),
+    ev::enums::InputType::InsertText,
+  ) {
     return true;
   }
 
@@ -1930,7 +1955,12 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
   tree.interaction.caret_blink_epoch = std::time::Instant::now();
   tree.generation += 1;
 
-  bubble_input(tree, &focus_path, Some(text.to_owned()), ev::enums::InputType::InsertText);
+  bubble_input(
+    tree,
+    &focus_path,
+    Some(text.to_owned()),
+    ev::enums::InputType::InsertText,
+  );
 
   true
 }

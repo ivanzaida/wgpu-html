@@ -1,12 +1,15 @@
 mod counter;
 mod text_input;
 
-use crate::counter::counter::{Counter, CounterProps};
-use crate::text_input::TextInput;
 use wgpu_html_models::common::css_enums::*;
 use wgpu_html_ui::{
-  el, style::{self, px}, App, Component, Ctx, El,
-  ShouldRender,
+  App, Component, Ctx, El, ShouldRender, el,
+  style::{self, px},
+};
+
+use crate::{
+  counter::counter::{Counter, CounterProps},
+  text_input::TextInput,
 };
 // ── Root App Component ──────────────────────────────────────────────────────
 
@@ -73,9 +76,7 @@ fn main() {
   App::new::<DemoApp>(DemoProps)
     .title("wgpu-html-ui demo")
     .size(800, 500)
-    .stylesheet(
-      "html, body { height: 100%; margin: 0; background: #1a1a1a; }",
-    )
+    .stylesheet("html, body { height: 100%; margin: 0; background: #1a1a1a; }")
     .stylesheet(include_str!("theme.css"))
     .with_secondary(|tree| Box::new(wgpu_html_devtools::Devtools::attach(tree, false)))
     .run()

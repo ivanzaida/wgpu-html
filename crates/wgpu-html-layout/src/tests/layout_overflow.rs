@@ -1,5 +1,5 @@
-use crate::*;
 use super::helpers::*;
+use crate::*;
 // ---------------------------------------------------------------------------
 // overflow propagation
 // ---------------------------------------------------------------------------
@@ -119,7 +119,10 @@ fn user_select_none_blocks_text_cursor_hit() {
   let mut lay = synthetic_text_layout();
   assert!(lay.hit_text_cursor((15.0, 24.0)).is_some(), "baseline: cursor works");
   lay.user_select = UserSelect::None;
-  assert!(lay.hit_text_cursor((15.0, 24.0)).is_none(), "user-select:none blocks cursor");
+  assert!(
+    lay.hit_text_cursor((15.0, 24.0)).is_none(),
+    "user-select:none blocks cursor"
+  );
 }
 
 #[test]

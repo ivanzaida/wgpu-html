@@ -5,6 +5,7 @@
 
 use std::time::Instant;
 
+pub use wgpu_html_events as events;
 pub use wgpu_html_layout as layout;
 pub use wgpu_html_models as models;
 pub use wgpu_html_parser as parser;
@@ -12,7 +13,6 @@ pub use wgpu_html_renderer as renderer;
 pub use wgpu_html_style as style;
 pub use wgpu_html_text as text;
 pub use wgpu_html_tree as tree;
-pub use wgpu_html_events as events;
 
 pub mod interactivity;
 pub mod paint;
@@ -60,9 +60,7 @@ pub fn compute_layout_profiled(
   viewport_h: f32,
   scale: f32,
 ) -> (Option<LayoutBox>, PipelineTimings) {
-  if let Some(prof) = &tree.profiler {
-    prof.clear();
-  }
+  tree.profiler.as_ref().map(|p| p.ensure_frame_begin());
 
   text_ctx.sync_fonts(&tree.fonts);
   if let Some(ttl) = tree.asset_cache_ttl {
@@ -74,21 +72,20 @@ pub fn compute_layout_profiled(
 
   let cascade_t0 = Instant::now();
   let media = media_context(viewport_w, viewport_h, scale);
-  let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
+  let cascaded;
+  {
+    wgpu_html_tree::prof_scope!(&tree.profiler, "cascade");
+    cascaded = wgpu_html_style::cascade_with_media(tree, &media);
+  }
   let cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
-  if let Some(prof) = &tree.profiler {
-    prof.record("cascade", cascade_t0.elapsed());
-  }
-
   let layout_t0 = Instant::now();
-  let layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
-  let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
-
-  if let Some(prof) = &tree.profiler {
-    prof.record("layout", layout_t0.elapsed());
-    prof.flush();
+  let layout;
+  {
+    wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
+    layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
   }
+  let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
   (
     layout,
@@ -112,8 +109,15 @@ pub fn paint_tree_returning_layout(
   scale: f32,
   viewport_scroll_y: f32,
 ) -> (DisplayList, Option<LayoutBox>) {
-  let (list, layout, _) =
-    paint_tree_returning_layout_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, viewport_scroll_y);
+  let (list, layout, _) = paint_tree_returning_layout_profiled(
+    tree,
+    text_ctx,
+    image_cache,
+    viewport_w,
+    viewport_h,
+    scale,
+    viewport_scroll_y,
+  );
   (list, layout)
 }
 
@@ -126,44 +130,48 @@ pub fn paint_tree_returning_layout_profiled(
   scale: f32,
   viewport_scroll_y: f32,
 ) -> (DisplayList, Option<LayoutBox>, PipelineTimings) {
+  // ensure_frame_begin is a no-op if compute_layout_profiled already started one.
+  tree.profiler.as_ref().map(|p| p.ensure_frame_begin());
+
   let (layout, mut timings) = compute_layout_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale);
   let mut list = DisplayList::new();
   let paint_t0 = Instant::now();
-  if let Some(root) = layout.as_ref() {
-    // Build caret info from the interaction state.
-    let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
-      let fp = tree.interaction.focus_path.as_deref()?;
-      let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
-      let sel = if ec.has_selection() {
-        Some(ec.selection_range())
-      } else {
-        None
-      };
-      Some(paint::EditCaretInfo {
-        focus_path: fp,
-        cursor_byte: ec.cursor,
-        selection_bytes: sel,
-        caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
-      })
-    });
-    paint::paint_layout_full(
-      root,
-      &mut list,
-      tree.interaction.selection.as_ref(),
-      tree.interaction.selection_colors,
-      &tree.interaction.scroll_offsets_y,
-      viewport_scroll_y,
-      edit_caret_info.as_ref(),
-    );
-    list.finalize();
-  } else {
-    list.finalize();
+  {
+    wgpu_html_tree::prof_scope!(&tree.profiler, "paint");
+    if let Some(root) = layout.as_ref() {
+      // Build caret info from the interaction state.
+      let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
+        let fp = tree.interaction.focus_path.as_deref()?;
+        let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
+        let sel = if ec.has_selection() {
+          Some(ec.selection_range())
+        } else {
+          None
+        };
+        Some(paint::EditCaretInfo {
+          focus_path: fp,
+          cursor_byte: ec.cursor,
+          selection_bytes: sel,
+          caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+        })
+      });
+      paint::paint_layout_full(
+        root,
+        &mut list,
+        tree.interaction.selection.as_ref(),
+        tree.interaction.selection_colors,
+        &tree.interaction.scroll_offsets_y,
+        viewport_scroll_y,
+        edit_caret_info.as_ref(),
+      );
+      list.finalize();
+    } else {
+      list.finalize();
+    }
   }
   timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
-  if let Some(prof) = &tree.profiler {
-    prof.record("paint", paint_t0.elapsed());
-    prof.flush();
-  }
+
+  tree.profiler.as_ref().map(|p| p.frame_end());
   (list, layout, timings)
 }
 
@@ -283,9 +291,7 @@ pub fn paint_tree_cached<'c>(
   viewport_scroll_y: f32,
   cache: &'c mut PipelineCache,
 ) -> (DisplayList, Option<&'c LayoutBox>, PipelineTimings) {
-  if let Some(prof) = &tree.profiler {
-    prof.clear();
-  }
+  tree.profiler.as_ref().map(|p| p.ensure_frame_begin());
 
   let action = classify_frame(tree, cache, image_cache, viewport_w, viewport_h, scale);
 
@@ -303,18 +309,20 @@ pub fn paint_tree_cached<'c>(
 
       let cascade_t0 = Instant::now();
       let media = media_context(viewport_w, viewport_h, scale);
-      let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
-      timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
-      if let Some(prof) = &tree.profiler {
-        prof.record("cascade", cascade_t0.elapsed());
+      let cascaded;
+      {
+        wgpu_html_tree::prof_scope!(&tree.profiler, "cascade");
+        cascaded = wgpu_html_style::cascade_with_media(tree, &media);
       }
+      timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
       let layout_t0 = Instant::now();
-      let layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
-      timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
-      if let Some(prof) = &tree.profiler {
-        prof.record("layout", layout_t0.elapsed());
+      let layout;
+      {
+        wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
+        layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
       }
+      timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
       cache.layout = layout;
       cache.cascaded = Some(cascaded);
@@ -329,15 +337,16 @@ pub fn paint_tree_cached<'c>(
       let cascade_t0 = Instant::now();
       let old_snapshot = cache.snapshot.clone();
       let media = media_context(viewport_w, viewport_h, scale);
-      let changed = if let Some(cascaded) = &mut cache.cascaded {
-        wgpu_html_style::cascade_incremental_with_media(tree, cascaded, &old_snapshot, &media)
-      } else {
-        false
-      };
-      timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
-      if let Some(prof) = &tree.profiler {
-        prof.record("cascade_incremental", cascade_t0.elapsed());
+      let changed;
+      {
+        wgpu_html_tree::prof_scope!(&tree.profiler, "cascade_incremental");
+        changed = if let Some(cascaded) = &mut cache.cascaded {
+          wgpu_html_style::cascade_incremental_with_media(tree, cascaded, &old_snapshot, &media)
+        } else {
+          false
+        };
       }
+      timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
       // Re-layout if cascade changed any styles — unless
       // pseudo-class rules are paint-only, in which case we
@@ -346,23 +355,23 @@ pub fn paint_tree_cached<'c>(
       if changed {
         if cache.paint_only_pseudo_rules {
           let layout_t0 = Instant::now();
-          if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
-            wgpu_html_layout::patch_layout_colors(layout, cascaded);
+          {
+            wgpu_html_tree::prof_scope!(&tree.profiler, "patch_colors");
+            if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
+              wgpu_html_layout::patch_layout_colors(layout, cascaded);
+            }
           }
           timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
-          if let Some(prof) = &tree.profiler {
-            prof.record("patch_colors", layout_t0.elapsed());
-          }
         } else {
           let layout_t0 = Instant::now();
-          if let Some(cascaded) = &cache.cascaded {
-            cache.layout =
-              wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+          {
+            wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
+            if let Some(cascaded) = &cache.cascaded {
+              cache.layout =
+                wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+            }
           }
           timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
-          if let Some(prof) = &tree.profiler {
-            prof.record("layout", layout_t0.elapsed());
-          }
         }
       }
       cache.snapshot = tree.interaction.cascade_snapshot();
@@ -373,41 +382,41 @@ pub fn paint_tree_cached<'c>(
   // Paint (always runs — scroll / selection / caret may have changed).
   let mut list = DisplayList::new();
   let paint_t0 = Instant::now();
-  if let Some(root) = cache.layout.as_ref() {
-    let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
-      let fp = tree.interaction.focus_path.as_deref()?;
-      let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
-      let sel = if ec.has_selection() {
-        Some(ec.selection_range())
-      } else {
-        None
-      };
-      Some(paint::EditCaretInfo {
-        focus_path: fp,
-        cursor_byte: ec.cursor,
-        selection_bytes: sel,
-        caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
-      })
-    });
-    paint::paint_layout_full(
-      root,
-      &mut list,
-      tree.interaction.selection.as_ref(),
-      tree.interaction.selection_colors,
-      &tree.interaction.scroll_offsets_y,
-      viewport_scroll_y,
-      edit_caret_info.as_ref(),
-    );
-    list.finalize();
-  } else {
-    list.finalize();
+  {
+    wgpu_html_tree::prof_scope!(&tree.profiler, "paint");
+    if let Some(root) = cache.layout.as_ref() {
+      let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
+        let fp = tree.interaction.focus_path.as_deref()?;
+        let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
+        let sel = if ec.has_selection() {
+          Some(ec.selection_range())
+        } else {
+          None
+        };
+        Some(paint::EditCaretInfo {
+          focus_path: fp,
+          cursor_byte: ec.cursor,
+          selection_bytes: sel,
+          caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+        })
+      });
+      paint::paint_layout_full(
+        root,
+        &mut list,
+        tree.interaction.selection.as_ref(),
+        tree.interaction.selection_colors,
+        &tree.interaction.scroll_offsets_y,
+        viewport_scroll_y,
+        edit_caret_info.as_ref(),
+      );
+      list.finalize();
+    } else {
+      list.finalize();
+    }
   }
   timings.paint_ms = paint_t0.elapsed().as_secs_f64() * 1000.0;
-  if let Some(prof) = &tree.profiler {
-    prof.record("paint", paint_t0.elapsed());
-    prof.flush();
-  }
 
+  tree.profiler.as_ref().map(|p| p.frame_end());
   (list, cache.layout.as_ref(), timings)
 }
 

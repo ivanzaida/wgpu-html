@@ -38,7 +38,11 @@ impl Component for StylesPanel {
   fn view(&self, props: &StylesPanelProps, _ctx: &Ctx<StylesPanelMsg>, env: &Tree) -> El {
     let selected_node = props.selected_path.as_deref().and_then(|path| {
       let root = env.root.as_ref()?;
-      if path.is_empty() { Some(root) } else { root.at_path(path) }
+      if path.is_empty() {
+        Some(root)
+      } else {
+        root.at_path(path)
+      }
     });
 
     let mut container = el::div().class("styles-content");
@@ -105,10 +109,12 @@ impl Component for StylesPanel {
 }
 
 fn render_style_group(group: &crate::style_extract::CssDeclGroup) -> El {
-  let mut rule = el::div().class("rule").children([el::div().class("rule-header").children([
-    el::span().class("selector-text").text(group.label),
-    el::span().class("brace").text(" {"),
-  ])]);
+  let mut rule = el::div()
+    .class("rule")
+    .children([el::div().class("rule-header").children([
+      el::span().class("selector-text").text(group.label),
+      el::span().class("brace").text(" {"),
+    ])]);
   for decl in &group.decls {
     rule = rule.child(make_decl_el(&decl.property, &decl.value));
   }

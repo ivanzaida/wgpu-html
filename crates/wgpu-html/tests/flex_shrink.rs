@@ -1,7 +1,6 @@
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_tree::NodeRect;
 
-
 #[test]
 fn text_shrink_demo() {
   let html = include_str!("../../wgpu-html-demo/html/text-shrink.html");
@@ -15,24 +14,13 @@ fn text_shrink_demo() {
   let mut text_ctx = wgpu_html_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
   let mut image_cache = wgpu_html_layout::ImageCache::new();
-  let root = wgpu_html_layout::layout_with_text(
-    &cascaded,
-    &mut text_ctx,
-    &mut image_cache,
-    800.0,
-    600.0,
-    1.0,
-  )
-    .expect("layout");
+  let root =
+    wgpu_html_layout::layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0).expect("layout");
 
   // Populate Node::rect from LayoutBox by walking both trees.
   populate_rects(&mut tree, &root, &[]);
 
-  let rows = tree
-    .root
-    .as_ref()
-    .unwrap()
-    .get_elements_by_class_name("tree-row");
+  let rows = tree.root.as_ref().unwrap().get_elements_by_class_name("tree-row");
   let second_row = rows.get(1).unwrap();
 
   println!("rows len = {}", rows.len());

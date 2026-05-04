@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use wgpu_html_models::{
-  common::css_enums::{BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, WhiteSpace},
   Style,
+  common::css_enums::{BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, WhiteSpace},
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
@@ -28,18 +28,18 @@ mod length;
 mod svg;
 
 use std::{
-  collections::{hash_map::DefaultHasher, HashMap},
+  collections::{HashMap, hash_map::DefaultHasher},
   hash::{Hash, Hasher},
   io::Read,
   sync::{
-    atomic::{AtomicU64, AtomicUsize, Ordering}, mpsc::{channel, Receiver, Sender}, Arc,
-    Mutex,
-    OnceLock,
+    Arc, Mutex, OnceLock,
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+    mpsc::{Receiver, Sender, channel},
   },
   time::{Duration, Instant},
 };
 
-pub use color::{resolve_color, Color};
+pub use color::{Color, resolve_color};
 pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, UserSelect};
 
 /// One frame of an animated image as it sits in the raw (pre-resize)
@@ -824,7 +824,7 @@ fn decode_asset(bytes: &[u8]) -> Option<DecodedAsset> {
 /// Single-frame WebPs collapse to `Still` so the animation machinery
 /// stays dormant for the common case.
 fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
-  use image::{codecs::webp::WebPDecoder, AnimationDecoder};
+  use image::{AnimationDecoder, codecs::webp::WebPDecoder};
 
   let decoder = WebPDecoder::new(std::io::Cursor::new(bytes)).ok()?;
   let frames = decoder.into_frames().collect_frames().ok()?;
@@ -868,7 +868,7 @@ fn decode_animated_webp(bytes: &[u8]) -> Option<DecodedAsset> {
 /// fully-composited canvas (the decoder applies disposal/transparency
 /// internally), so we just copy its RGBA buffer.
 fn decode_animated_gif(bytes: &[u8]) -> Option<DecodedAsset> {
-  use image::{codecs::gif::GifDecoder, AnimationDecoder};
+  use image::{AnimationDecoder, codecs::gif::GifDecoder};
 
   let decoder = GifDecoder::new(std::io::Cursor::new(bytes)).ok()?;
   let frames = decoder.into_frames().collect_frames().ok()?;
@@ -2779,8 +2779,16 @@ fn layout_block(
   let resolved_fg = style.color.as_ref().and_then(resolve_color);
   let border_colors = BorderColors {
     top: style.border_top_color.as_ref().and_then(resolve_color).or(resolved_fg),
-    right: style.border_right_color.as_ref().and_then(resolve_color).or(resolved_fg),
-    bottom: style.border_bottom_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    right: style
+      .border_right_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_fg),
+    bottom: style
+      .border_bottom_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_fg),
     left: style.border_left_color.as_ref().and_then(resolve_color).or(resolved_fg),
   };
   let border_styles = BorderStyles {
@@ -4054,8 +4062,16 @@ fn layout_atomic_inline_subtree(
   let resolved_fg = style.color.as_ref().and_then(resolve_color);
   let border_colors = BorderColors {
     top: style.border_top_color.as_ref().and_then(resolve_color).or(resolved_fg),
-    right: style.border_right_color.as_ref().and_then(resolve_color).or(resolved_fg),
-    bottom: style.border_bottom_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    right: style
+      .border_right_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_fg),
+    bottom: style
+      .border_bottom_color
+      .as_ref()
+      .and_then(resolve_color)
+      .or(resolved_fg),
     left: style.border_left_color.as_ref().and_then(resolve_color).or(resolved_fg),
   };
   let border_styles = BorderStyles {
@@ -4136,7 +4152,7 @@ fn layout_atomic_inline_subtree(
       pointer_events: resolved_pointer_events(style),
       user_select: resolved_user_select(style),
       cursor: resolved_cursor(style),
-    z_index: resolved_z_index(style),
+      z_index: resolved_z_index(style),
       image: None,
       background_image: None,
       children,
@@ -4349,11 +4365,11 @@ fn layout_inline_mixed_children(
       && !current.items.is_empty()
       && matches!(&child.element, Element::Text(_))
       && cl
-      .box_
-      .text_run
-      .as_ref()
-      .map(|run| run.lines.len() > 1)
-      .unwrap_or(false);
+        .box_
+        .text_run
+        .as_ref()
+        .map(|run| run.lines.len() > 1)
+        .unwrap_or(false);
     if wrapped_under_remainder {
       let mut kept_head_on_line = false;
       if let Element::Text(raw) = &child.element {

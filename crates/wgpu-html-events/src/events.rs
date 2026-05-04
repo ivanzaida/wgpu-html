@@ -6,8 +6,8 @@
 use std::cell::Cell;
 
 use crate::{
-  ClipboardDataId, DataTransferId, EventPhase, FormDataId, HtmlEventType, InputType, KeyboardLocation,
-  NodeId, PointerType, ToggleState, WheelDeltaMode,
+  ClipboardDataId, DataTransferId, EventPhase, FormDataId, HtmlEventType, InputType, KeyboardLocation, NodeId,
+  PointerType, ToggleState, WheelDeltaMode,
 };
 
 /// Every DOM event struct embeds a `base` (and possibly ancestor) `Event`.

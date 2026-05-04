@@ -1,5 +1,5 @@
-use crate::*;
 use super::helpers::*;
+use crate::*;
 // ---------------------------------------------------------------------------
 // flex layout
 // ---------------------------------------------------------------------------
@@ -497,7 +497,11 @@ fn flex_column_block_child_stacks_its_own_children() {
     .iter()
     .map(|c| c.margin_rect.y - wrapper.content_rect.y)
     .collect();
-  assert_eq!(ys, vec![0.0, 22.0, 40.0], "children should stack at y=0, 22, 40; got {ys:?}");
+  assert_eq!(
+    ys,
+    vec![0.0, 22.0, 40.0],
+    "children should stack at y=0, 22, 40; got {ys:?}"
+  );
 }
 
 #[test]
@@ -527,7 +531,11 @@ fn flex_column_block_child_with_border_stacks_children() {
     .iter()
     .map(|c| c.margin_rect.y - wrapper.content_rect.y)
     .collect();
-  assert_eq!(ys, vec![0.0, 22.0, 40.0], "children should stack at y=0, 22, 40; got {ys:?}");
+  assert_eq!(
+    ys,
+    vec![0.0, 22.0, 40.0],
+    "children should stack at y=0, 22, 40; got {ys:?}"
+  );
 }
 
 #[test]
@@ -573,11 +581,7 @@ fn flex_column_block_child_with_stylesheet_classes() {
     .iter()
     .map(|c| c.margin_rect.y - wrapper.content_rect.y)
     .collect();
-  assert_eq!(
-    ys,
-    vec![0.0, 22.0, 40.0, 58.0],
-    "children should stack; got {ys:?}"
-  );
+  assert_eq!(ys, vec![0.0, 22.0, 40.0, 58.0], "children should stack; got {ys:?}");
 }
 
 #[test]

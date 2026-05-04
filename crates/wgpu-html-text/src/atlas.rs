@@ -239,8 +239,7 @@ impl Atlas {
       // Bottom edge: copy last row
       if last_row + 1 < self.height as usize {
         let tmp: Vec<u8> = self.pixels[last_row * stride + x..last_row * stride + x + w].to_vec();
-        self.pixels[(last_row + 1) * stride + x..(last_row + 1) * stride + x + w]
-          .copy_from_slice(&tmp);
+        self.pixels[(last_row + 1) * stride + x..(last_row + 1) * stride + x + w].copy_from_slice(&tmp);
       }
       // Left column + top-left / bottom-left corners
       if x > 0 {

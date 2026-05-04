@@ -135,7 +135,15 @@ pub fn paint_layout_with_interaction(
   scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
   viewport_scroll_y: f32,
 ) {
-  paint_layout_full(root, list, selection, selection_colors, scroll_offsets_y, viewport_scroll_y, None);
+  paint_layout_full(
+    root,
+    list,
+    selection,
+    selection_colors,
+    scroll_offsets_y,
+    viewport_scroll_y,
+    None,
+  );
 }
 
 /// Paint with full interaction state including the text editing caret.

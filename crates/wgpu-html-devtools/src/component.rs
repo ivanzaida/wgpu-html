@@ -137,9 +137,10 @@ impl Component for DevtoolsComponent {
         l.rel = Some("stylesheet".into());
         l.href = Some("devtools.css".into());
       })),
-      el::body().child(el::div().class("devtools-root").children([
-        Self::toolbar(),
-        el::div()
+      el::body().child(
+        el::div().class("devtools-root").children([
+          Self::toolbar(),
+          el::div()
           .class("main")
           // Track mouse move/up on the whole container so drag
           // continues even after the pointer leaves the 4px divider.
@@ -168,7 +169,8 @@ impl Component for DevtoolsComponent {
               ctx.child::<StylesPanel>(styles_props),
             ]),
           ]),
-      ])),
+        ]),
+      ),
     ])
   }
 }

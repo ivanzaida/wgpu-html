@@ -128,7 +128,10 @@ pub(crate) fn assert_runs_no_overlap(runs: &[(f32, f32)]) {
       next_start >= prev_end - 1.0,
       "run {i} at x={next_start:.1} overlaps with previous ending at {prev_end:.1}; \
        runs: [{:.1}..{:.1}] vs [{:.1}..{:.1}]",
-      runs[i - 1].0, prev_end, next_start, runs[i].1,
+      runs[i - 1].0,
+      prev_end,
+      next_start,
+      runs[i].1,
     );
   }
 }

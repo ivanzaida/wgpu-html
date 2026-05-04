@@ -21,10 +21,12 @@
 //! [`pointer_leave`].
 
 use wgpu_html_layout::{Cursor, LayoutBox};
+use wgpu_html_tree::{MouseButton, Tree};
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `wgpu_html_tree::dispatch`.
-pub use wgpu_html_tree::{blur, dispatch_pointer_leave as pointer_leave, focus, focus_next, key_down, key_up, wheel_event};
-use wgpu_html_tree::{MouseButton, Tree};
+pub use wgpu_html_tree::{
+  blur, dispatch_pointer_leave as pointer_leave, focus, focus_next, key_down, key_up, wheel_event,
+};
 
 /// Update the hover path to whatever lies under `pos` and fire
 /// any `on_mouse_enter` / `on_mouse_leave` callbacks the change

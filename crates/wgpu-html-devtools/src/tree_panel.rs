@@ -3,7 +3,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use wgpu_html_tree::{Element, Node, Tree};
-use wgpu_html_ui::{el, el::El, Component, Ctx, ShouldRender};
+use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
 
 use crate::tags::*;
 

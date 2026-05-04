@@ -5,28 +5,32 @@ use std::sync::{
 
 use wgpu_html_tree::Tree;
 
-use crate::{
-  Component, Ctx, El, MsgSender, ShouldRender,
-  core::runtime::Runtime,
-  el,
-};
+use crate::{Component, Ctx, El, MsgSender, ShouldRender, core::runtime::Runtime, el};
 
 // ── Shared counter bundle ───────────────────────────────────────────────────
 
 /// Tracks calls to each lifecycle method for a single component instance.
 #[derive(Clone, Default)]
 struct Spy {
-  views:    Arc<AtomicUsize>,
-  mounts:   Arc<AtomicUsize>,
+  views: Arc<AtomicUsize>,
+  mounts: Arc<AtomicUsize>,
   destroys: Arc<AtomicUsize>,
-  updated:  Arc<AtomicUsize>,
+  updated: Arc<AtomicUsize>,
 }
 
 impl Spy {
-  fn views(&self) -> usize { self.views.load(SeqCst) }
-  fn mounts(&self) -> usize { self.mounts.load(SeqCst) }
-  fn destroys(&self) -> usize { self.destroys.load(SeqCst) }
-  fn updated(&self) -> usize { self.updated.load(SeqCst) }
+  fn views(&self) -> usize {
+    self.views.load(SeqCst)
+  }
+  fn mounts(&self) -> usize {
+    self.mounts.load(SeqCst)
+  }
+  fn destroys(&self) -> usize {
+    self.destroys.load(SeqCst)
+  }
+  fn updated(&self) -> usize {
+    self.updated.load(SeqCst)
+  }
 }
 
 /// Slot that a component writes its `MsgSender` into from `mounted()`.
@@ -46,29 +50,33 @@ fn poke<M: Clone + Send + Sync + 'static>(s: &SenderSlot<M>, msg: M) {
 // the sender into a caller-owned `SenderSlot` so tests can inject messages.
 
 struct LeafComp {
-  spy:      Spy,
+  spy: Spy,
   on_mount: Arc<dyn Fn(MsgSender<LeafMsg>) + Send + Sync>,
 }
 
 #[derive(Clone)]
 struct LeafProps {
-  spy:         Spy,
+  spy: Spy,
   sender_slot: SenderSlot<LeafMsg>,
 }
 
 #[derive(Clone)]
-enum LeafMsg { Poke }
+enum LeafMsg {
+  Poke,
+}
 
 impl Component for LeafComp {
   type Props = LeafProps;
-  type Msg   = LeafMsg;
-  type Env   = ();
+  type Msg = LeafMsg;
+  type Env = ();
 
   fn create(p: &LeafProps) -> Self {
     let slot = p.sender_slot.clone();
     LeafComp {
-      spy:      p.spy.clone(),
-      on_mount: Arc::new(move |s| { *slot.lock().unwrap() = Some(s); }),
+      spy: p.spy.clone(),
+      on_mount: Arc::new(move |s| {
+        *slot.lock().unwrap() = Some(s);
+      }),
     }
   }
 
@@ -103,18 +111,20 @@ struct ParentComp {
 
 #[derive(Clone)]
 struct ParentProps {
-  spy:       Spy,
-  leaf_spy:  Spy,
+  spy: Spy,
+  leaf_spy: Spy,
   leaf_slot: SenderSlot<LeafMsg>,
 }
 
 #[derive(Clone)]
-enum ParentMsg { Poke }
+enum ParentMsg {
+  Poke,
+}
 
 impl Component for ParentComp {
   type Props = ParentProps;
-  type Msg   = ParentMsg;
-  type Env   = ();
+  type Msg = ParentMsg;
+  type Env = ();
 
   fn create(p: &ParentProps) -> Self {
     ParentComp { spy: p.spy.clone() }
@@ -127,7 +137,7 @@ impl Component for ParentComp {
   fn view(&self, props: &ParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::div().child(ctx.child::<LeafComp>(LeafProps {
-      spy:         props.leaf_spy.clone(),
+      spy: props.leaf_spy.clone(),
       sender_slot: props.leaf_slot.clone(),
     }))
   }
@@ -154,10 +164,10 @@ struct RootComp {
 
 #[derive(Clone)]
 struct RootProps {
-  spy:         Spy,
-  parent_spy:  Spy,
-  leaf_spy:    Spy,
-  leaf_slot:   SenderSlot<LeafMsg>,
+  spy: Spy,
+  parent_spy: Spy,
+  leaf_spy: Spy,
+  leaf_slot: SenderSlot<LeafMsg>,
 }
 
 #[derive(Clone)]
@@ -165,8 +175,8 @@ enum RootMsg {}
 
 impl Component for RootComp {
   type Props = RootProps;
-  type Msg   = RootMsg;
-  type Env   = ();
+  type Msg = RootMsg;
+  type Env = ();
 
   fn create(p: &RootProps) -> Self {
     RootComp { spy: p.spy.clone() }
@@ -179,8 +189,8 @@ impl Component for RootComp {
   fn view(&self, props: &RootProps, ctx: &Ctx<RootMsg>, _: &()) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::div().child(ctx.child::<ParentComp>(ParentProps {
-      spy:       props.parent_spy.clone(),
-      leaf_spy:  props.leaf_spy.clone(),
+      spy: props.parent_spy.clone(),
+      leaf_spy: props.leaf_spy.clone(),
       leaf_slot: props.leaf_slot.clone(),
     }))
   }
@@ -198,9 +208,9 @@ struct TwoChildrenComp {
 
 #[derive(Clone)]
 struct TwoChildrenProps {
-  spy:    Spy,
-  spy_a:  Spy,
-  spy_b:  Spy,
+  spy: Spy,
+  spy_a: Spy,
+  spy_b: Spy,
   slot_a: SenderSlot<LeafMsg>,
   slot_b: SenderSlot<LeafMsg>,
 }
@@ -210,8 +220,8 @@ enum TwoChildrenMsg {}
 
 impl Component for TwoChildrenComp {
   type Props = TwoChildrenProps;
-  type Msg   = TwoChildrenMsg;
-  type Env   = ();
+  type Msg = TwoChildrenMsg;
+  type Env = ();
 
   fn create(p: &TwoChildrenProps) -> Self {
     TwoChildrenComp { spy: p.spy.clone() }
@@ -224,14 +234,20 @@ impl Component for TwoChildrenComp {
   fn view(&self, props: &TwoChildrenProps, ctx: &Ctx<TwoChildrenMsg>, _: &()) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::div().children([
-      ctx.keyed_child::<LeafComp>("a", LeafProps {
-        spy:         props.spy_a.clone(),
-        sender_slot: props.slot_a.clone(),
-      }),
-      ctx.keyed_child::<LeafComp>("b", LeafProps {
-        spy:         props.spy_b.clone(),
-        sender_slot: props.slot_b.clone(),
-      }),
+      ctx.keyed_child::<LeafComp>(
+        "a",
+        LeafProps {
+          spy: props.spy_a.clone(),
+          sender_slot: props.slot_a.clone(),
+        },
+      ),
+      ctx.keyed_child::<LeafComp>(
+        "b",
+        LeafProps {
+          spy: props.spy_b.clone(),
+          sender_slot: props.slot_b.clone(),
+        },
+      ),
     ])
   }
 
@@ -243,20 +259,22 @@ impl Component for TwoChildrenComp {
 // ── StableLeaf — like LeafComp but props_changed returns No ────────────────
 
 struct StableLeaf {
-  spy:      Spy,
+  spy: Spy,
   on_mount: Arc<dyn Fn(MsgSender<LeafMsg>) + Send + Sync>,
 }
 
 impl Component for StableLeaf {
   type Props = LeafProps;
-  type Msg   = LeafMsg;
-  type Env   = ();
+  type Msg = LeafMsg;
+  type Env = ();
 
   fn create(p: &LeafProps) -> Self {
     let slot = p.sender_slot.clone();
     StableLeaf {
-      spy:      p.spy.clone(),
-      on_mount: Arc::new(move |s| { *slot.lock().unwrap() = Some(s); }),
+      spy: p.spy.clone(),
+      on_mount: Arc::new(move |s| {
+        *slot.lock().unwrap() = Some(s);
+      }),
     }
   }
 
@@ -291,16 +309,16 @@ impl Component for StableLeaf {
 
 struct ConditionalComp {
   show_child: bool,
-  spy:        Spy,
-  on_mount:   Arc<dyn Fn(MsgSender<ConditionalMsg>) + Send + Sync>,
+  spy: Spy,
+  on_mount: Arc<dyn Fn(MsgSender<ConditionalMsg>) + Send + Sync>,
 }
 
 #[derive(Clone)]
 struct ConditionalProps {
-  spy:         Spy,
+  spy: Spy,
   sender_slot: SenderSlot<ConditionalMsg>,
-  child_spy:   Spy,
-  child_slot:  SenderSlot<LeafMsg>,
+  child_spy: Spy,
+  child_slot: SenderSlot<LeafMsg>,
 }
 
 #[derive(Clone)]
@@ -310,15 +328,17 @@ enum ConditionalMsg {
 
 impl Component for ConditionalComp {
   type Props = ConditionalProps;
-  type Msg   = ConditionalMsg;
-  type Env   = ();
+  type Msg = ConditionalMsg;
+  type Env = ();
 
   fn create(p: &ConditionalProps) -> Self {
     let s = p.sender_slot.clone();
     ConditionalComp {
       show_child: true,
-      spy:        p.spy.clone(),
-      on_mount:   Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+      spy: p.spy.clone(),
+      on_mount: Arc::new(move |sender| {
+        *s.lock().unwrap() = Some(sender);
+      }),
     }
   }
 
@@ -335,7 +355,7 @@ impl Component for ConditionalComp {
     self.spy.views.fetch_add(1, SeqCst);
     if self.show_child {
       el::div().child(ctx.child::<LeafComp>(LeafProps {
-        spy:         props.child_spy.clone(),
+        spy: props.child_spy.clone(),
         sender_slot: props.child_slot.clone(),
       }))
     } else {
@@ -356,14 +376,14 @@ impl Component for ConditionalComp {
 // ── SelfPokingComp — update() sends a follow-up message ───────────────────
 
 struct SelfPokingComp {
-  spy:      Spy,
-  sender:   Option<MsgSender<SelfPokingMsg>>,
+  spy: Spy,
+  sender: Option<MsgSender<SelfPokingMsg>>,
   on_mount: Arc<dyn Fn(MsgSender<SelfPokingMsg>) + Send + Sync>,
 }
 
 #[derive(Clone)]
 struct SelfPokingProps {
-  spy:         Spy,
+  spy: Spy,
   sender_slot: SenderSlot<SelfPokingMsg>,
 }
 
@@ -375,15 +395,17 @@ enum SelfPokingMsg {
 
 impl Component for SelfPokingComp {
   type Props = SelfPokingProps;
-  type Msg   = SelfPokingMsg;
-  type Env   = ();
+  type Msg = SelfPokingMsg;
+  type Env = ();
 
   fn create(p: &SelfPokingProps) -> Self {
     let s = p.sender_slot.clone();
     SelfPokingComp {
-      spy:      p.spy.clone(),
-      sender:   None,
-      on_mount: Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+      spy: p.spy.clone(),
+      sender: None,
+      on_mount: Arc::new(move |sender| {
+        *s.lock().unwrap() = Some(sender);
+      }),
     }
   }
 
@@ -415,11 +437,11 @@ impl Component for SelfPokingComp {
 
 fn bootstrap<C: Component<Env = ()>>(props: C::Props) -> (Runtime, Tree)
 where
-  C::Msg:   Clone + Send + Sync + 'static,
+  C::Msg: Clone + Send + Sync + 'static,
   C::Props: 'static,
 {
   let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(|| {});
-  let mut rt   = Runtime::new::<C>(&props, wake);
+  let mut rt = Runtime::new::<C>(&props, wake);
   let tree = Tree::default();
   rt.initial_render(&());
   (rt, tree)
@@ -431,11 +453,11 @@ where
 /// cached `last_node` without calling `view()`.
 #[test]
 fn path1_clean_component_skips_view() {
-  let leaf_spy  = Spy::default();
+  let leaf_spy = Spy::default();
   let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
-    spy:         leaf_spy.clone(),
+    spy: leaf_spy.clone(),
     sender_slot: leaf_slot.clone(),
   });
 
@@ -444,18 +466,18 @@ fn path1_clean_component_skips_view() {
   // No messages — process() should do nothing.
   let changed = rt.process(&mut tree, &());
 
-  assert!(!changed,     "process() reports no change");
+  assert!(!changed, "process() reports no change");
   assert_eq!(leaf_spy.views(), 1, "view() not called again (path 1)");
 }
 
 /// PATH 3: A component with a pending message has its `view()` called.
 #[test]
 fn path3_dirty_component_calls_view() {
-  let leaf_spy  = Spy::default();
+  let leaf_spy = Spy::default();
   let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
-    spy:         leaf_spy.clone(),
+    spy: leaf_spy.clone(),
     sender_slot: leaf_slot.clone(),
   });
 
@@ -473,23 +495,23 @@ fn path3_dirty_component_calls_view() {
 #[test]
 fn path2_dirty_child_skips_parent_view() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
-    spy:       parent_spy.clone(),
-    leaf_spy:  leaf_spy.clone(),
+    spy: parent_spy.clone(),
+    leaf_spy: leaf_spy.clone(),
     leaf_slot: leaf_slot.clone(),
   });
 
   assert_eq!(parent_spy.views(), 1, "initial render");
-  assert_eq!(leaf_spy.views(),   1, "initial render");
+  assert_eq!(leaf_spy.views(), 1, "initial render");
 
   // Poke only the child.
   poke(&leaf_slot, LeafMsg::Poke);
   rt.process(&mut tree, &());
 
-  assert_eq!(leaf_spy.views(),   2, "leaf re-rendered (path 3)");
+  assert_eq!(leaf_spy.views(), 2, "leaf re-rendered (path 3)");
   assert_eq!(parent_spy.views(), 1, "parent view() NOT called (path 2)");
 }
 
@@ -497,28 +519,28 @@ fn path2_dirty_child_skips_parent_view() {
 /// neither Root nor Parent should have their `view()` called.
 #[test]
 fn path2_chains_through_two_ancestors() {
-  let root_spy   = Spy::default();
+  let root_spy = Spy::default();
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<RootComp>(RootProps {
-    spy:        root_spy.clone(),
+    spy: root_spy.clone(),
     parent_spy: parent_spy.clone(),
-    leaf_spy:   leaf_spy.clone(),
-    leaf_slot:  leaf_slot.clone(),
+    leaf_spy: leaf_spy.clone(),
+    leaf_slot: leaf_slot.clone(),
   });
 
-  assert_eq!(root_spy.views(),   1);
+  assert_eq!(root_spy.views(), 1);
   assert_eq!(parent_spy.views(), 1);
-  assert_eq!(leaf_spy.views(),   1);
+  assert_eq!(leaf_spy.views(), 1);
 
   poke(&leaf_slot, LeafMsg::Poke);
   rt.process(&mut tree, &());
 
-  assert_eq!(leaf_spy.views(),   2, "leaf re-rendered (path 3)");
+  assert_eq!(leaf_spy.views(), 2, "leaf re-rendered (path 3)");
   assert_eq!(parent_spy.views(), 1, "parent view() skipped (path 2)");
-  assert_eq!(root_spy.views(),   1, "root view() skipped (path 2)");
+  assert_eq!(root_spy.views(), 1, "root view() skipped (path 2)");
 }
 
 /// PATH 1 + 2 siblings: only the dirty sibling is re-rendered; the clean
@@ -526,29 +548,29 @@ fn path2_chains_through_two_ancestors() {
 #[test]
 fn path1_clean_sibling_not_re_rendered() {
   let parent_spy = Spy::default();
-  let spy_a      = Spy::default();
-  let spy_b      = Spy::default();
-  let slot_a     = slot::<LeafMsg>();
-  let slot_b     = slot::<LeafMsg>();
+  let spy_a = Spy::default();
+  let spy_b = Spy::default();
+  let slot_a = slot::<LeafMsg>();
+  let slot_b = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<TwoChildrenComp>(TwoChildrenProps {
-    spy:    parent_spy.clone(),
-    spy_a:  spy_a.clone(),
-    spy_b:  spy_b.clone(),
+    spy: parent_spy.clone(),
+    spy_a: spy_a.clone(),
+    spy_b: spy_b.clone(),
     slot_a: slot_a.clone(),
     slot_b: slot_b.clone(),
   });
 
   assert_eq!(parent_spy.views(), 1);
-  assert_eq!(spy_a.views(),      1);
-  assert_eq!(spy_b.views(),      1);
+  assert_eq!(spy_a.views(), 1);
+  assert_eq!(spy_b.views(), 1);
 
   // Only poke child A.
   poke(&slot_a, LeafMsg::Poke);
   rt.process(&mut tree, &());
 
-  assert_eq!(spy_a.views(),      2, "child A re-rendered");
-  assert_eq!(spy_b.views(),      1, "child B view() not called (path 1)");
+  assert_eq!(spy_a.views(), 2, "child A re-rendered");
+  assert_eq!(spy_b.views(), 1, "child B view() not called (path 1)");
   assert_eq!(parent_spy.views(), 1, "parent view() not called (path 2)");
 }
 
@@ -558,12 +580,12 @@ fn path1_clean_sibling_not_re_rendered() {
 #[test]
 fn skeleton_stored_and_patch_path_repeatable() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
-    spy:       parent_spy.clone(),
-    leaf_spy:  leaf_spy.clone(),
+    spy: parent_spy.clone(),
+    leaf_spy: leaf_spy.clone(),
     leaf_slot: leaf_slot.clone(),
   });
 
@@ -573,7 +595,7 @@ fn skeleton_stored_and_patch_path_repeatable() {
     rt.process(&mut tree, &());
   }
 
-  assert_eq!(leaf_spy.views(),   4, "initial + 3 re-renders");
+  assert_eq!(leaf_spy.views(), 4, "initial + 3 re-renders");
   assert_eq!(parent_spy.views(), 1, "parent view() never called again");
 }
 
@@ -581,22 +603,22 @@ fn skeleton_stored_and_patch_path_repeatable() {
 #[test]
 fn force_render_calls_view_on_all() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
-    spy:       parent_spy.clone(),
-    leaf_spy:  leaf_spy.clone(),
+    spy: parent_spy.clone(),
+    leaf_spy: leaf_spy.clone(),
     leaf_slot: leaf_slot.clone(),
   });
 
   assert_eq!(parent_spy.views(), 1);
-  assert_eq!(leaf_spy.views(),   1);
+  assert_eq!(leaf_spy.views(), 1);
 
   rt.force_render(&mut tree, &());
 
   assert_eq!(parent_spy.views(), 2, "parent re-rendered by force_render");
-  assert_eq!(leaf_spy.views(),   2, "leaf re-rendered by force_render");
+  assert_eq!(leaf_spy.views(), 2, "leaf re-rendered by force_render");
 }
 
 /// When the parent is dirty (path 3) and the child has `props_changed`
@@ -605,33 +627,35 @@ fn force_render_calls_view_on_all() {
 #[test]
 fn path3_parent_dirty_does_not_re_render_clean_child() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
   let parent_slot = slot::<ParentMsg>();
 
   struct ObservableParent {
-    spy:      Spy,
+    spy: Spy,
     on_mount: Arc<dyn Fn(MsgSender<ParentMsg>) + Send + Sync>,
   }
 
   #[derive(Clone)]
   struct ObservableParentProps {
-    spy:         Spy,
+    spy: Spy,
     parent_slot: SenderSlot<ParentMsg>,
-    leaf_spy:    Spy,
-    leaf_slot:   SenderSlot<LeafMsg>,
+    leaf_spy: Spy,
+    leaf_slot: SenderSlot<LeafMsg>,
   }
 
   impl Component for ObservableParent {
     type Props = ObservableParentProps;
-    type Msg   = ParentMsg;
-    type Env   = ();
+    type Msg = ParentMsg;
+    type Env = ();
 
     fn create(p: &ObservableParentProps) -> Self {
       let s = p.parent_slot.clone();
       ObservableParent {
-        spy:      p.spy.clone(),
-        on_mount: Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+        spy: p.spy.clone(),
+        on_mount: Arc::new(move |sender| {
+          *s.lock().unwrap() = Some(sender);
+        }),
       }
     }
 
@@ -642,7 +666,7 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
     fn view(&self, props: &ObservableParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
       self.spy.views.fetch_add(1, SeqCst);
       el::div().child(ctx.child::<StableLeaf>(LeafProps {
-        spy:         props.leaf_spy.clone(),
+        spy: props.leaf_spy.clone(),
         sender_slot: props.leaf_slot.clone(),
       }))
     }
@@ -654,21 +678,21 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
   }
 
   let (mut rt, mut tree) = bootstrap::<ObservableParent>(ObservableParentProps {
-    spy:         parent_spy.clone(),
+    spy: parent_spy.clone(),
     parent_slot: parent_slot.clone(),
-    leaf_spy:    leaf_spy.clone(),
-    leaf_slot:   leaf_slot.clone(),
+    leaf_spy: leaf_spy.clone(),
+    leaf_slot: leaf_slot.clone(),
   });
 
   assert_eq!(parent_spy.views(), 1);
-  assert_eq!(leaf_spy.views(),   1);
+  assert_eq!(leaf_spy.views(), 1);
 
   // Poke the parent (makes parent dirty, not the leaf).
   poke(&parent_slot, ParentMsg::Poke);
   rt.process(&mut tree, &());
 
   assert_eq!(parent_spy.views(), 2, "parent view() called (path 3)");
-  assert_eq!(leaf_spy.views(),   1, "leaf view() skipped (path 1 inside path 3)");
+  assert_eq!(leaf_spy.views(), 1, "leaf view() skipped (path 1 inside path 3)");
 }
 
 // ── Lifecycle tests ─────────────────────────────────────────────────────────
@@ -676,11 +700,11 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
 /// `Component::mounted()` fires exactly once on initial render.
 #[test]
 fn mounted_lifecycle_fires_once() {
-  let leaf_spy  = Spy::default();
+  let leaf_spy = Spy::default();
   let leaf_slot = slot::<LeafMsg>();
 
   let (_rt, _tree) = bootstrap::<LeafComp>(LeafProps {
-    spy:         leaf_spy.clone(),
+    spy: leaf_spy.clone(),
     sender_slot: leaf_slot.clone(),
   });
 
@@ -691,11 +715,11 @@ fn mounted_lifecycle_fires_once() {
 /// a clean (path 1) non-render or the initial mount render.
 #[test]
 fn updated_hook_fires_on_dirty_render_only() {
-  let leaf_spy  = Spy::default();
+  let leaf_spy = Spy::default();
   let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
-    spy:         leaf_spy.clone(),
+    spy: leaf_spy.clone(),
     sender_slot: leaf_slot.clone(),
   });
 
@@ -714,25 +738,29 @@ fn updated_hook_fires_on_dirty_render_only() {
   // Another dirty message:
   poke(&leaf_slot, LeafMsg::Poke);
   rt.process(&mut tree, &());
-  assert_eq!(leaf_spy.updated(), 2, "updated() called again after second dirty render");
+  assert_eq!(
+    leaf_spy.updated(),
+    2,
+    "updated() called again after second dirty render"
+  );
 }
 
 /// `destroyed()` fires when a parent stops rendering a child.
 #[test]
 fn destroyed_fires_on_child_removal() {
-  let cond_spy   = Spy::default();
-  let child_spy  = Spy::default();
-  let cond_slot  = slot::<ConditionalMsg>();
+  let cond_spy = Spy::default();
+  let child_spy = Spy::default();
+  let cond_slot = slot::<ConditionalMsg>();
   let child_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ConditionalComp>(ConditionalProps {
-    spy:         cond_spy.clone(),
+    spy: cond_spy.clone(),
     sender_slot: cond_slot.clone(),
-    child_spy:   child_spy.clone(),
-    child_slot:  child_slot.clone(),
+    child_spy: child_spy.clone(),
+    child_slot: child_slot.clone(),
   });
 
-  assert_eq!(child_spy.mounts(),   1, "child mounted after initial render");
+  assert_eq!(child_spy.mounts(), 1, "child mounted after initial render");
   assert_eq!(child_spy.destroys(), 0, "child not yet destroyed");
 
   // Toggle child off.
@@ -745,16 +773,16 @@ fn destroyed_fires_on_child_removal() {
 /// After removing and re-adding a child, a fresh instance is mounted.
 #[test]
 fn child_remounted_after_removal() {
-  let cond_spy   = Spy::default();
-  let child_spy  = Spy::default();
-  let cond_slot  = slot::<ConditionalMsg>();
+  let cond_spy = Spy::default();
+  let child_spy = Spy::default();
+  let cond_slot = slot::<ConditionalMsg>();
   let child_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ConditionalComp>(ConditionalProps {
-    spy:         cond_spy.clone(),
+    spy: cond_spy.clone(),
     sender_slot: cond_slot.clone(),
-    child_spy:   child_spy.clone(),
-    child_slot:  child_slot.clone(),
+    child_spy: child_spy.clone(),
+    child_slot: child_slot.clone(),
   });
 
   assert_eq!(child_spy.mounts(), 1);
@@ -766,24 +794,24 @@ fn child_remounted_after_removal() {
   rt.process(&mut tree, &());
 
   assert_eq!(child_spy.destroys(), 1, "first instance destroyed");
-  assert_eq!(child_spy.mounts(),   2, "second instance mounted");
+  assert_eq!(child_spy.mounts(), 2, "second instance mounted");
 }
 
 /// Both parent and child components receive `mounted()` on initial render.
 #[test]
 fn nested_components_both_mounted() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (_rt, _tree) = bootstrap::<ParentComp>(ParentProps {
-    spy:       parent_spy.clone(),
-    leaf_spy:  leaf_spy.clone(),
+    spy: parent_spy.clone(),
+    leaf_spy: leaf_spy.clone(),
     leaf_slot: leaf_slot.clone(),
   });
 
   assert_eq!(parent_spy.mounts(), 1, "parent mounted");
-  assert_eq!(leaf_spy.mounts(),   1, "leaf mounted");
+  assert_eq!(leaf_spy.mounts(), 1, "leaf mounted");
 }
 
 // ── Sibling and message batching tests ───────────────────────────────────────
@@ -792,15 +820,15 @@ fn nested_components_both_mounted() {
 #[test]
 fn both_siblings_dirty_both_rerender() {
   let parent_spy = Spy::default();
-  let spy_a      = Spy::default();
-  let spy_b      = Spy::default();
-  let slot_a     = slot::<LeafMsg>();
-  let slot_b     = slot::<LeafMsg>();
+  let spy_a = Spy::default();
+  let spy_b = Spy::default();
+  let slot_a = slot::<LeafMsg>();
+  let slot_b = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<TwoChildrenComp>(TwoChildrenProps {
-    spy:    parent_spy.clone(),
-    spy_a:  spy_a.clone(),
-    spy_b:  spy_b.clone(),
+    spy: parent_spy.clone(),
+    spy_a: spy_a.clone(),
+    spy_b: spy_b.clone(),
     slot_a: slot_a.clone(),
     slot_b: slot_b.clone(),
   });
@@ -810,19 +838,19 @@ fn both_siblings_dirty_both_rerender() {
   poke(&slot_b, LeafMsg::Poke);
   rt.process(&mut tree, &());
 
-  assert_eq!(spy_a.views(),      2, "child A re-rendered");
-  assert_eq!(spy_b.views(),      2, "child B re-rendered");
+  assert_eq!(spy_a.views(), 2, "child A re-rendered");
+  assert_eq!(spy_b.views(), 2, "child B re-rendered");
   assert_eq!(parent_spy.views(), 1, "parent view() not called (path 2)");
 }
 
 /// Multiple messages queued before `process()` result in a single re-render.
 #[test]
 fn multiple_messages_single_render() {
-  let spy       = Spy::default();
+  let spy = Spy::default();
   let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<LeafComp>(LeafProps {
-    spy:         spy.clone(),
+    spy: spy.clone(),
     sender_slot: leaf_slot.clone(),
   });
 
@@ -841,11 +869,11 @@ fn multiple_messages_single_render() {
 /// `process()` call, producing only one render.
 #[test]
 fn followup_message_handled_in_same_process() {
-  let spy       = Spy::default();
+  let spy = Spy::default();
   let poke_slot = slot::<SelfPokingMsg>();
 
   let (mut rt, mut tree) = bootstrap::<SelfPokingComp>(SelfPokingProps {
-    spy:         spy.clone(),
+    spy: spy.clone(),
     sender_slot: poke_slot.clone(),
   });
 
@@ -866,22 +894,22 @@ fn followup_message_handled_in_same_process() {
 #[test]
 fn force_render_triggers_updated() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
-    spy:       parent_spy.clone(),
-    leaf_spy:  leaf_spy.clone(),
+    spy: parent_spy.clone(),
+    leaf_spy: leaf_spy.clone(),
     leaf_slot: leaf_slot.clone(),
   });
 
   assert_eq!(parent_spy.updated(), 0, "no updated() after initial render");
-  assert_eq!(leaf_spy.updated(),   0, "no updated() after initial render");
+  assert_eq!(leaf_spy.updated(), 0, "no updated() after initial render");
 
   rt.force_render(&mut tree, &());
 
   assert_eq!(parent_spy.updated(), 1, "parent updated() fired by force_render");
-  assert_eq!(leaf_spy.updated(),   1, "leaf updated() fired by force_render");
+  assert_eq!(leaf_spy.updated(), 1, "leaf updated() fired by force_render");
 }
 
 /// With the default `props_changed` (returns Yes), a parent re-render
@@ -889,34 +917,36 @@ fn force_render_triggers_updated() {
 /// (not destroyed and re-created).
 #[test]
 fn props_changed_default_rerenders_child() {
-  let parent_spy  = Spy::default();
-  let leaf_spy    = Spy::default();
-  let leaf_slot   = slot::<LeafMsg>();
+  let parent_spy = Spy::default();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
   let parent_slot = slot::<ParentMsg>();
 
   struct PokableParent {
-    spy:      Spy,
+    spy: Spy,
     on_mount: Arc<dyn Fn(MsgSender<ParentMsg>) + Send + Sync>,
   }
 
   #[derive(Clone)]
   struct PokableParentProps {
-    spy:         Spy,
+    spy: Spy,
     parent_slot: SenderSlot<ParentMsg>,
-    leaf_spy:    Spy,
-    leaf_slot:   SenderSlot<LeafMsg>,
+    leaf_spy: Spy,
+    leaf_slot: SenderSlot<LeafMsg>,
   }
 
   impl Component for PokableParent {
     type Props = PokableParentProps;
-    type Msg   = ParentMsg;
-    type Env   = ();
+    type Msg = ParentMsg;
+    type Env = ();
 
     fn create(p: &PokableParentProps) -> Self {
       let s = p.parent_slot.clone();
       PokableParent {
-        spy:      p.spy.clone(),
-        on_mount: Arc::new(move |sender| { *s.lock().unwrap() = Some(sender); }),
+        spy: p.spy.clone(),
+        on_mount: Arc::new(move |sender| {
+          *s.lock().unwrap() = Some(sender);
+        }),
       }
     }
 
@@ -928,7 +958,7 @@ fn props_changed_default_rerenders_child() {
       self.spy.views.fetch_add(1, SeqCst);
       // Uses LeafComp which has default props_changed -> Yes.
       el::div().child(ctx.child::<LeafComp>(LeafProps {
-        spy:         props.leaf_spy.clone(),
+        spy: props.leaf_spy.clone(),
         sender_slot: props.leaf_slot.clone(),
       }))
     }
@@ -940,14 +970,14 @@ fn props_changed_default_rerenders_child() {
   }
 
   let (mut rt, mut tree) = bootstrap::<PokableParent>(PokableParentProps {
-    spy:         parent_spy.clone(),
+    spy: parent_spy.clone(),
     parent_slot: parent_slot.clone(),
-    leaf_spy:    leaf_spy.clone(),
-    leaf_slot:   leaf_slot.clone(),
+    leaf_spy: leaf_spy.clone(),
+    leaf_slot: leaf_slot.clone(),
   });
 
   assert_eq!(parent_spy.views(), 1);
-  assert_eq!(leaf_spy.views(),   1);
+  assert_eq!(leaf_spy.views(), 1);
 
   // Poke parent -> parent re-renders (path 3). Default props_changed = Yes
   // so child is also re-rendered.
@@ -955,8 +985,8 @@ fn props_changed_default_rerenders_child() {
   rt.process(&mut tree, &());
 
   assert_eq!(parent_spy.views(), 2, "parent re-rendered (path 3)");
-  assert_eq!(leaf_spy.views(),   2, "child re-rendered (default props_changed = Yes)");
-  assert_eq!(leaf_spy.mounts(),   1, "child not re-mounted (reused)");
+  assert_eq!(leaf_spy.views(), 2, "child re-rendered (default props_changed = Yes)");
+  assert_eq!(leaf_spy.mounts(), 1, "child not re-mounted (reused)");
   assert_eq!(leaf_spy.destroys(), 0, "child not destroyed (reused)");
 }
 
@@ -964,12 +994,12 @@ fn props_changed_default_rerenders_child() {
 #[test]
 fn process_noop_on_clean_tree() {
   let parent_spy = Spy::default();
-  let leaf_spy   = Spy::default();
-  let leaf_slot  = slot::<LeafMsg>();
+  let leaf_spy = Spy::default();
+  let leaf_slot = slot::<LeafMsg>();
 
   let (mut rt, mut tree) = bootstrap::<ParentComp>(ParentProps {
-    spy:       parent_spy.clone(),
-    leaf_spy:  leaf_spy.clone(),
+    spy: parent_spy.clone(),
+    leaf_spy: leaf_spy.clone(),
     leaf_slot: leaf_slot.clone(),
   });
 
@@ -980,5 +1010,5 @@ fn process_noop_on_clean_tree() {
   }
 
   assert_eq!(parent_spy.views(), 1, "parent view() not called again");
-  assert_eq!(leaf_spy.views(),   1, "leaf view() not called again");
+  assert_eq!(leaf_spy.views(), 1, "leaf view() not called again");
 }

@@ -19,15 +19,15 @@ use crate::{Element, InteractionState, Node, Tree};
 // ── Public types ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
-struct AttrFilter {
-  name: String,
-  op: AttrOp,
-  value: String,
-  case_insensitive: bool,
+pub struct AttrFilter {
+  pub name: String,
+  pub op: AttrOp,
+  pub value: String,
+  pub case_insensitive: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AttrOp {
+pub enum AttrOp {
   Exists,
   Equals,
   Includes,
@@ -38,9 +38,9 @@ enum AttrOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct NthFormula {
-  a: i32,
-  b: i32,
+pub struct NthFormula {
+  pub a: i32,
+  pub b: i32,
 }
 
 impl NthFormula {
@@ -58,7 +58,7 @@ impl NthFormula {
 }
 
 #[derive(Debug, Clone)]
-enum PseudoClass {
+pub enum PseudoClass {
   Not(SelectorList),
   Is(SelectorList),
   Where(SelectorList),
@@ -91,14 +91,14 @@ enum PseudoClass {
 }
 
 #[derive(Debug, Clone)]
-struct HasSelector {
-  leading_combinator: Combinator,
-  compounds: Vec<CompoundSelector>,
-  combinators: Vec<Combinator>,
+pub struct HasSelector {
+  pub leading_combinator: Combinator,
+  pub compounds: Vec<CompoundSelector>,
+  pub combinators: Vec<Combinator>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PseudoElement {
+pub enum PseudoElement {
   Before,
   After,
   FirstLine,
@@ -106,7 +106,7 @@ enum PseudoElement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Namespace {
+pub enum Namespace {
   Named(String),
   Any,
   Default,
@@ -114,14 +114,14 @@ enum Namespace {
 
 #[derive(Debug, Default, Clone)]
 pub struct CompoundSelector {
-  namespace: Option<Namespace>,
-  tag: Option<String>,
-  id: Option<String>,
-  classes: Vec<String>,
-  attrs: Vec<AttrFilter>,
-  pseudo_classes: Vec<PseudoClass>,
-  pseudo_element: Option<PseudoElement>,
-  never_matches: bool,
+  pub namespace: Option<Namespace>,
+  pub tag: Option<String>,
+  pub id: Option<String>,
+  pub classes: Vec<String>,
+  pub attrs: Vec<AttrFilter>,
+  pub pseudo_classes: Vec<PseudoClass>,
+  pub pseudo_element: Option<PseudoElement>,
+  pub never_matches: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,8 +134,8 @@ pub enum Combinator {
 
 #[derive(Debug, Clone)]
 pub struct ComplexSelector {
-  compounds: Vec<CompoundSelector>,
-  combinators: Vec<Combinator>,
+  pub compounds: Vec<CompoundSelector>,
+  pub combinators: Vec<Combinator>,
 }
 
 impl Default for ComplexSelector {
@@ -149,12 +149,12 @@ impl Default for ComplexSelector {
 
 #[derive(Debug, Clone, Default)]
 pub struct SelectorList {
-  selectors: Vec<ComplexSelector>,
+  pub selectors: Vec<ComplexSelector>,
 }
 
 /// Context threaded through the matcher for interaction-state access.
-struct MatchContext<'a> {
-  interaction: Option<&'a InteractionState>,
+pub struct MatchContext<'a> {
+  pub interaction: Option<&'a InteractionState>,
 }
 
 // ── CSS escape helpers ──────────────────────────────────────────────────────
@@ -994,6 +994,13 @@ fn parse_attr_filter(s: &str) -> Result<(AttrFilter, usize), String> {
   ))
 }
 
+impl std::ops::Index<usize> for SelectorList {
+  type Output = ComplexSelector;
+  fn index(&self, idx: usize) -> &ComplexSelector {
+    &self.selectors[idx]
+  }
+}
+
 // ── Conversion impls ────────────────────────────────────────────────────────
 
 impl From<&str> for SelectorList {
@@ -1098,10 +1105,11 @@ impl CompoundSelector {
     true
   }
 
-  /// Full match with pseudo-class context.
-  fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
+  /// Full match with pseudo-class context. Used by the cascade and
+  /// `querySelector`. Skips pseudo-elements.
+  pub fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
     if self.pseudo_element.is_some() {
-      return false; // Pseudo-elements never match in querySelector.
+      return false;
     }
     let Some(node) = node_at_path(root, path) else {
       return false;
@@ -1115,6 +1123,17 @@ impl CompoundSelector {
       }
     }
     true
+  }
+
+  /// CSS specificity of this compound (ignoring ancestors/combinators).
+  /// Format: `(id_count << 16) | (class_count << 8) | tag_count`.
+  pub fn specificity(&self) -> u32 {
+    let id = if self.id.is_some() { 1 } else { 0 };
+    let cls = (self.classes.len() + self.attrs.len() + self.pseudo_classes.len()) as u32;
+    // :where() contributes zero specificity; its inner compounds are excluded.
+    let cls = cls - self.pseudo_classes.iter().filter(|pc| matches!(pc, PseudoClass::Where(_))).count() as u32;
+    let tag = if self.tag.is_some() { 1 } else { 0 };
+    (id << 16) | (cls << 8) | tag
   }
 }
 
@@ -1827,7 +1846,24 @@ fn next_element_sibling(parent: &Node, idx: usize) -> Option<usize> {
 // ── Complex / SelectorList matching ─────────────────────────────────────────
 
 impl ComplexSelector {
-  fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
+  /// The subject (rightmost) compound — the element the selector targets.
+  pub fn subject(&self) -> &CompoundSelector {
+    self.compounds.last().expect("ComplexSelector has at least one compound")
+  }
+
+  /// All ancestor compounds (everything except the subject), in source order
+  /// (closest ancestor first, matching the old `Selector::ancestors` convention).
+  pub fn ancestor_compounds(&self) -> &[CompoundSelector] {
+    let n = self.compounds.len();
+    if n <= 1 { &[] } else { &self.compounds[..n - 1] }
+  }
+
+  /// CSS specificity: sum of all compound specificities in the chain.
+  pub fn specificity(&self) -> u32 {
+    self.compounds.iter().map(|c| c.specificity()).sum()
+  }
+
+  pub fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
     let n = self.compounds.len();
     if n == 0 {
       return false;
@@ -1912,7 +1948,24 @@ impl ComplexSelector {
 }
 
 impl SelectorList {
-  fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
+  /// Highest specificity among all selectors in the list.
+  pub fn max_specificity(&self) -> u32 {
+    self.selectors.iter().map(|s| s.specificity()).max().unwrap_or(0)
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.selectors.is_empty()
+  }
+
+  pub fn iter(&self) -> impl Iterator<Item = &ComplexSelector> {
+    self.selectors.iter()
+  }
+
+  pub fn len(&self) -> usize {
+    self.selectors.len()
+  }
+
+  pub fn matches_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
     self.selectors.iter().any(|sel| sel.matches_in_tree(root, path, ctx))
   }
 }

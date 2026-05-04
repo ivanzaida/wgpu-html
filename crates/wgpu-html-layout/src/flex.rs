@@ -218,7 +218,11 @@ pub(crate) fn layout_flex_children(
       // layout. This covers both indefinite containers (original
       // path) and definite containers where the item's base_size was
       // the 0-intrinsic fallback.
-      let content_main = if is_row { laid.content_rect.w } else { laid.content_rect.h };
+      let content_main = if is_row {
+        laid.content_rect.w
+      } else {
+        laid.content_rect.h
+      };
       item.resolved_main = content_main;
     }
 
@@ -233,8 +237,7 @@ pub(crate) fn layout_flex_children(
       let is_replaced = matches!(item.node.element, Element::Img(_) | Element::Svg(_));
       if !is_replaced {
         let align = resolve_align_self(&item.align_self, &align_items);
-        let will_stretch =
-          matches!(align, ResolvedAlign::Stretch) && !item.auto_cross_start && !item.auto_cross_end;
+        let will_stretch = matches!(align, ResolvedAlign::Stretch) && !item.auto_cross_start && !item.auto_cross_end;
         if !will_stretch {
           let cx = laid.content_rect.x;
           let content_extent = laid
@@ -790,13 +793,21 @@ fn build_item<'a>(
     }
   } else {
     // auto min-size: depends on overflow behavior.
-    let main_overflow = (if is_row { style.overflow_x.as_ref() } else { style.overflow_y.as_ref() })
-      .or(style.overflow.as_ref());
-    if matches!(main_overflow, Some(Overflow::Hidden | Overflow::Clip | Overflow::Scroll | Overflow::Auto)) {
+    let main_overflow = (if is_row {
+      style.overflow_x.as_ref()
+    } else {
+      style.overflow_y.as_ref()
+    })
+    .or(style.overflow.as_ref());
+    if matches!(
+      main_overflow,
+      Some(Overflow::Hidden | Overflow::Clip | Overflow::Scroll | Overflow::Auto)
+    ) {
       0.0
     } else {
-      let content_size =
-        text_intrinsic_main(node, is_row, ctx).or_else(|| replaced_intrinsic_main(node, is_row, ctx)).unwrap_or(0.0);
+      let content_size = text_intrinsic_main(node, is_row, ctx)
+        .or_else(|| replaced_intrinsic_main(node, is_row, ctx))
+        .unwrap_or(0.0);
       // min(transferred_size, content_size) — but transferred_size is
       // already captured by base_size clamping later. Setting main_min
       // to content_size here means items with visible overflow can't

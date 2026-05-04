@@ -724,9 +724,8 @@ macro_rules! element_attrs {
 }
 
 use m::common::html_enums::{
-    AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding, FormMethod,
-    ImageDecoding, InputType, LinkAs, LinkTarget, Loading, OlType, Preload,
-    ReferrerPolicy, SvgLength, TableHeaderScope, TextareaWrap, TrackKind,
+  AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding, FormMethod, ImageDecoding, InputType, LinkAs,
+  LinkTarget, Loading, OlType, Preload, ReferrerPolicy, SvgLength, TableHeaderScope, TextareaWrap, TrackKind,
 };
 
 // ── Form elements ─────────────────────────────────────────────────────────

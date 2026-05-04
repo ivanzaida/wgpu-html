@@ -1,5 +1,5 @@
-use crate::*;
 use super::helpers::synthetic_text_layout;
+use crate::*;
 
 // ---------------------------------------------------------------------------
 // Hit testing

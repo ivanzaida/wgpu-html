@@ -1,5 +1,5 @@
-use crate::*;
 use super::helpers::*;
+use crate::*;
 
 /// Walk the layout tree and return true if every text leaf's glyphs
 /// fit within its content_rect.  Returns (passed, failures) where
@@ -46,11 +46,7 @@ fn glyphs_within_content_rect_with_real_font() {
     600.0,
   );
   let (ok, failures) = check_glyphs_fit(&root);
-  assert!(
-    ok,
-    "glyphs extend past content_rect:\n{}",
-    failures.join("\n")
-  );
+  assert!(ok, "glyphs extend past content_rect:\n{}", failures.join("\n"));
 }
 
 #[test]
@@ -63,11 +59,7 @@ fn glyphs_within_content_rect_small_font() {
     600.0,
   );
   let (ok, failures) = check_glyphs_fit(&root);
-  assert!(
-    ok,
-    "glyphs extend past content_rect:\n{}",
-    failures.join("\n")
-  );
+  assert!(ok, "glyphs extend past content_rect:\n{}", failures.join("\n"));
 }
 
 #[test]

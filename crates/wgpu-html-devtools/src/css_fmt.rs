@@ -18,7 +18,12 @@ pub(crate) fn fmt_length(v: &CssLength) -> String {
     CssLength::Min(parts) => format!("min({})", parts.iter().map(fmt_length).collect::<Vec<_>>().join(", ")),
     CssLength::Max(parts) => format!("max({})", parts.iter().map(fmt_length).collect::<Vec<_>>().join(", ")),
     CssLength::Clamp { min, preferred, max } => {
-      format!("clamp({}, {}, {})", fmt_length(min), fmt_length(preferred), fmt_length(max))
+      format!(
+        "clamp({}, {}, {})",
+        fmt_length(min),
+        fmt_length(preferred),
+        fmt_length(max)
+      )
     }
     CssLength::Raw(s) => s.clone(),
   }

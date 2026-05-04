@@ -1,7 +1,6 @@
 pub use wgpu_html_models::common::css_enums::{BoxSizing, CssColor, CssLength, Cursor, Display, TextAlign};
-
 #[allow(unused_imports)]
-pub use wgpu_html_parser::{Selector, parse_stylesheet};
+pub use wgpu_html_parser::{ComplexSelector, parse_stylesheet};
 
 use crate::*;
 

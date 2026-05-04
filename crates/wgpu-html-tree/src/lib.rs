@@ -15,14 +15,14 @@ mod events;
 mod focus;
 mod fonts;
 mod profiler;
-mod query;
+pub mod query;
 mod system_fonts;
 pub mod text_edit;
 pub mod tree_hook;
 
 pub use dispatch::{
-  blur, clipboard_event, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move,
-  focus, focus_next, key_down, key_up, resize_event, scroll_event, select_event, selectionchange_event, text_input,
+  blur, clipboard_event, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move, focus,
+  focus_next, key_down, key_up, resize_event, scroll_event, select_event, selectionchange_event, text_input,
   wheel_event,
 };
 pub use events::{
@@ -35,7 +35,7 @@ pub use focus::{
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 pub use profiler::{ProfileEntry, Profiler};
 pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
-pub use system_fonts::{register_system_fonts, system_font_variants, SystemFontVariant};
+pub use system_fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use tree_hook::{
   TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase, TreeLifecycleStage,
   TreeRenderEvent, TreeRenderViewport,
@@ -289,7 +289,11 @@ impl Tree {
   }
 
   pub fn get_elements_by_class_name(&self, class_name: &str) -> Vec<&Node> {
-    self.root.as_ref().map(|r| r.get_elements_by_class_name(class_name)).unwrap_or_default()
+    self
+      .root
+      .as_ref()
+      .map(|r| r.get_elements_by_class_name(class_name))
+      .unwrap_or_default()
   }
 
   pub fn get_element_by_name(&self, name: &str) -> Option<&Node> {
@@ -297,7 +301,11 @@ impl Tree {
   }
 
   pub fn get_elements_by_name(&self, name: &str) -> Vec<&Node> {
-    self.root.as_ref().map(|r| r.get_elements_by_name(name)).unwrap_or_default()
+    self
+      .root
+      .as_ref()
+      .map(|r| r.get_elements_by_name(name))
+      .unwrap_or_default()
   }
 
   pub fn get_element_by_tag_name(&self, tag_name: &str) -> Option<&Node> {
@@ -305,7 +313,11 @@ impl Tree {
   }
 
   pub fn get_elements_by_tag_name(&self, tag_name: &str) -> Vec<&Node> {
-    self.root.as_ref().map(|r| r.get_elements_by_tag_name(tag_name)).unwrap_or_default()
+    self
+      .root
+      .as_ref()
+      .map(|r| r.get_elements_by_tag_name(tag_name))
+      .unwrap_or_default()
   }
 
   /// Return paths to every element whose `class` attribute contains
@@ -1309,7 +1321,7 @@ impl Element {
           Url => "url",
           Week => "week",
         }
-          .to_owned()
+        .to_owned()
       }),
       ("type", Element::Button(e)) => e.r#type.as_ref().map(|t| {
         use m::common::html_enums::ButtonType::*;
@@ -1318,7 +1330,7 @@ impl Element {
           Submit => "submit",
           Reset => "reset",
         }
-          .to_owned()
+        .to_owned()
       }),
       ("type", Element::Source(e)) => e.r#type.clone(),
       ("type", Element::Script(e)) => e.r#type.clone(),
@@ -1526,15 +1538,39 @@ mod tests_lib;
 
 /// Void elements that must not have a closing tag.
 const VOID_ELEMENTS: &[&str] = &[
-  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
-  "track", "wbr",
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
 ];
 
 /// Attributes worth serialising (global + common specific).
 const ATTRS_TO_TRY: &[&str] = &[
-  "id", "class", "style", "href", "src", "alt", "type", "name", "value", "placeholder", "for",
-  "rel", "content", "disabled", "readonly", "required", "checked", "selected", "multiple",
-  "autofocus", "width", "height", "action", "method", "target", "colspan", "rowspan", "role",
+  "id",
+  "class",
+  "style",
+  "href",
+  "src",
+  "alt",
+  "type",
+  "name",
+  "value",
+  "placeholder",
+  "for",
+  "rel",
+  "content",
+  "disabled",
+  "readonly",
+  "required",
+  "checked",
+  "selected",
+  "multiple",
+  "autofocus",
+  "width",
+  "height",
+  "action",
+  "method",
+  "target",
+  "colspan",
+  "rowspan",
+  "role",
 ];
 
 impl Node {
@@ -1545,12 +1581,7 @@ impl Node {
     buf
   }
 
-  fn write_html_into(
-    &self,
-    buf: &mut String,
-    stylesheets: &std::collections::HashMap<String, String>,
-    raw_text: bool,
-  ) {
+  fn write_html_into(&self, buf: &mut String, stylesheets: &std::collections::HashMap<String, String>, raw_text: bool) {
     use std::fmt::Write;
 
     match &self.element {
@@ -1650,7 +1681,11 @@ fn write_map_attrs(buf: &mut String, element: &Element, prefix: &str) {
 // ── Path-collection helpers for find_elements_by_* ─────────────
 
 fn collect_class_name_paths(node: &Node, class_name: &str, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
-  if node.element.class().is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name)) {
+  if node
+    .element
+    .class()
+    .is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name))
+  {
     out.push(path.clone());
   }
   for (i, child) in node.children.iter().enumerate() {
@@ -1683,7 +1718,11 @@ fn collect_tag_name_paths(node: &Node, tag_name: &str, path: &mut Vec<usize>, ou
 }
 
 fn collect_class_name_nodes<'a>(node: &'a Node, class_name: &str, out: &mut Vec<&'a Node>) {
-  if node.element.class().is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name)) {
+  if node
+    .element
+    .class()
+    .is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name))
+  {
     out.push(node);
   }
   for child in &node.children {

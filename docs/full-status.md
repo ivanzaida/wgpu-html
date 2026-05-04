@@ -310,7 +310,7 @@ Component::styles() → Stylesheet                     // scoped CSS
 
 ### Layout Gaps
 - **Positioned layout** (`absolute` / `relative` / `fixed`) — fully implemented. `layout_out_of_flow_block()` resolves containing blocks, insets, shrink-to-fit, right/bottom anchoring. `apply_relative_position()` handles relative and sticky (sticky is degraded to relative — no scroll-pinning). 6 tests cover absolute/fixed/relative scenarios.
-- **No `z-index`** — parsed and stored on `LayoutBox`, but paint order is tree DFS only (no stacking-context reordering).
+- **No `z-index`** — parsed and stored on `LayoutBox`. Siblings sort by z-index in paint order (negative → auto → non-negative). No independent stacking contexts — cross-branch ordering is still tree DFS.
 - **No floats** (`float: left/right`) — `float` property is not even parsed.
 - **No table layout** (`display: table` and friends) — all 9 table `Display` variants are parsed but fall through to block layout.
 - **No `display: inline / inline-block`** as an author-set value (IFC is auto-detected from content, not from `display`).

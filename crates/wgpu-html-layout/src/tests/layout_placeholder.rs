@@ -1,5 +1,5 @@
-use crate::*;
 use super::helpers::*;
+use crate::*;
 // ── placeholder rendering ─────────────────────────────────────────────────
 //
 // The layout-test pipeline doesn't register a font, so

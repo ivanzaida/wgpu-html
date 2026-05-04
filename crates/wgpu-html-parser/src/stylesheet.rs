@@ -1,16 +1,19 @@
 //! CSS stylesheet parsing — selectors + rules.
 //!
-//! Scope: comma-separated selector lists, each entry being a chain of
-//! compound selectors joined by the descendant combinator (whitespace).
-//! A compound selector supports an optional tag (or universal `*`),
-//! optional id, any number of classes, simple attribute selectors, plus
-//! an optional set of dynamic pseudo-classes (`:hover`, `:active`,
-//! `:focus`). Other combinators (`>`, `+`, `~`) and
-//! unsupported pseudo-classes / pseudo-elements still drop the rule.
+//! Selector parsing delegates to the full CSS Level 4 parser in
+//! `wgpu_html_tree::query`, which supports all four combinators
+//! (` `, `>`, `+`, `~`), attribute operators, logical pseudo-classes
+//! (`:is`, `:where`, `:not`, `:has`), structural pseudo-classes
+//! (`:nth-child`, …), and state pseudo-classes (`:disabled`, …).
+//! Pseudo-elements (`::before`) still drop the rule because the
+//! engine has no generated-content rendering.
 
 use std::collections::HashMap;
 
 use wgpu_html_models::Style;
+pub use wgpu_html_tree::query::{
+  AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, SelectorList,
+};
 
 use crate::css_parser::{CssWideKeyword, parse_inline_style_decls};
 
@@ -47,110 +50,6 @@ pub struct MediaQueryList {
   pub queries: Vec<MediaQuery>,
 }
 
-/// One selector: a "subject" compound (tag/id/classes/universal) for
-/// the element itself, plus an optional ordered list of ancestor
-/// compounds that must be found somewhere up the parent chain
-/// (descendant combinator).
-///
-/// `ancestors[0]` is the closest ancestor (the compound that appears
-/// immediately to the left of the subject in the source); deeper
-/// entries have to be found further up. Each ancestor compound is
-/// itself a `Selector` with `ancestors` empty — the chain is flat by
-/// convention.
-/// Dynamic pseudo-classes that gate a compound selector against the
-/// document's `InteractionState`. Currently only state-driven
-/// pseudo-classes are supported; structural pseudo-classes (`:nth-`,
-/// `:first-child`, …) drop the rule during parsing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PseudoClass {
-  /// `:hover` — matches when this element is on the document's
-  /// hover chain (see `InteractionState::hover_path`).
-  Hover,
-  /// `:active` — matches when this element is on the active
-  /// (currently-pressed) chain.
-  Active,
-  /// `:focus` — accepted for UA/author styles. The runtime does
-  /// not track keyboard focus yet, so it only matches if a caller
-  /// explicitly supplies a focused match context.
-  Focus,
-  /// `:visited` — accepted so browser UA link defaults parse.
-  /// The engine has no navigation history, so it only matches if
-  /// style matching grows visited-link state later.
-  Visited,
-  /// `:root` — matches only the document root element.
-  Root,
-  /// `:first-child` — matches if this element is the first child of its parent.
-  FirstChild,
-  /// `:last-child` — matches if this element is the last child of its parent.
-  LastChild,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AttributeSelector {
-  pub name: String,
-  pub value: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Selector {
-  /// `Some("div")` for `div`, `None` for universal `*` or no tag part.
-  pub tag: Option<String>,
-  pub id: Option<String>,
-  pub classes: Vec<String>,
-  /// Simple attribute selectors: `[hidden]`, `[dir="rtl"]`,
-  /// `input[type=submit]`. Operators other than exact equality are
-  /// intentionally unsupported for now.
-  pub attributes: Vec<AttributeSelector>,
-  /// True for selectors written as `*` (or `*.foo`, etc.). With this set
-  /// the selector still matches even if no tag/id/class constraints
-  /// remain after the universal.
-  pub universal: bool,
-  /// Required ancestor compounds, ordered closest → furthest. Empty
-  /// for the common simple-selector case. Entries are themselves
-  /// `Selector`s but always have `ancestors` empty.
-  pub ancestors: Vec<Selector>,
-  /// Pseudo-classes the subject must satisfy. Multiple are AND'd.
-  /// Each adds 1 to the class bucket of `specificity()`, matching
-  /// CSS Selectors-4.
-  pub pseudo_classes: Vec<PseudoClass>,
-}
-
-impl Selector {
-  /// Standard CSS specificity packed into a u32:
-  /// `(id_count << 16) | (class_count << 8) | tag_count`. For
-  /// descendant chains, every compound contributes (so `.a .b`
-  /// has specificity 2-classes, not 1). Pseudo-classes count as
-  /// classes per CSS Selectors-4.
-  pub fn specificity(&self) -> u32 {
-    let mut total = self.compound_specificity();
-    for a in &self.ancestors {
-      total += a.compound_specificity();
-    }
-    total
-  }
-
-  /// Specificity of just this compound, ignoring any ancestors. Used
-  /// internally and by `specificity()`.
-  pub fn compound_specificity(&self) -> u32 {
-    let id = if self.id.is_some() { 1 } else { 0 };
-    let cls = (self.classes.len() + self.attributes.len() + self.pseudo_classes.len()) as u32;
-    let tag = if self.tag.is_some() { 1 } else { 0 };
-    (id << 16) | (cls << 8) | tag
-  }
-
-  /// True iff this compound has at least one tag/id/class/universal
-  /// constraint or pseudo-class. Used to reject empty compounds
-  /// like `""` or stray syntax that parses to nothing.
-  pub fn is_meaningful(&self) -> bool {
-    self.universal
-      || self.tag.is_some()
-      || self.id.is_some()
-      || !self.classes.is_empty()
-      || !self.attributes.is_empty()
-      || !self.pseudo_classes.is_empty()
-  }
-}
-
 /// One rule: any of the listed selectors triggers the declarations.
 /// `declarations` holds the normal-importance properties; `important`
 /// holds the ones marked `!important`. Cascade applies them in
@@ -162,7 +61,7 @@ impl Selector {
 /// kebab-case (`color`, `font-size`, …).
 #[derive(Debug, Clone, Default)]
 pub struct Rule {
-  pub selectors: Vec<Selector>,
+  pub selectors: SelectorList,
   pub declarations: Style,
   pub important: Style,
   pub keywords: HashMap<String, CssWideKeyword>,
@@ -431,197 +330,18 @@ fn strip_ascii_word_prefix<'a>(input: &'a str, word: &str) -> Option<&'a str> {
   Some(&input[word.len()..])
 }
 
-fn parse_selector_list(s: &str) -> Vec<Selector> {
-  s.split(',').filter_map(|part| parse_selector(part.trim())).collect()
+/// Parse a selector list string via the full query-engine parser.
+/// Delegates to `wgpu_html_tree::query::SelectorList::from`.
+fn parse_selector_list(s: &str) -> SelectorList {
+  SelectorList::from(s)
 }
 
-/// Parse a comma-separated entry into a (possibly descendant-chained)
-/// selector. Returns `None` if the input contains an unsupported
-/// combinator (`>`, `+`, `~`) or syntax we don't recognize.
-fn parse_selector(s: &str) -> Option<Selector> {
-  if s.is_empty() {
-    return None;
-  }
-  let parts: Vec<&str> = s.split_whitespace().collect();
-  if parts.is_empty() {
-    return None;
-  }
-  let mut compounds: Vec<Selector> = Vec::with_capacity(parts.len());
-  for p in parts {
-    compounds.push(parse_compound(p)?);
-  }
-  let mut subject = compounds.pop().expect("non-empty");
-  // `compounds` now holds the non-subject parts in source order
-  // (left → right). `ancestors[0]` is the closest ancestor (the
-  // compound immediately to the subject's left), so reverse.
-  compounds.reverse();
-  subject.ancestors = compounds;
-  Some(subject)
-}
-
-/// Parse one whitespace-free compound
-/// (tag/id/classes/attrs/universal/pseudo-classes).
-/// Returns `None` if the compound contains anything we don't handle.
-fn parse_compound(s: &str) -> Option<Selector> {
-  if s.is_empty() {
-    return None;
-  }
-  let mut sel = Selector::default();
-  let s = extract_attribute_selectors(s, &mut sel)?;
-  let mut buf = String::new();
-  #[derive(Copy, Clone)]
-  enum Kind {
-    Tag,
-    Id,
-    Class,
-    Pseudo,
-  }
-  let mut kind = Kind::Tag;
-
-  fn commit(buf: &mut String, kind: Kind, sel: &mut Selector) -> Option<()> {
-    if buf.is_empty() {
-      return Some(());
-    }
-    match kind {
-      Kind::Tag => {
-        if buf == "*" {
-          sel.universal = true;
-          buf.clear();
-        } else {
-          sel.tag = Some(std::mem::take(buf));
-        }
-      }
-      Kind::Id => sel.id = Some(std::mem::take(buf)),
-      Kind::Class => sel.classes.push(std::mem::take(buf)),
-      Kind::Pseudo => match buf.as_str() {
-        "hover" => {
-          sel.pseudo_classes.push(PseudoClass::Hover);
-          buf.clear();
-        }
-        "active" => {
-          sel.pseudo_classes.push(PseudoClass::Active);
-          buf.clear();
-        }
-        "focus" => {
-          sel.pseudo_classes.push(PseudoClass::Focus);
-          buf.clear();
-        }
-        "visited" => {
-          sel.pseudo_classes.push(PseudoClass::Visited);
-          buf.clear();
-        }
-        "root" => {
-          sel.pseudo_classes.push(PseudoClass::Root);
-          buf.clear();
-        }
-        "first-child" => {
-          sel.pseudo_classes.push(PseudoClass::FirstChild);
-          buf.clear();
-        }
-        "last-child" => {
-          sel.pseudo_classes.push(PseudoClass::LastChild);
-          buf.clear();
-        }
-        // Anything we don't recognize (`::before`,
-        // `:nth-child`, …) drops the whole rule.
-        _ => return None,
-      },
-    }
-    Some(())
-  }
-
-  for ch in s.chars() {
-    match ch {
-      '#' => {
-        commit(&mut buf, kind, &mut sel)?;
-        kind = Kind::Id;
-      }
-      '.' => {
-        commit(&mut buf, kind, &mut sel)?;
-        kind = Kind::Class;
-      }
-      ':' => {
-        commit(&mut buf, kind, &mut sel)?;
-        kind = Kind::Pseudo;
-      }
-      c if c.is_alphanumeric() || c == '-' || c == '_' || c == '*' => buf.push(c),
-      // Unsupported character in a single compound (other
-      // combinators were already split off as whitespace):
-      // drop the rule.
-      _ => return None,
-    }
-  }
-  commit(&mut buf, kind, &mut sel)?;
-
-  if !sel.is_meaningful() {
-    return None;
-  }
-  Some(sel)
-}
-
-fn extract_attribute_selectors(s: &str, sel: &mut Selector) -> Option<String> {
-  let mut out = String::with_capacity(s.len());
-  let mut rest = s;
-  loop {
-    let Some(open) = rest.find('[') else {
-      out.push_str(rest);
-      break;
-    };
-    out.push_str(&rest[..open]);
-    let after_open = &rest[open + 1..];
-    let close = after_open.find(']')?;
-    parse_attribute_selector(&after_open[..close], sel)?;
-    rest = &after_open[close + 1..];
-  }
-  Some(out)
-}
-
-fn parse_attribute_selector(raw: &str, sel: &mut Selector) -> Option<()> {
-  let raw = raw.trim();
-  if raw.is_empty() {
-    return None;
-  }
-  let (name, value) = if let Some((name, value)) = raw.split_once('=') {
-    let name = normalize_attr_name(name)?;
-    let value = strip_attr_quotes(value.trim())?;
-    (name, Some(value.to_ascii_lowercase()))
-  } else {
-    (normalize_attr_name(raw)?, None)
-  };
-  sel.attributes.push(AttributeSelector { name, value });
-  Some(())
-}
-
-fn normalize_attr_name(name: &str) -> Option<String> {
-  let name = name.trim();
-  if name.is_empty()
-    || !name
-      .chars()
-      .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':')
-  {
-    return None;
-  }
-  Some(name.to_ascii_lowercase())
-}
-
-fn strip_attr_quotes(value: &str) -> Option<String> {
-  let trimmed = value.trim();
-  if trimmed.is_empty() {
-    return None;
-  }
-  let bytes = trimmed.as_bytes();
-  if bytes.len() >= 2
-    && ((bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"') || (bytes[0] == b'\'' && bytes[bytes.len() - 1] == b'\''))
-  {
-    Some(trimmed[1..trimmed.len() - 1].to_string())
-  } else if bytes
-    .iter()
-    .all(|b| b.is_ascii_alphanumeric() || matches!(*b, b'-' | b'_' | b':' | b'.'))
-  {
-    Some(trimmed.to_string())
-  } else {
-    None
-  }
+/// Parse a single complex selector. Public for test compatibility.
+/// Delegates to the query engine; returns the first complex selector
+/// from the list, or a default (empty) on parse failure.
+pub fn parse_selector(s: &str) -> ComplexSelector {
+  let list = SelectorList::from(s);
+  list.selectors.first().cloned().unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------

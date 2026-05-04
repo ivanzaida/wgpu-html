@@ -1,0 +1,211 @@
+---
+title: CSS Roadmap
+---
+
+# CSS Roadmap — What's Missing
+
+> **Date:** 2026-05-04
+> Companion to the [Implementation Status](/docs/status) page. This doc lists every CSS feature gap, organized by implementation priority.
+
+---
+
+## 🔴 Blockers — no support at all
+
+These must be built from scratch to claim CSS feature parity.
+
+### Selectors in cascade
+
+The stylesheet parser (`stylesheet.rs:441`) drops any rule containing combinators beyond descendant (` `). The query engine (`query.rs`) supports the full CSS Level 4 selector suite — all 4 combinators, 20+ pseudo-classes, attribute operators — but none of it flows through the cascade.
+
+| Feature | Parser | Query engine | Cascade |
+|---------|--------|-------------|---------|
+| `>`, `+`, `~` combinators | ❌ dropped | ✅ full | ❌ none |
+| `:is()`, `:where()`, `:not()` | ❌ dropped | ✅ full | ❌ none |
+| `:has()` | ❌ dropped | ✅ full (relative selectors) | ❌ none |
+| `:nth-child()`, `:nth-of-type()` | ❌ dropped | ✅ full (+ `of S` syntax) | ❌ none |
+| `:disabled`, `:enabled`, `:checked` | ❌ dropped | ✅ full | ❌ none |
+| `:required`, `:optional`, `:read-only`, `:read-write` | ❌ dropped | ✅ full | ❌ none |
+| `:placeholder-shown` | ❌ dropped | ✅ full | ❌ none |
+| `:focus-within`, `:focus-visible` | ❌ dropped | ✅ full | ❌ none |
+| `:lang()`, `:dir()` | ❌ dropped | ✅ full | ❌ none |
+| `:first-of-type`, `:last-of-type`, `:only-child`, `:empty` | ❌ dropped | ✅ full | ❌ none |
+| Multi-value attrs (`~=`, `\|=`, `^=`, `$=`, `*=`) | ❌ dropped | ✅ full | ❌ none |
+| Case-insensitive attribute flag (`i`) | ❌ dropped | ✅ full | ❌ none |
+
+**Fix:** Replace `stylesheet.rs`'s limited `PseudoClass` enum (6 variants) with `query.rs`'s comprehensive one (30+ variants). Wire `query.rs`'s `ComplexSelector::matches_in_tree()` into the cascade's `matches_compound()`.
+
+### At-rules
+
+The stylesheet parser at `stylesheet.rs:310` skips every `@`-prefixed block except `@media`.
+
+| At-rule | Status |
+|---------|--------|
+| `@media` | ✅ fully implemented (width/height/orientation, min/max, `not`) |
+| `@keyframes` | ❌ not parsed — no animation engine |
+| `@font-face` | ❌ not parsed — no font-face loading pipeline |
+| `@import` | ❌ not parsed — no CSS import resolution |
+| `@supports` | ❌ not parsed |
+| `@layer` | ❌ not parsed — no cascade-layer awareness |
+| `@scope` | ❌ not parsed |
+| `@page` | ❌ not parsed |
+| `@charset` | ❌ not parsed (assumes UTF-8) |
+
+### Pseudo-elements
+
+`::before` and `::after` are parsed by the query engine but always return no matches (`query.rs:1103` rejects any compound with a pseudo-element). The stylesheet parser drops rules containing them. Zero rendering infrastructure exists for generated content.
+
+| Pseudo-element | Parser | Query match | Renderer |
+|---------------|--------|-------------|----------|
+| `::before` | ✅ parsed | ❌ false | ❌ none |
+| `::after` | ✅ parsed | ❌ false | ❌ none |
+| `::first-line` | ✅ parsed | ❌ false | ❌ none |
+| `::first-letter` | ✅ parsed | ❌ false | ❌ none |
+| `::placeholder` | ❌ not parsed | ❌ none | ❌ none |
+| `::selection` | ❌ not parsed | ❌ none | ❌ none |
+| `::marker` | ❌ not parsed | ❌ none | ❌ none |
+
+### Layout gaps
+
+| Feature | Status |
+|---------|--------|
+| `float: left/right` | ❌ not even parsed — no property entry exists |
+| `display: table` and friends | ⚠️ all 10 table `Display` variants parsed but fall through to block layout |
+| Multi-column (`column-count`, `column-width`) | ⚠️ parsed as deferred longhands, never consumed by layout |
+| `flex-basis: content` | ❌ not implemented |
+| Baseline alignment in flex (`align-items: baseline`) | ⚠️ parsed, falls back to `flex-start` (`flex.rs:1236`) |
+| Sticky positioning | ⚠️ parsed, degraded to `relative` |
+
+### Animation & transitions
+
+| Feature | Status |
+|---------|--------|
+| `@keyframes` | ❌ not parsed |
+| Animation engine | ❌ none — `animation-*` properties parsed into 13 deferred longhands, never consumed |
+| Transition engine | ❌ none — `transition-*` parsed into 5 deferred longhands, never consumed |
+| `animation-timeline` (scroll-driven) | ⚠️ parsed as deferred longhand, no runtime |
+| `scroll-timeline` | ⚠️ parsed as shorthand → deferred longhands |
+| `prefers-reduced-motion` media query | ❌ not implemented |
+
+### Media & container queries
+
+| Feature | Status |
+|---------|--------|
+| `prefers-color-scheme` | ❌ not implemented (system colors always light-mode) |
+| `prefers-contrast` | ❌ not implemented |
+| `prefers-reduced-motion` | ❌ not implemented |
+| `@container` / `container-type` / `container-name` | ⚠️ parsed as deferred longhands, no runtime |
+
+---
+
+## 🟡 Partial — parsed but not consumed
+
+These properties are parsed into the `Style` struct or stored as raw strings, but have no effect on layout or rendering.
+
+### Parsed as raw `Option<String>`
+
+| Property | Where stored | Gap |
+|----------|-------------|-----|
+| `box-shadow` | `Style.box_shadow` (`style.rs:211`) | No shadow rendering pipeline |
+| `transform` | `Style.transform` (`style.rs:200`) | No transform application in layout or GPU |
+| `transform-origin` | `Style.transform_origin` (`style.rs:202`) | No transform pipeline |
+| `transition` | Deferred longhands (5 fields) | No transition engine |
+| `animation` | Deferred longhands (13 fields) | No animation engine |
+| `filter` | **Not even parsed** — silently dropped | No filter pipeline |
+
+### Parsed but rendering pipeline missing
+
+| Property | Parser status | Rendering status |
+|----------|-------------|-----------------|
+| `linear-gradient()` | `CssImage::Function(String)` | Zero pixels — no gradient rasterizer |
+| `radial-gradient()` | `CssImage::Function(String)` | Zero pixels |
+| `conic-gradient()` | `CssImage::Function(String)` | Zero pixels |
+| `outline` | Shorthand → 3 deferred longhands | Never rendered |
+| `text-shadow` | Deferred longhand | Never consumed by paint |
+| `border-image` | Shorthand → 5 deferred longhands | No border-image rendering path |
+| `background-origin` | Deferred longhand | No effect — always padding-box origin |
+| `background-attachment` | Deferred longhand | `fixed` would require viewport-relative positioning |
+
+### Color value gaps
+
+| Value | Parser | Resolution |
+|-------|--------|-----------|
+| `currentColor` | `CssColor::CurrentColor` | Returns `None` at resolve time (`color.rs:14`) — borders without explicit color are invisible |
+| `color-mix()` | `CssColor::Function(String)` | Returns `None` |
+| `lab()` / `lch()` / `oklab()` / `oklch()` | `CssColor::Function(String)` | Returns `None` |
+| `color()` function | `CssColor::Function(String)` | Returns `None` |
+| `hwb()` / `light-dark()` | `CssColor::Function(String)` | Returns `None` |
+| System colors | Resolved to fixed light-mode sRGB | No dark-mode awareness |
+
+### Cascade gaps
+
+| Feature | Status |
+|---------|--------|
+| `revert` keyword | Parsed as token but never applied — only used to skip animation-name parsing |
+| `revert-layer` keyword | Same as `revert` |
+| `:where()` in cascade | Not in cascade `PseudoClass` enum — exists only in query engine |
+| Multiple backgrounds | Not supported — `background-image` is single `Option<CssImage>`, not `Vec` |
+| `z-index` stacking contexts | Sorts siblings by value (3 tests pass), but no independent cross-branch stacking |
+
+### Other partial features
+
+| Feature | Status |
+|---------|--------|
+| `gap` in non-flex/grid contexts | Parsed but not consumed by block layout |
+| `display: inline / inline-block` (author-set) | IFC auto-detected from content, not driven by `display` value |
+| Dashed/dotted on non-uniform rounded corners | Corners stay bare — only uniform-circular radii follow the curve |
+| Border `double`/`groove`/`ridge`/`inset`/`outset` styles | Render as plain `solid` |
+| `<link rel="stylesheet">` | Field exists on `Tree`, parsed from HTML, but no HTTP fetch |
+
+---
+
+## 🟠 Missing properties — not parsed at all
+
+These CSS properties have no entry in the parser (`apply_css_property`), `Style` struct, or deferred longhands table.
+
+| Property | Notes |
+|----------|-------|
+| `text-overflow` | No ellipsis/fade rendering |
+| `word-break` | No break-all/keep-all logic |
+| `vertical-align` | UA sets it on inline elements but parser ignores it |
+| `object-fit` | Images use hardcoded contain/cover logic |
+| `object-position` | No positioning of replaced content |
+| `mix-blend-mode` | No compositing support |
+| `isolation` | No stacking context support |
+| `will-change` | No GPU hint system |
+| `contain` | No containment support |
+| `aspect-ratio` | No intrinsic sizing ratio |
+| `scroll-behavior` | No `smooth` scrolling |
+| `scroll-snap-type` / `scroll-snap-align` | No snap-point system |
+| `scroll-margin-*` / `scroll-padding-*` | Parsed as deferred, never consumed |
+| `cursor` (OS cursor shape) | Parsed into `Style.cursor`, not applied to OS cursor |
+| `accent-color` | Not parsed |
+| `caret-color` | Not parsed |
+| `print-color-adjust` | Not parsed |
+| `hyphens` | Not parsed |
+| `tab-size` | Not parsed |
+
+---
+
+## 🟢 What works
+
+CSS-Cascade-3 ordering with specificity, `!important` band separation, `inherit`/`initial`/`unset` keywords, `@media` queries (width/height/orientation), `calc()`/`min()`/`max()`/`clamp()` with full AST, `var()`/custom properties with inheritance and cycle detection, complete Flexbox Level 1, complete CSS Grid, positioned layout (absolute/relative/fixed), full querySelector engine (CSS Level 4 selectors), 80+ parsed CSS properties with typed resolution.
+
+---
+
+## Suggested implementation order
+
+The shortest path to "full CSS producer-grade engine":
+
+| Priority | Task | Impact |
+|----------|------|--------|
+| 1 | Port query engine selectors into cascade (`:is`, `:where`, `:not`, `:nth-child`, `:checked`, `:disabled`, combinators, attribute operators) | Unlocks ~50% of modern CSS in one change |
+| 2 | Implement `currentColor` resolution | Fixes invisible borders, text decorations, etc. |
+| 3 | Build gradient rasterizer (linear + radial + conic) | Background images become visually useful |
+| 4 | Implement `@keyframes` + animation engine | Motion design becomes possible |
+| 5 | Float layout | Required for text-wrap-around-images layouts |
+| 6 | Table layout algorithm | Required for data tables |
+| 7 | Pseudo-element rendering (`::before`/`::after`) | Generated content, clearfix, decorative elements |
+| 8 | `box-shadow` / `text-shadow` rendering | Visual depth |
+| 9 | Multi-column layout | Text-heavy page layouts |
+| 10 | Transforms (`transform`, `transform-origin`) | Animations, layout adjustments |
+| 11++ | Remaining property gaps, `@layer`, `@supports`, `@container`, media queries, modern colors | Edge cases and modern CSS features |
