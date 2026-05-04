@@ -387,3 +387,11 @@ pub enum BackgroundClip {
   PaddingBox,
   ContentBox,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Resize {
+  None,
+  Both,
+  Horizontal,
+  Vertical,
+}

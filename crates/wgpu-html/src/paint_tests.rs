@@ -1,3 +1,4 @@
+use wgpu_html_layout::Resize;
 use wgpu_html_models::common::{Cursor, PointerEvents};
 use wgpu_html_tree::{TextCursor, TextSelection};
 
@@ -63,6 +64,7 @@ fn synthetic_text_layout() -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -388,6 +390,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
       x: Overflow::Auto,
       y: Overflow::Auto,
     },
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -437,6 +440,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -465,6 +469,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -1361,6 +1366,7 @@ fn simple_body_with_glyphs() -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,

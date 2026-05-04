@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use wgpu_html_layout::{LayoutBox, UserSelect};
+use wgpu_html_layout::{LayoutBox, Resize, UserSelect};
 use wgpu_html_models::common::css_enums::Overflow;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
@@ -560,6 +560,20 @@ fn paint_box_in_clip(
     path.pop();
   }
 
+  // Resize handle (CSS `resize`). Paint after children so it sits
+  // on top of all content in the bottom-right corner of the
+  // padding box. The handle is only shown when overflow is non-visible
+  // (the CSS spec requires `overflow` to be `scroll`, `auto`, or
+  // `hidden` for `resize` to take effect).
+  {
+    let active = b.resize != Resize::None
+      && (b.overflow.x != Overflow::Visible
+        || b.overflow.y != Overflow::Visible);
+    if active {
+      paint_resize_handle(b, out, paint_offset_y);
+    }
+  }
+
   if pushed {
     clip_stack.pop();
     let parent = clip_stack.last().copied();
@@ -571,6 +585,32 @@ fn paint_box_in_clip(
   }
 
   paint_scrollbars(b, out, paint_offset_y, scroll_y, opacity);
+}
+
+/// Paint the CSS resize handle (three diagonal lines) in the
+/// bottom-right corner of the element's padding box.
+fn paint_resize_handle(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32) {
+  let pad = padding_box(b);
+  let handle_size = 16.0_f32;
+  let x = pad.x + pad.w - handle_size - 2.0;
+  let y = pad.y + pad.h - handle_size - 2.0 + paint_offset_y;
+
+  if x < pad.x || y < pad.y + paint_offset_y || handle_size <= 0.0 {
+    return;
+  }
+
+  let color = [0.6, 0.6, 0.6, 0.6_f32];
+  let line_len = handle_size - 2.0;
+  let thickness = 2.0;
+  let gap = 5.0;
+
+  for i in 0..3 {
+    let offset = i as f32 * gap;
+    // Diagonal lines going from bottom-left to top-right inside the handle area
+    let lx = x + handle_size - line_len - offset;
+    let ly = y + handle_size - thickness - offset;
+    out.push_quad(Rect::new(lx.max(x), ly.max(y), line_len.min(handle_size), thickness), color);
+  }
 }
 
 fn selection_range_for_path(

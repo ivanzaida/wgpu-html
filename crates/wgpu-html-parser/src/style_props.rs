@@ -381,6 +381,7 @@ style_props! {
     overflow => "overflow";
     overflow_x => "overflow-x";
     overflow_y => "overflow-y";
+    resize => "resize";
     opacity => "opacity";
     z_index => "z-index";
 

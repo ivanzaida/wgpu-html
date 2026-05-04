@@ -40,7 +40,7 @@ use std::{
 };
 
 pub use color::{Color, resolve_color};
-pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, UserSelect};
+pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, Resize, UserSelect};
 
 /// One frame of an animated image as it sits in the raw (pre-resize)
 /// cache. `delay_ms` comes straight from the source format and is
@@ -1720,6 +1720,7 @@ pub struct LayoutBox {
   /// is the no-op default; clipping values ask the paint pass and
   /// hit testing to constrain descendants on the matching axis.
   pub overflow: OverflowAxes,
+  pub resize: Resize,
   /// Computed CSS opacity for this element. Paint multiplies this
   /// into the inherited opacity for the whole subtree.
   pub opacity: f32,
@@ -2879,6 +2880,7 @@ fn layout_block(
     text_unselectable: true,
     text_decorations: Vec::new(),
     overflow: effective_overflow(style),
+    resize: style.resize.unwrap_or(Resize::None),
     opacity: resolved_opacity(style),
     pointer_events: resolved_pointer_events(style),
     user_select: resolved_user_select(style),
@@ -3626,6 +3628,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -3697,6 +3700,7 @@ fn make_text_leaf(
     text_unselectable: false,
     text_decorations: decorations,
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: resolved_opacity(style),
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(style),
@@ -3959,6 +3963,7 @@ fn layout_inline_subtree(
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: resolved_opacity(&node.style),
     pointer_events: resolved_pointer_events(&node.style),
     user_select: resolved_user_select(&node.style),
@@ -4148,6 +4153,7 @@ fn layout_atomic_inline_subtree(
       text_unselectable: true,
       text_decorations: Vec::new(),
       overflow: OverflowAxes::visible(),
+      resize: Resize::None,
       opacity: resolved_opacity(style),
       pointer_events: resolved_pointer_events(style),
       user_select: resolved_user_select(style),
@@ -4654,6 +4660,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: opacity.clamp(0.0, 1.0),
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -4866,6 +4873,7 @@ fn layout_inline_paragraph(
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: resolved_opacity(&node.style),
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(&node.style),

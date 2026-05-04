@@ -56,7 +56,7 @@ impl Driver for WgpuHtml {
     &self.window
   }
 
-  fn logical_size(&self) -> (u32, u32) {
+  fn inner_size(&self) -> (u32, u32) {
     let s = self.window.inner_size();
     (s.width, s.height)
   }

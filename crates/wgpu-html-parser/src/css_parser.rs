@@ -273,6 +273,7 @@ fn overlay(dst: &mut Style, src: &Style) {
     overflow,
     overflow_x,
     overflow_y,
+    resize,
     opacity,
     visibility,
     z_index,
@@ -446,6 +447,7 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "overflow" => apply_overflow_shorthand(value, style),
     "overflow-x" => style.overflow_x = parse_overflow(value),
     "overflow-y" => style.overflow_y = parse_overflow(value),
+    "resize" => style.resize = parse_resize(value),
     "opacity" => style.opacity = value.parse().ok(),
     "visibility" => style.visibility = parse_visibility(value),
     "z-index" => style.z_index = value.parse().ok(),
@@ -2804,6 +2806,16 @@ fn parse_overflow(value: &str) -> Option<Overflow> {
     "clip" => Some(Overflow::Clip),
     "scroll" => Some(Overflow::Scroll),
     "auto" => Some(Overflow::Auto),
+    _ => None,
+  }
+}
+
+fn parse_resize(value: &str) -> Option<Resize> {
+  match value.to_ascii_lowercase().as_str() {
+    "none" => Some(Resize::None),
+    "both" => Some(Resize::Both),
+    "horizontal" => Some(Resize::Horizontal),
+    "vertical" => Some(Resize::Vertical),
     _ => None,
   }
 }

@@ -1,4 +1,4 @@
-use wgpu_html_layout::Cursor;
+use wgpu_html_layout::{Cursor, Resize};
 use wgpu_html_models::common::PointerEvents;
 
 use super::*;
@@ -48,6 +48,7 @@ fn text_box(text: &str, x: f32) -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -79,6 +80,7 @@ fn layout_at_path_walks_children() {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -172,6 +174,7 @@ fn text_box_with_spaces(text: &str, x: f32) -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -252,6 +255,7 @@ fn select_all_spans_first_to_last_text_box() {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -290,6 +294,7 @@ fn selected_text_uses_newlines_between_different_parents_and_not_within_same_par
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -317,6 +322,7 @@ fn selected_text_uses_newlines_between_different_parents_and_not_within_same_par
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,

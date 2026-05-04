@@ -545,7 +545,6 @@ static DEFERRED_LONGHANDS: &[&str] = &[
   "pause-before",
   "rest-after",
   "rest-before",
-  "resize",
   "scroll-margin-block-end",
   "scroll-margin-block-start",
   "scroll-margin-bottom",

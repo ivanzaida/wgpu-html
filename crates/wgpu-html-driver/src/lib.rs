@@ -24,7 +24,7 @@
 //! impl Driver for MyDriver {
 //!     type Surface = MyWindow;
 //!     fn surface(&self) -> &Arc<MyWindow> { &self.window }
-//!     fn logical_size(&self) -> (u32, u32) { self.window.size() }
+//!     fn inner_size(&self) -> (u32, u32) { self.window.size() }
 //!     fn scale_factor(&self) -> f64 { self.window.scale() }
 //!     fn request_redraw(&self) { self.window.request_redraw(); }
 //!     fn set_cursor(&self, cursor: Cursor) { self.window.set_cursor(cursor); }
@@ -67,8 +67,11 @@ pub trait Driver {
   /// The surface that wgpu renders into.
   fn surface(&self) -> &Arc<Self::Surface>;
 
-  /// Current logical (unscaled) dimensions of the rendering area.
-  fn logical_size(&self) -> (u32, u32);
+  /// Current physical (inner) dimensions of the rendering area in
+  /// device pixels.  Layout and paint use this directly as the
+  /// viewport; CSS `px` values are scaled by [`scale_factor`](Self::scale_factor)
+  /// to arrive at physical coordinates.
+  fn inner_size(&self) -> (u32, u32);
 
   /// DPI scale factor.
   fn scale_factor(&self) -> f64;
@@ -332,7 +335,7 @@ impl<D: Driver> Runtime<D> {
   ///
   /// During an active window resize the renderer skips cascade+layout
   /// and repaints from the cached layout at the previous size.  Full
-  /// pipeline work is deferred until the resize cooldown (150 ms of
+  /// pipeline work is deferred until the resize cooldown (50 ms of
   /// no resize events) expires.
   pub fn render_frame(&mut self, tree: &mut Tree) -> PipelineTimings {
     let frame_t0 = Instant::now();
@@ -343,7 +346,7 @@ impl<D: Driver> Runtime<D> {
     }
 
     self.text_ctx.sync_fonts(&tree.fonts);
-    let (w, h) = self.driver.logical_size();
+    let (w, h) = self.driver.inner_size();
     let scale = tree.effective_dpi_scale(self.driver.scale_factor() as f32);
 
     // Resize debounce: during interactive resize, feed the *stale*
@@ -351,8 +354,14 @@ impl<D: Driver> Runtime<D> {
     // RepaintOnly instead of FullPipeline.  Once the cooldown
     // expires we invalidate and run the real pipeline with the
     // current size.
+    //
+    // We fire a redraw request while the deadline is active so the
+    // frame pump doesn't stall — otherwise no event would trigger
+    // the render that picks up the final size after the user
+    // releases the resize handle.
     let (paint_w, paint_h) = if let Some(deadline) = self.resize_deadline {
       if Instant::now() < deadline {
+        self.driver.request_redraw();
         let (cw, ch) = self.pipeline_cache.viewport();
         if cw > 0.0 && ch > 0.0 { (cw, ch) } else { (w as f32, h as f32) }
       } else {
@@ -421,7 +430,7 @@ impl<D: Driver> Runtime<D> {
   /// [`Self::upload_glyphs`] separately.
   pub fn paint_frame(&mut self, tree: &mut Tree) -> (DisplayList, Option<&LayoutBox>, PipelineTimings) {
     self.text_ctx.sync_fonts(&tree.fonts);
-    let (w, h) = self.driver.logical_size();
+    let (w, h) = self.driver.inner_size();
     let scale = tree.effective_dpi_scale(self.driver.scale_factor() as f32);
 
     let (paint_w, paint_h) = if let Some(deadline) = self.resize_deadline {
@@ -471,7 +480,7 @@ impl<D: Driver> Runtime<D> {
     match self.renderer.render(list) {
       FrameOutcome::Presented | FrameOutcome::Skipped => {}
       FrameOutcome::Reconfigure => {
-        let (w, h) = self.driver.logical_size();
+        let (w, h) = self.driver.inner_size();
         self.renderer.resize(w, h);
       }
     }
@@ -495,7 +504,7 @@ impl<D: Driver> Runtime<D> {
 
     if let Some(drag) = self.scrollbar_drag.clone() {
       if let Some(layout) = self.last_layout.as_ref() {
-        let (w, h) = self.driver.logical_size();
+        let (w, h) = self.driver.inner_size();
         match &drag {
           ScrollbarDrag::Viewport { grab_offset_y } => {
             self.scroll_y = scroll_y_from_thumb_top(y - grab_offset_y, layout, w as f32, h as f32);
@@ -602,7 +611,7 @@ impl<D: Driver> Runtime<D> {
       return true;
     }
 
-    let (_w, h) = self.driver.logical_size();
+    let (_w, h) = self.driver.inner_size();
     self.scroll_y = clamp_scroll_y(self.scroll_y + pixel_dy, layout, h as f32);
     let new_doc_pos = viewport_to_document(pos, self.scroll_y);
     if let Some(layout) = self.last_layout.as_ref() {
@@ -657,7 +666,7 @@ impl<D: Driver> Runtime<D> {
   ///
   /// The GPU surface is resized immediately (cheap). Full cascade +
   /// layout + paint is deferred until the resize cooldown expires
-  /// (150 ms of no resize events) to avoid frame drops during
+  /// (50 ms of no resize events) to avoid frame drops during
   /// interactive window dragging.
   pub fn on_resize(&mut self, tree: &mut Tree, width: u32, height: u32) {
     self.renderer.resize(width, height);
@@ -667,7 +676,7 @@ impl<D: Driver> Runtime<D> {
     self.scrollbar_drag = None;
     // Defer the heavy cascade+layout+paint until resize stabilizes.
     // Each new resize event pushes the deadline further out.
-    self.resize_deadline = Some(Instant::now() + Duration::from_millis(150));
+    self.resize_deadline = Some(Instant::now() + Duration::from_millis(50));
     tree.resize_event();
   }
 
@@ -683,7 +692,7 @@ impl<D: Driver> Runtime<D> {
     let Some(layout) = self.last_layout.as_ref() else {
       return false;
     };
-    let (w, h) = self.driver.logical_size();
+    let (w, h) = self.driver.inner_size();
     let doc_pos = viewport_to_document(pos, self.scroll_y);
 
     // Element-level scrollbars first.

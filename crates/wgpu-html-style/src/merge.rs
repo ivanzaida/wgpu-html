@@ -80,6 +80,7 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
   merge_field!(lhs, rhs, overflow);
   merge_field!(lhs, rhs, overflow_x);
   merge_field!(lhs, rhs, overflow_y);
+  merge_field!(lhs, rhs, resize);
   merge_field!(lhs, rhs, opacity);
   merge_field!(lhs, rhs, visibility);
   merge_field!(lhs, rhs, z_index);

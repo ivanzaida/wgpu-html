@@ -9,6 +9,7 @@ use std::sync::{
   atomic::{AtomicUsize, Ordering},
 };
 
+use wgpu_html_layout::Resize;
 use wgpu_html_models::common::{Cursor, PointerEvents, UserSelect};
 use wgpu_html_tree::{Node, SelectionColors};
 
@@ -76,6 +77,7 @@ fn synthetic_text_layout() -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: wgpu_html_layout::OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,

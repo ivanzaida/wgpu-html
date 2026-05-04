@@ -85,6 +85,7 @@ pub(crate) fn synthetic_text_layout() -> LayoutBox {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
+    resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,

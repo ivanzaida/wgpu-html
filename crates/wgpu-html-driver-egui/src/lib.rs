@@ -53,7 +53,7 @@ impl<W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static> Driver for E
     &self.window
   }
 
-  fn logical_size(&self) -> (u32, u32) {
+  fn inner_size(&self) -> (u32, u32) {
     self.size
   }
 
