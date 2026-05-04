@@ -70,13 +70,15 @@ impl EguiDemoApp {
     // The EguiRunner needs a surface for Renderer init, but GPU
     // rendering is handled externally by eframe/egui.
     #[allow(deprecated)]
-    let event_loop = winit::event_loop::EventLoop::new().unwrap();
-    let window = Arc::new(
-      event_loop
-        .create_window(winit::window::Window::default_attributes().with_title("_hidden"))
-        .unwrap(),
-    );
-    window.set_visible(false);
+    let (window, _event_loop) = {
+      let el = winit::event_loop::EventLoop::new().unwrap();
+      let w = Arc::new(
+        el.create_window(winit::window::Window::default_attributes().with_title("_hidden"))
+          .unwrap(),
+      );
+      w.set_visible(false);
+      (w, el)
+    };
 
     Self {
       tree,

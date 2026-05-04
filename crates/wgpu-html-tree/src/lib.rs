@@ -1414,6 +1414,9 @@ impl Element {
       ("autofocus", Element::Select(e)) => flag(e.autofocus),
       ("autofocus", Element::Button(e)) => flag(e.autofocus),
 
+      ("open", Element::Dialog(e)) => flag(e.open),
+      ("open", Element::Details(e)) => flag(e.open),
+
       _ => None,
     }
   }

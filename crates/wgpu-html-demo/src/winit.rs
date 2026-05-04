@@ -490,6 +490,7 @@ impl DemoApp {
     // F9 profiling toggle
     if code == KeyCode::F9 {
       self.profiling = !self.profiling;
+      self.rt.profiling.enabled = self.profiling;
       println!(
         "demo: profiling {}",
         if self.profiling { "enabled" } else { "disabled" }
@@ -676,10 +677,12 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
   let attrs = winit::window::Window::default_attributes()
     .with_title(format!("wgpu-html demo: {doc_source}"))
     .with_inner_size(winit::dpi::PhysicalSize::new(1920u32, 1080u32));
+  #[allow(deprecated)]
   let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
 
   let driver = WgpuHtml { window };
-  let rt = WinitRuntime::new(driver, 1920, 1080);
+  let mut rt = WinitRuntime::new(driver, 1920, 1080);
+  rt.profiling.enabled = profiling_enabled;
 
   let mut app = DemoApp::new(tree, rt, profiling_enabled, devtools);
   event_loop.set_control_flow(ControlFlow::Wait);

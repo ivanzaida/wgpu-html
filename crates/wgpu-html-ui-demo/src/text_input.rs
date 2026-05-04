@@ -12,15 +12,15 @@ impl Component for TextInput {
   type Msg = ();
   type Env = ();
 
-  fn create(props: &Self::Props) -> Self {
+  fn create(_props: &Self::Props) -> Self {
     Self { value: "jopa".into() }
   }
 
-  fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender {
+  fn update(&mut self, _msg: Self::Msg, _props: &Self::Props) -> ShouldRender {
     ShouldRender::Yes
   }
 
-  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El {
+  fn view(&self, _props: &Self::Props, ctx: &Ctx<Self::Msg>, _env: &Self::Env) -> El {
     el::div()
       .class(ctx.scoped("wrapper"))
       .child(

@@ -185,6 +185,7 @@ pub(crate) struct Runtime {
   root: MountedComponent,
   wake: Arc<dyn Fn() + Send + Sync>,
   /// TypeIds of components whose styles have been registered.
+  #[allow(dead_code)]
   registered_styles: std::collections::HashSet<TypeId>,
   /// When `true`, the component's rendered output replaces `tree.root`
   /// directly.  When `false` (the default), the output is placed inside

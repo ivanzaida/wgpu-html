@@ -21,7 +21,7 @@ use wgpu_html_models as m;
 use wgpu_html_models::Style;
 use wgpu_html_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature, MediaQuery,
-  MediaQueryList, MediaType, PseudoClass, Rule, SelectorList, Stylesheet, parse_inline_style_decls, parse_stylesheet,
+  MediaQueryList, MediaType, PseudoClass, Rule, Stylesheet, parse_inline_style_decls, parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
@@ -676,7 +676,7 @@ fn re_cascade_dirty(
       } else {
         let computed =
           computed_decls_in_prepared_stylesheets_with_context(
-            &node.element, &element_ctx, sheets, ancestors, media, root, path,
+            &node.element, &element_ctx, sheets, ancestors, media, root, path, interaction,
           );
         decl_cache.insert(key, computed.clone());
         computed
@@ -882,7 +882,7 @@ fn cascade_node(
       cached.clone()
     } else {
       let computed = computed_decls_in_prepared_stylesheets_with_context(
-        &node.element, &element_ctx, sheets, ancestors, media, root, path,
+        &node.element, &element_ctx, sheets, ancestors, media, root, path, interaction,
       );
       decl_cache.insert(key, computed.clone());
       computed
@@ -1138,6 +1138,7 @@ pub fn computed_decls_in_tree_with_context(
     &MediaContext::default(),
     root,
     path,
+    &InteractionState::default(),
   )
 }
 
@@ -1149,6 +1150,7 @@ fn computed_decls_in_prepared_stylesheets_with_context(
   media: &MediaContext,
   root: &Node,
   path: &[usize],
+  interaction: &InteractionState,
 ) -> (Style, HashMap<String, CssWideKeyword>) {
   let mut values = Style::default();
   let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
@@ -1161,7 +1163,7 @@ fn computed_decls_in_prepared_stylesheets_with_context(
     .iter()
     .enumerate()
     .flat_map(|(sheet_idx, sheet)| {
-      matching_rules_for_element(sheet, element, element_ctx, ancestors, tag, id, class_attr, media, root, path)
+      matching_rules_for_element(sheet, element, element_ctx, ancestors, tag, id, class_attr, media, root, path, interaction)
         .into_iter()
         .map(move |(spec, rule_idx, rule, normal_nonempty, important_nonempty)| {
           (spec, sheet_idx, rule_idx, rule, normal_nonempty, important_nonempty)
@@ -1205,15 +1207,16 @@ fn selector_prefilter_is_complete(sel: &ComplexSelector) -> bool {
 
 fn matching_rules_for_element<'a>(
   sheet: &'a PreparedStylesheet,
-  element: &Element,
-  _element_ctx: &MatchContext, // kept for API compat, unused with query engine
-  ancestors: &[(&Element, MatchContext)],
+  _element: &Element,
+  _element_ctx: &MatchContext,
+  _ancestors: &[(&Element, MatchContext)],
   tag: Option<&str>,
   id: Option<&str>,
   class_attr: Option<&str>,
   media: &MediaContext,
   root: &Node,
   path: &[usize],
+  interaction: &InteractionState,
 ) -> Vec<(u32, usize, &'a Rule, bool, bool)> {
   let mut selector_entries = Vec::new();
   let mut push_entries = |entries: &[SelectorRuleRef]| {
@@ -1247,7 +1250,7 @@ fn matching_rules_for_element<'a>(
   push_entries(&sheet.index.universal);
 
   let qctx = QueryMatchContext {
-    interaction: None,
+    interaction: Some(interaction),
   };
 
   let mut rule_specs: Vec<(usize, u32)> = Vec::new();

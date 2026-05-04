@@ -1345,7 +1345,11 @@ fn match_pseudo_class(pc: &PseudoClass, root: &Node, path: &[usize], node: &Node
       let Some(ia) = ctx.interaction else {
         return false;
       };
-      ia.hover_path.as_ref().is_some_and(|hp| hp == path)
+      // :hover propagates to ancestors — any prefix of hover_path matches.
+      let Some(hp) = &ia.hover_path else {
+        return false;
+      };
+      hp.len() >= path.len() && &hp[..path.len()] == path
     }
     PseudoClass::Focus => {
       let Some(ia) = ctx.interaction else {
@@ -1357,7 +1361,11 @@ fn match_pseudo_class(pc: &PseudoClass, root: &Node, path: &[usize], node: &Node
       let Some(ia) = ctx.interaction else {
         return false;
       };
-      ia.active_path.as_ref().is_some_and(|ap| ap == path)
+      // :active propagates to ancestors — any prefix of active_path matches.
+      let Some(ap) = &ia.active_path else {
+        return false;
+      };
+      ap.len() >= path.len() && &ap[..path.len()] == path
     }
     PseudoClass::FocusWithin => {
       let Some(ia) = ctx.interaction else {

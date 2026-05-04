@@ -43,7 +43,7 @@ use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use wgpu_html::{
   PipelineCache, PipelineTimings, events as ev, interactivity,
   layout::{Cursor, LayoutBox},
-  renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Renderer},
+  renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Quad, Rect, Renderer},
   scroll::{
     ElementScrollbarDrag, clamp_scroll_y, paint_viewport_scrollbar, rect_contains, scroll_element_at,
     scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
@@ -100,6 +100,8 @@ pub struct Runtime<D: Driver> {
   last_layout: Option<LayoutBox>,
   last_click: Option<ClickTracker>,
   scrollbar_drag: Option<ScrollbarDrag>,
+  /// GPU-rendered profiling bar chart.
+  pub profiling: ProfilingOverlay,
 }
 
 /// Tracks multi-click (double / triple) state.
@@ -116,6 +118,117 @@ struct ClickTracker {
 enum ScrollbarDrag {
   Viewport { grab_offset_y: f32 },
   Element(ElementScrollbarDrag),
+}
+
+// ── Profiling overlay ──────────────────────────────────────────────────────
+
+/// GPU-visual profiling overlay drawn directly into the [`DisplayList`]
+/// (no tree modification). Shows a bar chart of per-stage timings and
+/// a rolling FPS counter.
+pub struct ProfilingOverlay {
+  pub enabled: bool,
+  frame_budget_ms: f32,
+  bar_width: f32,
+  bar_height: f32,
+  bar_gap: f32,
+  margin: f32,
+  /// Rolling average FPS over the last 60 frames.
+  fps: f32,
+  frame_times: [f64; 60],
+  frame_time_idx: usize,
+  /// Smoothed per-stage timing averages.
+  cascade_avg: f32,
+  layout_avg: f32,
+  paint_avg: f32,
+  render_avg: f32,
+}
+
+impl ProfilingOverlay {
+  pub fn new() -> Self {
+    Self {
+      enabled: false,
+      frame_budget_ms: 1000.0 / 60.0,
+      bar_width: 120.0,
+      bar_height: 5.0,
+      bar_gap: 1.0,
+      margin: 8.0,
+      fps: 0.0,
+      frame_times: [0.0; 60],
+      frame_time_idx: 0,
+      cascade_avg: 0.0,
+      layout_avg: 0.0,
+      paint_avg: 0.0,
+      render_avg: 0.0,
+    }
+  }
+
+  /// Exponential moving average smoothing factor.
+  const ALPHA: f32 = 0.1;
+
+  fn record(&mut self, timings: &PipelineTimings, frame_ms: f64) {
+    // Update rolling FPS.
+    self.frame_times[self.frame_time_idx % 60] = frame_ms;
+    self.frame_time_idx = self.frame_time_idx.wrapping_add(1);
+    let count = (self.frame_time_idx.min(60)) as usize;
+    if count > 0 {
+      let avg_ms = self.frame_times[..count].iter().sum::<f64>() / count as f64;
+      self.fps = if avg_ms > 0.0 { (1000.0 / avg_ms) as f32 } else { 0.0 };
+    }
+
+    let a = Self::ALPHA;
+    self.cascade_avg = a * timings.cascade_ms as f32 + (1.0 - a) * self.cascade_avg;
+    self.layout_avg = a * timings.layout_ms as f32 + (1.0 - a) * self.layout_avg;
+    self.paint_avg = a * timings.paint_ms as f32 + (1.0 - a) * self.paint_avg;
+  }
+
+  fn record_render(&mut self, render_ms: f64) {
+    let a = Self::ALPHA;
+    self.render_avg = a * render_ms as f32 + (1.0 - a) * self.render_avg;
+  }
+
+  fn draw(&self, list: &mut DisplayList, viewport_w: f32, viewport_h: f32) {
+    let panel_w = self.bar_width + self.margin * 2.0;
+    let panel_h = 37.0;
+    let x = viewport_w - panel_w - self.margin;
+    let y = viewport_h - panel_h - self.margin;
+
+    // Background panel.
+    list.quads.push(Quad {
+      rect: Rect { x, y, w: panel_w, h: panel_h },
+      color: [0.0, 0.0, 0.0, 0.65],
+      radii_h: [4.0; 4],
+      radii_v: [4.0; 4],
+      stroke: [0.0; 4],
+      pattern: [0.0; 4],
+    });
+
+    let stages: [(&str, f32, [f32; 3]); 4] = [
+      ("c", self.cascade_avg, [0.9, 0.3, 0.3]),
+      ("l", self.layout_avg, [0.3, 0.5, 0.9]),
+      ("p", self.paint_avg,  [0.3, 0.9, 0.3]),
+      ("r", self.render_avg, [0.9, 0.8, 0.2]),
+    ];
+
+    let bar_x = x + self.margin + 16.0;
+    let bar_w = self.bar_width - 16.0;
+
+    for (i, (_label, ms, rgb)) in stages.iter().enumerate() {
+      let bar_y = y + self.margin + i as f32 * (self.bar_height + self.bar_gap);
+      let w = ((*ms / self.frame_budget_ms).min(1.0) * bar_w).max(1.0);
+      list.quads.push(Quad {
+        rect: Rect { x: bar_x, y: bar_y, w, h: self.bar_height },
+        color: [rgb[0], rgb[1], rgb[2], 0.9],
+        radii_h: [1.5; 4],
+        radii_v: [1.5; 4],
+        stroke: [0.0; 4],
+        pattern: [0.0; 4],
+      });
+    }
+  }
+}
+
+impl Default for ProfilingOverlay {
+  fn default() -> Self { Self::new() }
 }
 
 impl<D: Driver> Runtime<D> {
@@ -144,6 +257,7 @@ impl<D: Driver> Runtime<D> {
       last_layout: None,
       last_click: None,
       scrollbar_drag: None,
+      profiling: ProfilingOverlay::new(),
     }
   }
 
@@ -163,6 +277,7 @@ impl<D: Driver> Runtime<D> {
   ///
   /// Returns per-stage timings.
   pub fn render_frame(&mut self, tree: &mut Tree) -> PipelineTimings {
+    let frame_t0 = Instant::now();
     self.text_ctx.sync_fonts(&tree.fonts);
     let (w, h) = self.driver.logical_size();
     let scale = tree.effective_dpi_scale(self.driver.scale_factor() as f32);
@@ -192,11 +307,25 @@ impl<D: Driver> Runtime<D> {
       .atlas
       .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
 
+    // Draw profiling overlay (uses previous frame's render_ms).
+    if self.profiling.enabled {
+      let frame_ms = frame_t0.elapsed().as_secs_f64() * 1000.0;
+      self.profiling.record(&timings, frame_ms);
+      self.profiling.draw(&mut list, w as f32, h as f32);
+    }
+
+    let render_t0 = Instant::now();
     match self.renderer.render(&list) {
       FrameOutcome::Presented | FrameOutcome::Skipped => {}
       FrameOutcome::Reconfigure => {
         self.renderer.resize(w, h);
       }
+    }
+    let render_ms = render_t0.elapsed().as_secs_f64() * 1000.0;
+
+    // Update the render bar for next frame.
+    if self.profiling.enabled {
+      self.profiling.record_render(render_ms);
     }
 
     timings

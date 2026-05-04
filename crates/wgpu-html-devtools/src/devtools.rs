@@ -279,7 +279,7 @@ impl Devtools {
 
     // Lazily create the window on first enable.
     if self.html_window.is_none() {
-      let mut hw = new_window(event_loop, "DevTools", 1280, 720);
+      let hw = new_window(event_loop, "DevTools", 1280, 720);
       hw.driver.window.request_redraw();
       self.html_window = Some(hw);
       self.last_inspected_gen = None;
