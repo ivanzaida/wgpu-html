@@ -232,6 +232,9 @@ pub struct InteractionState {
   /// Active drag source path. Set after `dragstart` fires; cleared
   /// on mouseup (which fires `dragend` on this element).
   pub drag_active_source: Option<Vec<usize>>,
+  /// Current drag target path — the element under the pointer
+  /// during an active drag. Used to fire `dragenter` / `dragleave`.
+  pub drag_target_path: Option<Vec<usize>>,
 }
 
 impl Default for InteractionState {
@@ -255,6 +258,7 @@ impl Default for InteractionState {
       last_click_path: None,
       drag_pending: None,
       drag_active_source: None,
+      drag_target_path: None,
     }
   }
 }

@@ -496,6 +496,26 @@ impl El {
     self
   }
 
+  pub fn on_dragenter(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_dragenter.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_dragenter_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_dragenter.push(cb);
+    self
+  }
+
+  pub fn on_dragleave(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
+    self.node.on_dragleave.push(Arc::new(f));
+    self
+  }
+
+  pub fn on_dragleave_cb(mut self, cb: MouseCallback) -> Self {
+    self.node.on_dragleave.push(cb);
+    self
+  }
+
   pub fn on_copy(mut self, f: impl Fn(&HtmlEvent) + Send + Sync + 'static) -> Self {
     self.node.on_copy.push(Arc::new(f));
     self

@@ -153,6 +153,8 @@ impl Slot {
 enum HoverSlot {
   Enter,
   Leave,
+  DragEnter,
+  DragLeave,
 }
 
 impl HoverSlot {
@@ -160,6 +162,8 @@ impl HoverSlot {
     match self {
       HoverSlot::Enter => ev::HtmlEventType::MOUSEENTER,
       HoverSlot::Leave => ev::HtmlEventType::MOUSELEAVE,
+      HoverSlot::DragEnter => ev::HtmlEventType::DRAGENTER,
+      HoverSlot::DragLeave => ev::HtmlEventType::DRAGLEAVE,
     }
   }
 }
@@ -294,6 +298,8 @@ fn fire_root_hover_event(tree: &mut Tree, pos: (f32, f32), target_path: &[usize]
       let mouse_cbs = match slot {
         HoverSlot::Enter => root.on_mouse_enter.clone(),
         HoverSlot::Leave => root.on_mouse_leave.clone(),
+        HoverSlot::DragEnter => root.on_dragenter.clone(),
+        HoverSlot::DragLeave => root.on_dragleave.clone(),
       };
       (mouse_cbs, root.on_event.clone())
     })
@@ -370,6 +376,8 @@ fn fire_chain_segment(
         let mouse_cbs = match slot {
           HoverSlot::Enter => node.on_mouse_enter.clone(),
           HoverSlot::Leave => node.on_mouse_leave.clone(),
+          HoverSlot::DragEnter => node.on_dragenter.clone(),
+          HoverSlot::DragLeave => node.on_dragleave.clone(),
         };
         (mouse_cbs, node.on_event.clone())
       })
@@ -480,8 +488,41 @@ pub fn dispatch_pointer_move(
   let hover = tree.interaction.hover_path.clone();
   if let Some(src) = drag_src {
     bubble(tree, &src, pos, Some(MouseButton::Primary), Slot::Drag);
-    if let Some(tgt) = hover {
-      bubble(tree, &tgt, pos, Some(MouseButton::Primary), Slot::DragOver);
+    if let Some(tgt) = &hover {
+      bubble(tree, tgt, pos, Some(MouseButton::Primary), Slot::DragOver);
+    }
+
+    // dragenter / dragleave on drag target change.
+    let old_drag = tree.interaction.drag_target_path.clone();
+    if old_drag != hover {
+      let common_len = match (&old_drag, &hover) {
+        (Some(a), Some(b)) => common_prefix(a, b).len(),
+        _ => 0,
+      };
+      // dragleave on old \ new (deepest first)
+      if let Some(old) = &old_drag {
+        if old.len() > common_len {
+          fire_chain_segment(tree, old, common_len, old.len(), true, pos, Some(old.as_slice()), HoverSlot::DragLeave);
+        }
+        if hover.is_none() {
+          fire_root_hover_event(tree, pos, old, HoverSlot::DragLeave);
+        }
+      }
+      // dragenter on new \ old (root first)
+      if let Some(new) = &hover {
+        if old_drag.is_none() {
+          fire_root_hover_event(tree, pos, new, HoverSlot::DragEnter);
+        }
+        if new.len() > common_len {
+          fire_chain_segment(tree, new, common_len, new.len(), false, pos, Some(new.as_slice()), HoverSlot::DragEnter);
+        }
+      }
+      tree.interaction.drag_target_path = hover;
+    }
+  } else {
+    // Drag ended — clear drag target path.
+    if tree.interaction.drag_target_path.is_some() {
+      tree.interaction.drag_target_path = None;
     }
   }
 
