@@ -73,34 +73,25 @@ pub use app::{
   app::{App, SecondaryWindow},
   mount::Mount,
 };
-pub use el::{Children, El};
 pub use el::{
-    InputAttrs, TextareaAttrs, ButtonAttrs, SelectAttrs, OptionAttrs,
-    OptgroupAttrs, FormAttrs, LabelAttrs, FieldsetAttrs, OutputAttrs,
-    ProgressAttrs, MeterAttrs,
-    AnchorAttrs, LinkAttrs,
-    ImgAttrs, VideoAttrs, AudioAttrs, SourceAttrs, TrackAttrs,
-    IframeAttrs, CanvasAttrs,
-    TdAttrs, ThAttrs, ColAttrs, ColgroupAttrs,
-    MetaAttrs, ScriptAttrs,
-    DetailsAttrs, DialogAttrs, TimeAttrs, OlAttrs,
-    BlockquoteAttrs, DelAttrs, InsAttrs, DataElAttrs,
-    SvgAttrs, SvgPathAttrs,
+  AnchorAttrs, AudioAttrs, BlockquoteAttrs, ButtonAttrs, CanvasAttrs, Children, ColAttrs, ColgroupAttrs, DataElAttrs,
+  DelAttrs, DetailsAttrs, DialogAttrs, El, FieldsetAttrs, FormAttrs, IframeAttrs, ImgAttrs, InputAttrs, InsAttrs,
+  LabelAttrs, LinkAttrs, MetaAttrs, MeterAttrs, OlAttrs, OptgroupAttrs, OptionAttrs, OutputAttrs, ProgressAttrs,
+  ScriptAttrs, SelectAttrs, SourceAttrs, SvgAttrs, SvgPathAttrs, TdAttrs, TextareaAttrs, ThAttrs, TimeAttrs,
+  TrackAttrs, VideoAttrs,
 };
 pub use store::Store;
 
 /// Re-export commonly-used HTML attribute enum types.
 pub mod html {
-    pub use wgpu_html_models::common::html_enums::{
-        AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding,
-        FormMethod, ImageDecoding, InputType, LinkAs, LinkTarget, Loading,
-        OlType, Preload, ReferrerPolicy, SvgLength, TableHeaderScope,
-        TextareaWrap, TrackKind,
-    };
+  pub use wgpu_html_models::common::html_enums::{
+    AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding, FormMethod, ImageDecoding, InputType, LinkAs,
+    LinkTarget, Loading, OlType, Preload, ReferrerPolicy, SvgLength, TableHeaderScope, TextareaWrap, TrackKind,
+  };
 }
 
 /// Register platform system fonts with the tree under the given family alias.
 /// Call this once during app setup so text renders correctly.
 pub(crate) fn register_system_fonts(tree: &mut wgpu_html_tree::Tree) {
-  wgpu_html_winit::register_system_fonts(tree, "sans-serif");
+  wgpu_html_driver_winit::register_system_fonts(tree, "sans-serif");
 }

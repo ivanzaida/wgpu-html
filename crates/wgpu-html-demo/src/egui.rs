@@ -1,4 +1,4 @@
-//! egui demo shell over `wgpu-html-egui`.
+//! egui demo shell over `wgpu-html-driver-egui`.
 
 use std::{
   process::ExitCode,
@@ -10,8 +10,9 @@ use std::{
 };
 
 use eframe::egui;
+use wgpu_html_driver_egui::EguiRunner;
+use wgpu_html_driver_winit::{register_system_fonts, system_font_variants};
 use wgpu_html_tree::Tree;
-use wgpu_html_winit::{register_system_fonts, system_font_variants};
 
 use crate::winit::install_demo_callbacks;
 
@@ -20,12 +21,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
   println!("  renderer  ->  egui");
   println!("  doc       ->  {doc_source}");
   if system_font_variants().is_empty() {
-    eprintln!(
-      "demo: no system font found at the candidate paths - text \
-             will render as zero-size. Update FONT_FAMILIES in \
-             wgpu-html-winit/src/fonts.rs to point at a TTF on your \
-             machine."
-    );
+    eprintln!("demo: no system font found — text will render as zero-size");
   }
   if profiling_enabled {
     eprintln!("demo: profiling enabled via --profile");
@@ -56,7 +52,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
 
 struct EguiDemoApp {
   tree: Tree,
-  html: wgpu_html_egui::HtmlState,
+  html: EguiRunner<winit::window::Window>,
   doc_source: String,
   profiling_enabled: bool,
   profiler: Profiler,
@@ -70,9 +66,21 @@ impl EguiDemoApp {
     register_system_fonts(&mut tree, "DemoSans");
     install_demo_callbacks(&mut tree, &click_count);
 
+    // Create a hidden window for the wgpu surface.
+    // The EguiRunner needs a surface for Renderer init, but GPU
+    // rendering is handled externally by eframe/egui.
+    #[allow(deprecated)]
+    let event_loop = winit::event_loop::EventLoop::new().unwrap();
+    let window = Arc::new(
+      event_loop
+        .create_window(winit::window::Window::default_attributes().with_title("_hidden"))
+        .unwrap(),
+    );
+    window.set_visible(false);
+
     Self {
       tree,
-      html: wgpu_html_egui::HtmlState::new(),
+      html: EguiRunner::new(window, 1280, 720),
       doc_source,
       profiling_enabled,
       profiler: Profiler::new(),
@@ -121,7 +129,6 @@ impl Stage {
     self.sum_ms += ms;
     self.max_ms = self.max_ms.max(ms);
   }
-
   fn avg(self, n: u64) -> f64 {
     if n == 0 { 0.0 } else { self.sum_ms / n as f64 }
   }

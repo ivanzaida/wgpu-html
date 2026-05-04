@@ -6,19 +6,14 @@
 //! process).
 
 use std::sync::{
-  atomic::{AtomicBool, Ordering},
   Arc,
+  atomic::{AtomicBool, Ordering},
 };
 
+use wgpu_html_driver_winit::{WinitRuntime, dispatch, new_window, register_system_fonts};
 use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
-use wgpu_html_winit::HtmlWindow;
-use winit::{
-  event::WindowEvent,
-  event_loop::ActiveEventLoop,
-  window::WindowId,
-};
-
+use winit::{event::WindowEvent, event_loop::ActiveEventLoop, window::WindowId};
 
 use crate::component::{DevtoolsComponent, DevtoolsProps};
 
@@ -195,7 +190,7 @@ pub struct Devtools {
   last_inspected_gen: Option<u64>,
   needs_redraw: bool,
 
-  html_window: Option<HtmlWindow>,
+  html_window: Option<WinitRuntime>,
   enabled: bool,
   /// Shared flag set by the TreeHook when F11 is pressed on the host.
   toggle_requested: Arc<AtomicBool>,
@@ -211,7 +206,7 @@ impl Devtools {
     let lucide = FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
     tree.register_font(lucide);
     tree.register_linked_stylesheet("devtools.css", CSS);
-    wgpu_html_winit::register_system_fonts(&mut tree, "sans-serif");
+    register_system_fonts(&mut tree, "sans-serif");
 
     if enable_profiler {
       tree.profiler = Some(Profiler::tagged("devtools"));
@@ -221,9 +216,9 @@ impl Devtools {
 
     // Register Shift+F12 dump hook on the devtools tree.
     let dump_html_requested = Arc::new(AtomicBool::new(false));
-    tree.hooks.push(TreeHookHandle::new(
-      crate::devtools_hook::DumpHtmlHook { flag: dump_html_requested.clone() },
-    ));
+    tree.hooks.push(TreeHookHandle::new(crate::devtools_hook::DumpHtmlHook {
+      flag: dump_html_requested.clone(),
+    }));
 
     Self {
       tree,
@@ -284,8 +279,8 @@ impl Devtools {
 
     // Lazily create the window on first enable.
     if self.html_window.is_none() {
-      let hw = HtmlWindow::new(event_loop, "DevTools", 1280, 720);
-      hw.request_redraw();
+      let mut hw = new_window(event_loop, "DevTools", 1280, 720);
+      hw.driver.window.request_redraw();
       self.html_window = Some(hw);
       self.last_inspected_gen = None;
       self.needs_redraw = true;
@@ -315,8 +310,8 @@ impl Devtools {
     }
 
     if self.needs_redraw {
-      if let Some(hw) = &self.html_window {
-        hw.request_redraw();
+      if let Some(rt) = &self.html_window {
+        rt.driver.window.request_redraw();
       }
     }
   }
@@ -329,16 +324,16 @@ impl Devtools {
 
   pub fn enable(&mut self) {
     self.enabled = true;
-    if let Some(hw) = &self.html_window {
-      hw.window().set_visible(true);
-      hw.request_redraw();
+    if let Some(rt) = &self.html_window {
+      rt.driver.window.set_visible(true);
+      rt.driver.window.request_redraw();
     }
   }
 
   pub fn disable(&mut self) {
     self.enabled = false;
-    if let Some(hw) = &self.html_window {
-      hw.window().set_visible(false);
+    if let Some(rt) = &self.html_window {
+      rt.driver.window.set_visible(false);
     }
   }
 
@@ -351,7 +346,7 @@ impl Devtools {
   }
 
   pub fn window_id(&self) -> Option<WindowId> {
-    self.html_window.as_ref().map(|hw| hw.window_id())
+    self.html_window.as_ref().map(|rt| rt.driver.window.id())
   }
 
   pub fn owns_window(&self, id: WindowId) -> bool {
@@ -360,7 +355,7 @@ impl Devtools {
 
   /// Handle a winit `WindowEvent` for the devtools window.
   pub fn handle_window_event(&mut self, host_tree: &Tree, event: &WindowEvent) {
-    let Some(hw) = self.html_window.as_mut() else {
+    let Some(rt) = self.html_window.as_mut() else {
       return;
     };
     match event {
@@ -374,17 +369,14 @@ impl Devtools {
       }
       _ => {}
     }
-    let needs_redraw = hw.handle_event(&mut self.tree, event);
+    let needs_redraw = dispatch(event, rt, &mut self.tree);
 
-    // Drain any messages queued by callbacks (mouse move, mouse
-    // down/up, click, keyboard, etc.) so the component state
-    // updates immediately — not just on the next poll().
+    // Drain any messages queued by callbacks.
     if self.mount.process(&mut self.tree, host_tree) {
       self.needs_redraw = true;
     }
 
-    // Check Shift+F12 dump flag (set by the tree hook during
-    // hw.handle_event above, so it's available immediately).
+    // Check Shift+F12 dump flag.
     if self.dump_html_requested.swap(false, Ordering::Relaxed) {
       let html = self.tree.to_html();
       let path = format!("devtools-dump-{}.html", self.tree.generation);
@@ -395,15 +387,13 @@ impl Devtools {
     }
 
     if needs_redraw || self.needs_redraw {
-      if let Some(hw) = &self.html_window {
-        hw.request_redraw();
-      }
+      rt.driver.window.request_redraw();
     }
   }
 
   fn render_to_window(&mut self) {
-    if let Some(hw) = self.html_window.as_mut() {
-      hw.render_frame(&self.tree);
+    if let Some(rt) = self.html_window.as_mut() {
+      rt.render_frame(&mut self.tree);
     }
     self.needs_redraw = false;
   }

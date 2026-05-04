@@ -8,7 +8,8 @@ members = [
     "crates/wgpu-html-driver-bevy",
     "crates/wgpu-html-driver-egui",
     "crates/wgpu-html-driver-winit",
-    "crates/wgpu-html-egui",
+    "crates/wgpu-html-driver-egui",
+    "crates/wgpu-html-driver-winit",
     "crates/wgpu-html-events",
     "crates/wgpu-html-layout",
     "crates/wgpu-html-models",
@@ -19,13 +20,11 @@ members = [
     "crates/wgpu-html-tree",
     "crates/wgpu-html-ui",
     "crates/wgpu-html-ui-demo",
-    "crates/wgpu-html-winit",
 ]
 
 [workspace.dependencies]
 wgpu-html              = { path = "crates/wgpu-html" }
 wgpu-html-devtools     = { path = "crates/wgpu-html-devtools" }
-wgpu-html-egui         = { path = "crates/wgpu-html-egui" }
 wgpu-html-events       = { path = "crates/wgpu-html-events" }
 wgpu-html-layout       = { path = "crates/wgpu-html-layout" }
 wgpu-html-models       = { path = "crates/wgpu-html-models" }
@@ -38,7 +37,6 @@ wgpu-html-driver       = { path = "crates/wgpu-html-driver" }
 wgpu-html-driver-bevy  = { path = "crates/wgpu-html-driver-bevy" }
 wgpu-html-driver-egui  = { path = "crates/wgpu-html-driver-egui" }
 wgpu-html-driver-winit = { path = "crates/wgpu-html-driver-winit" }
-wgpu-html-winit        = { path = "crates/wgpu-html-winit" }
 wgpu-html-ui           = { path = "crates/wgpu-html-ui" }
 
 wgpu     = "29"

@@ -4,16 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wgpu-html.workspace       = true
-wgpu-html-models.workspace = true
-wgpu-html-style.workspace = true
-wgpu-html-text.workspace  = true
-wgpu-html-tree.workspace  = true
-wgpu-html-winit.workspace    = true
+wgpu-html.workspace         = true
+wgpu-html-models.workspace   = true
+wgpu-html-style.workspace    = true
+wgpu-html-text.workspace     = true
+wgpu-html-tree.workspace     = true
+wgpu-html-driver-winit       = { path = "../wgpu-html-driver-winit" }
+wgpu-html-driver-egui        = { path = "../wgpu-html-driver-egui" }
 wgpu-html-devtools.workspace = true
-wgpu-html-egui.workspace  = true
-winit.workspace           = true
-egui.workspace            = true
-eframe.workspace          = true
-pollster.workspace        = true
-arboard.workspace         = true
+winit.workspace              = true
+egui.workspace               = true
+eframe.workspace             = true
+arboard.workspace            = true
