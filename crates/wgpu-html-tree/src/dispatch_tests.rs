@@ -784,3 +784,301 @@ fn selectionchange_dispatches_on_root() {
 
   assert!(received.lock().unwrap().contains(&"selectionchange".to_string()));
 }
+
+// ── Capture phase tests ──────────────────────────────────────────────────────
+
+/// Helper: build a tree `body > div#outer > span#inner` and fire mousedown
+/// on the span.  Callbacks record `(event_type, phase, current_target_len)`.
+fn capture_test_tree() -> Tree {
+  let span = Node::new(m::Span::default());
+  let mut outer = Node::new(m::Div::default());
+  outer.children.push(span);
+  let mut body = Node::new(m::Body::default());
+  body.children.push(outer);
+  Tree::new(body)
+}
+
+/// Install recording callbacks on every node that push `(event_type, phase,
+/// current_target_len)` into `log`. Dedicated `on_mouse_down` slots just log the
+/// path length; `on_event` logs phase + len.
+fn install_mousedown_path_loggers(tree: &mut Tree, log: Arc<Mutex<Vec<usize>>>) {
+  let paths = vec![vec![], vec![0], vec![0, 0]]; // body, outer div, inner span
+  for path in &paths {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(path)) {
+      let l = log.clone();
+      let p = path.clone();
+      node.on_mouse_down.push(Arc::new(move |_ev| {
+        l.lock().unwrap().push(p.len());
+      }));
+    }
+  }
+}
+
+/// Install recording callbacks on every node that push `(event_type, phase,
+/// current_target_len)` into `log`. `on_mouse_down` is a dedicated slot;
+/// `on_event` is the generic DOM slot.
+fn install_capture_loggers(
+  tree: &mut Tree,
+  log: Arc<Mutex<Vec<(String, String, usize)>>>,
+  use_on_event: bool,
+) {
+  let paths = vec![vec![], vec![0], vec![0, 0]]; // body, outer div, inner span
+  for path in &paths {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(path)) {
+      let l = log.clone();
+      let p = path.clone();
+      if use_on_event {
+        node.on_event.push(Arc::new(move |ev| {
+          let phase = format!("{:?}", ev.base().event_phase);
+          l.lock()
+            .unwrap()
+            .push((ev.event_type().to_string(), phase, p.len()));
+        }));
+      }
+    }
+  }
+}
+
+#[test]
+fn mousedown_capture_phase_fires_root_first_then_target_then_bubble() {
+  let mut tree = capture_test_tree();
+  let log = Arc::new(Mutex::new(Vec::new()));
+  install_capture_loggers(&mut tree, log.clone(), true); // use on_event
+
+  tree.dispatch_mouse_down(Some(&[0, 0]), (10.0, 10.0), MouseButton::Primary, None);
+
+  let events = log.lock().unwrap().clone();
+  // Expected: capture body(0) → outer(1) → target span(2) → bubble outer(1) → body(0)
+  assert_eq!(
+    events,
+    vec![
+      ("mousedown".to_string(), "CapturingPhase".to_string(), 0), // body capture
+      ("mousedown".to_string(), "CapturingPhase".to_string(), 1), // outer capture
+      ("mousedown".to_string(), "AtTarget".to_string(), 2),       // span target
+      ("mousedown".to_string(), "BubblingPhase".to_string(), 1), // outer bubble
+      ("mousedown".to_string(), "BubblingPhase".to_string(), 0), // body bubble
+    ],
+    "expected capture→target→bubble order for mousedown"
+  );
+}
+
+#[test]
+fn keydown_capture_phase_root_first() {
+  let mut tree = capture_test_tree();
+  let log = Arc::new(Mutex::new(Vec::new()));
+  // Make the span focusable so keydown targets it (path [0,0])
+  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0, 0])) {
+    if let Element::Span(s) = &mut node.element {
+      s.tabindex = Some(0);
+    }
+  }
+  install_capture_loggers(&mut tree, log.clone(), true);
+  tree.focus(Some(&[0, 0]));
+  // Clear focus events from the log so we only see keydown events.
+  log.lock().unwrap().clear();
+
+  tree.key_down("a", "KeyA", false);
+
+  let events = log.lock().unwrap().clone();
+  // keydown dispatches to focused element: body=[], outer=[0], span=[0,0]
+  // Capture: body (0) → outer (1) → target span (2) → bubble outer (1) → body (0)
+  assert_eq!(events[0], ("keydown".to_string(), "CapturingPhase".to_string(), 0));
+  assert_eq!(events[1], ("keydown".to_string(), "CapturingPhase".to_string(), 1));
+  assert_eq!(events[2], ("keydown".to_string(), "AtTarget".to_string(), 2));
+  assert_eq!(events[3], ("keydown".to_string(), "BubblingPhase".to_string(), 1));
+  assert_eq!(events[4], ("keydown".to_string(), "BubblingPhase".to_string(), 0));
+}
+
+#[test]
+fn stoppropagation_in_capture_prevents_target_and_bubble() {
+  let mut tree = capture_test_tree();
+  let log = Arc::new(Mutex::new(Vec::new()));
+  // Add a handler on the outer div (path [0]) that stops propagation
+  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0])) {
+    node.on_event.push(Arc::new(move |ev| {
+      ev.stop_propagation();
+    }));
+  }
+  let l = log.clone();
+  // Log all events
+  for path in [vec![], vec![0], vec![0, 0]] {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&path)) {
+      let p = path.clone();
+      let ll = l.clone();
+      node.on_event.push(Arc::new(move |ev| {
+        let phase = format!("{:?}", ev.base().event_phase);
+        ll.lock()
+          .unwrap()
+          .push((ev.event_type().to_string(), phase, p.len()));
+      }));
+    }
+  }
+
+  tree.dispatch_mouse_down(Some(&[0, 0]), (10.0, 10.0), MouseButton::Primary, None);
+
+  let events = log.lock().unwrap().clone();
+  // body capture fires, then outer capture fires (stopProp called here),
+  // target and bubble should NOT fire
+  assert_eq!(
+    events,
+    vec![
+      ("mousedown".to_string(), "CapturingPhase".to_string(), 0), // body capture
+      ("mousedown".to_string(), "CapturingPhase".to_string(), 1), // outer capture (stops)
+    ],
+    "stopPropagation during capture should prevent target and bubble phases"
+  );
+}
+
+#[test]
+fn stoppropagation_at_target_prevents_bubble_phase() {
+  let mut tree = capture_test_tree();
+  let log = Arc::new(Mutex::new(Vec::new()));
+  // Stop propagation at target (inner span)
+  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0, 0])) {
+    let l = log.clone();
+    node.on_event.push(Arc::new(move |ev| {
+      let phase = format!("{:?}", ev.base().event_phase);
+      l.lock()
+        .unwrap()
+        .push((ev.event_type().to_string(), phase, 2));
+      ev.stop_propagation();
+    }));
+  }
+  // Log on ancestors too
+  for path in [vec![], vec![0]] {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&path)) {
+      let l = log.clone();
+      let p = path.clone();
+      node.on_event.push(Arc::new(move |ev| {
+        let phase = format!("{:?}", ev.base().event_phase);
+        l.lock()
+          .unwrap()
+          .push((ev.event_type().to_string(), phase, p.len()));
+      }));
+    }
+  }
+
+  tree.dispatch_mouse_down(Some(&[0, 0]), (10.0, 10.0), MouseButton::Primary, None);
+
+  let events = log.lock().unwrap().clone();
+  // body capture, outer capture, target, then no bubble since stopped
+  assert_eq!(events.len(), 3);
+  assert_eq!(events[0], ("mousedown".to_string(), "CapturingPhase".to_string(), 0));
+  assert_eq!(events[1], ("mousedown".to_string(), "CapturingPhase".to_string(), 1));
+  assert_eq!(events[2], ("mousedown".to_string(), "AtTarget".to_string(), 2));
+}
+
+#[test]
+fn scroll_event_fires_capture_on_ancestors() {
+  let mut tree = capture_test_tree();
+  let log = Arc::new(Mutex::new(Vec::new()));
+  for path in [vec![], vec![0], vec![0, 0]] {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&path)) {
+      let l = log.clone();
+      let p = path.clone();
+      node.on_event.push(Arc::new(move |ev| {
+        let phase = format!("{:?}", ev.base().event_phase);
+        l.lock()
+          .unwrap()
+          .push((ev.event_type().to_string(), phase, p.len()));
+      }));
+    }
+  }
+
+  scroll_event(&mut tree, &[0, 0]);
+
+  let events = log.lock().unwrap().clone();
+  // non-bubbling: capture body → outer, then target at span
+  assert_eq!(
+    events,
+    vec![
+      ("scroll".to_string(), "CapturingPhase".to_string(), 0),
+      ("scroll".to_string(), "CapturingPhase".to_string(), 1),
+      ("scroll".to_string(), "AtTarget".to_string(), 2),
+    ],
+    "scroll should fire capture on ancestors then target"
+  );
+}
+
+#[test]
+fn focus_event_capture_fires_on_non_bubbling_event() {
+  let mut tree = capture_test_tree();
+  // Make the span focusable so focus targets it (path [0,0])
+  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0, 0])) {
+    if let Element::Span(s) = &mut node.element {
+      s.tabindex = Some(0);
+    }
+  }
+  let log = Arc::new(Mutex::new(Vec::new()));
+  // Install on_event loggers
+  for path in [vec![], vec![0], vec![0, 0]] {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&path)) {
+      let l = log.clone();
+      let p = path.clone();
+      node.on_event.push(Arc::new(move |ev| {
+        let phase = format!("{:?}", ev.base().event_phase);
+        l.lock()
+          .unwrap()
+          .push((ev.event_type().to_string(), phase, p.len()));
+      }));
+    }
+  }
+
+  tree.focus(Some(&[0, 0]));
+
+  let events: Vec<_> = log
+    .lock()
+    .unwrap()
+    .iter()
+    .filter(|(t, _, _)| t == "focusin")
+    .cloned()
+    .collect();
+  // focusin bubbles, so: capture body → outer, target span, bubble outer → body
+  assert_eq!(events.len(), 5);
+  assert_eq!(events[0], ("focusin".to_string(), "CapturingPhase".to_string(), 0));
+  assert_eq!(events[1], ("focusin".to_string(), "CapturingPhase".to_string(), 1));
+  assert_eq!(events[2], ("focusin".to_string(), "AtTarget".to_string(), 2));
+  assert_eq!(events[3], ("focusin".to_string(), "BubblingPhase".to_string(), 1));
+  assert_eq!(events[4], ("focusin".to_string(), "BubblingPhase".to_string(), 0));
+}
+
+#[test]
+fn submit_event_capture_phase_root_first() {
+  let mut tree = Tree::new(Node::new(m::Form::default()));
+  let log = Arc::new(Mutex::new(Vec::new()));
+  // Form is root (path []), add listener on root
+  if let Some(node) = tree.root.as_mut() {
+    let l = log.clone();
+    node.on_event.push(Arc::new(move |ev| {
+      let phase = format!("{:?}", ev.base().event_phase);
+      l.lock()
+        .unwrap()
+        .push((ev.event_type().to_string(), phase, 0));
+    }));
+  }
+
+  bubble_submit_event(&mut tree, &[], None);
+
+  let events = log.lock().unwrap().clone();
+  // Target is root, so only AtTarget fires (no ancestors)
+  assert_eq!(events.len(), 1);
+  assert_eq!(events[0], ("submit".to_string(), "AtTarget".to_string(), 0));
+}
+
+#[test]
+fn dedicated_slots_receive_mousedown_in_capture_to_bubble_order() {
+  let mut tree = capture_test_tree();
+  let log = Arc::new(Mutex::new(Vec::new()));
+  install_mousedown_path_loggers(&mut tree, log.clone());
+
+  tree.dispatch_mouse_down(Some(&[0, 0]), (10.0, 10.0), MouseButton::Primary, None);
+
+  let events = log.lock().unwrap().clone();
+  // Dedicated on_mouse_down slots fire in capture→target→bubble order:
+  // capture: body(0), outer(1); target: span(2); bubble: outer(1), body(0)
+  assert_eq!(
+    events,
+    vec![0, 1, 2, 1, 0],
+    "dedicated mouse callbacks should fire capture→target→bubble"
+  );
+}

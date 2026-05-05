@@ -57,7 +57,7 @@ All slots use `Vec<_>` for additive multi-handler (like `addEventListener`).
 - [x] Wheel cancel — harness skips scroll if prevented
 - [x] Clipboard cancel — harness skips arboard if prevented
 - [x] `beforeinput` cancel — skips mutation if prevented
-- [ ] Capture phase (deferred)
+- [x] Capture phase — all bubbling and non-bubbling events fire root→target capture before target/bubble
 
 ## Form Controls
 
