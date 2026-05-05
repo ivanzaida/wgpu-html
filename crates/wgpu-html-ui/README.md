@@ -78,7 +78,7 @@ pub trait Component: 'static {
 
 - **Props** — immutable configuration from the parent; must be `Clone`.
 - **Msg** — events the component handles; must be `Clone + Send + Sync`.
-- **Env** — external data injected at the mount site (`&Env` in every `view` call). Use `()` for standalone apps, a custom struct (e.g. `Arc<AppState>`) for read-only shared context. For mutable shared state, use `Store<T>`.
+- **Env** — external data injected at the mount site (`&Env` in every `view` call). Use `()` for standalone apps, a custom struct (e.g. `Arc<AppState>`) for read-only shared context. For mutable shared state, use `Observable<T>`.
 - **State** — the struct itself. Private, mutable, owned by the component.
 
 ---
@@ -113,10 +113,13 @@ el::div().id("app").class("container").children([
 | `.hidden(bool)` | Set `hidden` |
 | `.tabindex(i32)` | Set `tabindex` |
 | `.data(key, val)` | Set a `data-*` attribute |
+| `.attribute(name, val)` | Set a raw attribute and reflect common input fields |
 | `.custom_property(name, val)` | Set a CSS custom property |
 | `.text(t)` | Append a text child node |
 | `.child(el)` | Append a single child |
 | `.children(iter)` | Append multiple children |
+| `.bind(observable)` / `.bind_value(observable)` | Two-way bind an input/textarea string value |
+| `.bind_checked(observable)` | Two-way bind checkbox/radio checked state |
 | `.on_click(f)` | Attach a click handler (closure) |
 | `.on_click_cb(cb)` | Attach a pre-built `MouseCallback` (from `ctx.on_click()`) |
 | `.on_mouse_down/up/enter/leave(f/_cb)` | Other mouse events |
@@ -225,16 +228,16 @@ fn view(&self, props: &CardProps, _ctx: &Ctx<Msg>, _env: &()) -> El {
 
 ---
 
-## Store — shared reactive state
+## Observable — shared reactive state
 
-`Store<T>` wraps a value in `Arc<Mutex<T>>` and notifies subscribers on mutation.
+`Observable<T>` wraps a value in `Arc<Mutex<T>>` and notifies subscribers on mutation. `Store<T>` remains as a compatibility alias.
 
 ```rust
 use std::sync::LazyLock;
-use wgpu_html_ui::Store;
+use wgpu_html_ui::Observable;
 
-static THEME: LazyLock<Store<String>> =
-    LazyLock::new(|| Store::new("dark".to_string()));
+static THEME: LazyLock<Observable<String>> =
+    LazyLock::new(|| Observable::new("dark"));
 
 // Write from anywhere:
 THEME.set("light".to_string());
@@ -250,7 +253,9 @@ Subscribe inside `mounted` — the `MsgSender` is already wired to the runtime w
 
 ```rust
 fn mounted(&mut self, sender: MsgSender<Msg>) {
-    THEME.subscribe(&sender, |val| Msg::ThemeChanged(val.clone()));
+    self.theme_sub = Some(THEME.subscribe_msg(&sender, |val| {
+        Msg::ThemeChanged(val.clone())
+    }));
 }
 
 fn update(&mut self, msg: Msg, _: &()) -> ShouldRender {
@@ -260,7 +265,25 @@ fn update(&mut self, msg: Msg, _: &()) -> ShouldRender {
 }
 ```
 
-> **Limitation:** subscriptions are never automatically removed. When a component is destroyed the `MsgSender` clone inside the callback becomes orphaned; messages to it are silently discarded. A future `SubscriptionHandle` (auto-unsubscribe on drop) is planned.
+Keep the returned `Subscription` in the component; dropping it unsubscribes.
+
+### Binding form controls
+
+```rust
+use wgpu_html_ui::{Observable, el};
+
+let name = Observable::new("");
+let enabled = Observable::new(false);
+
+el::div().children([
+    el::input()
+        .attribute("type", "text")
+        .bind(name.clone()),
+    el::input()
+        .attribute("type", "checkbox")
+        .bind_checked(enabled.clone()),
+])
+```
 
 ---
 
@@ -298,7 +321,7 @@ if self.should_load {
 | Hook | When called |
 |------|------------|
 | `create(props)` | Component first instantiated |
-| `mounted(sender)` | After first render; use to subscribe to `Store`s or start background work |
+| `mounted(sender)` | After first render; use to subscribe to `Observable`s or start background work |
 | `update(msg, props)` | Every time a message arrives |
 | `updated(props)` | After each re-render triggered by this component's own `update` returning `Yes` |
 | `props_changed(old, new)` | When parent passes new props; return `No` to skip re-render |
@@ -409,7 +432,7 @@ App::with_state::<Dashboard>(my_state, my_props)
     .unwrap();
 ```
 
-`App<State>` holds `Arc<State>` and passes `&State` to every `view()` call. For mutable shared state use `Store<T>`.
+`App<State>` holds `Arc<State>` and passes `&State` to every `view()` call. For mutable shared state use `Observable<T>`.
 
 ---
 
@@ -462,7 +485,7 @@ crates/wgpu-html-ui/src/
   lib.rs           public API re-exports
   el.rs            El (Clone), 73 constructors, attrs/callbacks, Children type
   style.rs         Stylesheet / Rule builder DSL
-  store.rs         Store<T> reactive shared state + subscribe
+  core/observable.rs Observable<T> reactive shared state + subscriptions
   core/
     component.rs   Component trait, ShouldRender
     ctx.rs         Ctx<Msg> (child/keyed_child/spawn), MsgSender channel, ChildSlot

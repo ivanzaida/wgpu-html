@@ -1439,6 +1439,8 @@ fn make_input_html_event(
   event_type: &'static str,
   data: Option<String>,
   input_type: ev::enums::InputType,
+  value: Option<String>,
+  checked: Option<bool>,
   target_path: &[usize],
   current_path: Vec<usize>,
   time_stamp: f64,
@@ -1464,6 +1466,8 @@ fn make_input_html_event(
     },
     data,
     input_type,
+    value,
+    checked,
     is_composing: false,
   })
 }
@@ -1471,6 +1475,7 @@ fn make_input_html_event(
 fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, input_type: ev::enums::InputType) {
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
   let depth = target_path.len();
+  let (value, checked) = form_control_state(tree, target_path);
 
   // Capture phase: root → target parent
   for i in 0..depth {
@@ -1482,6 +1487,8 @@ fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, in
       current_path,
       data.clone(),
       input_type.clone(),
+      value.clone(),
+      checked,
       time_stamp,
       ev::EventPhase::CapturingPhase,
     ) {
@@ -1497,6 +1504,8 @@ fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, in
     target_path,
     data.clone(),
     input_type.clone(),
+    value.clone(),
+    checked,
     time_stamp,
     ev::EventPhase::AtTarget,
   ) {
@@ -1513,6 +1522,8 @@ fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, in
       current_path,
       data.clone(),
       input_type.clone(),
+      value.clone(),
+      checked,
       time_stamp,
       ev::EventPhase::BubblingPhase,
     ) {
@@ -1532,6 +1543,7 @@ fn bubble_beforeinput(
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
   let depth = target_path.len();
   let mut prevented = false;
+  let (value, checked) = form_control_state(tree, target_path);
 
   // Capture phase: root → target parent
   for i in 0..depth {
@@ -1543,6 +1555,8 @@ fn bubble_beforeinput(
       current_path,
       data.clone(),
       input_type.clone(),
+      value.clone(),
+      checked,
       time_stamp,
       ev::EventPhase::CapturingPhase,
     );
@@ -1561,6 +1575,8 @@ fn bubble_beforeinput(
       target_path,
       data.clone(),
       input_type.clone(),
+      value.clone(),
+      checked,
       time_stamp,
       ev::EventPhase::AtTarget,
     );
@@ -1580,6 +1596,8 @@ fn bubble_beforeinput(
       current_path,
       data.clone(),
       input_type.clone(),
+      value.clone(),
+      checked,
       time_stamp,
       ev::EventPhase::BubblingPhase,
     );
@@ -1600,6 +1618,8 @@ fn fire_input_at(
   current_path: &[usize],
   data: Option<String>,
   input_type: ev::enums::InputType,
+  value: Option<String>,
+  checked: Option<bool>,
   time_stamp: f64,
   phase: ev::EventPhase,
 ) -> bool {
@@ -1615,6 +1635,8 @@ fn fire_input_at(
     event_type,
     data,
     input_type,
+    value,
+    checked,
     target_path,
     current_path,
     time_stamp,
@@ -1640,6 +1662,8 @@ fn fire_input_preventable_at(
   current_path: &[usize],
   data: Option<String>,
   input_type: ev::enums::InputType,
+  value: Option<String>,
+  checked: Option<bool>,
   time_stamp: f64,
   phase: ev::EventPhase,
 ) -> (bool, bool) {
@@ -1655,6 +1679,8 @@ fn fire_input_preventable_at(
     event_type,
     data,
     input_type,
+    value,
+    checked,
     target_path,
     current_path,
     time_stamp,
@@ -2473,6 +2499,17 @@ fn write_value(node: &mut Node, value: String) {
     Element::Input(inp) => inp.value = Some(value),
     Element::Textarea(ta) => ta.value = Some(value),
     _ => {}
+  }
+}
+
+fn form_control_state(tree: &Tree, path: &[usize]) -> (Option<String>, Option<bool>) {
+  let Some(node) = tree.root.as_ref().and_then(|root| root.at_path(path)) else {
+    return (None, None);
+  };
+  match &node.element {
+    Element::Input(inp) => (inp.value.clone(), inp.checked),
+    Element::Textarea(ta) => (Some(textarea_value(ta, &node.children)), None),
+    _ => (None, None),
   }
 }
 

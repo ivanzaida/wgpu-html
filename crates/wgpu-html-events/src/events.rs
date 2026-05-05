@@ -177,6 +177,10 @@ pub struct InputEvent {
   pub data: Option<String>,
   /// The kind of change that produced this event.
   pub input_type: InputType,
+  /// The editable element's value after the mutation, when applicable.
+  pub value: Option<String>,
+  /// The checked state after the mutation, for checkbox/radio inputs.
+  pub checked: Option<bool>,
   /// `true` if the event is fired within a composition session.
   pub is_composing: bool,
 }

@@ -90,8 +90,9 @@ pub trait Component: 'static {
 
   /// Called once after the component is first mounted.
   ///
-  /// `sender` can be stored and used to subscribe to [`Store`](crate::Store)
-  /// updates or to send messages from background threads.
+  /// `sender` can be stored and used to subscribe to
+  /// [`Observable`](crate::Observable) updates or to send messages from
+  /// background threads.
   fn mounted(&mut self, _sender: MsgSender<Self::Msg>) {}
 
   /// Called after every re-render triggered by this component's own

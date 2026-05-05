@@ -15,12 +15,16 @@ fn edit_test_tree() -> Tree {
 
 #[test]
 fn text_input_fires_input_event() {
-  let received = Arc::new(Mutex::new(Vec::<String>::new()));
+  let received = Arc::new(Mutex::new(Vec::<(String, Option<String>)>::new()));
   let r = received.clone();
   let mut tree = edit_test_tree();
   if let Some(n) = tree.root.as_mut() {
     n.on_event.push(Arc::new(move |ev| {
-      r.lock().unwrap().push(ev.event_type().to_string());
+      let value = match ev {
+        ev::HtmlEvent::Input(input) => input.value.clone(),
+        _ => None,
+      };
+      r.lock().unwrap().push((ev.event_type().to_string(), value));
     }));
   }
   tree.focus(Some(&[]));
@@ -28,8 +32,13 @@ fn text_input_fires_input_event() {
   tree.text_input("hello");
 
   let evs = received.lock().unwrap().clone();
-  assert!(evs.contains(&"input".into()), "expected input event, got {evs:?}");
-  assert_eq!(evs.iter().filter(|e| *e == "input").count(), 1);
+  assert!(
+    evs
+      .iter()
+      .any(|(event, value)| event == "input" && value.as_deref() == Some("hello")),
+    "expected input event with final value, got {evs:?}"
+  );
+  assert_eq!(evs.iter().filter(|(event, _)| event == "input").count(), 1);
 }
 
 #[test]

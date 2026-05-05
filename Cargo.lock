@@ -4406,6 +4406,7 @@ name = "wgpu-html-ui"
 version = "0.1.0"
 dependencies = [
  "wgpu-html-driver-winit",
+ "wgpu-html-events",
  "wgpu-html-models",
  "wgpu-html-tree",
  "winit",

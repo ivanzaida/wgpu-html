@@ -19,8 +19,8 @@ use crate::el::El;
 /// `Send + Sync`) can enqueue messages for the component's update loop.
 ///
 /// You can also obtain one from [`Ctx::sender`] inside `view()` to pass
-/// into [`Store::subscribe`](crate::Store::subscribe) inside
-/// [`Component::mounted`](crate::Component::mounted).
+/// into [`Observable::subscribe_msg`](crate::Observable::subscribe_msg)
+/// inside [`Component::mounted`](crate::Component::mounted).
 #[derive(Clone)]
 pub struct MsgSender<M: 'static> {
   queue: Arc<Mutex<Vec<M>>>,
@@ -234,7 +234,7 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
 
   /// Get a clone of the message sender for building custom callbacks
   /// (e.g. parent-provided closures in props) or passing to
-  /// [`Store::subscribe`](crate::Store::subscribe).
+  /// [`Observable::subscribe_msg`](crate::Observable::subscribe_msg).
   pub fn sender(&self) -> MsgSender<Msg> {
     self.sender.clone()
   }

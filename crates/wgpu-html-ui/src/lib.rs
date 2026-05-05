@@ -67,6 +67,7 @@ mod app;
 pub use core::{
   component::{Component, ShouldRender},
   ctx::{Ctx, MsgSender},
+  observable::{Observable, Subscription},
 };
 
 pub use app::{

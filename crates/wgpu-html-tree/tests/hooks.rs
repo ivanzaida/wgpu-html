@@ -291,6 +291,8 @@ fn all_dom_events() -> Vec<(dom::HtmlEvent, &'static str)> {
         base: ui("input"),
         data: Some("a".into()),
         input_type: dom::InputType::InsertText,
+        value: Some("a".into()),
+        checked: None,
         is_composing: false,
       }),
       "input",

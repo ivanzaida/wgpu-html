@@ -8,3 +8,6 @@ wgpu-html-tree.workspace   = true
 wgpu-html-models.workspace = true
 wgpu-html-driver-winit     = { path = "../wgpu-html-driver-winit" }
 winit.workspace             = true
+
+[dev-dependencies]
+wgpu-html-events.workspace = true

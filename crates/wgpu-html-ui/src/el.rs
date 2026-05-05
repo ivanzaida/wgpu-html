@@ -19,6 +19,8 @@ use std::sync::Arc;
 use wgpu_html_models as m;
 use wgpu_html_tree::{Element, HtmlEvent, MouseEvent, Node};
 
+use crate::Observable;
+
 /// A node builder. Wraps [`Node`] with chainable setter methods.
 ///
 /// Convert to a raw [`Node`] via [`El::into_node`] or the [`From`] impl.
@@ -235,6 +237,15 @@ impl El {
     self.node.children.push(child.node);
     self
   }
+
+  /// Set a raw HTML attribute and reflect common typed fields.
+  pub fn attribute(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+    let name = name.into();
+    let value = value.into();
+    reflect_attribute(&mut self.node.element, &name, &value);
+    self.node.raw_attrs.push((name, value));
+    self
+  }
 }
 
 // ── Callback setters ────────────────────────────────────────────────────────
@@ -245,6 +256,43 @@ pub type MouseCallback = Arc<dyn Fn(&MouseEvent) + Send + Sync>;
 pub type EventCallback = Arc<dyn Fn(&HtmlEvent) + Send + Sync>;
 
 impl El {
+  /// Two-way bind an input/textarea value.
+  pub fn bind(self, value: Observable<String>) -> Self {
+    self.bind_value(value)
+  }
+
+  /// Two-way bind an input/textarea value.
+  pub fn bind_value(mut self, value: Observable<String>) -> Self {
+    let current = value.get();
+    match &mut self.node.element {
+      Element::Input(input) => input.value = Some(current),
+      Element::Textarea(textarea) => textarea.value = Some(current),
+      _ => {}
+    }
+    self.on_input(move |ev| {
+      if let HtmlEvent::Input(input) = ev {
+        if let Some(next) = &input.value {
+          value.set(next.clone());
+        }
+      }
+    })
+  }
+
+  /// Two-way bind a checkbox/radio checked state.
+  pub fn bind_checked(mut self, checked: Observable<bool>) -> Self {
+    let current = checked.get();
+    if let Element::Input(input) = &mut self.node.element {
+      input.checked = Some(current);
+    }
+    self.on_input(move |ev| {
+      if let HtmlEvent::Input(input) = ev {
+        if let Some(next) = input.checked {
+          checked.set(next);
+        }
+      }
+    })
+  }
+
   pub fn on_click(mut self, f: impl Fn(&MouseEvent) + Send + Sync + 'static) -> Self {
     self.node.on_click.push(Arc::new(f));
     self
@@ -565,6 +613,49 @@ impl El {
     self.node.on_select.push(cb);
     self
   }
+}
+
+fn reflect_attribute(element: &mut Element, name: &str, value: &str) {
+  let name = name.to_ascii_lowercase();
+  match (name.as_str(), element) {
+    ("type", Element::Input(input)) => input.r#type = parse_input_type(value),
+    ("value", Element::Input(input)) => input.value = Some(value.to_string()),
+    ("value", Element::Textarea(textarea)) => textarea.value = Some(value.to_string()),
+    ("checked", Element::Input(input)) => input.checked = Some(parse_bool_attr(value)),
+    _ => {}
+  }
+}
+
+fn parse_bool_attr(value: &str) -> bool {
+  !matches!(value.trim().to_ascii_lowercase().as_str(), "" | "false" | "0")
+}
+
+fn parse_input_type(value: &str) -> Option<InputType> {
+  Some(match value.trim().to_ascii_lowercase().as_str() {
+    "button" => InputType::Button,
+    "checkbox" => InputType::Checkbox,
+    "color" => InputType::Color,
+    "date" => InputType::Date,
+    "datetime-local" => InputType::DatetimeLocal,
+    "email" => InputType::Email,
+    "file" => InputType::File,
+    "hidden" => InputType::Hidden,
+    "image" => InputType::Image,
+    "month" => InputType::Month,
+    "number" => InputType::Number,
+    "password" => InputType::Password,
+    "radio" => InputType::Radio,
+    "range" => InputType::Range,
+    "reset" => InputType::Reset,
+    "search" => InputType::Search,
+    "submit" => InputType::Submit,
+    "tel" => InputType::Tel,
+    "text" => InputType::Text,
+    "time" => InputType::Time,
+    "url" => InputType::Url,
+    "week" => InputType::Week,
+    _ => return None,
+  })
 }
 
 // ── Element-specific configure ──────────────────────────────────────────────
@@ -1316,5 +1407,84 @@ impl El {
   pub fn custom_property(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
     self.node.custom_properties.insert(name.into(), value.into());
     self
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::cell::Cell;
+
+  use wgpu_html_events as ev;
+
+  use super::*;
+
+  fn input_event(value: Option<&str>, checked: Option<bool>) -> HtmlEvent {
+    HtmlEvent::Input(ev::events::InputEvent {
+      base: ev::events::UIEvent {
+        base: ev::events::Event {
+          event_type: ev::HtmlEventType::from(ev::HtmlEventType::INPUT),
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          target: Some(Vec::new()),
+          current_target: Some(Vec::new()),
+          event_phase: ev::EventPhase::AtTarget,
+          default_prevented: Cell::new(false),
+          propagation_stopped: Cell::new(false),
+          immediate_propagation_stopped: Cell::new(false),
+          is_trusted: true,
+          time_stamp: 0.0,
+        },
+        detail: 0,
+      },
+      data: None,
+      input_type: ev::InputType::InsertText,
+      value: value.map(str::to_string),
+      checked,
+      is_composing: false,
+    })
+  }
+
+  #[test]
+  fn bind_value_sets_initial_value_and_updates_observable() {
+    let value = Observable::new("initial");
+    let node = input().bind(value.clone()).into_node();
+    match &node.element {
+      Element::Input(input) => assert_eq!(input.value.as_deref(), Some("initial")),
+      _ => panic!("expected input"),
+    }
+
+    let ev = input_event(Some("next"), None);
+    for cb in &node.on_input {
+      cb(&ev);
+    }
+
+    assert_eq!(value.get(), "next");
+  }
+
+  #[test]
+  fn bind_checked_sets_initial_state_and_updates_observable() {
+    let checked = Observable::new(false);
+    let node = input().bind_checked(checked.clone()).into_node();
+    match &node.element {
+      Element::Input(input) => assert_eq!(input.checked, Some(false)),
+      _ => panic!("expected input"),
+    }
+
+    let ev = input_event(None, Some(true));
+    for cb in &node.on_input {
+      cb(&ev);
+    }
+
+    assert!(checked.get());
+  }
+
+  #[test]
+  fn attribute_reflects_input_type() {
+    let node = input().attribute("type", "text").into_node();
+    match &node.element {
+      Element::Input(input) => assert!(matches!(input.r#type, Some(InputType::Text))),
+      _ => panic!("expected input"),
+    }
   }
 }

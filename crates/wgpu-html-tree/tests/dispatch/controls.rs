@@ -36,12 +36,16 @@ fn click_toggles_checkbox() {
 
 #[test]
 fn checkbox_click_fires_change_and_input() {
-  let received = Arc::new(Mutex::new(Vec::<String>::new()));
+  let received = Arc::new(Mutex::new(Vec::<(String, Option<bool>)>::new()));
   let r = received.clone();
   let mut tree = checkbox_tree();
   if let Some(n) = tree.root.as_mut() {
     n.on_event.push(Arc::new(move |ev| {
-      r.lock().unwrap().push(ev.event_type().to_string());
+      let checked = match ev {
+        wgpu_html_events::HtmlEvent::Input(input) => input.checked,
+        _ => None,
+      };
+      r.lock().unwrap().push((ev.event_type().to_string(), checked));
     }));
   }
 
@@ -49,8 +53,16 @@ fn checkbox_click_fires_change_and_input() {
   tree.dispatch_mouse_up(Some(&[]), (0.0, 0.0), MouseButton::Primary, None);
 
   let evs = received.lock().unwrap().clone();
-  assert!(evs.contains(&"input".into()), "expected input, got {evs:?}");
-  assert!(evs.contains(&"change".into()), "expected change, got {evs:?}");
+  assert!(
+    evs
+      .iter()
+      .any(|(event, checked)| event == "input" && *checked == Some(true)),
+    "expected input with checked=true, got {evs:?}"
+  );
+  assert!(
+    evs.iter().any(|(event, _)| event == "change"),
+    "expected change, got {evs:?}"
+  );
 }
 
 fn radio_tree() -> Tree {
