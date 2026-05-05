@@ -13,7 +13,7 @@ fn text_shrink_demo() {
   let cascaded = wgpu_html_style::cascade(&tree);
   let mut text_ctx = wgpu_html_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = wgpu_html_layout::ImageCache::new();
+  let mut image_cache = wgpu_html_layout::ImageCache::default();
   let root =
     wgpu_html_layout::layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0).expect("layout");
 

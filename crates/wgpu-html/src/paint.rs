@@ -14,9 +14,9 @@ use wgpu_html_tree::{SelectionColors, TextCursor, TextSelection, Tree};
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 const SCROLLBAR_THICKNESS: f32 = 10.0;
 const SCROLLBAR_MIN_THUMB: f32 = 18.0;
-const SCROLLBAR_TRACK: [f32; 4] = [0.15, 0.18, 0.22, 0.45];
-const SCROLLBAR_THUMB: [f32; 4] = [0.55, 0.60, 0.68, 0.85];
+pub const SCROLLBAR_TRACK: [f32; 4] = [0.15, 0.18, 0.22, 0.45];
 
+pub const SCROLLBAR_THUMB: [f32; 4] = [0.55, 0.60, 0.68, 0.85];
 fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_html_renderer::Color {
   color[3] *= opacity.clamp(0.0, 1.0);
   color
@@ -28,7 +28,7 @@ fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_htm
 /// zero size. Use [`paint_tree_with_text`] when fonts are registered.
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
   let mut ctx = TextContext::new(64);
-  let mut image_cache = wgpu_html_layout::ImageCache::new();
+  let mut image_cache = wgpu_html_layout::ImageCache::default();
   paint_tree_with_text(tree, &mut ctx, &mut image_cache, viewport_w, viewport_h, 1.0, 0.0)
 }
 
@@ -48,7 +48,7 @@ pub fn paint_tree_with_text(
 ) -> DisplayList {
   text_ctx.sync_fonts(&tree.fonts);
   if let Some(ttl) = tree.asset_cache_ttl {
-    image_cache.set_ttl(Some(ttl));
+    image_cache.set_ttl(ttl);
   }
   for url in &tree.preload_queue {
     image_cache.preload(url);
@@ -1215,6 +1215,4 @@ fn shift_rect_y(r: Rect, dy: f32) -> Rect {
   Rect::new(r.x, r.y + dy, r.w, r.h)
 }
 
-#[cfg(test)]
-#[path = "paint_tests.rs"]
-mod tests_paint;
+

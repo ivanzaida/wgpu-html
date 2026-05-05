@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+wgpu-html-assets.workspace = true
 wgpu-html-events.workspace = true
 wgpu-html-models.workspace = true

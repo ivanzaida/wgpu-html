@@ -167,7 +167,7 @@ fn password_input_stores_cleartext_but_renders_bullets() {
   // ── Layout both fields and inspect the shaped runs ─────────
   let mut text_ctx = wgpu_html_text::TextContext::new(2048);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = wgpu_html_layout::ImageCache::new();
+  let mut image_cache = wgpu_html_layout::ImageCache::default();
   let layout = wgpu_html_layout::layout_with_text(
     &wgpu_html_style::cascade(&tree),
     &mut text_ctx,

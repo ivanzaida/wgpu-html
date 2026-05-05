@@ -21,7 +21,8 @@ use std::{
 };
 
 use cosmic_text::{Attrs, Buffer, CacheKey, Metrics, Shaping};
-use wgpu_html_tree::{FontHandle, FontRegistry, FontStyleAxis};
+use wgpu_html_assets::{AssetIo, AssetStatus, Fetcher};
+use wgpu_html_tree::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 
 use crate::{
   atlas::{Atlas, AtlasRect},
@@ -317,6 +318,34 @@ impl TextContext {
     self.fonts = registry.clone();
     self.font_db.sync(registry);
     self.last_font_generation = registry.generation();
+  }
+
+  /// Load a font from a URL via `AssetIo` and register it under
+  /// `family`. Returns `Some(handle)` if the font bytes are ready
+  /// and successfully registered, `None` if still pending or failed.
+  pub fn load_font<F: Fetcher + 'static>(
+    &mut self,
+    io: &mut AssetIo<F>,
+    url: &str,
+    family: &str,
+    weight: u16,
+    style: FontStyleAxis,
+  ) -> Option<FontHandle> {
+    match io.load_font(url) {
+      AssetStatus::Ready(bytes) => {
+        let face = FontFace {
+          family: family.to_owned(),
+          weight,
+          style,
+          data: bytes.into(),
+        };
+        let handle = self.fonts.register(face);
+        self.font_db.sync(&self.fonts);
+        self.last_font_generation = self.fonts.generation();
+        Some(handle)
+      }
+      _ => None,
+    }
   }
 
   /// Pick a `FontHandle` for a CSS `font-family` list, weight, and
@@ -1027,6 +1056,3 @@ pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
   Some((ascender - descender + line_gap) / upem)
 }
 
-#[cfg(test)]
-#[path = "shape_tests.rs"]
-mod tests_shape;

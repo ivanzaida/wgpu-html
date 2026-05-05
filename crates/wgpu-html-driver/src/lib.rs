@@ -305,7 +305,7 @@ impl<D: Driver> Runtime<D> {
       driver,
       renderer,
       text_ctx: TextContext::new(GLYPH_ATLAS_SIZE),
-      image_cache: wgpu_html::layout::ImageCache::new(),
+      image_cache: wgpu_html::layout::ImageCache::default(),
       pipeline_cache: PipelineCache::new(),
       scroll_y: 0.0,
       cursor_pos: None,

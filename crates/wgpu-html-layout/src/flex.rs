@@ -874,7 +874,7 @@ fn build_item<'a>(
 fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Option<f32> {
   match &node.element {
     Element::Img(img) => {
-      let loaded = ctx.images.load(img);
+      let loaded = ctx.images.load_image(img);
       let w = img.width.or_else(|| loaded.as_ref().map(|d| d.width));
       let h = img.height.or_else(|| loaded.as_ref().map(|d| d.height));
       let main = if is_row { w } else { h };

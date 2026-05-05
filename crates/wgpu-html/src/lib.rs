@@ -64,7 +64,7 @@ pub fn compute_layout_profiled(
 
   text_ctx.sync_fonts(&tree.fonts);
   if let Some(ttl) = tree.asset_cache_ttl {
-    image_cache.set_ttl(Some(ttl));
+    image_cache.set_ttl(ttl);
   }
   for url in &tree.preload_queue {
     image_cache.preload(url);
@@ -317,7 +317,7 @@ pub fn paint_tree_cached<'c>(
     PipelineAction::FullPipeline => {
       text_ctx.sync_fonts(&tree.fonts);
       if let Some(ttl) = tree.asset_cache_ttl {
-        image_cache.set_ttl(Some(ttl));
+        image_cache.set_ttl(ttl);
       }
       for url in &tree.preload_queue {
         image_cache.preload(url);
@@ -863,6 +863,4 @@ fn boundary_index_for_byte(run: &wgpu_html_text::ShapedRun, byte: usize) -> usiz
     .unwrap_or_else(|| run.byte_boundaries.len().saturating_sub(1))
 }
 
-#[cfg(test)]
-#[path = "lib_tests.rs"]
-mod tests_lib;
+

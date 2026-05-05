@@ -1,0 +1,13 @@
+[package]
+name = "wgpu-html-assets"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["blocking"]
+blocking = ["ureq"]
+
+[dependencies]
+image = { workspace = true }
+wgpu-html-models = { workspace = true }
+ureq = { workspace = true, optional = true }

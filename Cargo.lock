@@ -4250,6 +4250,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wgpu-html-assets"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "ureq",
+ "wgpu-html-models",
+]
+
+[[package]]
 name = "wgpu-html-demo"
 version = "0.1.0"
 dependencies = [
@@ -4332,9 +4341,8 @@ version = "0.1.0"
 name = "wgpu-html-layout"
 version = "0.1.0"
 dependencies = [
- "image",
  "resvg",
- "ureq",
+ "wgpu-html-assets",
  "wgpu-html-models",
  "wgpu-html-parser",
  "wgpu-html-style",
@@ -4380,6 +4388,7 @@ version = "0.1.0"
 dependencies = [
  "cosmic-text",
  "wgpu 29.0.1",
+ "wgpu-html-assets",
  "wgpu-html-tree",
 ]
 
@@ -4387,6 +4396,7 @@ dependencies = [
 name = "wgpu-html-tree"
 version = "0.1.0"
 dependencies = [
+ "wgpu-html-assets",
  "wgpu-html-events",
  "wgpu-html-models",
 ]

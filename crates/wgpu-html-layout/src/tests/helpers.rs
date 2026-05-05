@@ -10,7 +10,7 @@ pub(crate) fn make(html: &str) -> CascadedTree {
 
 pub(crate) fn layout_scaled(tree: &CascadedTree, viewport_w: f32, viewport_h: f32, scale: f32) -> LayoutBox {
   let mut text_ctx = wgpu_html_text::TextContext::new(64);
-  let mut image_cache = ImageCache::new();
+  let mut image_cache = AssetIo::new(wgpu_html_assets::blocking::BlockingFetcher::new());
   layout_with_text(tree, &mut text_ctx, &mut image_cache, viewport_w, viewport_h, scale).unwrap()
 }
 
@@ -21,7 +21,7 @@ pub(crate) fn layout_with_fonts(html: &str, viewport_w: f32, viewport_h: f32) ->
   let cascaded = wgpu_html_style::cascade(&tree);
   let mut text_ctx = wgpu_html_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = ImageCache::new();
+  let mut image_cache = AssetIo::new(wgpu_html_assets::blocking::BlockingFetcher::new());
   layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, viewport_w, viewport_h, 1.0).unwrap()
 }
 

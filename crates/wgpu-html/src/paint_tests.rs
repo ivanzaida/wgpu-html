@@ -563,7 +563,7 @@ fn svg_test_demo_paints_svg_images() {
     "svg-test.html should parse all inline SVG elements"
   );
   let mut text_ctx = TextContext::new(64);
-  let mut image_cache = wgpu_html_layout::ImageCache::new();
+  let mut image_cache = wgpu_html_layout::ImageCache::default();
   let layout = wgpu_html_layout::layout_with_text(
     &wgpu_html_style::cascade(&tree),
     &mut text_ctx,
@@ -600,7 +600,7 @@ fn svg_test_demo_paints_svg_images() {
     "each SVG should keep its authored 160x160 content box: {image_rects:?}"
   );
   let mut scaled_text_ctx = TextContext::new(64);
-  let mut scaled_image_cache = wgpu_html_layout::ImageCache::new();
+  let mut scaled_image_cache = wgpu_html_layout::ImageCache::default();
   let scaled_layout = wgpu_html_layout::layout_with_text(
     &wgpu_html_style::cascade(&tree),
     &mut scaled_text_ctx,
