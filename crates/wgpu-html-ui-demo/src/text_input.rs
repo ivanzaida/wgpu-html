@@ -10,7 +10,6 @@ pub struct TextInput {
 impl Component for TextInput {
   type Props = ();
   type Msg = ();
-  type Env = ();
 
   fn create(_props: &Self::Props) -> Self {
     Self { value: "jopa".into() }
@@ -20,7 +19,7 @@ impl Component for TextInput {
     ShouldRender::Yes
   }
 
-  fn view(&self, _props: &Self::Props, ctx: &Ctx<Self::Msg>, _env: &Self::Env) -> El {
+  fn view(&self, _props: &Self::Props, ctx: &Ctx<Self::Msg>) -> El {
     el::div()
       .class(ctx.scoped("wrapper"))
       .child(

@@ -1,23 +1,21 @@
 //! Root devtools component — orchestrates child components.
-//!
-//! `type Env = Tree` — receives `&Tree` (the host tree) in `view()`.
-
-use std::{
-  cell::RefCell,
-  collections::HashSet,
-  sync::{Arc, Mutex},
-};
-
-use wgpu_html_models::Style;
-use wgpu_html_style::cascade;
-use wgpu_html_tree::Tree;
-use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
 
 use super::{
+  components::{SearchBar, SearchBarProps, TabBar, TabBarProps, Toolbar, ToolbarProps},
   styles_panel::{StylesPanel, StylesPanelProps},
   tree_panel::{TreePanel, TreePanelProps},
 };
 use crate::breadcrumb::{BreadcrumbBar, BreadcrumbProps};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+  cell::RefCell,
+  collections::HashSet,
+  sync::{Arc, Mutex, RwLock},
+};
+use wgpu_html_models::Style;
+use wgpu_html_style::cascade;
+use wgpu_html_tree::Tree;
+use wgpu_html_ui::{el, el::El, Component, Ctx, ShouldRender};
 
 // ── Props / Msg ─────────────────────────────────────────────────────────────
 
@@ -26,11 +24,16 @@ pub type SharedHoverPath = Arc<Mutex<Option<Vec<usize>>>>;
 pub type SharedPickMode = Arc<std::sync::atomic::AtomicBool>;
 pub type SharedPendingPick = Arc<Mutex<Option<Vec<usize>>>>;
 
+/// Shared reference to the host tree, updated by [`Devtools::poll`] before
+/// each processing cycle.
+pub type SharedHostTree = Arc<RwLock<Option<Tree>>>;
+
 #[derive(Clone)]
 pub struct DevtoolsProps {
   pub shared_hover: SharedHoverPath,
   pub shared_pick_mode: SharedPickMode,
   pub shared_pending_pick: SharedPendingPick,
+  pub host_tree: SharedHostTree,
 }
 
 #[derive(Clone)]
@@ -61,7 +64,6 @@ pub struct DevtoolsComponent {
 impl Component for DevtoolsComponent {
   type Props = DevtoolsProps;
   type Msg = DevtoolsMsg;
-  type Env = Tree;
 
   fn create(_props: &DevtoolsProps) -> Self {
     Self {
@@ -125,7 +127,7 @@ impl Component for DevtoolsComponent {
     ShouldRender::Yes
   }
 
-  fn view(&self, props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>, env: &Tree) -> El {
+  fn view(&self, props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>) -> El {
     // Check for a pending pick from the host window
     if let Ok(mut pending) = props.shared_pending_pick.lock() {
       if let Some(path) = pending.take() {
@@ -136,10 +138,20 @@ impl Component for DevtoolsComponent {
       }
     }
 
+    // Read the host tree from the shared reference (populated by Devtools::poll).
+    let host_tree_guard = props.host_tree.read().unwrap();
+    let host_root = host_tree_guard.as_ref().and_then(|t| t.root.clone());
+
     let sender = ctx.sender();
     let select_sender = sender.clone();
     let toggle_sender = sender.clone();
     let hover_sender = sender.clone();
+    let pick_sender = sender.clone();
+
+    let toolbar_props = ToolbarProps {
+      pick_mode: self.pick_mode,
+      on_pick_toggle: Arc::new(move || { pick_sender.send(DevtoolsMsg::TogglePickMode); }),
+    };
 
     let tree_props = TreePanelProps {
       selected_path: self.selected_path.clone(),
@@ -154,10 +166,12 @@ impl Component for DevtoolsComponent {
       on_hover: Arc::new(move |path| {
         hover_sender.send(DevtoolsMsg::HoverRow(path));
       }),
+      host_root: host_root.clone(),
     };
 
     let breadcrumb_props = BreadcrumbProps {
       selected_path: self.selected_path.clone(),
+      host_root: host_root.clone(),
     };
 
     let cascaded_style = self.selected_path.as_deref().and_then(|path| {
@@ -172,7 +186,8 @@ impl Component for DevtoolsComponent {
           }
         }
       }
-      let cascaded = cascade(env);
+      let host_tree_ref = host_tree_guard.as_ref()?;
+      let cascaded = cascade(host_tree_ref);
       let root = cascaded.root.as_ref()?;
       let node = if path.is_empty() { root } else { root.at_path(path)? };
       let style = node.style.clone();
@@ -183,12 +198,17 @@ impl Component for DevtoolsComponent {
     let styles_props = StylesPanelProps {
       selected_path: self.selected_path.clone(),
       cascaded_style,
+      host_root: host_root.clone(),
     };
+
+    let tab_bar_props = TabBarProps { active: 0 };
+    let search_bar_props = SearchBarProps { on_change: Arc::new(|_| {}) };
 
     // Divider callbacks
     let drag_start_sender = sender.clone();
     let drag_move_sender = sender.clone();
     let drag_end_sender = sender;
+    let drag_started = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     let tree_width_pct = format!("{}%", self.split_ratio * 100.0);
 
@@ -199,76 +219,43 @@ impl Component for DevtoolsComponent {
       })),
       el::body().child(
         el::div().class("devtools-root").children([
-          Self::toolbar(self.pick_mode, ctx),
+          ctx.child::<Toolbar>(toolbar_props),
           el::div()
-          .class("main")
-          // Track mouse move/up on the whole container so drag
-          // continues even after the pointer leaves the 4px divider.
-          .on_mouse_move(move |ev| {
-            drag_move_sender.send(DevtoolsMsg::DividerDragMove(ev.pos.0));
-          })
-          .on_mouse_up(move |_| {
-            drag_end_sender.send(DevtoolsMsg::DividerDragEnd);
-          })
-          .children([
-            el::div()
-              .class("tree-panel")
-              .style(format!("width: {tree_width_pct}; min-width: 0;"))
-              .children([
-                ctx.child::<TreePanel>(tree_props),
-                ctx.child::<BreadcrumbBar>(breadcrumb_props),
+            .class("main")
+            .on_mouse_move({
+              let drag_started = drag_started.clone();
+              move |ev| {
+                if drag_started.load(std::sync::atomic::Ordering::Relaxed) {
+                  drag_move_sender.send(DevtoolsMsg::DividerDragMove(ev.pos.0));
+                }
+              }
+            })
+            .on_mouse_up(move |_| {
+              drag_end_sender.send(DevtoolsMsg::DividerDragEnd);
+            })
+            .children([
+              el::div()
+                .class("tree-panel")
+                .style(format!("width: {tree_width_pct}; min-width: 0;"))
+                .children([
+                  ctx.child::<TreePanel>(tree_props),
+                  ctx.child::<BreadcrumbBar>(breadcrumb_props),
+                ]),
+              el::div()
+                .class("divider")
+                .on_mouse_down(move |ev| {
+                  drag_started.store(true, std::sync::atomic::Ordering::Relaxed);
+                  drag_start_sender.send(DevtoolsMsg::DividerDragStart(ev.pos.0));
+                }),
+              el::div().class("styles-panel").children([
+                ctx.child::<TabBar>(tab_bar_props),
+                ctx.child::<SearchBar>(search_bar_props),
+                ctx.child::<StylesPanel>(styles_props),
               ]),
-            el::div()
-              .class("divider")
-              .on_mouse_down(move |ev| {
-                drag_start_sender.send(DevtoolsMsg::DividerDragStart(ev.pos.0));
-              }),
-            el::div().class("styles-panel").children([
-              Self::tab_bar(),
-              Self::style_search(),
-              ctx.child::<StylesPanel>(styles_props),
             ]),
-          ]),
         ]),
       ),
     ])
   }
 }
 
-// ── Static view helpers ─────────────────────────────────────────────────────
-
-impl DevtoolsComponent {
-  fn toolbar(pick_mode: bool, ctx: &Ctx<DevtoolsMsg>) -> El {
-    let pick_class = if pick_mode { "pick-btn pick-active" } else { "pick-btn" };
-    let pick_cb = ctx.on_click(DevtoolsMsg::TogglePickMode);
-    el::div().class("toolbar").children([
-      el::span().class(pick_class).text("\u{e202}").on_click(move |ev| {
-        pick_cb(ev);
-      }),
-      el::div().class("tb-divider"),
-      el::div().class("filter").children([
-        el::span().class("filter-icon").text("\u{e0dc}"),
-        el::span().class("filter-text").text("Filter"),
-      ]),
-    ])
-  }
-
-  fn tab_bar() -> El {
-    el::div().class("tab-bar").children([
-      el::div().class("tab tab-active").style("height: 100%;").text("Styles"),
-      el::div().class("tab").style("height: 100%;").text("Computed"),
-      el::div().class("tab").style("height: 100%;").text("Layout"),
-      el::div().class("tab").style("height: 100%;").text("Event Listeners"),
-    ])
-  }
-
-  fn style_search() -> El {
-    el::div().class("style-search").children([
-      el::span().class("ss-label").text("Filter"),
-      el::div().class("ss-spacer"),
-      el::span().class("ss-btn ss-btn-active").text(":hov"),
-      el::span().class("ss-btn").text(".cls"),
-      el::span().class("ss-btn icon").text("\u{e13d}"),
-    ])
-  }
-}

@@ -20,7 +20,7 @@ pub(crate) trait AnyComponent {
   fn update_any(&mut self, msg: Box<dyn Any>) -> ShouldRender;
 
   /// Render the component and return the node tree + child slots.
-  fn render(&self, env: &dyn Any) -> (Node, Vec<ChildSlot>);
+  fn render(&self) -> (Node, Vec<ChildSlot>);
 
   /// Notify that props changed.
   fn props_changed_any(&mut self, new_props: &dyn Any) -> ShouldRender;
@@ -76,7 +76,6 @@ impl<C: Component> AnyComponent for ComponentState<C>
 where
   C::Msg: Clone + Send + Sync + 'static,
   C::Props: 'static,
-  C::Env: 'static,
 {
   fn update_any(&mut self, msg: Box<dyn Any>) -> ShouldRender {
     if let Ok(msg) = msg.downcast::<C::Msg>() {
@@ -86,15 +85,11 @@ where
     }
   }
 
-  fn render(&self, env: &dyn Any) -> (Node, Vec<ChildSlot>) {
+  fn render(&self) -> (Node, Vec<ChildSlot>) {
     let ctx = Ctx::new(self.sender.clone(), C::scope());
-    if let Some(env) = env.downcast_ref::<C::Env>() {
-      let el = self.component.view(&self.props, &ctx, env);
-      let children = ctx.children.into_inner();
-      (el.into_node(), children)
-    } else {
-      (Node::new(""), Vec::new())
-    }
+    let el = self.component.view(&self.props, &ctx);
+    let children = ctx.children.into_inner();
+    (el.into_node(), children)
   }
 
   fn scope_prefix(&self) -> &'static str {
@@ -207,7 +202,6 @@ impl Runtime {
   where
     C::Msg: Clone + Send + Sync + 'static,
     C::Props: 'static,
-    C::Env: 'static,
   {
     let state = Box::new(ComponentState::<C>::new(props, wake.clone()));
     Self {
@@ -234,8 +228,8 @@ impl Runtime {
   }
 
   /// Perform the initial render of the entire component tree.
-  pub fn initial_render(&mut self, env: &dyn Any) -> Node {
-    let node = Self::render_component(&mut self.root, &self.wake, env);
+  pub fn initial_render(&mut self) -> Node {
+    let node = Self::render_component(&mut self.root, &self.wake);
     self.root.state.mounted();
     node
   }
@@ -244,7 +238,7 @@ impl Runtime {
   /// Re-renders if any component changed.
   ///
   /// Returns `true` if any subtree was re-rendered.
-  pub fn process(&mut self, tree: &mut Tree, env: &dyn Any) -> bool {
+  pub fn process(&mut self, tree: &mut Tree) -> bool {
     let mut ever_changed = false;
     loop {
       let changed = Self::process_component(&mut self.root, &self.wake);
@@ -252,17 +246,17 @@ impl Runtime {
         break;
       }
       ever_changed = true;
-      let node = Self::render_component(&mut self.root, &self.wake, env);
+      let node = Self::render_component(&mut self.root, &self.wake);
       self.apply_node(tree, node);
     }
     ever_changed
   }
 
-  /// Force a full re-render (e.g. when env changed externally).
-  pub fn force_render(&mut self, tree: &mut Tree, env: &dyn Any) {
+  /// Force a full re-render of every component in the tree.
+  pub fn force_render(&mut self, tree: &mut Tree) {
     Self::register_styles(tree, &self.root);
     Self::mark_all_dirty(&mut self.root);
-    let node = Self::render_component(&mut self.root, &self.wake, env);
+    let node = Self::render_component(&mut self.root, &self.wake);
     self.apply_node(tree, node);
   }
 
@@ -377,7 +371,7 @@ impl Runtime {
   ///
   /// 3. **Full render** (`needs_render`, or first render): Call `view()`, reconcile the child set (add/remove/update),
   ///    store the raw output as `skeleton_node`, substitute children, cache the resolved result as `last_node`.
-  fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>, env: &dyn Any) -> Node {
+  fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>) -> Node {
     // ── Path 1: clean fast-path ─────────────────────────────────────
     if !mounted.needs_render && !mounted.subtree_dirty {
       if let Some(cached) = &mounted.last_node {
@@ -395,7 +389,7 @@ impl Runtime {
         // Re-substitute every child.  Dirty children re-render; clean
         // children hit path 1 and return their last_node cheaply.
         for child in mounted.children.values_mut() {
-          let child_node = Self::render_component(child, wake, env);
+          let child_node = Self::render_component(child, wake);
           replace_placeholder(&mut resolved, &child.marker_id, child_node);
         }
 
@@ -410,7 +404,7 @@ impl Runtime {
     // ── Path 3: full render ──────────────────────────────────────────
     let was_dirty = mounted.needs_render;
     let is_first_render = mounted.skeleton_node.is_none();
-    let (skeleton, child_slots) = mounted.state.render(env);
+    let (skeleton, child_slots) = mounted.state.render();
     // Resolved starts as a clone of the skeleton; children are then
     // substituted in.  The original skeleton is kept intact for future
     // patch-path passes.
@@ -447,7 +441,7 @@ impl Runtime {
 
       child.marker_id = slot.marker_id.clone();
 
-      let child_node = Self::render_component(&mut child, wake, env);
+      let child_node = Self::render_component(&mut child, wake);
       replace_placeholder(&mut resolved, &slot.marker_id, child_node);
 
       new_children.insert(key, child);

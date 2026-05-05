@@ -1,6 +1,6 @@
 //! Breadcrumb bar component — shows the path to the selected element.
 
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::Node;
 use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
 
 use crate::tags::tag_label;
@@ -10,6 +10,7 @@ use crate::tags::tag_label;
 #[derive(Clone)]
 pub struct BreadcrumbProps {
   pub selected_path: Option<Vec<usize>>,
+  pub host_root: Option<Node>,
 }
 
 // Stateless — no interactions.
@@ -23,7 +24,6 @@ pub struct BreadcrumbBar;
 impl Component for BreadcrumbBar {
   type Props = BreadcrumbProps;
   type Msg = BreadcrumbMsg;
-  type Env = Tree;
 
   fn create(_props: &BreadcrumbProps) -> Self {
     BreadcrumbBar
@@ -33,8 +33,8 @@ impl Component for BreadcrumbBar {
     match msg {}
   }
 
-  fn view(&self, props: &BreadcrumbProps, _ctx: &Ctx<BreadcrumbMsg>, env: &Tree) -> El {
-    let root = env.root.as_ref();
+  fn view(&self, props: &BreadcrumbProps, _ctx: &Ctx<BreadcrumbMsg>) -> El {
+    let root = props.host_root.as_ref();
     let mut bc = el::div().class("breadcrumb");
 
     if let (Some(root), Some(path)) = (root, props.selected_path.as_deref()) {

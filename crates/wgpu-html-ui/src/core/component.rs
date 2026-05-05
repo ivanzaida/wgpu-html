@@ -19,10 +19,6 @@ pub enum ShouldRender {
 /// from its parent, and communicates via [`Msg`](Component::Msg) messages dispatched
 /// through callbacks.
 ///
-/// [`Env`](Component::Env) is external data provided by the mount site at
-/// render time (e.g. a reference to an inspected tree). Standalone apps
-/// use `Env = ()`.
-///
 /// # Example
 ///
 /// ```ignore
@@ -39,7 +35,6 @@ pub enum ShouldRender {
 /// impl Component for Counter {
 ///     type Props = Props;
 ///     type Msg = Msg;
-///     type Env = ();
 ///
 ///     fn create(_props: &Props) -> Self { Counter { count: 0 } }
 ///
@@ -51,7 +46,7 @@ pub enum ShouldRender {
 ///         ShouldRender::Yes
 ///     }
 ///
-///     fn view(&self, props: &Props, ctx: &Ctx<Msg>, _env: &()) -> El {
+///     fn view(&self, props: &Props, ctx: &Ctx<Msg>) -> El {
 ///         el::div().children([
 ///             el::span().text(&props.label),
 ///             el::button().text("-").on_click(ctx.on_click(Msg::Dec)),
@@ -68,10 +63,6 @@ pub trait Component: 'static {
   /// Messages produced by user interactions or other events.
   type Msg: Clone + Send + Sync + 'static;
 
-  /// External data provided by the mount site at render time.
-  /// Use `()` for standalone applications.
-  type Env: 'static;
-
   /// Create a new component instance from initial props.
   fn create(props: &Self::Props) -> Self;
 
@@ -79,9 +70,8 @@ pub trait Component: 'static {
   /// a call to [`view`](Component::view) and subtree replacement.
   fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender;
 
-  /// Produce the element tree for the current state, props, and
-  /// environment.
-  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El;
+  /// Produce the element tree for the current state and props.
+  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>) -> El;
 
   /// Called when the parent passes new props.  Default: always re-render.
   fn props_changed(&mut self, _old: &Self::Props, _new: &Self::Props) -> ShouldRender {

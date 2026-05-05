@@ -68,7 +68,6 @@ enum LeafMsg {
 impl Component for LeafComp {
   type Props = LeafProps;
   type Msg = LeafMsg;
-  type Env = ();
 
   fn create(p: &LeafProps) -> Self {
     let slot = p.sender_slot.clone();
@@ -84,7 +83,7 @@ impl Component for LeafComp {
     ShouldRender::Yes
   }
 
-  fn view(&self, _: &LeafProps, _: &Ctx<LeafMsg>, _: &()) -> El {
+  fn view(&self, _: &LeafProps, _: &Ctx<LeafMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::span()
   }
@@ -124,7 +123,6 @@ enum ParentMsg {
 impl Component for ParentComp {
   type Props = ParentProps;
   type Msg = ParentMsg;
-  type Env = ();
 
   fn create(p: &ParentProps) -> Self {
     ParentComp { spy: p.spy.clone() }
@@ -134,7 +132,7 @@ impl Component for ParentComp {
     ShouldRender::Yes
   }
 
-  fn view(&self, props: &ParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
+  fn view(&self, props: &ParentProps, ctx: &Ctx<ParentMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::div().child(ctx.child::<LeafComp>(LeafProps {
       spy: props.leaf_spy.clone(),
@@ -176,7 +174,6 @@ enum RootMsg {}
 impl Component for RootComp {
   type Props = RootProps;
   type Msg = RootMsg;
-  type Env = ();
 
   fn create(p: &RootProps) -> Self {
     RootComp { spy: p.spy.clone() }
@@ -186,7 +183,7 @@ impl Component for RootComp {
     ShouldRender::No
   }
 
-  fn view(&self, props: &RootProps, ctx: &Ctx<RootMsg>, _: &()) -> El {
+  fn view(&self, props: &RootProps, ctx: &Ctx<RootMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::div().child(ctx.child::<ParentComp>(ParentProps {
       spy: props.parent_spy.clone(),
@@ -221,7 +218,6 @@ enum TwoChildrenMsg {}
 impl Component for TwoChildrenComp {
   type Props = TwoChildrenProps;
   type Msg = TwoChildrenMsg;
-  type Env = ();
 
   fn create(p: &TwoChildrenProps) -> Self {
     TwoChildrenComp { spy: p.spy.clone() }
@@ -231,7 +227,7 @@ impl Component for TwoChildrenComp {
     ShouldRender::No
   }
 
-  fn view(&self, props: &TwoChildrenProps, ctx: &Ctx<TwoChildrenMsg>, _: &()) -> El {
+  fn view(&self, props: &TwoChildrenProps, ctx: &Ctx<TwoChildrenMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::div().children([
       ctx.keyed_child::<LeafComp>(
@@ -266,7 +262,6 @@ struct StableLeaf {
 impl Component for StableLeaf {
   type Props = LeafProps;
   type Msg = LeafMsg;
-  type Env = ();
 
   fn create(p: &LeafProps) -> Self {
     let slot = p.sender_slot.clone();
@@ -282,7 +277,7 @@ impl Component for StableLeaf {
     ShouldRender::Yes
   }
 
-  fn view(&self, _: &LeafProps, _: &Ctx<LeafMsg>, _: &()) -> El {
+  fn view(&self, _: &LeafProps, _: &Ctx<LeafMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::span()
   }
@@ -329,7 +324,6 @@ enum ConditionalMsg {
 impl Component for ConditionalComp {
   type Props = ConditionalProps;
   type Msg = ConditionalMsg;
-  type Env = ();
 
   fn create(p: &ConditionalProps) -> Self {
     let s = p.sender_slot.clone();
@@ -351,7 +345,7 @@ impl Component for ConditionalComp {
     }
   }
 
-  fn view(&self, props: &ConditionalProps, ctx: &Ctx<ConditionalMsg>, _: &()) -> El {
+  fn view(&self, props: &ConditionalProps, ctx: &Ctx<ConditionalMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     if self.show_child {
       el::div().child(ctx.child::<LeafComp>(LeafProps {
@@ -396,7 +390,6 @@ enum SelfPokingMsg {
 impl Component for SelfPokingComp {
   type Props = SelfPokingProps;
   type Msg = SelfPokingMsg;
-  type Env = ();
 
   fn create(p: &SelfPokingProps) -> Self {
     let s = p.sender_slot.clone();
@@ -421,7 +414,7 @@ impl Component for SelfPokingComp {
     }
   }
 
-  fn view(&self, _: &SelfPokingProps, _: &Ctx<SelfPokingMsg>, _: &()) -> El {
+  fn view(&self, _: &SelfPokingProps, _: &Ctx<SelfPokingMsg>) -> El {
     self.spy.views.fetch_add(1, SeqCst);
     el::span()
   }
@@ -435,7 +428,7 @@ impl Component for SelfPokingComp {
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 
-fn bootstrap<C: Component<Env = ()>>(props: C::Props) -> (Runtime, Tree)
+fn bootstrap<C: Component>(props: C::Props) -> (Runtime, Tree)
 where
   C::Msg: Clone + Send + Sync + 'static,
   C::Props: 'static,
@@ -443,7 +436,7 @@ where
   let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(|| {});
   let mut rt = Runtime::new::<C>(&props, wake);
   let tree = Tree::default();
-  rt.initial_render(&());
+  rt.initial_render();
   (rt, tree)
 }
 
@@ -464,7 +457,7 @@ fn path1_clean_component_skips_view() {
   assert_eq!(leaf_spy.views(), 1, "initial render calls view once");
 
   // No messages — process() should do nothing.
-  let changed = rt.process(&mut tree, &());
+  let changed = rt.process(&mut tree);
 
   assert!(!changed, "process() reports no change");
   assert_eq!(leaf_spy.views(), 1, "view() not called again (path 1)");
@@ -484,7 +477,7 @@ fn path3_dirty_component_calls_view() {
   assert_eq!(leaf_spy.views(), 1);
 
   poke(&leaf_slot, LeafMsg::Poke);
-  let changed = rt.process(&mut tree, &());
+  let changed = rt.process(&mut tree);
 
   assert!(changed, "process() reports a change");
   assert_eq!(leaf_spy.views(), 2, "view() called after dirty message (path 3)");
@@ -509,7 +502,7 @@ fn path2_dirty_child_skips_parent_view() {
 
   // Poke only the child.
   poke(&leaf_slot, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(leaf_spy.views(), 2, "leaf re-rendered (path 3)");
   assert_eq!(parent_spy.views(), 1, "parent view() NOT called (path 2)");
@@ -536,7 +529,7 @@ fn path2_chains_through_two_ancestors() {
   assert_eq!(leaf_spy.views(), 1);
 
   poke(&leaf_slot, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(leaf_spy.views(), 2, "leaf re-rendered (path 3)");
   assert_eq!(parent_spy.views(), 1, "parent view() skipped (path 2)");
@@ -567,7 +560,7 @@ fn path1_clean_sibling_not_re_rendered() {
 
   // Only poke child A.
   poke(&slot_a, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(spy_a.views(), 2, "child A re-rendered");
   assert_eq!(spy_b.views(), 1, "child B view() not called (path 1)");
@@ -592,7 +585,7 @@ fn skeleton_stored_and_patch_path_repeatable() {
   // Poke the child three times.
   for _ in 0..3 {
     poke(&leaf_slot, LeafMsg::Poke);
-    rt.process(&mut tree, &());
+    rt.process(&mut tree);
   }
 
   assert_eq!(leaf_spy.views(), 4, "initial + 3 re-renders");
@@ -615,7 +608,7 @@ fn force_render_calls_view_on_all() {
   assert_eq!(parent_spy.views(), 1);
   assert_eq!(leaf_spy.views(), 1);
 
-  rt.force_render(&mut tree, &());
+  rt.force_render(&mut tree);
 
   assert_eq!(parent_spy.views(), 2, "parent re-rendered by force_render");
   assert_eq!(leaf_spy.views(), 2, "leaf re-rendered by force_render");
@@ -647,8 +640,7 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
   impl Component for ObservableParent {
     type Props = ObservableParentProps;
     type Msg = ParentMsg;
-    type Env = ();
-
+  
     fn create(p: &ObservableParentProps) -> Self {
       let s = p.parent_slot.clone();
       ObservableParent {
@@ -663,7 +655,7 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
       ShouldRender::Yes
     }
 
-    fn view(&self, props: &ObservableParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
+    fn view(&self, props: &ObservableParentProps, ctx: &Ctx<ParentMsg>) -> El {
       self.spy.views.fetch_add(1, SeqCst);
       el::div().child(ctx.child::<StableLeaf>(LeafProps {
         spy: props.leaf_spy.clone(),
@@ -689,7 +681,7 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
 
   // Poke the parent (makes parent dirty, not the leaf).
   poke(&parent_slot, ParentMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(parent_spy.views(), 2, "parent view() called (path 3)");
   assert_eq!(leaf_spy.views(), 1, "leaf view() skipped (path 1 inside path 3)");
@@ -728,16 +720,16 @@ fn updated_hook_fires_on_dirty_render_only() {
 
   // After a dirty message:
   poke(&leaf_slot, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
   assert_eq!(leaf_spy.updated(), 1, "updated() called once after dirty render");
 
   // With no new message (clean pass):
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
   assert_eq!(leaf_spy.updated(), 1, "updated() not called on clean pass");
 
   // Another dirty message:
   poke(&leaf_slot, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
   assert_eq!(
     leaf_spy.updated(),
     2,
@@ -765,7 +757,7 @@ fn destroyed_fires_on_child_removal() {
 
   // Toggle child off.
   poke(&cond_slot, ConditionalMsg::Toggle);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(child_spy.destroys(), 1, "child destroyed after toggle off");
 }
@@ -789,9 +781,9 @@ fn child_remounted_after_removal() {
 
   // Toggle off then on.
   poke(&cond_slot, ConditionalMsg::Toggle);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
   poke(&cond_slot, ConditionalMsg::Toggle);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(child_spy.destroys(), 1, "first instance destroyed");
   assert_eq!(child_spy.mounts(), 2, "second instance mounted");
@@ -836,7 +828,7 @@ fn both_siblings_dirty_both_rerender() {
   // Poke both children.
   poke(&slot_a, LeafMsg::Poke);
   poke(&slot_b, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(spy_a.views(), 2, "child A re-rendered");
   assert_eq!(spy_b.views(), 2, "child B re-rendered");
@@ -860,7 +852,7 @@ fn multiple_messages_single_render() {
   poke(&leaf_slot, LeafMsg::Poke);
   poke(&leaf_slot, LeafMsg::Poke);
   poke(&leaf_slot, LeafMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(spy.views(), 2, "only one re-render despite three messages");
 }
@@ -881,7 +873,7 @@ fn followup_message_handled_in_same_process() {
 
   // Start sends FollowUp internally; both handled in one process().
   poke(&poke_slot, SelfPokingMsg::Start);
-  let changed = rt.process(&mut tree, &());
+  let changed = rt.process(&mut tree);
 
   assert!(changed);
   assert_eq!(spy.views(), 2, "single re-render covers Start + FollowUp");
@@ -906,7 +898,7 @@ fn force_render_triggers_updated() {
   assert_eq!(parent_spy.updated(), 0, "no updated() after initial render");
   assert_eq!(leaf_spy.updated(), 0, "no updated() after initial render");
 
-  rt.force_render(&mut tree, &());
+  rt.force_render(&mut tree);
 
   assert_eq!(parent_spy.updated(), 1, "parent updated() fired by force_render");
   assert_eq!(leaf_spy.updated(), 1, "leaf updated() fired by force_render");
@@ -938,8 +930,7 @@ fn props_changed_default_rerenders_child() {
   impl Component for PokableParent {
     type Props = PokableParentProps;
     type Msg = ParentMsg;
-    type Env = ();
-
+  
     fn create(p: &PokableParentProps) -> Self {
       let s = p.parent_slot.clone();
       PokableParent {
@@ -954,7 +945,7 @@ fn props_changed_default_rerenders_child() {
       ShouldRender::Yes
     }
 
-    fn view(&self, props: &PokableParentProps, ctx: &Ctx<ParentMsg>, _: &()) -> El {
+    fn view(&self, props: &PokableParentProps, ctx: &Ctx<ParentMsg>) -> El {
       self.spy.views.fetch_add(1, SeqCst);
       // Uses LeafComp which has default props_changed -> Yes.
       el::div().child(ctx.child::<LeafComp>(LeafProps {
@@ -982,7 +973,7 @@ fn props_changed_default_rerenders_child() {
   // Poke parent -> parent re-renders (path 3). Default props_changed = Yes
   // so child is also re-rendered.
   poke(&parent_slot, ParentMsg::Poke);
-  rt.process(&mut tree, &());
+  rt.process(&mut tree);
 
   assert_eq!(parent_spy.views(), 2, "parent re-rendered (path 3)");
   assert_eq!(leaf_spy.views(), 2, "child re-rendered (default props_changed = Yes)");
@@ -1005,7 +996,7 @@ fn process_noop_on_clean_tree() {
 
   // Three clean process() calls.
   for _ in 0..3 {
-    let changed = rt.process(&mut tree, &());
+    let changed = rt.process(&mut tree);
     assert!(!changed, "process() on clean tree returns false");
   }
 

@@ -1,5 +1,4 @@
 mod breadcrumb;
-mod css_fmt;
 mod devtools;
 mod devtools_hook;
 mod profiler_hook;

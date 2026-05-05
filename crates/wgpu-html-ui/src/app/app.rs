@@ -37,7 +37,7 @@ pub struct App<State: 'static = ()> {
 }
 
 impl App<()> {
-  pub fn new<C: Component<Env = ()>>(props: C::Props) -> Self
+  pub fn new<C: Component>(props: C::Props) -> Self
   where
     C::Props: Send + Sync + 'static,
     C::Msg: Clone + Send + Sync + 'static,
@@ -55,7 +55,7 @@ impl App<()> {
 }
 
 impl<State: Send + Sync + 'static> App<State> {
-  pub fn with_state<C: Component<Env = State>>(state: State, props: C::Props) -> Self
+  pub fn with_state<C: Component>(state: State, props: C::Props) -> Self
   where
     C::Props: Send + Sync + 'static,
     C::Msg: Clone + Send + Sync + 'static,
@@ -102,7 +102,7 @@ impl<State: Send + Sync + 'static> App<State> {
     });
 
     let mut ui_runtime = (self.factory)(wake);
-    let root_node = ui_runtime.initial_render(&*self.state);
+    let root_node = ui_runtime.initial_render();
 
     let body = Node::new(m::Body::default()).with_children(vec![root_node]);
     let html_node = Node::new(m::Html::default()).with_children(vec![body]);
@@ -160,6 +160,7 @@ struct UiApp<State: 'static> {
   rt: WinitRuntime,
   window: Arc<winit::window::Window>,
   ui_runtime: Runtime,
+  #[allow(dead_code)]
   state: Arc<State>,
   wake_slot: Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>,
   secondaries: Vec<Box<dyn SecondaryWindow>>,
@@ -192,7 +193,7 @@ impl<State: Send + Sync + 'static> ApplicationHandler for UiApp<State> {
             }));
           }
         }
-        if self.ui_runtime.process(&mut self.tree, &*self.state) {
+        if self.ui_runtime.process(&mut self.tree) {
           self.window.request_redraw();
         }
         for sec in &mut self.secondaries {

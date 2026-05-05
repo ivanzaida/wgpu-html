@@ -27,7 +27,6 @@ pub struct CounterProps {
 impl Component for Counter {
   type Props = CounterProps;
   type Msg = CounterMsg;
-  type Env = ();
 
   fn create(props: &CounterProps) -> Self {
     Counter {
@@ -90,7 +89,7 @@ impl Component for Counter {
     ])
   }
 
-  fn view(&self, _props: &CounterProps, ctx: &wgpu_html_ui::Ctx<CounterMsg>, _env: &()) -> wgpu_html_ui::El {
+  fn view(&self, _props: &CounterProps, ctx: &wgpu_html_ui::Ctx<CounterMsg>) -> wgpu_html_ui::El {
     div().class(ctx.scoped("root")).children([
       div().class(ctx.scoped("title")).text(self.label),
       div().class(ctx.scoped("value")).text(self.count.to_string()),

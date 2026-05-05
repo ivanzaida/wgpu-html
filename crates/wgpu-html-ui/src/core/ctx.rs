@@ -273,7 +273,6 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   where
     C::Props: 'static,
     C::Msg: Clone + Send + Sync + 'static,
-    C::Env: 'static,
   {
     let idx = self.child_counter.get();
     self.child_counter.set(idx + 1);
@@ -298,7 +297,6 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   where
     C::Props: 'static,
     C::Msg: Clone + Send + Sync + 'static,
-    C::Env: 'static,
   {
     self.push_child::<C>(key.into(), props)
   }
@@ -307,7 +305,6 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   where
     C::Props: 'static,
     C::Msg: Clone + Send + Sync + 'static,
-    C::Env: 'static,
   {
     let marker_id = format!("__ui_child_{key}");
 

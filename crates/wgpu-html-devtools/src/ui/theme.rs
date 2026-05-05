@@ -1,5 +1,7 @@
+#[allow(dead_code)]
 pub struct Theme;
 
+#[allow(dead_code)]
 impl Theme {
   pub const BG_PRIMARY: &'static str = "#202124";
   pub const BG_SECONDARY: &'static str = "#292A2D";

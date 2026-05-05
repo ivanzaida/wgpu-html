@@ -15,7 +15,7 @@ use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 use winit::{event::WindowEvent, event_loop::ActiveEventLoop, window::WindowId};
 
-use crate::ui::{DevtoolsComponent, DevtoolsProps, SharedHoverPath, SharedPendingPick, SharedPickMode};
+use crate::ui::{DevtoolsComponent, DevtoolsProps, SharedHostTree, SharedHoverPath, SharedPendingPick, SharedPickMode};
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
@@ -138,6 +138,11 @@ body {
     border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .ss-label { color: var(--text-muted); font-size: 11px; }
+.ss-input {
+    flex-grow: 1; height: 20px; background: var(--bg-tertiary); border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text-primary); font-size: 11px; padding: 0 6px;
+    min-width: 0;
+}
 .ss-spacer { flex-grow: 1; }
 .ss-btn {
     padding: 0 6px; height: 18px; display: flex; align-items: center;
@@ -200,6 +205,7 @@ pub struct Devtools {
   shared_hover: SharedHoverPath,
   shared_pick_mode: SharedPickMode,
   shared_pending_pick: SharedPendingPick,
+  shared_host_tree: SharedHostTree,
 }
 
 impl Devtools {
@@ -218,10 +224,12 @@ impl Devtools {
     let shared_hover: SharedHoverPath = Arc::new(std::sync::Mutex::new(None));
     let shared_pick_mode: SharedPickMode = Arc::new(AtomicBool::new(false));
     let shared_pending_pick: SharedPendingPick = Arc::new(std::sync::Mutex::new(None));
+    let shared_host_tree: SharedHostTree = Arc::new(std::sync::RwLock::new(None));
     let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps {
       shared_hover: shared_hover.clone(),
       shared_pick_mode: shared_pick_mode.clone(),
       shared_pending_pick: shared_pending_pick.clone(),
+      host_tree: shared_host_tree.clone(),
     });
 
     let dump_html_requested = Arc::new(AtomicBool::new(false));
@@ -241,6 +249,7 @@ impl Devtools {
       shared_hover,
       shared_pick_mode,
       shared_pending_pick,
+      shared_host_tree,
     }
   }
 
@@ -308,8 +317,15 @@ impl Devtools {
       }
     }
 
+    // Update the shared host tree reference so the shell component
+    // can read it during view().
+    {
+      let mut ht = self.shared_host_tree.write().unwrap();
+      *ht = Some(host_tree.clone());
+    }
+
     // Process pending component messages.
-    if self.mount.process(&mut self.tree, host_tree) {
+    if self.mount.process(&mut self.tree) {
       self.needs_redraw = true;
     }
 
@@ -317,7 +333,7 @@ impl Devtools {
     let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
     if dom_changed {
       self.last_inspected_gen = Some(host_tree.generation);
-      self.mount.force_render(&mut self.tree, host_tree);
+      self.mount.force_render(&mut self.tree);
       self.needs_redraw = true;
     }
 
@@ -407,8 +423,14 @@ impl Devtools {
     }
     let needs_redraw = dispatch(event, rt, &mut self.tree);
 
+    // Update shared host tree so view() has fresh data.
+    {
+      let mut ht = self.shared_host_tree.write().unwrap();
+      *ht = Some(host_tree.clone());
+    }
+
     // Drain any messages queued by callbacks.
-    if self.mount.process(&mut self.tree, host_tree) {
+    if self.mount.process(&mut self.tree) {
       self.needs_redraw = true;
     }
 

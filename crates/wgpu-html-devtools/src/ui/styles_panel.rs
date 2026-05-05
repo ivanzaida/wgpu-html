@@ -1,7 +1,7 @@
 //! Styles panel component — shows computed styles of the selected element.
 
 use wgpu_html_models::Style;
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::Node;
 use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
 
 use crate::style_extract::extract_grouped;
@@ -12,6 +12,7 @@ use crate::style_extract::extract_grouped;
 pub struct StylesPanelProps {
   pub selected_path: Option<Vec<usize>>,
   pub cascaded_style: Option<Style>,
+  pub host_root: Option<Node>,
 }
 
 // Stateless — no interactions.
@@ -25,7 +26,6 @@ pub struct StylesPanel;
 impl Component for StylesPanel {
   type Props = StylesPanelProps;
   type Msg = StylesPanelMsg;
-  type Env = Tree;
 
   fn create(_props: &StylesPanelProps) -> Self {
     StylesPanel
@@ -35,9 +35,9 @@ impl Component for StylesPanel {
     match msg {}
   }
 
-  fn view(&self, props: &StylesPanelProps, _ctx: &Ctx<StylesPanelMsg>, env: &Tree) -> El {
+  fn view(&self, props: &StylesPanelProps, _ctx: &Ctx<StylesPanelMsg>) -> El {
     let selected_node = props.selected_path.as_deref().and_then(|path| {
-      let root = env.root.as_ref()?;
+      let root = props.host_root.as_ref()?;
       if path.is_empty() {
         Some(root)
       } else {

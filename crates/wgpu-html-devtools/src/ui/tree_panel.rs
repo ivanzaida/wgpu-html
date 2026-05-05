@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use wgpu_html_tree::{Element, Node, Tree};
+use wgpu_html_tree::{Element, Node};
 use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
 
 use crate::tags::*;
@@ -17,6 +17,7 @@ pub struct TreePanelProps {
   pub on_select: Arc<dyn Fn(Vec<usize>) + Send + Sync>,
   pub on_toggle: Arc<dyn Fn(Vec<usize>) + Send + Sync>,
   pub on_hover: Arc<dyn Fn(Option<Vec<usize>>) + Send + Sync>,
+  pub host_root: Option<Node>,
 }
 
 #[derive(Clone)]
@@ -33,7 +34,6 @@ pub struct TreePanel;
 impl Component for TreePanel {
   type Props = TreePanelProps;
   type Msg = TreePanelMsg;
-  type Env = Tree;
 
   fn create(_props: &TreePanelProps) -> Self {
     TreePanel
@@ -56,8 +56,8 @@ impl Component for TreePanel {
     ShouldRender::No
   }
 
-  fn view(&self, props: &TreePanelProps, ctx: &Ctx<TreePanelMsg>, env: &Tree) -> El {
-    let root = env.root.as_ref();
+  fn view(&self, props: &TreePanelProps, ctx: &Ctx<TreePanelMsg>) -> El {
+    let root = props.host_root.as_ref();
     let mut container = el::div().class("tree-rows");
     if let Some(root) = root {
       let mut path = Vec::new();

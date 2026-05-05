@@ -19,7 +19,6 @@
 //! impl Component for Counter {
 //!     type Props = Props;
 //!     type Msg = Msg;
-//!     type Env = ();
 //!
 //!     fn create(_props: &Props) -> Self { Counter { count: 0 } }
 //!
@@ -31,7 +30,7 @@
 //!         ShouldRender::Yes
 //!     }
 //!
-//!     fn view(&self, props: &Props, ctx: &Ctx<Msg>, _env: &()) -> El {
+//!     fn view(&self, props: &Props, ctx: &Ctx<Msg>) -> El {
 //!         el::div().children([
 //!             el::span().text(&props.label),
 //!             el::button().text("-").on_click(ctx.on_click(Msg::Dec)),

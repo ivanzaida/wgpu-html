@@ -15,7 +15,6 @@ pub struct ChevronButton;
 impl Component for ChevronButton {
   type Props = ChevronProps;
   type Msg = ChevronMsg;
-  type Env = ();
 
   fn create(_props: &ChevronProps) -> Self {
     ChevronButton
@@ -25,7 +24,7 @@ impl Component for ChevronButton {
     match msg {}
   }
 
-  fn view(&self, props: &ChevronProps, _ctx: &Ctx<ChevronMsg>, _env: &()) -> El {
+  fn view(&self, props: &ChevronProps, _ctx: &Ctx<ChevronMsg>) -> El {
     let icon = if props.expanded { "\u{e06d}" } else { "\u{e06f}" };
     el::span().class("chevron").text(icon)
   }

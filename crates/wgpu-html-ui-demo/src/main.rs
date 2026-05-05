@@ -24,7 +24,6 @@ enum DemoMsg {}
 impl Component for DemoApp {
   type Props = DemoProps;
   type Msg = DemoMsg;
-  type Env = ();
 
   fn scope() -> &'static str {
     "app"
@@ -58,7 +57,7 @@ impl Component for DemoApp {
     ShouldRender::No
   }
 
-  fn view(&self, _props: &DemoProps, ctx: &Ctx<DemoMsg>, _env: &()) -> El {
+  fn view(&self, _props: &DemoProps, ctx: &Ctx<DemoMsg>) -> El {
     el::div().class(ctx.scoped("root")).children([
       el::div().class(ctx.scoped("title")).text("wgpu-html-ui Demo"),
       ctx.child::<TextInput>(()),
