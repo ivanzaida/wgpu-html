@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_renderer::{DisplayList, Rect};
-use wgpu_html_tree::Tree;
+use wgpu_html_tree::{ScrollOffset, Tree};
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 
@@ -183,6 +183,17 @@ pub fn scrollable_content_height(b: &LayoutBox) -> f32 {
   (bottom - pad.y).max(0.0)
 }
 
+/// Total width of an element's scrollable content (descendants'
+/// right edges minus its own padding-left).
+pub fn scrollable_content_width(b: &LayoutBox) -> f32 {
+  let pad = element_padding_box(b);
+  let mut right = pad.x + pad.w;
+  for child in &b.children {
+    right = right.max(element_subtree_right(child));
+  }
+  (right - pad.x).max(0.0)
+}
+
 fn element_subtree_bottom(b: &LayoutBox) -> f32 {
   let mut bottom = b.margin_rect.y + b.margin_rect.h;
   for child in &b.children {
@@ -191,9 +202,22 @@ fn element_subtree_bottom(b: &LayoutBox) -> f32 {
   bottom
 }
 
+fn element_subtree_right(b: &LayoutBox) -> f32 {
+  let mut right = b.margin_rect.x + b.margin_rect.w;
+  for child in &b.children {
+    right = right.max(element_subtree_right(child));
+  }
+  right
+}
+
 /// Maximum vertical scroll inside `b`'s padding box.
 pub fn max_element_scroll_y(b: &LayoutBox) -> f32 {
   (scrollable_content_height(b) - element_padding_box(b).h).max(0.0)
+}
+
+/// Maximum horizontal scroll inside `b`'s padding box.
+pub fn max_element_scroll_x(b: &LayoutBox) -> f32 {
+  (scrollable_content_width(b) - element_padding_box(b).w).max(0.0)
 }
 
 /// Compute the element-level scrollbar for an `overflow:scroll`
@@ -243,15 +267,20 @@ pub fn element_scrollbar_geometry(b: &LayoutBox, scroll_y: f32) -> Option<Scroll
 pub fn deepest_scrollable_path_at(
   b: &LayoutBox,
   pos: (f32, f32),
-  offsets: &BTreeMap<Vec<usize>, f32>,
+  offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
   path: &mut Vec<usize>,
 ) -> Option<Vec<usize>> {
-  let own_scroll = offsets
+  let own_scroll_x = offsets
     .get(path)
-    .copied()
+    .map(|s| s.x)
+    .unwrap_or(0.0)
+    .clamp(0.0, max_element_scroll_x(b));
+  let own_scroll_y = offsets
+    .get(path)
+    .map(|s| s.y)
     .unwrap_or(0.0)
     .clamp(0.0, max_element_scroll_y(b));
-  let child_pos = (pos.0, pos.1 + own_scroll);
+  let child_pos = (pos.0 + own_scroll_x, pos.1 + own_scroll_y);
   for (i, child) in b.children.iter().enumerate().rev() {
     if !child.border_rect.contains(child_pos.0, child_pos.1) {
       continue;
@@ -264,13 +293,11 @@ pub fn deepest_scrollable_path_at(
     path.pop();
   }
 
+  use crate::models::common::css_enums::Overflow;
   let pad = element_padding_box(b);
-  if matches!(
-    b.overflow.y,
-    crate::models::common::css_enums::Overflow::Scroll | crate::models::common::css_enums::Overflow::Auto
-  ) && max_element_scroll_y(b) > 0.0
-    && rect_contains(pad, pos)
-  {
+  let scrollable_y = matches!(b.overflow.y, Overflow::Scroll | Overflow::Auto) && max_element_scroll_y(b) > 0.0;
+  let scrollable_x = matches!(b.overflow.x, Overflow::Scroll | Overflow::Auto) && max_element_scroll_x(b) > 0.0;
+  if (scrollable_x || scrollable_y) && rect_contains(pad, pos) {
     return Some(path.clone());
   }
   None
@@ -282,15 +309,20 @@ pub fn deepest_scrollable_path_at(
 pub fn deepest_element_scrollbar_at(
   b: &LayoutBox,
   pos: (f32, f32),
-  offsets: &BTreeMap<Vec<usize>, f32>,
+  offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
   path: &mut Vec<usize>,
 ) -> Option<(Vec<usize>, ScrollbarGeometry)> {
-  let own_scroll = offsets
+  let own_scroll_x = offsets
     .get(path)
-    .copied()
+    .map(|s| s.x)
+    .unwrap_or(0.0)
+    .clamp(0.0, max_element_scroll_x(b));
+  let own_scroll_y = offsets
+    .get(path)
+    .map(|s| s.y)
     .unwrap_or(0.0)
     .clamp(0.0, max_element_scroll_y(b));
-  let child_pos = (pos.0, pos.1 + own_scroll);
+  let child_pos = (pos.0 + own_scroll_x, pos.1 + own_scroll_y);
   for (i, child) in b.children.iter().enumerate().rev() {
     if !child.border_rect.contains(child_pos.0, child_pos.1) {
       continue;
@@ -303,7 +335,7 @@ pub fn deepest_element_scrollbar_at(
     path.pop();
   }
 
-  let geom = element_scrollbar_geometry(b, own_scroll)?;
+  let geom = element_scrollbar_geometry(b, own_scroll_y)?;
   (rect_contains(geom.track, pos) || rect_contains(geom.thumb, pos)).then(|| (path.clone(), geom))
 }
 
@@ -330,7 +362,7 @@ impl ElementScrollbarDrag {
   /// it lands on the track (but not the thumb), the thumb is
   /// teleported to the click position first.
   pub fn try_start(layout: &LayoutBox, pos: (f32, f32), tree: &mut Tree) -> Option<Self> {
-    let hit = deepest_element_scrollbar_at(layout, pos, &tree.interaction.scroll_offsets_y, &mut Vec::new())?;
+    let hit = deepest_element_scrollbar_at(layout, pos, &tree.interaction.scroll_offsets, &mut Vec::new())?;
     let (path, geom) = hit;
 
     if rect_contains(geom.thumb, pos) {
@@ -355,38 +387,41 @@ impl ElementScrollbarDrag {
   }
 }
 
-/// Apply `delta_y` (positive = scroll down) to the deepest
-/// `overflow:scroll` container under `doc_pos`. Returns `true` if
-/// any scroll offset actually changed.
-pub fn scroll_element_at(tree: &mut Tree, layout: &LayoutBox, doc_pos: (f32, f32), delta_y: f32) -> bool {
-  let Some(path) = deepest_scrollable_path_at(layout, doc_pos, &tree.interaction.scroll_offsets_y, &mut Vec::new())
+/// Apply `delta_x` / `delta_y` (positive = scroll right / down) to
+/// the deepest scrollable container under `doc_pos`. Returns `true`
+/// if any scroll offset actually changed.
+pub fn scroll_element_at(tree: &mut Tree, layout: &LayoutBox, doc_pos: (f32, f32), delta_x: f32, delta_y: f32) -> bool {
+  let Some(path) = deepest_scrollable_path_at(layout, doc_pos, &tree.interaction.scroll_offsets, &mut Vec::new())
   else {
     return false;
   };
   let Some(box_) = layout.box_at_path(&path) else {
     return false;
   };
-  let max_scroll = max_element_scroll_y(box_);
-  if max_scroll <= 0.0 {
+  let max_scroll_x = max_element_scroll_x(box_);
+  let max_scroll_y = max_element_scroll_y(box_);
+  if max_scroll_x <= 0.0 && max_scroll_y <= 0.0 {
     return false;
   }
 
-  let old = tree
-    .interaction
-    .scroll_offsets_y
-    .get(&path)
-    .copied()
-    .unwrap_or(0.0)
-    .clamp(0.0, max_scroll);
-  let new = (old + delta_y).clamp(0.0, max_scroll);
-  if (new - old).abs() <= 0.5 {
+  let existing = tree.interaction.scroll_offsets.get(&path).copied().unwrap_or_default();
+
+  let old_x = existing.x.clamp(0.0, max_scroll_x);
+  let new_x = (old_x + delta_x).clamp(0.0, max_scroll_x);
+
+  let old_y = existing.y.clamp(0.0, max_scroll_y);
+  let new_y = (old_y + delta_y).clamp(0.0, max_scroll_y);
+
+  let changed_x = (new_x - old_x).abs() > 0.5;
+  let changed_y = (new_y - old_y).abs() > 0.5;
+  if !changed_x && !changed_y {
     return false;
   }
 
-  if new <= 0.0 {
-    tree.interaction.scroll_offsets_y.remove(&path);
+  if new_x <= 0.0 && new_y <= 0.0 {
+    tree.interaction.scroll_offsets.remove(&path);
   } else {
-    tree.interaction.scroll_offsets_y.insert(path.clone(), new);
+    tree.interaction.scroll_offsets.insert(path.clone(), ScrollOffset { x: new_x, y: new_y });
   }
   tree.scroll_event(&path);
   true
@@ -406,9 +441,10 @@ pub fn scroll_element_thumb_to(tree: &mut Tree, layout: &LayoutBox, path: Vec<us
   }
   let t = ((thumb_top - geom.track.y) / geom.travel).clamp(0.0, 1.0);
   let scroll_y = t * geom.max_scroll;
-  if scroll_y <= 0.0 {
-    tree.interaction.scroll_offsets_y.remove(&path);
+  let existing_x = tree.interaction.scroll_offsets.get(&path).map(|s| s.x).unwrap_or(0.0);
+  if scroll_y <= 0.0 && existing_x <= 0.0 {
+    tree.interaction.scroll_offsets.remove(&path);
   } else {
-    tree.interaction.scroll_offsets_y.insert(path, scroll_y);
+    tree.interaction.scroll_offsets.insert(path, ScrollOffset { x: existing_x, y: scroll_y });
   }
 }

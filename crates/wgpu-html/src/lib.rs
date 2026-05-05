@@ -14,6 +14,7 @@ pub use wgpu_html_style as style;
 pub use wgpu_html_text as text;
 pub use wgpu_html_tree as tree;
 
+pub mod inspect_overlay;
 pub mod interactivity;
 pub mod paint;
 pub mod scroll;
@@ -160,7 +161,7 @@ pub fn paint_tree_returning_layout_profiled(
         &mut list,
         tree.interaction.selection.as_ref(),
         tree.interaction.selection_colors,
-        &tree.interaction.scroll_offsets_y,
+        &tree.interaction.scroll_offsets,
         viewport_scroll_y,
         edit_caret_info.as_ref(),
       );
@@ -439,7 +440,7 @@ pub fn paint_tree_cached<'c>(
         &mut list,
         tree.interaction.selection.as_ref(),
         tree.interaction.selection_colors,
-        &tree.interaction.scroll_offsets_y,
+        &tree.interaction.scroll_offsets,
         viewport_scroll_y,
         edit_caret_info.as_ref(),
       );

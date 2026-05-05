@@ -187,8 +187,8 @@ pub struct InteractionState {
   pub selecting_text: bool,
   /// Colors used to paint selected text/background.
   pub selection_colors: SelectionColors,
-  /// Vertical scroll offsets keyed by layout/tree child-index path.
-  pub scroll_offsets_y: BTreeMap<Vec<usize>, f32>,
+  /// Per-element scroll offsets keyed by layout/tree child-index path.
+  pub scroll_offsets: BTreeMap<Vec<usize>, ScrollOffset>,
   /// Instant at which the document interaction state was created.
   /// Used to compute `Event::time_stamp` (milliseconds since origin,
   /// matching `performance.now()` semantics).
@@ -237,6 +237,12 @@ pub struct InteractionState {
   pub drag_target_path: Option<Vec<usize>>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ScrollOffset {
+  pub x: f32,
+  pub y: f32,
+}
+
 impl Default for InteractionState {
   fn default() -> Self {
     Self {
@@ -247,7 +253,7 @@ impl Default for InteractionState {
       selection: None,
       selecting_text: false,
       selection_colors: SelectionColors::default(),
-      scroll_offsets_y: BTreeMap::new(),
+      scroll_offsets: BTreeMap::new(),
       time_origin: Instant::now(),
       buttons_down: 0,
       modifiers: Modifiers::default(),

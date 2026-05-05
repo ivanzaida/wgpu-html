@@ -15,7 +15,7 @@ use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 use winit::{event::WindowEvent, event_loop::ActiveEventLoop, window::WindowId};
 
-use crate::component::{DevtoolsComponent, DevtoolsProps};
+use crate::component::{DevtoolsComponent, DevtoolsProps, SharedHoverPath, SharedPendingPick, SharedPickMode};
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
@@ -71,7 +71,9 @@ body {
     flex-shrink: 0;
 }
 .icon { font-family: lucide; }
-.pick-btn { color: var(--accent-blue); font-size: 14px; font-family: lucide; cursor: pointer; }
+.pick-btn { color: var(--text-secondary); font-size: 14px; font-family: lucide; cursor: pointer; }
+.pick-btn:hover { color: var(--text-primary); }
+.pick-active { color: var(--accent-blue); }
 .tb-divider { width: 1px; height: 16px; background: var(--divider); }
 .filter {
     display: flex; align-items: center; gap: 6px; height: 22px;
@@ -193,11 +195,11 @@ pub struct Devtools {
 
   html_window: Option<WinitRuntime>,
   enabled: bool,
-  /// Shared flag set by the TreeHook when F11 is pressed on the host.
   toggle_requested: Arc<AtomicBool>,
-  /// Shared flag set by the DumpHtmlHook when Shift+F12 is pressed
-  /// on the devtools window.
   dump_html_requested: Arc<AtomicBool>,
+  shared_hover: SharedHoverPath,
+  shared_pick_mode: SharedPickMode,
+  shared_pending_pick: SharedPendingPick,
 }
 
 impl Devtools {
@@ -213,9 +215,15 @@ impl Devtools {
       tree.profiler = Some(Profiler::tagged("devtools"));
     }
 
-    let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps);
+    let shared_hover: SharedHoverPath = Arc::new(std::sync::Mutex::new(None));
+    let shared_pick_mode: SharedPickMode = Arc::new(AtomicBool::new(false));
+    let shared_pending_pick: SharedPendingPick = Arc::new(std::sync::Mutex::new(None));
+    let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps {
+      shared_hover: shared_hover.clone(),
+      shared_pick_mode: shared_pick_mode.clone(),
+      shared_pending_pick: shared_pending_pick.clone(),
+    });
 
-    // Register Shift+F12 dump hook on the devtools tree.
     let dump_html_requested = Arc::new(AtomicBool::new(false));
     tree.hooks.push(TreeHookHandle::new(crate::devtools_hook::DumpHtmlHook {
       flag: dump_html_requested.clone(),
@@ -230,6 +238,9 @@ impl Devtools {
       enabled: false,
       toggle_requested: Arc::new(AtomicBool::new(false)),
       dump_html_requested,
+      shared_hover,
+      shared_pick_mode,
+      shared_pending_pick,
     }
   }
 
@@ -318,6 +329,30 @@ impl Devtools {
   }
 
   // ── Window lifecycle ────────────────────────────────────
+
+  pub fn hovered_path(&self) -> Option<Vec<usize>> {
+    self.shared_hover.lock().ok()?.clone()
+  }
+
+  pub fn is_pick_mode(&self) -> bool {
+    self.shared_pick_mode.load(Ordering::Relaxed)
+  }
+
+  pub fn pick_element(&mut self, path: Vec<usize>) {
+    if let Ok(mut pending) = self.shared_pending_pick.lock() {
+      *pending = Some(path);
+    }
+    if let Ok(mut hover) = self.shared_hover.lock() {
+      *hover = None;
+    }
+    self.needs_redraw = true;
+  }
+
+  pub fn set_hover_path(&mut self, path: Option<Vec<usize>>) {
+    if let Ok(mut hover) = self.shared_hover.lock() {
+      *hover = path;
+    }
+  }
 
   pub fn is_enabled(&self) -> bool {
     self.enabled

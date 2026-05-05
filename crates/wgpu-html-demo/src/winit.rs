@@ -386,7 +386,6 @@ struct DemoApp {
   stdin_started: bool,
   screenshot_key: Option<KeyCode>,
   exit_on_escape: bool,
-  clipboard: Option<arboard::Clipboard>,
 }
 
 impl DemoApp {
@@ -401,7 +400,6 @@ impl DemoApp {
       stdin_started: false,
       screenshot_key: Some(KeyCode::F12),
       exit_on_escape: true,
-      clipboard: None,
     }
   }
 
@@ -514,30 +512,6 @@ impl DemoApp {
       self.rt.driver.window.request_redraw();
       return;
     }
-
-    // Clipboard shortcuts
-    if self.tree.modifiers().ctrl {
-      match code {
-        KeyCode::KeyA => {
-          if let Some(layout) = self.rt.layout() {
-            if wgpu_html::select_all_text(&mut self.tree, layout) {
-              self.rt.driver.window.request_redraw();
-            }
-          }
-        }
-        KeyCode::KeyC => {
-          let _ = self.clipboard.get_or_insert_with(|| arboard::Clipboard::new().unwrap());
-          if let Some(layout) = self.rt.layout() {
-            if let Some(text) = wgpu_html::selected_text(&self.tree, layout) {
-              if let Some(cb) = &mut self.clipboard {
-                let _ = cb.set_text(text);
-              }
-            }
-          }
-        }
-        _ => {}
-      }
-    }
   }
 }
 
@@ -550,6 +524,7 @@ impl ApplicationHandler for DemoApp {
       if let Some(devtools) = &mut self.devtools {
         if devtools.owns_window(window_id) {
           devtools.handle_window_event(&self.tree, &event);
+          self.rt.driver.window.request_redraw();
         }
       }
       return;
@@ -569,6 +544,8 @@ impl ApplicationHandler for DemoApp {
         // Sync devtools.
         if let Some(devtools) = &mut self.devtools {
           devtools.poll(&self.tree, event_loop);
+          let hover = devtools.hovered_path();
+          self.rt.set_inspect_overlay(hover);
         }
 
         let timings = self.rt.render_frame(&mut self.tree);
@@ -615,6 +592,33 @@ impl ApplicationHandler for DemoApp {
       }
 
       other => {
+        let pick_active = self.devtools.as_ref().is_some_and(|d| d.is_pick_mode());
+        if pick_active {
+          match &other {
+            WindowEvent::CursorMoved { position, .. } => {
+              let pos = (position.x as f32, position.y as f32);
+              if let Some(layout) = self.rt.layout() {
+                let doc_pos = wgpu_html::scroll::viewport_to_document(pos, self.rt.scroll_y());
+                let path = layout.hit_path_scrolled(doc_pos, &self.tree.interaction.scroll_offsets);
+                if let Some(devtools) = &mut self.devtools {
+                  devtools.set_hover_path(path);
+                }
+              }
+              self.rt.driver.window.request_redraw();
+              return;
+            }
+            WindowEvent::MouseInput { state: winit::event::ElementState::Pressed, button: winit::event::MouseButton::Left, .. } => {
+              if let Some(hover) = self.devtools.as_ref().and_then(|d| d.hovered_path()) {
+                if let Some(devtools) = &mut self.devtools {
+                  devtools.pick_element(hover);
+                }
+              }
+              self.rt.driver.window.request_redraw();
+              return;
+            }
+            _ => {}
+          }
+        }
         if dispatch(&other, &mut self.rt, &mut self.tree) {
           self.rt.driver.window.request_redraw();
         }

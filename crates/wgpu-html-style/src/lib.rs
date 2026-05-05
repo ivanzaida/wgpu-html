@@ -1492,6 +1492,8 @@ fn style_has_values(style: &Style) -> bool {
     overflow,
     overflow_x,
     overflow_y,
+    scrollbar_color,
+    scrollbar_width,
     opacity,
     visibility,
     z_index,

@@ -13,17 +13,17 @@ use crate::tags::*;
 pub struct TreePanelProps {
   pub selected_path: Option<Vec<usize>>,
   pub collapsed: HashSet<Vec<usize>>,
-  /// Depth beyond which nodes are treated as collapsed unless
-  /// explicitly expanded by the user.
   pub auto_collapse_depth: usize,
   pub on_select: Arc<dyn Fn(Vec<usize>) + Send + Sync>,
   pub on_toggle: Arc<dyn Fn(Vec<usize>) + Send + Sync>,
+  pub on_hover: Arc<dyn Fn(Option<Vec<usize>>) + Send + Sync>,
 }
 
 #[derive(Clone)]
 pub enum TreePanelMsg {
   Select(Vec<usize>),
   Toggle(Vec<usize>),
+  Hover(Option<Vec<usize>>),
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -49,8 +49,10 @@ impl Component for TreePanel {
         println!("[TreePanel::update] Toggle({path:?})");
         (props.on_toggle)(path.clone());
       }
+      TreePanelMsg::Hover(ref path) => {
+        (props.on_hover)(path.clone());
+      }
     }
-    // Parent will re-render us with new props.
     ShouldRender::No
   }
 
@@ -199,6 +201,8 @@ fn make_tree_row(depth: usize, path: &[usize], selected_path: Option<&[usize]>, 
   };
   let path_owned = path.to_vec();
   let msg_cb = ctx.on_click(TreePanelMsg::Select(path_owned.clone()));
+  let hover_enter = ctx.on_click(TreePanelMsg::Hover(Some(path.to_vec())));
+  let hover_leave = ctx.on_click(TreePanelMsg::Hover(None));
   el::div()
     .class(class)
     .style(format!("padding-left: {px}px;"))
@@ -207,6 +211,8 @@ fn make_tree_row(depth: usize, path: &[usize], selected_path: Option<&[usize]>, 
       println!("[on_click] row path={path_owned:?}");
       msg_cb(ev);
     })
+    .on_mouse_enter(move |ev| { hover_enter(ev); })
+    .on_mouse_leave(move |ev| { hover_leave(ev); })
 }
 
 fn plain_row(depth: usize) -> El {
@@ -222,23 +228,19 @@ fn chevron_button(icon: &str, path: &[usize], ctx: &Ctx<TreePanelMsg>) -> El {
     .on_click_cb(ctx.on_click(TreePanelMsg::Toggle(path_owned)))
 }
 
-/// Append `<tag id="…" class="…">` spans to an El builder.
+/// Append `<tag attr="val" ...>` spans to an El builder.
 fn push_open_tag_el(mut row: El, node: &Node, tag: &str) -> El {
   row = row
     .child(el::span().class("bracket").text("<"))
     .child(el::span().class("tag").text(tag));
 
-  if let Some(id) = node.element.id() {
-    row = row
-      .child(el::span().class("attr-n").text(" id"))
-      .child(el::span().class("bracket").text("="))
-      .child(el::span().class("attr-v").text(format!("\"{id}\"")));
-  }
-  if let Some(cls) = node.element.class() {
-    row = row
-      .child(el::span().class("attr-n").text(" class"))
-      .child(el::span().class("bracket").text("="))
-      .child(el::span().class("attr-v").text(format!("\"{cls}\"")));
+  for (name, value) in &node.raw_attrs {
+    row = row.child(el::span().class("attr-n").text(format!(" {name}")));
+    if !value.is_empty() {
+      row = row
+        .child(el::span().class("bracket").text("="))
+        .child(el::span().class("attr-v").text(format!("\"{value}\"")));
+    }
   }
 
   row.child(el::span().class("bracket").text(">"))

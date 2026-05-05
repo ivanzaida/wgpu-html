@@ -51,6 +51,7 @@ use wgpu_html::{
     ElementScrollbarDrag, clamp_scroll_y, paint_viewport_scrollbar, rect_contains, scroll_element_at,
     scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
   },
+  select_all_text, selected_text,
 };
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Tree};
@@ -85,6 +86,14 @@ pub trait Driver {
 
   /// Change the visible mouse cursor.
   fn set_cursor(&self, cursor: Cursor);
+
+  /// Copy text to the system clipboard. Default: no-op.
+  fn set_clipboard_text(&self, _text: &str) {}
+
+  /// Read text from the system clipboard. Default: no clipboard.
+  fn get_clipboard_text(&self) -> Option<String> {
+    None
+  }
 }
 
 // ── Runtime ─────────────────────────────────────────────────────────────────
@@ -106,11 +115,9 @@ pub struct Runtime<D: Driver> {
   last_layout: Option<LayoutBox>,
   last_click: Option<ClickTracker>,
   scrollbar_drag: Option<ScrollbarDrag>,
-  /// GPU-rendered profiling bar chart.
   pub profiling: ProfilingOverlay,
-  /// When the currently-in-progress resize cooldown ends.
-  /// While active, full cascade+layout is suppressed.
   resize_deadline: Option<Instant>,
+  inspect_overlay_path: Option<Vec<usize>>,
 }
 
 /// Tracks multi-click (double / triple) state.
@@ -339,6 +346,7 @@ impl<D: Driver> Runtime<D> {
       scrollbar_drag: None,
       profiling: ProfilingOverlay::new(),
       resize_deadline: None,
+      inspect_overlay_path: None,
     }
   }
 
@@ -350,6 +358,10 @@ impl<D: Driver> Runtime<D> {
 
   pub fn scroll_y(&self) -> f32 {
     self.scroll_y
+  }
+
+  pub fn set_inspect_overlay(&mut self, path: Option<Vec<usize>>) {
+    self.inspect_overlay_path = path;
   }
 
   // ── Frame rendering ─────────────────────────────────────────────────────
@@ -415,12 +427,26 @@ impl<D: Driver> Runtime<D> {
 
     if let Some(layout) = layout {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
-      translate_display_list_y(&mut list, -self.scroll_y);
-      paint_viewport_scrollbar(&mut list, layout, w as f32, h as f32, self.scroll_y);
     } else {
       self.scroll_y = 0.0;
     }
+
     self.last_layout = self.pipeline_cache.layout().cloned();
+
+    if let Some(path) = &self.inspect_overlay_path {
+      if let Some(ref layout) = self.last_layout {
+        wgpu_html::inspect_overlay::paint_inspect_overlay(
+          &mut list, layout, tree, &mut self.text_ctx,
+          path, 0.0, scale, paint_w, paint_h,
+        );
+      }
+    }
+
+    translate_display_list_y(&mut list, -self.scroll_y);
+
+    if let Some(ref layout) = self.last_layout {
+      paint_viewport_scrollbar(&mut list, layout, w as f32, h as f32, self.scroll_y);
+    }
 
     // Record frame timings and draw the bar chart.
     if self.profiling.enabled {
@@ -600,7 +626,7 @@ impl<D: Driver> Runtime<D> {
         let Some(layout) = self.last_layout.as_ref() else {
           return false;
         };
-        layout.hit_path_scrolled(doc_pos, &tree.interaction.scroll_offsets_y)
+        layout.hit_path_scrolled(doc_pos, &tree.interaction.scroll_offsets)
       };
       let click_count = self.next_click_count(button, doc_pos, target_path);
       let Some(layout) = self.last_layout.as_ref() else {
@@ -626,7 +652,7 @@ impl<D: Driver> Runtime<D> {
   /// Uses the position from the most recent
   /// [`Self::on_pointer_move`]. Returns `true` if the caller should
   /// redraw.
-  pub fn on_wheel(&mut self, tree: &mut Tree, pixel_dy: f32, _pixel_dx: f32, _effective_scale: f32) -> bool {
+  pub fn on_wheel(&mut self, tree: &mut Tree, pixel_dy: f32, pixel_dx: f32, _effective_scale: f32) -> bool {
     // Fire wheel event first so listeners can preventDefault.
     // Callers should call on_wheel_event separately for this.
     // Here we just handle scroll.
@@ -639,7 +665,7 @@ impl<D: Driver> Runtime<D> {
     };
     let doc_pos = viewport_to_document(pos, self.scroll_y);
 
-    if scroll_element_at(tree, layout, doc_pos, pixel_dy) {
+    if scroll_element_at(tree, layout, doc_pos, pixel_dx, pixel_dy) {
       interactivity::pointer_move(tree, layout, doc_pos);
       return true;
     }
@@ -673,10 +699,46 @@ impl<D: Driver> Runtime<D> {
   /// `text` is the composed character for text insertion (if any).
   pub fn on_key(&mut self, tree: &mut Tree, key: &str, code: &str, pressed: bool, repeat: bool, text: Option<&str>) {
     if pressed {
+      let ctrl = tree.modifiers().ctrl;
+
+      // ── Clipboard / selection shortcuts ──────────────────────────
+      if ctrl && !repeat {
+        match code {
+          "KeyA" => {
+            if let Some(layout) = self.last_layout.as_ref() {
+              select_all_text(tree, layout);
+            }
+            tree.key_down(key, code, repeat);
+            return;
+          }
+          "KeyC" => {
+            tree.clipboard_event("copy");
+            if let Some(layout) = self.last_layout.as_ref() {
+              if let Some(text) = selected_text(tree, layout) {
+                self.driver.set_clipboard_text(&text);
+              }
+            }
+            tree.key_down(key, code, repeat);
+            return;
+          }
+          "KeyV" => {
+            tree.clipboard_event("paste");
+            if let Some(text) = self.driver.get_clipboard_text() {
+              if !text.is_empty() {
+                wgpu_html_tree::text_input(tree, &text);
+              }
+            }
+            tree.key_down(key, code, repeat);
+            return;
+          }
+          _ => {}
+        }
+      }
+
       tree.key_down(key, code, repeat);
       // Feed typed text into the focused form control.
       // Skip when Ctrl or Meta is held — those are shortcuts.
-      if !tree.modifiers().ctrl && !tree.modifiers().meta {
+      if !ctrl && !tree.modifiers().meta {
         if let Some(s) = text {
           if !s.is_empty() && s.chars().all(|c| !c.is_control()) {
             wgpu_html_tree::text_input(tree, s);

@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use crate::common::css_enums::{
   AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssImage,
   CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine, GridTrackSize,
-  JustifyContent, JustifyItems, JustifySelf, Overflow, PointerEvents, Position, Resize, TextAlign, TextTransform,
-  UserSelect, Visibility, WhiteSpace,
+  JustifyContent, JustifyItems, JustifySelf, Overflow, PointerEvents, Position, Resize, ScrollbarColor, ScrollbarWidth,
+  TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -118,6 +118,10 @@ pub struct Style {
   pub overflow_x: Option<Overflow>,
   // css property: overflow-y
   pub overflow_y: Option<Overflow>,
+  // css property: scrollbar-color
+  pub scrollbar_color: Option<ScrollbarColor>,
+  // css property: scrollbar-width
+  pub scrollbar_width: Option<ScrollbarWidth>,
   pub resize: Option<Resize>,
   pub opacity: Option<f32>,
   pub visibility: Option<Visibility>,

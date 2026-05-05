@@ -381,6 +381,8 @@ style_props! {
     overflow => "overflow";
     overflow_x => "overflow-x";
     overflow_y => "overflow-y";
+    scrollbar_color => "scrollbar-color";
+    scrollbar_width => "scrollbar-width";
     resize => "resize";
     opacity => "opacity";
     z_index => "z-index";

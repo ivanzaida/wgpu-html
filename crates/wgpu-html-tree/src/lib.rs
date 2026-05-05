@@ -27,7 +27,7 @@ pub use dispatch::{
 };
 pub use events::{
   EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,
-  MouseButton, MouseCallback, MouseEvent, SelectionColors, TextCursor, TextSelection,
+  MouseButton, MouseCallback, MouseEvent, ScrollOffset, SelectionColors, TextCursor, TextSelection,
 };
 pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,
@@ -652,6 +652,8 @@ impl std::fmt::Debug for Node {
       .field("on_scroll", &format!("{} handlers", self.on_scroll.len()))
       .field("on_select", &format!("{} handlers", self.on_select.len()))
       .field("on_event", &format!("{} handlers", self.on_event.len()))
+      .field("rect", &self.rect)
+      .field("raw_attrs", &self.raw_attrs)
       .finish()
   }
 }
@@ -696,6 +698,7 @@ impl Node {
       on_select: Vec::new(),
       on_event: Vec::new(),
       rect: None,
+      raw_attrs: Vec::new(),
     }
   }
 
@@ -707,6 +710,17 @@ impl Node {
   pub fn push(&mut self, child: Node) -> &mut Self {
     self.children.push(child);
     self
+  }
+
+  /// Set the raw HTML attributes as parsed from source.
+  pub fn with_raw_attrs(mut self, attrs: Vec<(String, String)>) -> Self {
+    self.raw_attrs = attrs;
+    self
+  }
+
+  /// The raw HTML attributes exactly as they appeared in the source.
+  pub fn raw_attrs(&self) -> &[(String, String)] {
+    &self.raw_attrs
   }
 
   /// Set a CSS custom property on this node. Behaves as if declared
@@ -1427,6 +1441,16 @@ impl Element {
 
       ("open", Element::Dialog(e)) => flag(e.open),
       ("open", Element::Details(e)) => flag(e.open),
+
+      // width / height
+      ("width", Element::Img(e)) => e.width.map(|v| v.to_string()),
+      ("height", Element::Img(e)) => e.height.map(|v| v.to_string()),
+      ("width", Element::Video(e)) => e.width.map(|v| v.to_string()),
+      ("height", Element::Video(e)) => e.height.map(|v| v.to_string()),
+      ("width", Element::Canvas(e)) => e.width.map(|v| v.to_string()),
+      ("height", Element::Canvas(e)) => e.height.map(|v| v.to_string()),
+      ("width", Element::Iframe(e)) => e.width.map(|v| v.to_string()),
+      ("height", Element::Iframe(e)) => e.height.map(|v| v.to_string()),
 
       _ => None,
     }

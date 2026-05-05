@@ -1,6 +1,6 @@
 use wgpu_html_layout::Resize;
 use wgpu_html_models::common::{Cursor, PointerEvents};
-use wgpu_html_tree::{TextCursor, TextSelection};
+use wgpu_html_tree::{ScrollOffset, TextCursor, TextSelection};
 
 use super::*;
 
@@ -389,6 +389,9 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     overflow: OverflowAxes {
       x: Overflow::Auto,
       y: Overflow::Auto,
+      scrollbar_width: 10.0,
+      scrollbar_thumb: None,
+      scrollbar_track: None,
     },
     resize: Resize::None,
     opacity: 1.0,
@@ -828,7 +831,7 @@ fn overflow_scroll_offset_moves_descendants_and_thumb() {
                 </div>
             </body>"#,
   );
-  tree.interaction.scroll_offsets_y.insert(vec![0], 30.0);
+  tree.interaction.scroll_offsets.insert(vec![0], ScrollOffset { x: 0.0, y: 30.0 });
 
   let list = paint_tree(&tree, 800.0, 600.0);
 

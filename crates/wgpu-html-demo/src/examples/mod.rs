@@ -21,6 +21,7 @@ mod overflow;
 mod p0_demo;
 mod position_overlay;
 mod resize;
+mod scrollbar_test;
 mod svg_test;
 mod text_selection;
 mod text_shrink;
@@ -49,6 +50,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "p0_demo" => Some(p0_demo::build()),
     "position_overlay" => Some(position_overlay::build()),
     "resize" => Some(resize::build()),
+    "scrollbar_test" => Some(scrollbar_test::build()),
     "svg_test" => Some(svg_test::build()),
     "text_selection" => Some(text_selection::build()),
     "text_shrink" => Some(text_shrink::build()),
@@ -80,6 +82,7 @@ pub fn list_examples() -> Vec<&'static str> {
     "p0_demo",
     "position_overlay",
     "resize",
+    "scrollbar_test",
     "svg_test",
     "text_selection",
     "text_shrink",

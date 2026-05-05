@@ -35,8 +35,8 @@ pub use wgpu_html_tree::{
 /// Modifier state is read from `tree.interaction.modifiers`;
 /// keep it in sync with [`Tree::set_modifier`].
 pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> bool {
-  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
-  let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
+  let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   tree.dispatch_pointer_move(target.as_deref(), pos, text_cursor)
 }
 
@@ -44,8 +44,8 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
 /// for the hovered element. The host can use this to set the OS
 /// pointer icon.
 pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> (bool, Cursor) {
-  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
-  let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
+  let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   let css_cursor = target
     .as_deref()
     .map(|path| layout.cursor_at_path(path))
@@ -73,8 +73,8 @@ pub fn mouse_down_with_click_count(
   button: MouseButton,
   click_count: u8,
 ) -> bool {
-  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
-  let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
+  let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   let result = tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor.clone());
 
   // After focus is set on a form control, position the edit caret
@@ -211,7 +211,7 @@ fn edit_token_kind(ch: char) -> EditTokenKind {
 /// `Primary` and the release path shares its root with the press
 /// path, synthesises a click and fires `on_click` bubbling.
 pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool {
-  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets_y);
-  let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
+  let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
+  let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)
 }

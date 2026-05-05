@@ -15,11 +15,12 @@ use std::collections::BTreeMap;
 
 use wgpu_html_models::{
   Style,
-  common::css_enums::{BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, WhiteSpace},
+  common::css_enums::{BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, ScrollbarColor,
+  ScrollbarWidth, WhiteSpace},
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
-use wgpu_html_tree::{Element, Node, TextCursor, Tree};
+use wgpu_html_tree::{Element, Node, ScrollOffset, TextCursor, Tree};
 
 mod color;
 mod flex;
@@ -479,10 +480,13 @@ pub struct LayoutBox {
   pub is_fixed: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OverflowAxes {
   pub x: Overflow,
   pub y: Overflow,
+  pub scrollbar_width: f32,
+  pub scrollbar_thumb: Option<Color>,
+  pub scrollbar_track: Option<Color>,
 }
 
 impl OverflowAxes {
@@ -490,6 +494,9 @@ impl OverflowAxes {
     Self {
       x: Overflow::Visible,
       y: Overflow::Visible,
+      scrollbar_width: 10.0,
+      scrollbar_thumb: None,
+      scrollbar_track: None,
     }
   }
 
@@ -577,8 +584,8 @@ impl LayoutBox {
   /// scrolled into view are correctly matched.
   ///
   /// `scroll_offsets` is the same map stored in
-  /// `InteractionState::scroll_offsets_y`.
-  pub fn hit_path_scrolled(&self, point: (f32, f32), scroll_offsets: &BTreeMap<Vec<usize>, f32>) -> Option<Vec<usize>> {
+  /// `InteractionState::scroll_offsets`.
+  pub fn hit_path_scrolled(&self, point: (f32, f32), scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> Option<Vec<usize>> {
     let mut path = Vec::new();
     collect_hit_path_scrolled(self, point.0, point.1, scroll_offsets, &mut path, None)
   }
@@ -602,7 +609,7 @@ impl LayoutBox {
   pub fn hit_text_cursor_scrolled(
     &self,
     point: (f32, f32),
-    scroll_offsets: &BTreeMap<Vec<usize>, f32>,
+    scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
   ) -> Option<TextCursor> {
     let path = self.hit_path_scrolled(point, scroll_offsets)?;
     let text_box = self.box_at_path(&path)?;
@@ -796,7 +803,7 @@ fn collect_hit_path_scrolled(
   b: &LayoutBox,
   x: f32,
   y: f32,
-  offsets: &BTreeMap<Vec<usize>, f32>,
+  offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
   path: &mut Vec<usize>,
   clip: Option<Rect>,
 ) -> Option<Vec<usize>> {
@@ -809,27 +816,41 @@ fn collect_hit_path_scrolled(
   // Clamp scroll offset to the element's actual scrollable range
   // (mirrors paint behaviour). Without this, a stale offset after
   // resize causes hit-test to target wrong children.
-  let raw_scroll = offsets.get(path.as_slice()).copied().unwrap_or(0.0);
-  let own_scroll = if raw_scroll != 0.0 {
-    let pad = padding_box_rect(b);
-    let content_bottom = b.children.iter().fold(pad.y + pad.h, |acc, child| {
-      acc.max(child.margin_rect.y + child.margin_rect.h)
+  let pad = padding_box_rect(b);
+
+  let raw_scroll_x = offsets.get(path.as_slice()).map(|s| s.x).unwrap_or(0.0);
+  let own_scroll_x = if raw_scroll_x != 0.0 {
+    let content_right = b.children.iter().fold(pad.x + pad.w, |acc, child| {
+      acc.max(child.margin_rect.x + child.margin_rect.w)
     });
-    let max_scroll = (content_bottom - pad.y - pad.h).max(0.0);
-    raw_scroll.clamp(0.0, max_scroll)
+    let max_scroll_x = (content_right - pad.x - pad.w).max(0.0);
+    raw_scroll_x.clamp(0.0, max_scroll_x)
   } else {
     0.0
   };
-  let child_y = y + own_scroll;
-  let child_clip = if own_scroll != 0.0 {
-    next_clip.map(|c| Rect::new(c.x, c.y + own_scroll, c.w, c.h))
+
+  let raw_scroll_y = offsets.get(path.as_slice()).map(|s| s.y).unwrap_or(0.0);
+  let own_scroll_y = if raw_scroll_y != 0.0 {
+    let content_bottom = b.children.iter().fold(pad.y + pad.h, |acc, child| {
+      acc.max(child.margin_rect.y + child.margin_rect.h)
+    });
+    let max_scroll_y = (content_bottom - pad.y - pad.h).max(0.0);
+    raw_scroll_y.clamp(0.0, max_scroll_y)
+  } else {
+    0.0
+  };
+
+  let child_x = x + own_scroll_x;
+  let child_y = y + own_scroll_y;
+  let child_clip = if own_scroll_x != 0.0 || own_scroll_y != 0.0 {
+    next_clip.map(|c| Rect::new(c.x + own_scroll_x, c.y + own_scroll_y, c.w, c.h))
   } else {
     next_clip
   };
 
   for (i, child) in b.children.iter().enumerate().rev() {
     path.push(i);
-    if let Some(result) = collect_hit_path_scrolled(child, x, child_y, offsets, path, child_clip) {
+    if let Some(result) = collect_hit_path_scrolled(child, child_x, child_y, offsets, path, child_clip) {
       path.pop();
       return Some(result);
     }
@@ -2012,7 +2033,36 @@ fn effective_overflow(style: &Style) -> OverflowAxes {
     x = coerce_cross_axis_overflow(x);
   }
 
-  OverflowAxes { x, y }
+  OverflowAxes {
+    x,
+    y,
+    scrollbar_width: effective_scrollbar_width(style),
+    scrollbar_thumb: effective_scrollbar_thumb(style),
+    scrollbar_track: effective_scrollbar_track(style),
+  }
+}
+
+fn effective_scrollbar_width(style: &Style) -> f32 {
+  match style.scrollbar_width.unwrap_or(ScrollbarWidth::Auto) {
+    ScrollbarWidth::Auto => 10.0,
+    ScrollbarWidth::Thin => 6.0,
+    ScrollbarWidth::None => 0.0,
+    ScrollbarWidth::Px(v) => v.max(0.0),
+  }
+}
+
+fn effective_scrollbar_thumb(style: &Style) -> Option<Color> {
+  match style.scrollbar_color.as_ref()? {
+    ScrollbarColor::Auto => None,
+    ScrollbarColor::Custom { thumb, track: _ } => resolve_color(thumb),
+  }
+}
+
+fn effective_scrollbar_track(style: &Style) -> Option<Color> {
+  match style.scrollbar_color.as_ref()? {
+    ScrollbarColor::Auto => None,
+    ScrollbarColor::Custom { thumb: _, track } => resolve_color(track),
+  }
 }
 
 fn overflow_forces_cross_axis(value: Overflow) -> bool {

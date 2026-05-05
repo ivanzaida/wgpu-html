@@ -2,7 +2,7 @@
 //!
 //! `type Env = Tree` — receives `&Tree` (the host tree) in `view()`.
 
-use std::{cell::RefCell, collections::HashSet, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, sync::{Arc, Mutex}};
 
 use wgpu_html_models::Style;
 use wgpu_html_style::cascade;
@@ -17,13 +17,24 @@ use crate::{
 
 // ── Props / Msg ─────────────────────────────────────────────────────────────
 
+pub type SharedHoverPath = Arc<Mutex<Option<Vec<usize>>>>;
+
+pub type SharedPickMode = Arc<std::sync::atomic::AtomicBool>;
+pub type SharedPendingPick = Arc<Mutex<Option<Vec<usize>>>>;
+
 #[derive(Clone)]
-pub struct DevtoolsProps;
+pub struct DevtoolsProps {
+  pub shared_hover: SharedHoverPath,
+  pub shared_pick_mode: SharedPickMode,
+  pub shared_pending_pick: SharedPendingPick,
+}
 
 #[derive(Clone)]
 pub enum DevtoolsMsg {
   SelectRow(Vec<usize>),
   ToggleCollapse(Vec<usize>),
+  HoverRow(Option<Vec<usize>>),
+  TogglePickMode,
   DividerDragStart(f32),
   DividerDragMove(f32),
   DividerDragEnd,
@@ -33,16 +44,13 @@ pub enum DevtoolsMsg {
 
 pub struct DevtoolsComponent {
   selected_path: Option<Vec<usize>>,
+  pub(crate) hovered_path: Option<Vec<usize>>,
+  pick_mode: bool,
   collapsed: HashSet<Vec<usize>>,
   auto_collapse_depth: usize,
-  /// Tree panel width as a fraction of the .main container (0.0–1.0).
   split_ratio: f32,
-  /// X position when drag started (for computing delta).
   drag_start_x: Option<f32>,
-  /// split_ratio at the moment drag started.
   drag_start_ratio: f32,
-  /// Cached `(path, cascaded_style)` so we don't re-run the host
-  /// tree cascade on every frame during divider drag or hover.
   cached_style: RefCell<Option<(Vec<usize>, Style)>>,
 }
 
@@ -54,6 +62,8 @@ impl Component for DevtoolsComponent {
   fn create(_props: &DevtoolsProps) -> Self {
     Self {
       selected_path: None,
+      hovered_path: None,
+      pick_mode: false,
       collapsed: HashSet::new(),
       auto_collapse_depth: 2,
       split_ratio: 0.5,
@@ -63,7 +73,7 @@ impl Component for DevtoolsComponent {
     }
   }
 
-  fn update(&mut self, msg: DevtoolsMsg, _props: &DevtoolsProps) -> ShouldRender {
+  fn update(&mut self, msg: DevtoolsMsg, props: &DevtoolsProps) -> ShouldRender {
     match msg {
       DevtoolsMsg::SelectRow(ref path) => {
         self.selected_path = Some(path.clone());
@@ -73,6 +83,17 @@ impl Component for DevtoolsComponent {
         if !self.collapsed.remove(path) {
           self.collapsed.insert(path.clone());
         }
+      }
+      DevtoolsMsg::HoverRow(ref path) => {
+        self.hovered_path = path.clone();
+        if let Ok(mut shared) = props.shared_hover.lock() {
+          *shared = path.clone();
+        }
+        return ShouldRender::No;
+      }
+      DevtoolsMsg::TogglePickMode => {
+        self.pick_mode = !self.pick_mode;
+        props.shared_pick_mode.store(self.pick_mode, std::sync::atomic::Ordering::Relaxed);
       }
       DevtoolsMsg::DividerDragStart(x) => {
         self.drag_start_x = Some(x);
@@ -98,10 +119,21 @@ impl Component for DevtoolsComponent {
     ShouldRender::Yes
   }
 
-  fn view(&self, _props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>, env: &Tree) -> El {
+  fn view(&self, props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>, env: &Tree) -> El {
+    // Check for a pending pick from the host window
+    if let Ok(mut pending) = props.shared_pending_pick.lock() {
+      if let Some(path) = pending.take() {
+        // Can't mutate self in view, so send a message
+        let sender = ctx.sender();
+        sender.send(DevtoolsMsg::SelectRow(path));
+        sender.send(DevtoolsMsg::TogglePickMode);
+      }
+    }
+
     let sender = ctx.sender();
     let select_sender = sender.clone();
     let toggle_sender = sender.clone();
+    let hover_sender = sender.clone();
 
     let tree_props = TreePanelProps {
       selected_path: self.selected_path.clone(),
@@ -112,6 +144,9 @@ impl Component for DevtoolsComponent {
       }),
       on_toggle: Arc::new(move |path| {
         toggle_sender.send(DevtoolsMsg::ToggleCollapse(path));
+      }),
+      on_hover: Arc::new(move |path| {
+        hover_sender.send(DevtoolsMsg::HoverRow(path));
       }),
     };
 
@@ -158,7 +193,7 @@ impl Component for DevtoolsComponent {
       })),
       el::body().child(
         el::div().class("devtools-root").children([
-          Self::toolbar(),
+          Self::toolbar(self.pick_mode, ctx),
           el::div()
           .class("main")
           // Track mouse move/up on the whole container so drag
@@ -197,9 +232,14 @@ impl Component for DevtoolsComponent {
 // ── Static view helpers ─────────────────────────────────────────────────────
 
 impl DevtoolsComponent {
-  fn toolbar() -> El {
+  fn toolbar(pick_mode: bool, ctx: &Ctx<DevtoolsMsg>) -> El {
+    let pick_class = if pick_mode { "pick-btn pick-active" } else { "pick-btn" };
+    let pick_cb = ctx.on_click(DevtoolsMsg::TogglePickMode);
     el::div().class("toolbar").children([
-      el::span().class("pick-btn").text("\u{e202}"),
+      el::span()
+        .class(pick_class)
+        .text("\u{e202}")
+        .on_click(move |ev| { pick_cb(ev); }),
       el::div().class("tb-divider"),
       el::div().class("filter").children([
         el::span().class("filter-icon").text("\u{e0dc}"),

@@ -447,6 +447,8 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "overflow" => apply_overflow_shorthand(value, style),
     "overflow-x" => style.overflow_x = parse_overflow(value),
     "overflow-y" => style.overflow_y = parse_overflow(value),
+    "scrollbar-color" => style.scrollbar_color = parse_scrollbar_color(value),
+    "scrollbar-width" => style.scrollbar_width = parse_scrollbar_width(value),
     "resize" => style.resize = parse_resize(value),
     "opacity" => style.opacity = value.parse().ok(),
     "visibility" => style.visibility = parse_visibility(value),
@@ -2817,6 +2819,35 @@ fn parse_resize(value: &str) -> Option<Resize> {
     "horizontal" => Some(Resize::Horizontal),
     "vertical" => Some(Resize::Vertical),
     _ => None,
+  }
+}
+
+fn parse_scrollbar_color(value: &str) -> Option<ScrollbarColor> {
+  let v = value.trim();
+  if v.eq_ignore_ascii_case("auto") {
+    return Some(ScrollbarColor::Auto);
+  }
+  let mut parts = v.split_whitespace();
+  let thumb = parts.next().and_then(parse_css_color)?;
+  let track = parts.next().and_then(parse_css_color)?;
+  if parts.next().is_some() {
+    return None;
+  }
+  Some(ScrollbarColor::Custom { thumb, track })
+}
+
+fn parse_scrollbar_width(value: &str) -> Option<ScrollbarWidth> {
+  match value.to_ascii_lowercase().trim() {
+    "auto" => Some(ScrollbarWidth::Auto),
+    "thin" => Some(ScrollbarWidth::Thin),
+    "none" => Some(ScrollbarWidth::None),
+    other => {
+      if let Some(px) = other.strip_suffix("px") {
+        px.trim().parse().ok().map(ScrollbarWidth::Px)
+      } else {
+        None
+      }
+    }
   }
 }
 

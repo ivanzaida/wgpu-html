@@ -183,6 +183,20 @@ pub enum Overflow {
   Auto,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ScrollbarWidth {
+  Auto,
+  Thin,
+  None,
+  Px(f32),
+}
+
+#[derive(Debug, Clone)]
+pub enum ScrollbarColor {
+  Auto,
+  Custom { thumb: CssColor, track: CssColor },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
   Visible,

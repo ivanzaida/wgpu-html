@@ -9,7 +9,7 @@ use wgpu_html_layout::{LayoutBox, Resize, UserSelect};
 use wgpu_html_models::common::css_enums::Overflow;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
-use wgpu_html_tree::{SelectionColors, TextCursor, TextSelection, Tree};
+use wgpu_html_tree::{ScrollOffset, SelectionColors, TextCursor, TextSelection, Tree};
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 const SCROLLBAR_THICKNESS: f32 = 10.0;
@@ -70,7 +70,8 @@ pub fn paint_tree_with_text(
       &mut path,
       tree.interaction.selection.as_ref(),
       tree.interaction.selection_colors,
-      &tree.interaction.scroll_offsets_y,
+      &tree.interaction.scroll_offsets,
+      0.0,
       0.0,
       viewport_scroll_y,
       1.0,
@@ -109,7 +110,7 @@ pub fn paint_layout_with_selection(
 ) {
   let mut clip_stack: Vec<ClipFrame> = Vec::new();
   let mut path = Vec::new();
-  let scroll_offsets_y = BTreeMap::new();
+  let scroll_offsets = BTreeMap::new();
   paint_box_in_clip(
     root,
     list,
@@ -117,7 +118,8 @@ pub fn paint_layout_with_selection(
     &mut path,
     selection,
     selection_colors,
-    &scroll_offsets_y,
+    &scroll_offsets,
+    0.0,
     0.0,
     viewport_scroll_y,
     1.0,
@@ -132,7 +134,7 @@ pub fn paint_layout_with_interaction(
   list: &mut DisplayList,
   selection: Option<&TextSelection>,
   selection_colors: SelectionColors,
-  scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+  scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
   viewport_scroll_y: f32,
 ) {
   paint_layout_full(
@@ -140,7 +142,7 @@ pub fn paint_layout_with_interaction(
     list,
     selection,
     selection_colors,
-    scroll_offsets_y,
+    scroll_offsets,
     viewport_scroll_y,
     None,
   );
@@ -152,7 +154,7 @@ pub fn paint_layout_full(
   list: &mut DisplayList,
   selection: Option<&TextSelection>,
   selection_colors: SelectionColors,
-  scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+  scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
   viewport_scroll_y: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
@@ -165,7 +167,8 @@ pub fn paint_layout_full(
     &mut path,
     selection,
     selection_colors,
-    scroll_offsets_y,
+    scroll_offsets,
+    0.0,
     0.0,
     viewport_scroll_y,
     1.0,
@@ -252,19 +255,21 @@ fn paint_box_in_clip(
   path: &mut Vec<usize>,
   selection: Option<&TextSelection>,
   selection_colors: SelectionColors,
-  scroll_offsets_y: &BTreeMap<Vec<usize>, f32>,
+  scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
+  paint_offset_x: f32,
   paint_offset_y: f32,
   viewport_scroll_y: f32,
   parent_opacity: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
+  let paint_offset_x = if b.is_fixed { 0.0 } else { paint_offset_x };
   let paint_offset_y = if b.is_fixed {
     paint_offset_y + viewport_scroll_y
   } else {
     paint_offset_y
   };
   let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
-  let rect = to_renderer_rect_y(b.border_rect, paint_offset_y);
+  let rect = to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y);
   let (rh, rv) = corner_radii(b);
   let rounded = has_any_radius(&rh) || has_any_radius(&rv);
 
@@ -272,7 +277,7 @@ fn paint_box_in_clip(
   // (border-box by default; padding-box / content-box also supported).
   if let Some(color) = b.background {
     let color = apply_opacity(color, opacity);
-    let bg = to_renderer_rect_y(b.background_rect, paint_offset_y);
+    let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
     if bg.w > 0.0 && bg.h > 0.0 {
       let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
       if has_any_radius(&bg_h) || has_any_radius(&bg_v) {
@@ -291,7 +296,7 @@ fn paint_box_in_clip(
   // rounded shape — otherwise the rectangular tiles would paint
   // outside the rounded background.
   if let Some(ref bgi) = b.background_image {
-    let bg = to_renderer_rect_y(b.background_rect, paint_offset_y);
+    let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
     if bg.w > 0.0 && bg.h > 0.0 && !bgi.tiles.is_empty() {
       let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
       let needs_round_clip = has_any_radius(&bg_h) || has_any_radius(&bg_v);
@@ -299,7 +304,7 @@ fn paint_box_in_clip(
         out.push_clip(Some(bg), bg_h, bg_v);
       }
       for tile in &bgi.tiles {
-        let r = Rect::new(tile.x, tile.y + paint_offset_y, tile.w, tile.h);
+        let r = Rect::new(tile.x + paint_offset_x, tile.y + paint_offset_y, tile.w, tile.h);
         if r.w > 0.0 && r.h > 0.0 {
           out.push_image_with_opacity(r, bgi.image_id, bgi.data.clone(), bgi.width, bgi.height, opacity);
         }
@@ -328,7 +333,7 @@ fn paint_box_in_clip(
   } else if rounded {
     paint_rounded_per_side_borders(b, rect, rh, rv, opacity, out);
   } else {
-    paint_border_edges(b, out, paint_offset_y, opacity);
+    paint_border_edges(b, out, paint_offset_x, paint_offset_y, opacity);
   }
 
   // Image: emit one image quad covering the content rect.
@@ -336,7 +341,7 @@ fn paint_box_in_clip(
     let cr = b.content_rect;
     if cr.w > 0.0 && cr.h > 0.0 {
       out.push_image_with_opacity(
-        Rect::new(cr.x, cr.y + paint_offset_y, cr.w, cr.h),
+        Rect::new(cr.x + paint_offset_x, cr.y + paint_offset_y, cr.w, cr.h),
         img.image_id,
         img.data.clone(),
         img.width,
@@ -353,6 +358,7 @@ fn paint_box_in_clip(
   if let Some(run) = &b.text_run {
     let color = apply_opacity(b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]), opacity);
     let mut origin = b.content_rect;
+    origin.x += paint_offset_x;
     origin.y += paint_offset_y;
     // Form control text (placeholders + typed values) is excluded
     // from document-level drag-to-select, matching browser behavior.
@@ -512,7 +518,7 @@ fn paint_box_in_clip(
   //   shapes; browsers don't either when nesting `overflow: hidden` containers with rounded corners.
   let clips_children = b.overflow.clips_any();
   let pushed = if clips_children {
-    let pad = shift_rect_y(padding_box(b), paint_offset_y);
+    let pad = shift_rect_xy(padding_box(b), paint_offset_x, paint_offset_y);
     let effective_rect = overflow_clip_rect(b, pad, clip_stack.last().copied());
     let (inner_h, inner_v) = if b.overflow.clips_both() {
       padding_box_radii(b)
@@ -531,7 +537,9 @@ fn paint_box_in_clip(
     false
   };
 
-  let scroll_y = element_scroll_y(b, path, scroll_offsets_y);
+  let scroll_x = element_scroll_x(b, path, scroll_offsets);
+  let scroll_y = element_scroll_y(b, path, scroll_offsets);
+  let child_offset_x = paint_offset_x - scroll_x;
   let child_offset_y = paint_offset_y - scroll_y;
 
   // Sort children by CSS z-index for paint order.
@@ -551,7 +559,8 @@ fn paint_box_in_clip(
       path,
       selection,
       selection_colors,
-      scroll_offsets_y,
+      scroll_offsets,
+      child_offset_x,
       child_offset_y,
       viewport_scroll_y,
       opacity,
@@ -568,7 +577,7 @@ fn paint_box_in_clip(
   {
     let active = b.resize != Resize::None && (b.overflow.x != Overflow::Visible || b.overflow.y != Overflow::Visible);
     if active {
-      paint_resize_handle(b, out, paint_offset_y);
+      paint_resize_handle(b, out, paint_offset_x, paint_offset_y);
     }
   }
 
@@ -582,18 +591,18 @@ fn paint_box_in_clip(
     );
   }
 
-  paint_scrollbars(b, out, paint_offset_y, scroll_y, opacity);
+  paint_scrollbars(b, out, paint_offset_x, paint_offset_y, scroll_y, opacity);
 }
 
 /// Paint the CSS resize handle (three diagonal lines) in the
 /// bottom-right corner of the element's padding box.
-fn paint_resize_handle(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32) {
+fn paint_resize_handle(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32, paint_offset_y: f32) {
   let pad = padding_box(b);
   let handle_size = 16.0_f32;
-  let x = pad.x + pad.w - handle_size - 2.0;
+  let x = pad.x + pad.w - handle_size - 2.0 + paint_offset_x;
   let y = pad.y + pad.h - handle_size - 2.0 + paint_offset_y;
 
-  if x < pad.x || y < pad.y + paint_offset_y || handle_size <= 0.0 {
+  if x < pad.x + paint_offset_x || y < pad.y + paint_offset_y || handle_size <= 0.0 {
     return;
   }
 
@@ -746,11 +755,11 @@ fn z_index_sort_key(b: &LayoutBox) -> (i32, i32) {
   }
 }
 
-fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, scroll_y: f32, opacity: f32) {
+fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32, paint_offset_y: f32, scroll_y: f32, opacity: f32) {
   if !should_paint_vertical_scrollbar(b) {
     return;
   }
-  let pad = shift_rect_y(padding_box(b), paint_offset_y);
+  let pad = shift_rect_xy(padding_box(b), paint_offset_x, paint_offset_y);
   if pad.w <= 0.0 || pad.h <= 0.0 {
     return;
   }
@@ -773,11 +782,20 @@ fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, s
   out.push_quad(thumb, apply_opacity(SCROLLBAR_THUMB, opacity));
 }
 
-fn element_scroll_y(b: &LayoutBox, path: &[usize], scroll_offsets_y: &BTreeMap<Vec<usize>, f32>) -> f32 {
+fn element_scroll_y(b: &LayoutBox, path: &[usize], scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> f32 {
   let max_scroll = (scrollable_content_height(b) - padding_box(b).h).max(0.0);
-  scroll_offsets_y
+  scroll_offsets
     .get(path)
-    .copied()
+    .map(|s| s.y)
+    .unwrap_or(0.0)
+    .clamp(0.0, max_scroll)
+}
+
+fn element_scroll_x(b: &LayoutBox, path: &[usize], scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> f32 {
+  let max_scroll = (scrollable_content_width(b) - padding_box(b).w).max(0.0);
+  scroll_offsets
+    .get(path)
+    .map(|s| s.x)
     .unwrap_or(0.0)
     .clamp(0.0, max_scroll)
 }
@@ -805,6 +823,23 @@ fn subtree_bottom(b: &LayoutBox) -> f32 {
     bottom = bottom.max(subtree_bottom(child));
   }
   bottom
+}
+
+fn scrollable_content_width(b: &LayoutBox) -> f32 {
+  let pad = padding_box(b);
+  let mut right = pad.x + pad.w;
+  for child in &b.children {
+    right = right.max(subtree_right(child));
+  }
+  (right - pad.x).max(0.0)
+}
+
+fn subtree_right(b: &LayoutBox) -> f32 {
+  let mut right = b.margin_rect.x + b.margin_rect.w;
+  for child in &b.children {
+    right = right.max(subtree_right(child));
+  }
+  right
 }
 
 /// If every set border side shares the same colour AND a renderable
@@ -929,7 +964,7 @@ fn paint_rounded_per_side_borders(
           ];
           out.push_quad_stroke_patterned(rect, color, rh, rv, stroke, pattern);
         } else {
-          let edge_rect = shift_rect_y(side.edge_rect_rounded(r, bd, radii), rect.y - r.y);
+          let edge_rect = shift_rect_xy(side.edge_rect_rounded(r, bd, radii), rect.x - r.x, rect.y - r.y);
           let axis = side.axis();
           paint_edge(edge_rect, axis, w, kind, color, out);
         }
@@ -1040,7 +1075,7 @@ fn has_any_radius(r: &[f32; 4]) -> bool {
 /// is independently coloured and styled. `solid` is one full-edge quad;
 /// `dashed` and `dotted` are emitted as a row of short segment quads;
 /// `none` and `hidden` are skipped. Other values render as solid.
-fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32, opacity: f32) {
+fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32, paint_offset_y: f32, opacity: f32) {
   use wgpu_html_models::common::css_enums::BorderStyle;
 
   let r = b.border_rect;
@@ -1059,7 +1094,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32,
     if let Some(c) = bc.top {
       let c = apply_opacity(c, opacity);
       paint_edge(
-        Rect::new(r.x, r.y + paint_offset_y, r.w, bd.top),
+        Rect::new(r.x + paint_offset_x, r.y + paint_offset_y, r.w, bd.top),
         Axis::Horizontal,
         bd.top,
         resolve_style(&bs.top),
@@ -1073,7 +1108,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32,
     if let Some(c) = bc.bottom {
       let c = apply_opacity(c, opacity);
       paint_edge(
-        Rect::new(r.x, r.y + paint_offset_y + r.h - bd.bottom, r.w, bd.bottom),
+        Rect::new(r.x + paint_offset_x, r.y + paint_offset_y + r.h - bd.bottom, r.w, bd.bottom),
         Axis::Horizontal,
         bd.bottom,
         resolve_style(&bs.bottom),
@@ -1087,7 +1122,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32,
     if let Some(c) = bc.left {
       let c = apply_opacity(c, opacity);
       paint_edge(
-        Rect::new(r.x, r.y + paint_offset_y + bd.top, bd.left, inner_h),
+        Rect::new(r.x + paint_offset_x, r.y + paint_offset_y + bd.top, bd.left, inner_h),
         Axis::Vertical,
         bd.left,
         resolve_style(&bs.left),
@@ -1101,7 +1136,7 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32,
     if let Some(c) = bc.right {
       let c = apply_opacity(c, opacity);
       paint_edge(
-        Rect::new(r.x + r.w - bd.right, r.y + paint_offset_y + bd.top, bd.right, inner_h),
+        Rect::new(r.x + paint_offset_x + r.w - bd.right, r.y + paint_offset_y + bd.top, bd.right, inner_h),
         Axis::Vertical,
         bd.right,
         resolve_style(&bs.right),
@@ -1208,10 +1243,10 @@ fn paint_segments(rect: Rect, axis: Axis, on: f32, off: f32, color: wgpu_html_re
   }
 }
 
-fn to_renderer_rect_y(r: wgpu_html_layout::Rect, dy: f32) -> Rect {
-  Rect::new(r.x, r.y + dy, r.w, r.h)
+fn to_renderer_rect_xy(r: wgpu_html_layout::Rect, dx: f32, dy: f32) -> Rect {
+  Rect::new(r.x + dx, r.y + dy, r.w, r.h)
 }
 
-fn shift_rect_y(r: Rect, dy: f32) -> Rect {
-  Rect::new(r.x, r.y + dy, r.w, r.h)
+fn shift_rect_xy(r: Rect, dx: f32, dy: f32) -> Rect {
+  Rect::new(r.x + dx, r.y + dy, r.w, r.h)
 }
