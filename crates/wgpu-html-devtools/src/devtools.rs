@@ -15,7 +15,7 @@ use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 use winit::{event::WindowEvent, event_loop::ActiveEventLoop, window::WindowId};
 
-use crate::component::{DevtoolsComponent, DevtoolsProps, SharedHoverPath, SharedPendingPick, SharedPickMode};
+use crate::ui::{DevtoolsComponent, DevtoolsProps, SharedHoverPath, SharedPendingPick, SharedPickMode};
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");

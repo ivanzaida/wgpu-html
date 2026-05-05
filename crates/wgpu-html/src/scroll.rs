@@ -424,7 +424,10 @@ pub fn scroll_element_at(tree: &mut Tree, layout: &LayoutBox, doc_pos: (f32, f32
   if new_x <= 0.0 && new_y <= 0.0 {
     tree.interaction.scroll_offsets.remove(&path);
   } else {
-    tree.interaction.scroll_offsets.insert(path.clone(), ScrollOffset { x: new_x, y: new_y });
+    tree
+      .interaction
+      .scroll_offsets
+      .insert(path.clone(), ScrollOffset { x: new_x, y: new_y });
   }
   tree.scroll_event(&path);
   true
@@ -448,6 +451,12 @@ pub fn scroll_element_thumb_to(tree: &mut Tree, layout: &LayoutBox, path: Vec<us
   if scroll_y <= 0.0 && existing_x <= 0.0 {
     tree.interaction.scroll_offsets.remove(&path);
   } else {
-    tree.interaction.scroll_offsets.insert(path, ScrollOffset { x: existing_x, y: scroll_y });
+    tree.interaction.scroll_offsets.insert(
+      path,
+      ScrollOffset {
+        x: existing_x,
+        y: scroll_y,
+      },
+    );
   }
 }

@@ -12,7 +12,6 @@ use wgpu_html_text::TextContext;
 use wgpu_html_tree::{ScrollOffset, SelectionColors, TextCursor, TextSelection, Tree};
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
-const SCROLLBAR_THICKNESS: f32 = 10.0;
 const SCROLLBAR_MIN_THUMB: f32 = 18.0;
 pub const SCROLLBAR_TRACK: [f32; 4] = [0.15, 0.18, 0.22, 0.45];
 
@@ -755,7 +754,14 @@ fn z_index_sort_key(b: &LayoutBox) -> (i32, i32) {
   }
 }
 
-fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32, paint_offset_y: f32, scroll_y: f32, opacity: f32) {
+fn paint_scrollbars(
+  b: &LayoutBox,
+  out: &mut DisplayList,
+  paint_offset_x: f32,
+  paint_offset_y: f32,
+  scroll_y: f32,
+  opacity: f32,
+) {
   if !should_paint_vertical_scrollbar(b) {
     return;
   }
@@ -1114,7 +1120,12 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32,
     if let Some(c) = bc.bottom {
       let c = apply_opacity(c, opacity);
       paint_edge(
-        Rect::new(r.x + paint_offset_x, r.y + paint_offset_y + r.h - bd.bottom, r.w, bd.bottom),
+        Rect::new(
+          r.x + paint_offset_x,
+          r.y + paint_offset_y + r.h - bd.bottom,
+          r.w,
+          bd.bottom,
+        ),
         Axis::Horizontal,
         bd.bottom,
         resolve_style(&bs.bottom),
@@ -1142,7 +1153,12 @@ fn paint_border_edges(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32,
     if let Some(c) = bc.right {
       let c = apply_opacity(c, opacity);
       paint_edge(
-        Rect::new(r.x + paint_offset_x + r.w - bd.right, r.y + paint_offset_y + bd.top, bd.right, inner_h),
+        Rect::new(
+          r.x + paint_offset_x + r.w - bd.right,
+          r.y + paint_offset_y + bd.top,
+          bd.right,
+          inner_h,
+        ),
         Axis::Vertical,
         bd.right,
         resolve_style(&bs.right),

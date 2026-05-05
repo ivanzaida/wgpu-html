@@ -607,7 +607,11 @@ impl ApplicationHandler for DemoApp {
               self.rt.driver.window.request_redraw();
               return;
             }
-            WindowEvent::MouseInput { state: winit::event::ElementState::Pressed, button: winit::event::MouseButton::Left, .. } => {
+            WindowEvent::MouseInput {
+              state: winit::event::ElementState::Pressed,
+              button: winit::event::MouseButton::Left,
+              ..
+            } => {
               if let Some(hover) = self.devtools.as_ref().and_then(|d| d.hovered_path()) {
                 if let Some(devtools) = &mut self.devtools {
                   devtools.pick_element(hover);

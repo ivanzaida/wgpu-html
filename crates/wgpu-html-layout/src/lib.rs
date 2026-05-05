@@ -15,8 +15,10 @@ use std::collections::BTreeMap;
 
 use wgpu_html_models::{
   Style,
-  common::css_enums::{BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, ScrollbarColor,
-  ScrollbarWidth, WhiteSpace},
+  common::css_enums::{
+    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, ScrollbarColor, ScrollbarWidth,
+    WhiteSpace,
+  },
 };
 use wgpu_html_style::{CascadedNode, CascadedTree};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
@@ -585,7 +587,11 @@ impl LayoutBox {
   ///
   /// `scroll_offsets` is the same map stored in
   /// `InteractionState::scroll_offsets`.
-  pub fn hit_path_scrolled(&self, point: (f32, f32), scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> Option<Vec<usize>> {
+  pub fn hit_path_scrolled(
+    &self,
+    point: (f32, f32),
+    scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>,
+  ) -> Option<Vec<usize>> {
     let mut path = Vec::new();
     collect_hit_path_scrolled(self, point.0, point.1, scroll_offsets, &mut path, None)
   }

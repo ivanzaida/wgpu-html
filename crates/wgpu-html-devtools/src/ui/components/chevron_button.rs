@@ -1,8 +1,6 @@
-use wgpu_html_ui::{Component, Ctx, El, ShouldRender};
+//! Chevron toggle icon — pure display component driven by props.
 
-pub struct ChevronButton {
-  expanded: bool,
-}
+use wgpu_html_ui::{Component, Ctx, ShouldRender, el, el::El};
 
 #[derive(Clone)]
 pub struct ChevronProps {
@@ -10,26 +8,25 @@ pub struct ChevronProps {
 }
 
 #[derive(Clone)]
-pub enum ChevronMsg {
-  Expanded(bool)
-}
+pub enum ChevronMsg {}
+
+pub struct ChevronButton;
 
 impl Component for ChevronButton {
   type Props = ChevronProps;
   type Msg = ChevronMsg;
   type Env = ();
 
-  fn create(props: &Self::Props) -> Self {
-    Self {
-      expanded: props.expanded
-    }
+  fn create(_props: &ChevronProps) -> Self {
+    ChevronButton
   }
 
-  fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender {
-    ShouldRender::Yes
+  fn update(&mut self, msg: ChevronMsg, _props: &ChevronProps) -> ShouldRender {
+    match msg {}
   }
 
-  fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El {
-    todo!()
+  fn view(&self, props: &ChevronProps, _ctx: &Ctx<ChevronMsg>, _env: &()) -> El {
+    let icon = if props.expanded { "\u{e06d}" } else { "\u{e06f}" };
+    el::span().class("chevron").text(icon)
   }
 }

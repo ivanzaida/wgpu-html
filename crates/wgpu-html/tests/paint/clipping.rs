@@ -361,7 +361,10 @@ fn overflow_scroll_offset_moves_descendants_and_thumb() {
                 </div>
             </body>"#,
   );
-  tree.interaction.scroll_offsets.insert(vec![0], wgpu_html_tree::ScrollOffset { x: 0.0, y: 30.0 });
+  tree
+    .interaction
+    .scroll_offsets
+    .insert(vec![0], wgpu_html_tree::ScrollOffset { x: 0.0, y: 30.0 });
   let list = paint_tree(&tree, 800.0, 600.0);
   let blue = list
     .quads

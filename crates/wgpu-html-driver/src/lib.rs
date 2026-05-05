@@ -436,8 +436,15 @@ impl<D: Driver> Runtime<D> {
     if let Some(path) = &self.inspect_overlay_path {
       if let Some(ref layout) = self.last_layout {
         wgpu_html::inspect_overlay::paint_inspect_overlay(
-          &mut list, layout, tree, &mut self.text_ctx,
-          path, 0.0, scale, paint_w, paint_h,
+          &mut list,
+          layout,
+          tree,
+          &mut self.text_ctx,
+          path,
+          0.0,
+          scale,
+          paint_w,
+          paint_h,
         );
       }
     }
