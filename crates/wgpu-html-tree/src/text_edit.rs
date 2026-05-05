@@ -246,5 +246,3 @@ pub fn move_down(value: &str, cursor: &EditCursor, extend_selection: bool) -> Ed
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
-
-

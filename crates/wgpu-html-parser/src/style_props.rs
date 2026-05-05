@@ -434,4 +434,3 @@ style_props! {
     pointer_events => "pointer-events" ,inherited;
     user_select => "user-select" ,inherited;
 }
-

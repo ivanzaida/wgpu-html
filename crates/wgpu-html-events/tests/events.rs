@@ -1,9 +1,8 @@
 use std::cell::Cell;
 
 use wgpu_html_events::{
-  BeforeToggleEvent, ClipboardDataId, DataTransferId, Event, EventPhase, FormDataId, HtmlEvent,
-  HtmlEventType, InputType, KeyboardEvent, KeyboardLocation, MouseEvent, NodeId, ToggleEvent,
-  ToggleState, UIEvent,
+  BeforeToggleEvent, ClipboardDataId, DataTransferId, Event, EventPhase, FormDataId, HtmlEvent, HtmlEventType,
+  InputType, KeyboardEvent, KeyboardLocation, MouseEvent, NodeId, ToggleEvent, ToggleState, UIEvent,
 };
 
 fn make_base(event_type: &str) -> Event {

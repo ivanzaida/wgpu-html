@@ -1,7 +1,9 @@
-use wgpu_html_tree::EditCursor;
-use wgpu_html_tree::text_edit::{
-  delete_backward, delete_forward, insert_line_break, insert_text, move_down, move_end, move_home, move_left,
-  move_right, move_up, select_all,
+use wgpu_html_tree::{
+  EditCursor,
+  text_edit::{
+    delete_backward, delete_forward, insert_line_break, insert_text, move_down, move_end, move_home, move_left,
+    move_right, move_up, select_all,
+  },
 };
 
 #[test]

@@ -6,3 +6,4 @@ devtools-dump-*.html
 node_modules
 www/build
 .docusaurus
+.claude/worktrees

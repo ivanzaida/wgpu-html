@@ -372,4 +372,3 @@ fn decode_entities(input: &str) -> String {
   }
   result
 }
-

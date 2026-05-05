@@ -6,9 +6,9 @@ use wgpu_html_driver_winit::{WgpuHtml, WinitRuntime, dispatch};
 use wgpu_html_models as m;
 use wgpu_html_tree::{Node, Tree};
 use winit::{
-    application::ApplicationHandler,
-    event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+  application::ApplicationHandler,
+  event::WindowEvent,
+  event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
 };
 
 use crate::core::{component::Component, runtime::Runtime};

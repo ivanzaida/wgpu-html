@@ -507,5 +507,3 @@ impl Tree {
     TreeHookResponse::Continue
   }
 }
-
-

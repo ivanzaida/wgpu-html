@@ -2,9 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use wgpu_html_events as ev;
 use wgpu_html_models as m;
-use wgpu_html_tree::{
-  Modifier, MouseButton, MouseEvent, Node, Tree, TreeHook, TreeHookResponse,
-};
+use wgpu_html_tree::{Modifier, MouseButton, MouseEvent, Node, Tree, TreeHook, TreeHookResponse};
 
 fn focus_test_tree() -> Tree {
   let mut root = Node::new(m::Body::default());

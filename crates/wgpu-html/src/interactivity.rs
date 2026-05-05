@@ -215,5 +215,3 @@ pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: Mo
   let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets_y);
   tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)
 }
-
-

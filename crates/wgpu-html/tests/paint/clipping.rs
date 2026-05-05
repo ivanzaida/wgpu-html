@@ -1,5 +1,4 @@
-use wgpu_html::paint::*;
-use wgpu_html::renderer::DisplayList;
+use wgpu_html::{paint::*, renderer::DisplayList};
 use wgpu_html_layout::{LayoutBox, Rect as LR};
 use wgpu_html_text::{PositionedGlyph, ShapedLine, ShapedRun};
 
@@ -41,9 +40,7 @@ fn real_textarea_in_flex_row_does_not_clip_following_block_quad() {
 
 #[test]
 fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
-  use wgpu_html_layout::{
-    BorderColors, BorderStyles, BoxKind, CornerRadii, Insets, OverflowAxes,
-  };
+  use wgpu_html_layout::{BorderColors, BorderStyles, BoxKind, CornerRadii, Insets, OverflowAxes};
   use wgpu_html_models::common::css_enums::Overflow;
   let textarea_rect = LR::new(0.0, 0.0, 320.0, 64.0);
   let textarea = LayoutBox {

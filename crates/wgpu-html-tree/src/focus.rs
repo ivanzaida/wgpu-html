@@ -151,5 +151,3 @@ pub fn prev_in_order<'a>(paths: &'a [Vec<usize>], from: Option<&[usize]>) -> Opt
     }
   }
 }
-
-

@@ -1051,3 +1051,116 @@ fn flex_wrap_no_height_does_not_apply_align_content() {
   assert_eq!(body.children[0].margin_rect.y, 0.0);
   assert_eq!(body.children[1].margin_rect.y, 40.0);
 }
+
+#[test]
+fn img_html_width_height_respected_in_flex_row() {
+  // <img width="64" height="64"> inside a flex row should produce
+  // a 64×64 box — HTML attributes must not be overridden by
+  // align-items: stretch (the default).
+  let tree = make(
+    r#"<body style="margin: 0; display: flex; gap: 16px;">
+            <img width="64" height="64" src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png?_=20240708155759">
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let img = &body.children[0];
+  assert_eq!(img.content_rect.w, 64.0, "img width should be 64");
+  assert_eq!(img.content_rect.h, 64.0, "img height should be 64");
+}
+
+#[test]
+fn img_html_width_height_not_stretched_by_taller_sibling() {
+  // When a flex row has a taller sibling, the img with HTML
+  // width/height should NOT stretch to the line height.
+  let tree = make(
+    r#"<body style="margin: 0; display: flex; gap: 16px;">
+            <img width="64" height="64" src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png?_=20240708155759">
+            <div style="width: 100px; height: 200px;"></div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let img = &body.children[0];
+  assert_eq!(img.content_rect.w, 64.0, "img width should be 64");
+  assert_eq!(
+    img.content_rect.h, 64.0,
+    "img height should remain 64, not stretched to 200"
+  );
+}
+
+#[test]
+fn img_no_attributes_stretches_in_flex_row() {
+  // Without HTML width/height, an img with no loaded data should
+  // stretch on the cross axis (default align-items: stretch).
+  let tree = make(
+    r#"<body style="margin: 0; display: flex;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png?_=20240708155759">
+            <div style="width: 100px; height: 200px;"></div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let img = &body.children[0];
+  assert_eq!(
+    img.content_rect.h, 200.0,
+    "img without attrs should stretch to line height"
+  );
+}
+
+#[test]
+fn img_html_attrs_in_nested_flex() {
+  // Matches the demo structure: body > div.row(flex) > img
+  let tree = make(
+    r#"<body style="margin: 0;">
+            <div style="display: flex; gap: 16px; padding: 16px;">
+                <img width="64" height="64" src="https://example.com/img.png">
+            </div>
+        </body>"#,
+  );
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let row = &body.children[0];
+  let img = &row.children[0];
+  assert_eq!(img.content_rect.w, 64.0, "img width should be 64");
+  assert_eq!(img.content_rect.h, 64.0, "img height should be 64");
+}
+
+#[test]
+fn img_html_attrs_respected_after_image_loads() {
+  // Simulate what happens after the image loads: layout is called
+  // with an ImageCache that has the image available. The intrinsic
+  // size is large (e.g. 800×600) but HTML attrs say 64×64.
+  let html = r#"<body style="margin: 0;">
+      <div style="display: flex; gap: 16px; padding: 16px;">
+          <img width="64" height="64" src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png?_=20240708155759">
+      </div>
+  </body>"#;
+  let tree = wgpu_html_parser::parse(html);
+  let cascaded = wgpu_html_style::cascade(&tree);
+  let mut text_ctx = wgpu_html_text::TextContext::new(64);
+  let mut io = AssetIo::new(wgpu_html_assets::blocking::BlockingFetcher::new());
+
+  // First pass: image is Pending
+  let body = layout_with_text(&cascaded, &mut text_ctx, &mut io, 800.0, 600.0, 1.0).unwrap();
+  let img = &body.children[0].children[0];
+  assert_eq!(img.content_rect.w, 64.0, "first pass: width=64");
+  assert_eq!(img.content_rect.h, 64.0, "first pass: height=64");
+
+  // Wait for the image to load
+  std::thread::sleep(std::time::Duration::from_secs(3));
+
+  // Second pass: image is loaded (intrinsic size likely > 64)
+  let body = layout_with_text(&cascaded, &mut text_ctx, &mut io, 800.0, 600.0, 1.0).unwrap();
+  let img = &body.children[0].children[0];
+  assert_eq!(img.content_rect.w, 64.0, "after load: width must still be 64");
+  assert_eq!(img.content_rect.h, 64.0, "after load: height must still be 64");
+
+  // Verify the image data is present and the box truly has
+  // content_rect matching what the renderer will use.
+  let img_data = img.image.as_ref().expect("image should be loaded");
+  assert!(
+    img_data.width > 64 || img_data.height > 64,
+    "intrinsic image should be larger than 64 to prove layout constrains it"
+  );
+  // Even though image data is large, the layout box content_rect
+  // is 64×64 — the renderer paints within content_rect.
+  assert_eq!(img.content_rect.w, 64.0);
+  assert_eq!(img.content_rect.h, 64.0);
+}

@@ -1,6 +1,4 @@
-use wgpu_html::paint::*;
-use wgpu_html::renderer::DisplayList;
-use wgpu_html::text::TextContext;
+use wgpu_html::{paint::*, renderer::DisplayList, text::TextContext};
 use wgpu_html_layout::LayoutBox;
 
 #[test]

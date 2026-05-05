@@ -26,8 +26,7 @@
 //! knows where to wire it up.
 
 use wgpu_html_models as m;
-use wgpu_html_tree::{CompoundSelector, Node, SelectorList, Tree};
-use wgpu_html_tree::query::AttrOp;
+use wgpu_html_tree::{CompoundSelector, Node, SelectorList, Tree, query::AttrOp};
 
 // ─── Tree-building helpers ────────────────────────────────────────────────
 
@@ -1282,10 +1281,7 @@ fn child_combinator() {
 fn next_sibling_combinator() {
   // Build a tree where span is immediately followed by a div
   let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(div(None, None)).with_children(vec![
-      Node::new(span(None, None)),
-      Node::new(div(None, None)),
-    ]),
+    Node::new(div(None, None)).with_children(vec![Node::new(span(None, None)), Node::new(div(None, None))]),
   ]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("span + div");

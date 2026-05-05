@@ -3,13 +3,13 @@ use wgpu_html_tree::Element;
 
 #[track_caller]
 fn assert_root(html: &str, ok: impl FnOnce(&Element) -> bool) {
-    let tree = parse(html);
-    let root = tree.root.as_ref().expect("expected a root node");
-    assert!(
-        ok(&root.element),
-        "unexpected root element for `{html}`: {:?}",
-        root.element
-    );
+  let tree = parse(html);
+  let root = tree.root.as_ref().expect("expected a root node");
+  assert!(
+    ok(&root.element),
+    "unexpected root element for `{html}`: {:?}",
+    root.element
+  );
 }
 
 macro_rules! tag_tests {

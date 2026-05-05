@@ -251,8 +251,16 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
   for i in 0..depth {
     let current_path = &target_path[..i];
     if fire_mouse_slot(
-      tree, target_path, current_path, pos, button, slot,
-      time_stamp, buttons_down, modifiers, ev::EventPhase::CapturingPhase,
+      tree,
+      target_path,
+      current_path,
+      pos,
+      button,
+      slot,
+      time_stamp,
+      buttons_down,
+      modifiers,
+      ev::EventPhase::CapturingPhase,
     ) {
       return;
     }
@@ -260,8 +268,16 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
 
   // Target phase
   if fire_mouse_slot(
-    tree, target_path, target_path, pos, button, slot,
-    time_stamp, buttons_down, modifiers, ev::EventPhase::AtTarget,
+    tree,
+    target_path,
+    target_path,
+    pos,
+    button,
+    slot,
+    time_stamp,
+    buttons_down,
+    modifiers,
+    ev::EventPhase::AtTarget,
   ) {
     return;
   }
@@ -270,8 +286,16 @@ fn bubble(tree: &mut Tree, target_path: &[usize], pos: (f32, f32), button: Optio
   for i in (0..depth).rev() {
     let current_path = &target_path[..i];
     if fire_mouse_slot(
-      tree, target_path, current_path, pos, button, slot,
-      time_stamp, buttons_down, modifiers, ev::EventPhase::BubblingPhase,
+      tree,
+      target_path,
+      current_path,
+      pos,
+      button,
+      slot,
+      time_stamp,
+      buttons_down,
+      modifiers,
+      ev::EventPhase::BubblingPhase,
     ) {
       return;
     }
@@ -598,7 +622,14 @@ fn bubble_mouse_move(tree: &mut Tree, target_path: &[usize], pos: (f32, f32)) {
   // Capture phase: root → target parent
   for i in 0..depth {
     let current_path = target_path[..i].to_vec();
-    fire_mouse_move_at(tree, target_path, &current_path, pos, modifiers, ev::EventPhase::CapturingPhase);
+    fire_mouse_move_at(
+      tree,
+      target_path,
+      &current_path,
+      pos,
+      modifiers,
+      ev::EventPhase::CapturingPhase,
+    );
   }
 
   // Target phase
@@ -607,7 +638,14 @@ fn bubble_mouse_move(tree: &mut Tree, target_path: &[usize], pos: (f32, f32)) {
   // Bubble phase: target parent → root
   for i in (0..depth).rev() {
     let current_path = target_path[..i].to_vec();
-    fire_mouse_move_at(tree, target_path, &current_path, pos, modifiers, ev::EventPhase::BubblingPhase);
+    fire_mouse_move_at(
+      tree,
+      target_path,
+      &current_path,
+      pos,
+      modifiers,
+      ev::EventPhase::BubblingPhase,
+    );
   }
 }
 
@@ -1000,8 +1038,13 @@ fn fire_focus_event(
   for i in 0..depth {
     let current_path = &target_path[..i];
     if fire_focus_at(
-      tree, event_type, &target, current_path, time_stamp,
-      related.clone(), ev::EventPhase::CapturingPhase,
+      tree,
+      event_type,
+      &target,
+      current_path,
+      time_stamp,
+      related.clone(),
+      ev::EventPhase::CapturingPhase,
     ) {
       return;
     }
@@ -1010,8 +1053,13 @@ fn fire_focus_event(
   // Target phase (always fires)
   {
     if fire_focus_at(
-      tree, event_type, &target, target_path, time_stamp,
-      related.clone(), ev::EventPhase::AtTarget,
+      tree,
+      event_type,
+      &target,
+      target_path,
+      time_stamp,
+      related.clone(),
+      ev::EventPhase::AtTarget,
     ) {
       return;
     }
@@ -1022,8 +1070,13 @@ fn fire_focus_event(
     for i in (0..depth).rev() {
       let current_path = &target_path[..i];
       if fire_focus_at(
-        tree, event_type, &target, current_path, time_stamp,
-        related.clone(), ev::EventPhase::BubblingPhase,
+        tree,
+        event_type,
+        &target,
+        current_path,
+        time_stamp,
+        related.clone(),
+        ev::EventPhase::BubblingPhase,
       ) {
         return;
       }
@@ -1189,8 +1242,16 @@ fn bubble_keyboard(
   for i in 0..depth {
     let current_path = &target_path[..i];
     if fire_keyboard_at(
-      tree, event_type, key, code, repeat, modifiers,
-      target_path, current_path, time_stamp, ev::EventPhase::CapturingPhase,
+      tree,
+      event_type,
+      key,
+      code,
+      repeat,
+      modifiers,
+      target_path,
+      current_path,
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
     ) {
       return;
     }
@@ -1198,8 +1259,16 @@ fn bubble_keyboard(
 
   // Target phase
   if fire_keyboard_at(
-    tree, event_type, key, code, repeat, modifiers,
-    target_path, target_path, time_stamp, ev::EventPhase::AtTarget,
+    tree,
+    event_type,
+    key,
+    code,
+    repeat,
+    modifiers,
+    target_path,
+    target_path,
+    time_stamp,
+    ev::EventPhase::AtTarget,
   ) {
     return;
   }
@@ -1208,8 +1277,16 @@ fn bubble_keyboard(
   for i in (0..depth).rev() {
     let current_path = &target_path[..i];
     if fire_keyboard_at(
-      tree, event_type, key, code, repeat, modifiers,
-      target_path, current_path, time_stamp, ev::EventPhase::BubblingPhase,
+      tree,
+      event_type,
+      key,
+      code,
+      repeat,
+      modifiers,
+      target_path,
+      current_path,
+      time_stamp,
+      ev::EventPhase::BubblingPhase,
     ) {
       return;
     }
@@ -1244,8 +1321,15 @@ fn fire_keyboard_at(
     })
     .unwrap_or_default();
   let mut html_ev = make_keyboard_html_event(
-    event_type, key, code, repeat, modifiers,
-    target_path, current_path, time_stamp, phase,
+    event_type,
+    key,
+    code,
+    repeat,
+    modifiers,
+    target_path,
+    current_path,
+    time_stamp,
+    phase,
   );
   if tree.emit_event(&mut html_ev).is_stop() {
     return true;
@@ -1392,8 +1476,14 @@ fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, in
   for i in 0..depth {
     let current_path = &target_path[..i];
     if fire_input_at(
-      tree, ev::HtmlEventType::INPUT, target_path, current_path,
-      data.clone(), input_type.clone(), time_stamp, ev::EventPhase::CapturingPhase,
+      tree,
+      ev::HtmlEventType::INPUT,
+      target_path,
+      current_path,
+      data.clone(),
+      input_type.clone(),
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
     ) {
       return;
     }
@@ -1401,8 +1491,14 @@ fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, in
 
   // Target phase
   if fire_input_at(
-    tree, ev::HtmlEventType::INPUT, target_path, target_path,
-    data.clone(), input_type.clone(), time_stamp, ev::EventPhase::AtTarget,
+    tree,
+    ev::HtmlEventType::INPUT,
+    target_path,
+    target_path,
+    data.clone(),
+    input_type.clone(),
+    time_stamp,
+    ev::EventPhase::AtTarget,
   ) {
     return;
   }
@@ -1411,8 +1507,14 @@ fn bubble_input(tree: &mut Tree, target_path: &[usize], data: Option<String>, in
   for i in (0..depth).rev() {
     let current_path = &target_path[..i];
     if fire_input_at(
-      tree, ev::HtmlEventType::INPUT, target_path, current_path,
-      data.clone(), input_type.clone(), time_stamp, ev::EventPhase::BubblingPhase,
+      tree,
+      ev::HtmlEventType::INPUT,
+      target_path,
+      current_path,
+      data.clone(),
+      input_type.clone(),
+      time_stamp,
+      ev::EventPhase::BubblingPhase,
     ) {
       return;
     }
@@ -1435,32 +1537,56 @@ fn bubble_beforeinput(
   for i in 0..depth {
     let current_path = &target_path[..i];
     let (stop, prev) = fire_input_preventable_at(
-      tree, ev::HtmlEventType::BEFOREINPUT, target_path, current_path,
-      data.clone(), input_type.clone(), time_stamp, ev::EventPhase::CapturingPhase,
+      tree,
+      ev::HtmlEventType::BEFOREINPUT,
+      target_path,
+      current_path,
+      data.clone(),
+      input_type.clone(),
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   // Target phase
   {
     let (stop, prev) = fire_input_preventable_at(
-      tree, ev::HtmlEventType::BEFOREINPUT, target_path, target_path,
-      data.clone(), input_type.clone(), time_stamp, ev::EventPhase::AtTarget,
+      tree,
+      ev::HtmlEventType::BEFOREINPUT,
+      target_path,
+      target_path,
+      data.clone(),
+      input_type.clone(),
+      time_stamp,
+      ev::EventPhase::AtTarget,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   // Bubble phase: target parent → root
   for i in (0..depth).rev() {
     let current_path = &target_path[..i];
     let (stop, prev) = fire_input_preventable_at(
-      tree, ev::HtmlEventType::BEFOREINPUT, target_path, current_path,
-      data.clone(), input_type.clone(), time_stamp, ev::EventPhase::BubblingPhase,
+      tree,
+      ev::HtmlEventType::BEFOREINPUT,
+      target_path,
+      current_path,
+      data.clone(),
+      input_type.clone(),
+      time_stamp,
+      ev::EventPhase::BubblingPhase,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   prevented
@@ -1486,7 +1612,13 @@ fn fire_input_at(
     .map(|node| (node.on_input.clone(), node.on_event.clone()))
     .unwrap_or_default();
   let mut html_ev = make_input_html_event(
-    event_type, data, input_type, target_path, current_path, time_stamp, phase,
+    event_type,
+    data,
+    input_type,
+    target_path,
+    current_path,
+    time_stamp,
+    phase,
   );
   if tree.emit_event(&mut html_ev).is_stop() {
     return true;
@@ -1520,7 +1652,13 @@ fn fire_input_preventable_at(
     .map(|node| (node.on_beforeinput.clone(), node.on_event.clone()))
     .unwrap_or_default();
   let mut html_ev = make_input_html_event(
-    event_type, data, input_type, target_path, current_path, time_stamp, phase,
+    event_type,
+    data,
+    input_type,
+    target_path,
+    current_path,
+    time_stamp,
+    phase,
   );
   if tree.emit_event(&mut html_ev).is_stop() {
     return (true, false);
@@ -1630,32 +1768,65 @@ pub fn wheel_event(
   for i in 0..depth {
     let current_path = &target[..i];
     let (stop, prev) = fire_wheel_at(
-      tree, &target, current_path, pos, delta_x, delta_y, delta_mode,
-      buttons_down, modifiers, time_stamp, ev::EventPhase::CapturingPhase,
+      tree,
+      &target,
+      current_path,
+      pos,
+      delta_x,
+      delta_y,
+      delta_mode,
+      buttons_down,
+      modifiers,
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   // Target phase
   {
     let (stop, prev) = fire_wheel_at(
-      tree, &target, &target, pos, delta_x, delta_y, delta_mode,
-      buttons_down, modifiers, time_stamp, ev::EventPhase::AtTarget,
+      tree,
+      &target,
+      &target,
+      pos,
+      delta_x,
+      delta_y,
+      delta_mode,
+      buttons_down,
+      modifiers,
+      time_stamp,
+      ev::EventPhase::AtTarget,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   // Bubble phase: target parent → root
   for i in (0..depth).rev() {
     let current_path = &target[..i];
     let (stop, prev) = fire_wheel_at(
-      tree, &target, current_path, pos, delta_x, delta_y, delta_mode,
-      buttons_down, modifiers, time_stamp, ev::EventPhase::BubblingPhase,
+      tree,
+      &target,
+      current_path,
+      pos,
+      delta_x,
+      delta_y,
+      delta_mode,
+      buttons_down,
+      modifiers,
+      time_stamp,
+      ev::EventPhase::BubblingPhase,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   prevented
@@ -1685,9 +1856,16 @@ fn fire_wheel_at(
     .unwrap_or_default();
   let mut html_ev = make_wheel_html_event(
     ev::HtmlEventType::WHEEL,
-    delta_x, delta_y, delta_mode,
-    pos, buttons_down, modifiers,
-    target_path, current_path, time_stamp, phase,
+    delta_x,
+    delta_y,
+    delta_mode,
+    pos,
+    buttons_down,
+    modifiers,
+    target_path,
+    current_path,
+    time_stamp,
+    phase,
   );
   if tree.emit_event(&mut html_ev).is_stop() {
     return (true, false);
@@ -1728,29 +1906,43 @@ pub fn clipboard_event(tree: &mut Tree, event_type: &'static str) -> bool {
   for i in 0..depth {
     let current_path = &target[..i];
     let (stop, prev) = fire_clipboard_at(
-      tree, event_type, &target, current_path, time_stamp, ev::EventPhase::CapturingPhase,
+      tree,
+      event_type,
+      &target,
+      current_path,
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   // Target phase
   {
-    let (stop, prev) = fire_clipboard_at(
-      tree, event_type, &target, &target, time_stamp, ev::EventPhase::AtTarget,
-    );
+    let (stop, prev) = fire_clipboard_at(tree, event_type, &target, &target, time_stamp, ev::EventPhase::AtTarget);
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   // Bubble phase: target parent → root
   for i in (0..depth).rev() {
     let current_path = &target[..i];
     let (stop, prev) = fire_clipboard_at(
-      tree, event_type, &target, current_path, time_stamp, ev::EventPhase::BubblingPhase,
+      tree,
+      event_type,
+      &target,
+      current_path,
+      time_stamp,
+      ev::EventPhase::BubblingPhase,
     );
     prevented = prevented || prev;
-    if stop { return prevented; }
+    if stop {
+      return prevented;
+    }
   }
 
   prevented
@@ -1827,10 +2019,24 @@ pub fn scroll_event(tree: &mut Tree, path: &[usize]) {
   // Capture phase: root → target parent
   for i in 0..depth {
     let current_path = &path[..i];
-    fire_generic_at(tree, ev::HtmlEventType::SCROLL, path, current_path, time_stamp, ev::EventPhase::CapturingPhase);
+    fire_generic_at(
+      tree,
+      ev::HtmlEventType::SCROLL,
+      path,
+      current_path,
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
+    );
   }
   // Target phase
-  fire_generic_at(tree, ev::HtmlEventType::SCROLL, path, path, time_stamp, ev::EventPhase::AtTarget);
+  fire_generic_at(
+    tree,
+    ev::HtmlEventType::SCROLL,
+    path,
+    path,
+    time_stamp,
+    ev::EventPhase::AtTarget,
+  );
 }
 
 /// Dispatch a `select` event on the element at `path` (non-bubbling,
@@ -1896,13 +2102,7 @@ fn fire_generic_at(
   }
 }
 
-fn fire_select_at(
-  tree: &mut Tree,
-  target: &[usize],
-  current_path: &[usize],
-  time_stamp: f64,
-  phase: ev::EventPhase,
-) {
+fn fire_select_at(tree: &mut Tree, target: &[usize], current_path: &[usize], time_stamp: f64, phase: ev::EventPhase) {
   let current_path = current_path.to_vec();
   let (dedicated, on_evs) = tree
     .root
@@ -2012,16 +2212,37 @@ fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Opt
   // Capture phase: root → target parent
   for i in 0..depth {
     let current_path = form_path[..i].to_vec();
-    fire_submit_at(tree, form_path, &current_path, submitter_path.clone(), time_stamp, ev::EventPhase::CapturingPhase);
+    fire_submit_at(
+      tree,
+      form_path,
+      &current_path,
+      submitter_path.clone(),
+      time_stamp,
+      ev::EventPhase::CapturingPhase,
+    );
   }
 
   // Target phase
-  fire_submit_at(tree, form_path, form_path, submitter_path.clone(), time_stamp, ev::EventPhase::AtTarget);
+  fire_submit_at(
+    tree,
+    form_path,
+    form_path,
+    submitter_path.clone(),
+    time_stamp,
+    ev::EventPhase::AtTarget,
+  );
 
   // Bubble phase: target parent → root
   for i in (0..depth).rev() {
     let current_path = form_path[..i].to_vec();
-    fire_submit_at(tree, form_path, &current_path, submitter_path.clone(), time_stamp, ev::EventPhase::BubblingPhase);
+    fire_submit_at(
+      tree,
+      form_path,
+      &current_path,
+      submitter_path.clone(),
+      time_stamp,
+      ev::EventPhase::BubblingPhase,
+    );
   }
 }
 
@@ -2550,5 +2771,3 @@ impl Tree {
 }
 
 // ── Tests (layout-free) ──────────────────────────────────────────────────────
-
-

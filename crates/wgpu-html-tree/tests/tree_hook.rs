@@ -1,6 +1,10 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+  sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+  },
+  time::Duration,
+};
 
 use wgpu_html_tree::{Node, Tree, TreeHook, TreeHookResponse, TreeRenderEvent};
 

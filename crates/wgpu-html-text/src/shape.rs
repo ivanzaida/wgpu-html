@@ -1055,4 +1055,3 @@ pub fn parse_line_height_multiplier(data: &[u8]) -> Option<f32> {
 
   Some((ascender - descender + line_gap) / upem)
 }
-

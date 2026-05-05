@@ -606,6 +606,9 @@ pub struct Node {
   /// Computed layout rectangle for this node (content-box).
   /// Populated by the layout pass; `None` if not yet laid out.
   pub rect: Option<NodeRect>,
+  /// Raw HTML attributes as parsed from the source (name, value pairs).
+  /// Includes all attributes — standard, non-standard, and custom.
+  pub raw_attrs: Vec<(String, String)>,
 }
 
 impl std::fmt::Debug for Node {

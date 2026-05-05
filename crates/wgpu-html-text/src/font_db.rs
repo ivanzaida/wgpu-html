@@ -188,4 +188,3 @@ impl AsRef<[u8]> for SharedBytes {
     &self.0
   }
 }
-

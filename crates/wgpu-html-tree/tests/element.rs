@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use wgpu_html_models as m;
-use wgpu_html_tree::{Element, MouseButton, MouseEvent, Modifiers, Node, Tree};
+use wgpu_html_tree::{Element, Modifiers, MouseButton, MouseEvent, Node, Tree};
 
 fn div_with_id(id: &str) -> m::Div {
   m::Div {

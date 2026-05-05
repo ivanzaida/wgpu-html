@@ -19,12 +19,12 @@ pub use css_parser::{
   CssWideKeyword, StyleDecls, apply_css_property, parse_inline_style, parse_inline_style_decls, resolve_var_references,
 };
 pub use style_props::{apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords};
-pub use stylesheet::{
-  MediaFeature, MediaQuery, MediaQueryList, MediaType, Rule, Stylesheet, parse_media_query_list, parse_stylesheet,
-};
 // Re-export query-engine types through the stylesheet module.
 pub use stylesheet::{
   AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, SelectorList,
+};
+pub use stylesheet::{
+  MediaFeature, MediaQuery, MediaQueryList, MediaType, Rule, Stylesheet, parse_media_query_list, parse_stylesheet,
 };
 pub use tokenizer::Token;
 use wgpu_html_tree::Tree;

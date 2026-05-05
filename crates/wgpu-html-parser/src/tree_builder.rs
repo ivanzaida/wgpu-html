@@ -241,4 +241,3 @@ fn should_auto_close(current: &str, opening: &str) -> bool {
     _ => false,
   }
 }
-

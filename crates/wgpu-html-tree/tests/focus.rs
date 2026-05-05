@@ -1,5 +1,7 @@
 use wgpu_html_models as m;
-use wgpu_html_tree::{Element, Node, Tree, focusable_paths, is_focusable, is_keyboard_focusable, next_in_order, prev_in_order};
+use wgpu_html_tree::{
+  Element, Node, Tree, focusable_paths, is_focusable, is_keyboard_focusable, next_in_order, prev_in_order,
+};
 
 fn input(t: m::common::html_enums::InputType) -> m::Input {
   m::Input {

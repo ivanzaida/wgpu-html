@@ -1,5 +1,4 @@
-use wgpu_html::paint::*;
-use wgpu_html::renderer::DisplayList;
+use wgpu_html::{paint::*, renderer::DisplayList};
 use wgpu_html_layout::LayoutBox;
 
 fn simple_body_with_glyphs() -> LayoutBox {

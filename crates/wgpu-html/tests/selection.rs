@@ -1,11 +1,6 @@
-use wgpu_html::layout_at_path;
-use wgpu_html::selected_text;
-use wgpu_html::select_all_text;
-use wgpu_html::select_line_at_cursor;
-use wgpu_html::select_word_at_cursor;
-use wgpu_html_layout::{LayoutBox, Rect as LR};
+use wgpu_html::{layout_at_path, select_all_text, select_line_at_cursor, select_word_at_cursor, selected_text};
+use wgpu_html_layout::{LayoutBox, Rect as LR, UserSelect};
 use wgpu_html_models::common::PointerEvents;
-use wgpu_html_layout::UserSelect;
 use wgpu_html_tree::{Node, TextCursor, TextSelection, Tree};
 
 fn text_box(text: &str, x: f32) -> LayoutBox {

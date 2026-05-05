@@ -63,10 +63,7 @@ fn install_mousedown_path_loggers(tree: &mut Tree, log: Arc<Mutex<Vec<usize>>>) 
   }
 }
 
-fn install_capture_loggers(
-  tree: &mut Tree,
-  log: Arc<Mutex<Vec<(String, String, usize)>>>,
-) {
+fn install_capture_loggers(tree: &mut Tree, log: Arc<Mutex<Vec<(String, String, usize)>>>) {
   let paths = vec![vec![], vec![0], vec![0, 0]];
   for path in &paths {
     if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(path)) {
@@ -74,9 +71,7 @@ fn install_capture_loggers(
       let p = path.clone();
       node.on_event.push(Arc::new(move |ev| {
         let phase = format!("{:?}", ev.base().event_phase);
-        l.lock()
-          .unwrap()
-          .push((ev.event_type().to_string(), phase, p.len()));
+        l.lock().unwrap().push((ev.event_type().to_string(), phase, p.len()));
       }));
     }
   }
@@ -143,9 +138,7 @@ fn stoppropagation_in_capture_prevents_target_and_bubble() {
       let ll = l.clone();
       node.on_event.push(Arc::new(move |ev| {
         let phase = format!("{:?}", ev.base().event_phase);
-        ll.lock()
-          .unwrap()
-          .push((ev.event_type().to_string(), phase, p.len()));
+        ll.lock().unwrap().push((ev.event_type().to_string(), phase, p.len()));
       }));
     }
   }
@@ -171,9 +164,7 @@ fn stoppropagation_at_target_prevents_bubble_phase() {
     let l = log.clone();
     node.on_event.push(Arc::new(move |ev| {
       let phase = format!("{:?}", ev.base().event_phase);
-      l.lock()
-        .unwrap()
-        .push((ev.event_type().to_string(), phase, 2));
+      l.lock().unwrap().push((ev.event_type().to_string(), phase, 2));
       ev.stop_propagation();
     }));
   }
@@ -183,9 +174,7 @@ fn stoppropagation_at_target_prevents_bubble_phase() {
       let p = path.clone();
       node.on_event.push(Arc::new(move |ev| {
         let phase = format!("{:?}", ev.base().event_phase);
-        l.lock()
-          .unwrap()
-          .push((ev.event_type().to_string(), phase, p.len()));
+        l.lock().unwrap().push((ev.event_type().to_string(), phase, p.len()));
       }));
     }
   }
@@ -209,9 +198,7 @@ fn scroll_event_fires_capture_on_ancestors() {
       let p = path.clone();
       node.on_event.push(Arc::new(move |ev| {
         let phase = format!("{:?}", ev.base().event_phase);
-        l.lock()
-          .unwrap()
-          .push((ev.event_type().to_string(), phase, p.len()));
+        l.lock().unwrap().push((ev.event_type().to_string(), phase, p.len()));
       }));
     }
   }
@@ -245,9 +232,7 @@ fn focus_event_capture_fires_on_non_bubbling_event() {
       let p = path.clone();
       node.on_event.push(Arc::new(move |ev| {
         let phase = format!("{:?}", ev.base().event_phase);
-        l.lock()
-          .unwrap()
-          .push((ev.event_type().to_string(), phase, p.len()));
+        l.lock().unwrap().push((ev.event_type().to_string(), phase, p.len()));
       }));
     }
   }
@@ -258,7 +243,7 @@ fn focus_event_capture_fires_on_non_bubbling_event() {
     .lock()
     .unwrap()
     .iter()
-    .filter(|(t, _, _)| t == "focusin")
+    .filter(|(t, ..)| t == "focusin")
     .cloned()
     .collect();
   assert_eq!(events.len(), 5);
@@ -280,9 +265,7 @@ fn submit_event_capture_phase_root_first() {
     let l = log.clone();
     form_node.on_event.push(Arc::new(move |ev| {
       let phase = format!("{:?}", ev.base().event_phase);
-      l.lock()
-        .unwrap()
-        .push((ev.event_type().to_string(), phase, 0));
+      l.lock().unwrap().push((ev.event_type().to_string(), phase, 0));
     }));
   }
   let mut tree = Tree::new(form_node);
@@ -296,7 +279,7 @@ fn submit_event_capture_phase_root_first() {
     .lock()
     .unwrap()
     .iter()
-    .filter(|(t, _, _)| t == "submit")
+    .filter(|(t, ..)| t == "submit")
     .cloned()
     .collect();
   assert_eq!(events.len(), 1);

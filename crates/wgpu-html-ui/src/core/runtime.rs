@@ -492,5 +492,3 @@ fn destroy_recursive(mounted: &mut MountedComponent) {
   }
   mounted.state.destroyed();
 }
-
-

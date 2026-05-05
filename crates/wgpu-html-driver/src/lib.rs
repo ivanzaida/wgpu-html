@@ -37,7 +37,10 @@
 //! rt.render_frame(&mut tree);
 //! ```
 
-use std::{sync::Arc, time::{Duration, Instant}};
+use std::{
+  sync::Arc,
+  time::{Duration, Instant},
+};
 
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use wgpu_html::{
@@ -202,7 +205,12 @@ impl ProfilingOverlay {
     let y = viewport_h - panel_h - self.margin;
 
     list.push_quad_rounded(
-      Rect { x, y, w: panel_w, h: panel_h },
+      Rect {
+        x,
+        y,
+        w: panel_w,
+        h: panel_h,
+      },
       [0.0, 0.0, 0.0, 0.65],
       [4.0; 4],
     );
@@ -210,7 +218,7 @@ impl ProfilingOverlay {
     let stages: [(&str, f32, [f32; 3]); 4] = [
       ("c", self.cascade_avg, [0.9, 0.3, 0.3]),
       ("l", self.layout_avg, [0.3, 0.5, 0.9]),
-      ("p", self.paint_avg,  [0.3, 0.9, 0.3]),
+      ("p", self.paint_avg, [0.3, 0.9, 0.3]),
       ("r", self.render_avg, [0.9, 0.8, 0.2]),
     ];
 
@@ -221,7 +229,12 @@ impl ProfilingOverlay {
       let bar_y = y + self.margin + i as f32 * (self.bar_height + self.bar_gap);
       let w = ((*ms / self.frame_budget_ms).min(1.0) * bar_w).max(1.0);
       list.push_quad_rounded(
-        Rect { x: bar_x, y: bar_y, w, h: self.bar_height },
+        Rect {
+          x: bar_x,
+          y: bar_y,
+          w,
+          h: self.bar_height,
+        },
         [rgb[0], rgb[1], rgb[2], 0.9],
         [1.5; 4],
       );
@@ -258,32 +271,44 @@ impl ProfilingOverlay {
 
     let Some(root) = &mut tree.root else { return };
 
-    let body_idx = root.children.iter()
-        .position(|c| matches!(c.element, wgpu_html_tree::Element::Html(_)))
-        .and_then(|hi| {
-          root.children[hi].children.iter()
-            .position(|c| matches!(c.element, wgpu_html_tree::Element::Body(_)))
-            .map(|bi| (hi, bi))
-        });
+    let body_idx = root
+      .children
+      .iter()
+      .position(|c| matches!(c.element, wgpu_html_tree::Element::Html(_)))
+      .and_then(|hi| {
+        root.children[hi]
+          .children
+          .iter()
+          .position(|c| matches!(c.element, wgpu_html_tree::Element::Body(_)))
+          .map(|bi| (hi, bi))
+      });
 
-      let target = match body_idx {
-        Some((hi, bi)) => &mut root.children[hi].children[bi],
-        None => root,
-      };
+    let target = match body_idx {
+      Some((hi, bi)) => &mut root.children[hi].children[bi],
+      None => root,
+    };
 
-      let overlay_body = overlay_root.children.iter()
-        .find(|c| matches!(c.element, wgpu_html_tree::Element::Html(_)))
-        .and_then(|h| h.children.iter().find(|c| matches!(c.element, wgpu_html_tree::Element::Body(_))));
-      if let Some(ob) = overlay_body {
-        if let Some(div) = ob.children.first() {
-      target.children.push(div.clone());
-        }
+    let overlay_body = overlay_root
+      .children
+      .iter()
+      .find(|c| matches!(c.element, wgpu_html_tree::Element::Html(_)))
+      .and_then(|h| {
+        h.children
+          .iter()
+          .find(|c| matches!(c.element, wgpu_html_tree::Element::Body(_)))
+      });
+    if let Some(ob) = overlay_body {
+      if let Some(div) = ob.children.first() {
+        target.children.push(div.clone());
       }
     }
   }
+}
 
 impl Default for ProfilingOverlay {
-  fn default() -> Self { Self::new() }
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 impl<D: Driver> Runtime<D> {
@@ -363,7 +388,11 @@ impl<D: Driver> Runtime<D> {
       if Instant::now() < deadline {
         self.driver.request_redraw();
         let (cw, ch) = self.pipeline_cache.viewport();
-        if cw > 0.0 && ch > 0.0 { (cw, ch) } else { (w as f32, h as f32) }
+        if cw > 0.0 && ch > 0.0 {
+          (cw, ch)
+        } else {
+          (w as f32, h as f32)
+        }
       } else {
         self.pipeline_cache.invalidate();
         self.resize_deadline = None;
@@ -436,7 +465,11 @@ impl<D: Driver> Runtime<D> {
     let (paint_w, paint_h) = if let Some(deadline) = self.resize_deadline {
       if Instant::now() < deadline {
         let (cw, ch) = self.pipeline_cache.viewport();
-        if cw > 0.0 && ch > 0.0 { (cw, ch) } else { (w as f32, h as f32) }
+        if cw > 0.0 && ch > 0.0 {
+          (cw, ch)
+        } else {
+          (w as f32, h as f32)
+        }
       } else {
         self.pipeline_cache.invalidate();
         self.resize_deadline = None;

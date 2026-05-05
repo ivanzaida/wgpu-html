@@ -862,5 +862,3 @@ fn boundary_index_for_byte(run: &wgpu_html_text::ShapedRun, byte: usize) -> usiz
     .position(|b| *b >= byte)
     .unwrap_or_else(|| run.byte_boundaries.len().saturating_sub(1))
 }
-
-

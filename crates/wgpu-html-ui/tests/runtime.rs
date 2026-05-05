@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use wgpu_html_tree::Tree;
-
 use wgpu_html_ui::{Component, Ctx, El, MsgSender, ShouldRender, el};
 
 // ── Shared counter bundle ───────────────────────────────────────────────────

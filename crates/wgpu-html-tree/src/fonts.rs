@@ -246,5 +246,3 @@ fn weight_distance(candidate: u16, target: u16) -> u32 {
     dist
   }
 }
-
-

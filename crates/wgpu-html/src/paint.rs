@@ -566,9 +566,7 @@ fn paint_box_in_clip(
   // (the CSS spec requires `overflow` to be `scroll`, `auto`, or
   // `hidden` for `resize` to take effect).
   {
-    let active = b.resize != Resize::None
-      && (b.overflow.x != Overflow::Visible
-        || b.overflow.y != Overflow::Visible);
+    let active = b.resize != Resize::None && (b.overflow.x != Overflow::Visible || b.overflow.y != Overflow::Visible);
     if active {
       paint_resize_handle(b, out, paint_offset_y);
     }
@@ -609,7 +607,10 @@ fn paint_resize_handle(b: &LayoutBox, out: &mut DisplayList, paint_offset_y: f32
     // Diagonal lines going from bottom-left to top-right inside the handle area
     let lx = x + handle_size - line_len - offset;
     let ly = y + handle_size - thickness - offset;
-    out.push_quad(Rect::new(lx.max(x), ly.max(y), line_len.min(handle_size), thickness), color);
+    out.push_quad(
+      Rect::new(lx.max(x), ly.max(y), line_len.min(handle_size), thickness),
+      color,
+    );
   }
 }
 
@@ -1214,5 +1215,3 @@ fn to_renderer_rect_y(r: wgpu_html_layout::Rect, dy: f32) -> Rect {
 fn shift_rect_y(r: Rect, dy: f32) -> Rect {
   Rect::new(r.x, r.y + dy, r.w, r.h)
 }
-
-

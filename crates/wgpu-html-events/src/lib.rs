@@ -271,5 +271,3 @@ impl HtmlEvent {
     self.base().immediate_propagation_stopped.set(true);
   }
 }
-
-

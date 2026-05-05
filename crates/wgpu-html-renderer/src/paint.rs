@@ -582,5 +582,3 @@ impl DisplayList {
     out
   }
 }
-
-

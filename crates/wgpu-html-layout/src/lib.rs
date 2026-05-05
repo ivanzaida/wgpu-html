@@ -27,17 +27,12 @@ mod grid;
 mod length;
 mod svg;
 
-pub use wgpu_html_assets::{AssetIo, ImageData, ImageFrame, current_frame, Fetcher};
+pub use wgpu_html_assets::{AssetIo, Fetcher, ImageData, ImageFrame, current_frame};
 
 pub type ImageCache = AssetIo<wgpu_html_assets::blocking::BlockingFetcher>;
 
 pub use color::{Color, resolve_color};
 pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, Resize, UserSelect};
-
-
-
-
-
 
 // ---------------------------------------------------------------------------
 // CSS background-image resolution
@@ -514,7 +509,6 @@ impl OverflowAxes {
     self.clips_x() || self.clips_y()
   }
 }
-
 
 /// Pre-computed CSS `background-image` paint metadata. The texture
 /// is uploaded once per `image_id`; the painter emits one image quad

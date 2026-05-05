@@ -20,8 +20,8 @@ use std::{
 use wgpu_html_models as m;
 use wgpu_html_models::Style;
 use wgpu_html_parser::{
-  AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature, MediaQuery,
-  MediaQueryList, MediaType, PseudoClass, Rule, Stylesheet, parse_inline_style_decls, parse_stylesheet,
+  AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
+  MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule, Stylesheet, parse_inline_style_decls, parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
@@ -220,9 +220,11 @@ impl PreparedStylesheet {
       for (selector_idx, selector) in rule.selectors.iter().enumerate() {
         collect_relevant_selector_bits(selector, &mut relevant);
         let subj = selector.subject();
-        let has_pseudo =
-          !subj.pseudo_classes.is_empty()
-            || selector.ancestor_compounds().iter().any(|a| !a.pseudo_classes.is_empty());
+        let has_pseudo = !subj.pseudo_classes.is_empty()
+          || selector
+            .ancestor_compounds()
+            .iter()
+            .any(|a| !a.pseudo_classes.is_empty());
         if has_pseudo {
           has_any_pseudo_rule = true;
           if style_has_layout_properties(&rule.declarations) || style_has_layout_properties(&rule.important) {
@@ -290,9 +292,7 @@ fn collect_relevant_selector_bits(sel: &ComplexSelector, relevant: &mut Relevant
     relevant.tags.insert(tag.clone());
   }
   relevant.classes.extend(subj.classes.iter().cloned());
-  relevant
-    .attrs
-    .extend(subj.attrs.iter().map(|attr| attr.name.clone()));
+  relevant.attrs.extend(subj.attrs.iter().map(|attr| attr.name.clone()));
   for ancestor in sel.ancestor_compounds() {
     if let Some(id) = &ancestor.id {
       relevant.ids.insert(id.clone());
@@ -674,10 +674,16 @@ fn re_cascade_dirty(
       if let Some(hit) = decl_cache.get(&key) {
         hit.clone()
       } else {
-        let computed =
-          computed_decls_in_prepared_stylesheets_with_context(
-            &node.element, &element_ctx, sheets, ancestors, media, root, path, interaction,
-          );
+        let computed = computed_decls_in_prepared_stylesheets_with_context(
+          &node.element,
+          &element_ctx,
+          sheets,
+          ancestors,
+          media,
+          root,
+          path,
+          interaction,
+        );
         decl_cache.insert(key, computed.clone());
         computed
       }
@@ -882,7 +888,14 @@ fn cascade_node(
       cached.clone()
     } else {
       let computed = computed_decls_in_prepared_stylesheets_with_context(
-        &node.element, &element_ctx, sheets, ancestors, media, root, path, interaction,
+        &node.element,
+        &element_ctx,
+        sheets,
+        ancestors,
+        media,
+        root,
+        path,
+        interaction,
       );
       decl_cache.insert(key, computed.clone());
       computed
@@ -1114,7 +1127,12 @@ pub fn computed_decls_in_tree(
   // Dummy root/path for public API without tree access.
   let dummy_root = Node::new(Element::Div(m::Div::default()));
   computed_decls_in_tree_with_context(
-    element, &MatchContext::default(), sheet, &with_default, &dummy_root, &[],
+    element,
+    &MatchContext::default(),
+    sheet,
+    &with_default,
+    &dummy_root,
+    &[],
   )
 }
 
@@ -1163,11 +1181,23 @@ fn computed_decls_in_prepared_stylesheets_with_context(
     .iter()
     .enumerate()
     .flat_map(|(sheet_idx, sheet)| {
-      matching_rules_for_element(sheet, element, element_ctx, ancestors, tag, id, class_attr, media, root, path, interaction)
-        .into_iter()
-        .map(move |(spec, rule_idx, rule, normal_nonempty, important_nonempty)| {
-          (spec, sheet_idx, rule_idx, rule, normal_nonempty, important_nonempty)
-        })
+      matching_rules_for_element(
+        sheet,
+        element,
+        element_ctx,
+        ancestors,
+        tag,
+        id,
+        class_attr,
+        media,
+        root,
+        path,
+        interaction,
+      )
+      .into_iter()
+      .map(move |(spec, rule_idx, rule, normal_nonempty, important_nonempty)| {
+        (spec, sheet_idx, rule_idx, rule, normal_nonempty, important_nonempty)
+      })
     })
     .collect();
   matched_rules.sort_by_key(|(spec, sheet_idx, rule_idx, ..)| (*spec, *sheet_idx, *rule_idx));
@@ -1200,9 +1230,7 @@ fn computed_decls_in_prepared_stylesheets_with_context(
 }
 
 fn selector_prefilter_is_complete(sel: &ComplexSelector) -> bool {
-  sel.ancestor_compounds().is_empty()
-    && sel.subject().attrs.is_empty()
-    && sel.subject().pseudo_classes.is_empty()
+  sel.ancestor_compounds().is_empty() && sel.subject().attrs.is_empty() && sel.subject().pseudo_classes.is_empty()
 }
 
 fn matching_rules_for_element<'a>(
@@ -1623,11 +1651,7 @@ pub fn matches_selector(sel: &ComplexSelector, element: &Element) -> bool {
 
 /// Stateful variant of [`matches_selector`] — checks dynamic
 /// pseudo-classes against the supplied `MatchContext`.
-pub fn matches_selector_with_context(
-  sel: &ComplexSelector,
-  element: &Element,
-  element_ctx: &MatchContext,
-) -> bool {
+pub fn matches_selector_with_context(sel: &ComplexSelector, element: &Element, element_ctx: &MatchContext) -> bool {
   if !sel.ancestor_compounds().is_empty() {
     return false;
   }

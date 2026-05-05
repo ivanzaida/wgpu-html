@@ -1131,7 +1131,12 @@ impl CompoundSelector {
     let id = if self.id.is_some() { 1 } else { 0 };
     let cls = (self.classes.len() + self.attrs.len() + self.pseudo_classes.len()) as u32;
     // :where() contributes zero specificity; its inner compounds are excluded.
-    let cls = cls - self.pseudo_classes.iter().filter(|pc| matches!(pc, PseudoClass::Where(_))).count() as u32;
+    let cls = cls
+      - self
+        .pseudo_classes
+        .iter()
+        .filter(|pc| matches!(pc, PseudoClass::Where(_)))
+        .count() as u32;
     let tag = if self.tag.is_some() { 1 } else { 0 };
     (id << 16) | (cls << 8) | tag
   }
@@ -1856,7 +1861,10 @@ fn next_element_sibling(parent: &Node, idx: usize) -> Option<usize> {
 impl ComplexSelector {
   /// The subject (rightmost) compound — the element the selector targets.
   pub fn subject(&self) -> &CompoundSelector {
-    self.compounds.last().expect("ComplexSelector has at least one compound")
+    self
+      .compounds
+      .last()
+      .expect("ComplexSelector has at least one compound")
   }
 
   /// All ancestor compounds (everything except the subject), in source order
@@ -2143,5 +2151,3 @@ impl Tree {
     out
   }
 }
-
-
