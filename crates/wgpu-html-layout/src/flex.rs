@@ -832,7 +832,11 @@ fn build_item<'a>(
   };
   let ignore_unresolved_percent_cross_size =
     parent_inner_cross.is_none() && matches!(cross_size_prop, Some(CssLength::Percent(_)));
-  let has_explicit_cross_size = matches!(cross_size_prop, Some(v) if !matches!(v, CssLength::Auto));
+  let has_explicit_cross_size = matches!(cross_size_prop, Some(v) if !matches!(v, CssLength::Auto))
+    || match &node.element {
+      Element::Img(img) => if is_row { img.height.is_some() } else { img.width.is_some() },
+      _ => false,
+    };
 
   FlexItem {
     node,
