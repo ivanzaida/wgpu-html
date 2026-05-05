@@ -1,182 +1,303 @@
 <style>
-  body {
-    margin: 20px;
-    font-family: sans-serif;
-    background-color: #1a1a1a;
-    color: #ccc;
-  }
-  h2 { color: #8ab4f8; margin: 16px 0 8px; }
-  h3 { color: #aaa; margin: 8px 0 4px; }
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: #ccc;
+    }
 
-  .grid {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .card {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .card span {
-    font-size: 11px;
-    color: #888;
-  }
+    h2 {
+        color: #8ab4f8;
+        margin: 16px 0 8px;
+    }
 
-  .box {
-    width: 140px;
-    height: 100px;
-    overflow-y: scroll;
-    border-radius: 4px;
-    background-color: #222;
-    padding: 8px;
-    font-size: 11px;
-    line-height: 1.5;
-  }
-  .box p {
-    margin: 0;
-    white-space: nowrap;
-  }
+    h3 {
+        color: #aaa;
+        margin: 8px 0 4px;
+    }
 
-  .tall-box {
-    width: 180px;
-    height: 120px;
-    overflow-y: scroll;
-    padding: 8px;
-    background-color: #2a2a2a;
-    border-radius: 6px;
-    font-size: 11px;
-  }
-  .tall-box p { margin: 0 0 4px; }
+    .grid {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
 
-  /* ── Width variants ── */
-  .sb-auto  { scrollbar-width: auto; }
-  .sb-thin  { scrollbar-width: thin; }
-  .sb-none  { scrollbar-width: none; }
-  .sb-6px   { scrollbar-width: 6px; }
-  .sb-14px  { scrollbar-width: 14px; }
+    .card {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
 
-  /* ── Color variants ── */
-  .c-blue    { scrollbar-color: #4a8fe7 #1a1a2e; }
-  .c-magenta { scrollbar-color: #e74a8f #2a1a2a; }
-  .c-green   { scrollbar-color: #2ecc71 #1a2e1a; }
-  .c-orange  { scrollbar-color: #f39c12 #2e2a1a; }
-  .c-red     { scrollbar-color: #e74c3c #2e1a1a; }
+    .card span {
+        font-size: 11px;
+        color: #888;
+    }
+
+    .box {
+        width: 140px;
+        height: 100px;
+        overflow-y: scroll;
+        border-radius: 4px;
+        background-color: #222;
+        padding: 8px;
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    .box p {
+        margin: 0;
+        white-space: nowrap;
+    }
+
+    .tall-box {
+        width: 180px;
+        height: 120px;
+        overflow-y: scroll;
+        padding: 8px;
+        background-color: #2a2a2a;
+        border-radius: 6px;
+        font-size: 11px;
+    }
+
+    .tall-box p {
+        margin: 0 0 4px;
+    }
+
+    /* ── Width variants ── */
+    .sb-auto {
+        scrollbar-width: auto;
+    }
+
+    .sb-thin {
+        scrollbar-width: thin;
+    }
+
+    .sb-none {
+        scrollbar-width: none;
+    }
+
+    .sb-6px {
+        scrollbar-width: 6px;
+    }
+
+    .sb-14px {
+        scrollbar-width: 14px;
+    }
+
+    /* ── Color variants ── */
+    .c-blue {
+        scrollbar-color: #4a8fe7 #1a1a2e;
+    }
+
+    .c-magenta {
+        scrollbar-color: #e74a8f #2a1a2a;
+    }
+
+    .c-green {
+        scrollbar-color: #2ecc71 #1a2e1a;
+    }
+
+    .c-orange {
+        scrollbar-color: #f39c12 #2e2a1a;
+    }
+
+    .c-red {
+        scrollbar-color: #e74c3c #2e1a1a;
+    }
 </style>
 
 <h2>scrollbar-width</h2>
 <div class="grid">
-  <div class="card"><span>auto (default 10px)</span>
-    <div class="box sb-auto">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>auto (default 10px)</span>
+        <div class="box sb-auto">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>thin (6px)</span>
-    <div class="box sb-thin">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>thin (6px)</span>
+        <div class="box sb-thin">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>none (hidden)</span>
-    <div class="box sb-none">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>none (hidden)</span>
+        <div class="box sb-none">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>6px</span>
-    <div class="box sb-6px">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>6px</span>
+        <div class="box sb-6px">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>14px</span>
-    <div class="box sb-14px">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>14px</span>
+        <div class="box sb-14px">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
 </div>
 
 <h2>scrollbar-color</h2>
 <div class="grid">
-  <div class="card"><span>auto (default)</span>
-    <div class="box sb-auto">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>auto (default)</span>
+        <div class="box sb-auto">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>blue</span>
-    <div class="box sb-auto c-blue">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>blue</span>
+        <div class="box sb-auto c-blue">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>magenta</span>
-    <div class="box sb-auto c-magenta">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>magenta</span>
+        <div class="box sb-auto c-magenta">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>green</span>
-    <div class="box sb-auto c-green">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>green</span>
+        <div class="box sb-auto c-green">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>orange</span>
-    <div class="box sb-auto c-orange">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>orange</span>
+        <div class="box sb-auto c-orange">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>red</span>
-    <div class="box sb-auto c-red">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p>
+    <div class="card"><span>red</span>
+        <div class="box sb-auto c-red">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+        </div>
     </div>
-  </div>
 </div>
 
 <h2>Combined: width + color</h2>
 <div class="grid">
-  <div class="card"><span>thin + blue</span>
-    <div class="tall-box sb-thin c-blue">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p><p>Line nine</p>
+    <div class="card"><span>thin + blue</span>
+        <div class="tall-box sb-thin c-blue">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+            <p>Line nine</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>14px + magenta</span>
-    <div class="tall-box sb-14px c-magenta">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p><p>Line nine</p>
+    <div class="card"><span>14px + magenta</span>
+        <div class="tall-box sb-14px c-magenta">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+            <p>Line nine</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>8px + green</span>
-    <div class="tall-box c-green" style="scrollbar-width: 8px;">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p><p>Line nine</p>
+    <div class="card"><span>8px + green</span>
+        <div class="tall-box c-green" style="scrollbar-width: 8px;">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+            <p>Line nine</p>
+        </div>
     </div>
-  </div>
-  <div class="card"><span>thin + red</span>
-    <div class="tall-box sb-thin c-red">
-      <p>Line one</p><p>Line two</p><p>Line three</p>
-      <p>Line four</p><p>Line five</p><p>Line six</p>
-      <p>Line seven</p><p>Line eight</p><p>Line nine</p>
+    <div class="card"><span>thin + red</span>
+        <div class="tall-box sb-thin c-red">
+            <p>Line one</p>
+            <p>Line two</p>
+            <p>Line three</p>
+            <p>Line four</p>
+            <p>Line five</p>
+            <p>Line six</p>
+            <p>Line seven</p>
+            <p>Line eight</p>
+            <p>Line nine</p>
+        </div>
     </div>
-  </div>
 </div>

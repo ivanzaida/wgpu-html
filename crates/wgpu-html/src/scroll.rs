@@ -239,7 +239,10 @@ pub fn element_scrollbar_geometry(b: &LayoutBox, scroll_y: f32) -> Option<Scroll
   if max_scroll <= 0.0 {
     return None;
   }
-  let track_w = 10.0_f32.min(pad.w);
+  let track_w = b.overflow.scrollbar_width.min(pad.w);
+  if track_w <= 0.0 {
+    return None;
+  }
   let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
   let thumb_h = (pad.h * pad.h / scroll_h).clamp(18.0_f32.min(pad.h), pad.h);
   let travel = (pad.h - thumb_h).max(0.0);

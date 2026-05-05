@@ -763,9 +763,10 @@ fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32, p
   if pad.w <= 0.0 || pad.h <= 0.0 {
     return;
   }
-  let track_w = SCROLLBAR_THICKNESS.min(pad.w);
+  let track_w = b.overflow.scrollbar_width.min(pad.w);
   let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
-  out.push_quad(track, apply_opacity(SCROLLBAR_TRACK, opacity));
+  let track_color = b.overflow.scrollbar_track.unwrap_or(SCROLLBAR_TRACK);
+  out.push_quad(track, apply_opacity(track_color, opacity));
 
   let scroll_h = scrollable_content_height(b).max(pad.h);
   let max_scroll = (scroll_h - pad.h).max(0.0);
@@ -773,13 +774,15 @@ fn paint_scrollbars(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32, p
   let thumb_h = (pad.h * ratio).clamp(SCROLLBAR_MIN_THUMB.min(pad.h), pad.h);
   let travel = (pad.h - thumb_h).max(0.0);
   let thumb_y = track.y + travel * (scroll_y / max_scroll.max(1.0));
+  let inset = (track_w * 0.2).clamp(1.0, 3.0);
   let thumb = Rect::new(
-    track.x + 2.0,
-    thumb_y + 2.0,
-    (track.w - 4.0).max(1.0),
-    (thumb_h - 4.0).max(1.0),
+    track.x + inset,
+    thumb_y + inset,
+    (track.w - inset * 2.0).max(1.0),
+    (thumb_h - inset * 2.0).max(1.0),
   );
-  out.push_quad(thumb, apply_opacity(SCROLLBAR_THUMB, opacity));
+  let thumb_color = b.overflow.scrollbar_thumb.unwrap_or(SCROLLBAR_THUMB);
+  out.push_quad(thumb, apply_opacity(thumb_color, opacity));
 }
 
 fn element_scroll_y(b: &LayoutBox, path: &[usize], scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> f32 {
@@ -801,6 +804,9 @@ fn element_scroll_x(b: &LayoutBox, path: &[usize], scroll_offsets: &BTreeMap<Vec
 }
 
 fn should_paint_vertical_scrollbar(b: &LayoutBox) -> bool {
+  if b.overflow.scrollbar_width <= 0.0 {
+    return false;
+  }
   match b.overflow.y {
     Overflow::Scroll => true,
     Overflow::Auto => scrollable_content_height(b) > padding_box(b).h + 0.5,
