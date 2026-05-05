@@ -242,6 +242,3 @@ fn should_auto_close(current: &str, opening: &str) -> bool {
   }
 }
 
-#[cfg(test)]
-#[path = "tree_builder_tests.rs"]
-mod tests_tree_builder;

@@ -508,6 +508,4 @@ impl Tree {
   }
 }
 
-#[cfg(test)]
-#[path = "tree_hook_tests.rs"]
-mod tests_tree_hook;
+

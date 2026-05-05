@@ -368,6 +368,3 @@ fn strip_comments(s: &str) -> String {
   out
 }
 
-#[cfg(test)]
-#[path = "stylesheet_tests.rs"]
-mod tests_stylesheet;

@@ -189,6 +189,3 @@ impl AsRef<[u8]> for SharedBytes {
   }
 }
 
-#[cfg(test)]
-#[path = "font_db_tests.rs"]
-mod tests_font_db;

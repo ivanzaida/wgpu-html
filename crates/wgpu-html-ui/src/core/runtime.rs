@@ -181,7 +181,7 @@ pub(crate) struct MountedComponent {
 
 // ── Runtime ─────────────────────────────────────────────────────────────────
 
-pub(crate) struct Runtime {
+pub struct Runtime {
   root: MountedComponent,
   wake: Arc<dyn Fn() + Send + Sync>,
   /// TypeIds of components whose styles have been registered.
@@ -203,7 +203,7 @@ impl Runtime {
   }
 
   /// Create a runtime with a root component.
-  pub(crate) fn new<C: Component>(props: &C::Props, wake: Arc<dyn Fn() + Send + Sync>) -> Self
+  pub fn new<C: Component>(props: &C::Props, wake: Arc<dyn Fn() + Send + Sync>) -> Self
   where
     C::Msg: Clone + Send + Sync + 'static,
     C::Props: 'static,
@@ -234,7 +234,7 @@ impl Runtime {
   }
 
   /// Perform the initial render of the entire component tree.
-  pub(crate) fn initial_render(&mut self, env: &dyn Any) -> Node {
+  pub fn initial_render(&mut self, env: &dyn Any) -> Node {
     let node = Self::render_component(&mut self.root, &self.wake, env);
     self.root.state.mounted();
     node
@@ -244,7 +244,7 @@ impl Runtime {
   /// Re-renders if any component changed.
   ///
   /// Returns `true` if any subtree was re-rendered.
-  pub(crate) fn process(&mut self, tree: &mut Tree, env: &dyn Any) -> bool {
+  pub fn process(&mut self, tree: &mut Tree, env: &dyn Any) -> bool {
     let mut ever_changed = false;
     loop {
       let changed = Self::process_component(&mut self.root, &self.wake);
@@ -259,7 +259,7 @@ impl Runtime {
   }
 
   /// Force a full re-render (e.g. when env changed externally).
-  pub(crate) fn force_render(&mut self, tree: &mut Tree, env: &dyn Any) {
+  pub fn force_render(&mut self, tree: &mut Tree, env: &dyn Any) {
     Self::register_styles(tree, &self.root);
     Self::mark_all_dirty(&mut self.root);
     let node = Self::render_component(&mut self.root, &self.wake, env);
@@ -493,6 +493,4 @@ fn destroy_recursive(mounted: &mut MountedComponent) {
   mounted.state.destroyed();
 }
 
-#[cfg(test)]
-#[path = "runtime_tests.rs"]
-mod tests_runtime;
+

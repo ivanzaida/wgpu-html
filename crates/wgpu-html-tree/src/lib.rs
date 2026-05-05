@@ -1541,10 +1541,6 @@ impl Element {
   }
 }
 
-#[cfg(test)]
-#[path = "lib_tests.rs"]
-mod tests_lib;
-
 // ── HTML serialisation ──────────────────────────────────────────────────────
 
 /// Void elements that must not have a closing tag.

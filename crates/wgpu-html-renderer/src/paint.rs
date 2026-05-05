@@ -583,6 +583,4 @@ impl DisplayList {
   }
 }
 
-#[cfg(test)]
-#[path = "paint_tests.rs"]
-mod tests_paint;
+

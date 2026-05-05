@@ -2551,6 +2551,4 @@ impl Tree {
 
 // ── Tests (layout-free) ──────────────────────────────────────────────────────
 
-#[cfg(test)]
-#[path = "dispatch_tests.rs"]
-mod tests_dispatch;
+

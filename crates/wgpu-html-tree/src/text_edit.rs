@@ -247,6 +247,4 @@ pub fn move_down(value: &str, cursor: &EditCursor, extend_selection: bool) -> Ed
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-#[cfg(test)]
-#[path = "text_edit_tests.rs"]
-mod tests_text_edit;
+

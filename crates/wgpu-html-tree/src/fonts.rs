@@ -247,6 +247,4 @@ fn weight_distance(candidate: u16, target: u16) -> u32 {
   }
 }
 
-#[cfg(test)]
-#[path = "fonts_tests.rs"]
-mod tests_fonts;
+

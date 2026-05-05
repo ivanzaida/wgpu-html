@@ -138,7 +138,7 @@ fn field_value(tree: &Tree, focus_path: &[usize]) -> Option<String> {
     })
 }
 
-fn edit_cursor_for_click_count(value: &str, byte_offset: usize, click_count: u8) -> wgpu_html_tree::EditCursor {
+pub fn edit_cursor_for_click_count(value: &str, byte_offset: usize, click_count: u8) -> wgpu_html_tree::EditCursor {
   if click_count >= 3 {
     let (start, end) = line_byte_range(value, byte_offset);
     wgpu_html_tree::EditCursor {
@@ -216,6 +216,4 @@ pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: Mo
   tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)
 }
 
-#[cfg(test)]
-#[path = "interactivity_tests.rs"]
-mod tests_interactivity;
+

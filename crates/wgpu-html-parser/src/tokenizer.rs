@@ -373,6 +373,3 @@ fn decode_entities(input: &str) -> String {
   result
 }
 
-#[cfg(test)]
-#[path = "tokenizer_tests.rs"]
-mod tests_tokenizer;

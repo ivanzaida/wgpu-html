@@ -2144,6 +2144,4 @@ impl Tree {
   }
 }
 
-#[cfg(test)]
-#[path = "query_tests.rs"]
-mod tests_query;
+

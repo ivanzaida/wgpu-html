@@ -152,6 +152,4 @@ pub fn prev_in_order<'a>(paths: &'a [Vec<usize>], from: Option<&[usize]>) -> Opt
   }
 }
 
-#[cfg(test)]
-#[path = "focus_tests.rs"]
-mod tests_focus;
+

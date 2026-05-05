@@ -3357,6 +3357,3 @@ fn parse_box_sizing(value: &str) -> Option<BoxSizing> {
   }
 }
 
-#[cfg(test)]
-#[path = "css_parser_tests.rs"]
-mod tests_css_parser;

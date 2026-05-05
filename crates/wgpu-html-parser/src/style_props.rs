@@ -435,6 +435,3 @@ style_props! {
     user_select => "user-select" ,inherited;
 }
 
-#[cfg(test)]
-#[path = "style_props_tests.rs"]
-mod tests_style_props;

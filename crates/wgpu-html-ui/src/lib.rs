@@ -58,7 +58,7 @@ pub mod style;
 mod store;
 
 // ── Core Elm-architecture machinery ─────────────────────────────────────────
-mod core;
+pub mod core;
 
 // ── Application entry points ─────────────────────────────────────────────────
 mod app;

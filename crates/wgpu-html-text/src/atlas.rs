@@ -281,6 +281,3 @@ impl Atlas {
   }
 }
 
-#[cfg(test)]
-#[path = "atlas_tests.rs"]
-mod tests_atlas;
