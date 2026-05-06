@@ -32,16 +32,10 @@ pub struct Renderer {
   pub adapter: wgpu::Adapter,
   pub device: wgpu::Device,
   pub queue: wgpu::Queue,
-  pub surface: wgpu::Surface<'static>,
-  pub surface_config: wgpu::SurfaceConfiguration,
+  surface: Option<wgpu::Surface<'static>>,
+  surface_config: Option<wgpu::SurfaceConfiguration>,
   pub clear_color: wgpu::Color,
-  /// Non-sRGB equivalent of `surface_config.format`, used as the
-  /// view format for the glyph pass. The same physical pixel bytes
-  /// are interpreted as raw values (no sRGB decode on read, no
-  /// sRGB encode on write), which makes the GPU's linear-space
-  /// alpha blend behave like a gamma-space blend — the right thing
-  /// for anti-aliased text. Equal to `surface_config.format` when
-  /// the surface picked a non-sRGB format already.
+  format: wgpu::TextureFormat,
   glyph_view_format: wgpu::TextureFormat,
   quads: QuadPipeline,
   images: ImagePipeline,
@@ -130,9 +124,65 @@ impl Renderer {
       adapter,
       device,
       queue,
-      surface,
-      surface_config,
+      surface: Some(surface),
+      surface_config: Some(surface_config),
       clear_color: wgpu::Color::WHITE,
+      format,
+      glyph_view_format,
+      quads,
+      images,
+      glyphs,
+      pending_capture: None,
+    }
+  }
+
+  /// Create a headless renderer (no window surface). Suitable for
+  /// offscreen rendering via [`Self::render_to_rgba`].
+  pub async fn headless() -> Self {
+    let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
+    idesc.backends = wgpu::Backends::PRIMARY;
+    let instance = wgpu::Instance::new(idesc);
+
+    let adapter = instance
+      .request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: None,
+        force_fallback_adapter: false,
+      })
+      .await
+      .expect("no suitable GPU adapter");
+
+    let (device, queue) = adapter
+      .request_device(&wgpu::DeviceDescriptor {
+        label: Some("wgpu-html headless device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+        experimental_features: wgpu::ExperimentalFeatures::default(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+      })
+      .await
+      .expect("failed to acquire device");
+
+    let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+    let glyph_view_format = format.remove_srgb_suffix();
+
+    let quads = QuadPipeline::new(&device, format);
+    quads.upload_static(&queue);
+    let images = ImagePipeline::new(&device, format);
+    images.upload_static(&queue);
+    let glyphs = GlyphPipeline::new(&device, glyph_view_format, GLYPH_ATLAS_SIZE);
+    glyphs.upload_static(&queue);
+
+    Self {
+      instance,
+      adapter,
+      device,
+      queue,
+      surface: None,
+      surface_config: None,
+      clear_color: wgpu::Color::WHITE,
+      format,
       glyph_view_format,
       quads,
       images,
@@ -183,7 +233,7 @@ impl Renderer {
   ) -> Result<(), ScreenshotError> {
     let width = width.max(1);
     let height = height.max(1);
-    let format = self.surface_config.format;
+    let format = self.format;
     let glyph_view_format = self.glyph_view_format;
 
     let mut view_formats = Vec::new();
@@ -272,18 +322,99 @@ impl Renderer {
     self.capture_to(&translated, width, height, path)
   }
 
+  /// Render `list` into an offscreen texture and return the pixels as
+  /// RGBA8 bytes. Does not touch the window surface.
+  pub fn render_to_rgba(
+    &mut self,
+    list: &DisplayList,
+    width: u32,
+    height: u32,
+  ) -> Result<Vec<u8>, ScreenshotError> {
+    let width = width.max(1);
+    let height = height.max(1);
+    let format = self.format;
+    let glyph_view_format = self.glyph_view_format;
+
+    let mut view_formats = Vec::new();
+    if glyph_view_format != format {
+      view_formats.push(glyph_view_format);
+    }
+    let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("offscreen render target"),
+      size: wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+      },
+      mip_level_count: 1,
+      sample_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+      view_formats: &view_formats,
+    });
+
+    let srgb_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let glyph_view = texture.create_view(&wgpu::TextureViewDescriptor {
+      label: Some("offscreen glyph view"),
+      format: Some(glyph_view_format),
+      ..Default::default()
+    });
+
+    let viewport = [width as f32, height as f32];
+    self.quads.prepare(&self.device, &self.queue, viewport, list);
+    self.images.prepare(&self.device, &self.queue, viewport, list);
+    self.glyphs.prepare(&self.device, &self.queue, viewport, list);
+
+    let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+      label: Some("offscreen render encoder"),
+    });
+
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("offscreen clear"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: &srgb_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Clear(self.clear_color),
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      let _ = &mut pass;
+    }
+
+    self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
+
+    let staging = screenshot::begin_capture(&self.device, &mut encoder, &texture, width, height);
+    self.queue.submit(Some(encoder.finish()));
+
+    screenshot::readback_rgba(&self.device, staging, width, height, format)
+  }
+
   pub fn resize(&mut self, width: u32, height: u32) {
     if width == 0 || height == 0 {
       return;
     }
-    self.surface_config.width = width;
-    self.surface_config.height = height;
-    self.surface.configure(&self.device, &self.surface_config);
+    if let (Some(surface), Some(config)) = (&self.surface, &mut self.surface_config) {
+      config.width = width;
+      config.height = height;
+      surface.configure(&self.device, config);
+    }
   }
 
   /// Render one frame from a display list.
   pub fn render(&mut self, list: &DisplayList) -> FrameOutcome {
-    let frame = match self.surface.get_current_texture() {
+    let Some(ref surface) = self.surface else {
+      return FrameOutcome::Skipped;
+    };
+    let frame = match surface.get_current_texture() {
       wgpu::CurrentSurfaceTexture::Success(t) => t,
       wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
       wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
@@ -306,7 +437,8 @@ impl Renderer {
       ..Default::default()
     });
 
-    let viewport = [self.surface_config.width as f32, self.surface_config.height as f32];
+    let config = self.surface_config.as_ref().unwrap();
+    let viewport = [config.width as f32, config.height as f32];
     self.quads.prepare(&self.device, &self.queue, viewport, list);
     self.images.prepare(&self.device, &self.queue, viewport, list);
     self.glyphs.prepare(&self.device, &self.queue, viewport, list);
@@ -348,8 +480,8 @@ impl Renderer {
         &self.device,
         &mut encoder,
         &frame.texture,
-        self.surface_config.width,
-        self.surface_config.height,
+        config.width,
+        config.height,
       )
     });
 
@@ -359,9 +491,9 @@ impl Renderer {
       if let Err(e) = screenshot::finish_capture(
         &self.device,
         stg,
-        self.surface_config.width,
-        self.surface_config.height,
-        self.surface_config.format,
+        config.width,
+        config.height,
+        config.format,
         &path,
       ) {
         eprintln!("screenshot failed: {e}");

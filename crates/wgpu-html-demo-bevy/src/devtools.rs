@@ -1,0 +1,199 @@
+use bevy::{
+    prelude::*,
+    render::render_asset::RenderAssetUsages,
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+    input::keyboard::KeyboardInput,
+    window::{CursorMoved, WindowRef},
+};
+use wgpu_html_devtools::Devtools;
+use wgpu_html_driver_bevy::{HtmlOverlay, logical_key_to_dom_key, key_code_to_dom_code};
+
+#[derive(Component)]
+pub struct DevtoolsWindow;
+
+#[derive(Component)]
+pub struct DevtoolsUi;
+
+pub struct DevtoolsState {
+    devtools: Devtools,
+    image_cache: wgpu_html::layout::ImageCache,
+    pipeline_cache: wgpu_html::PipelineCache,
+    window_entity: Option<Entity>,
+    image_handle: Option<Handle<Image>>,
+}
+
+pub fn has_devtools(res: Option<NonSend<DevtoolsState>>) -> bool {
+    res.is_some()
+}
+
+pub fn setup(world: &mut World) {
+    let mut overlay = world.get_non_send_resource_mut::<HtmlOverlay>().unwrap();
+    let devtools = Devtools::attach(&mut overlay.tree, false);
+
+    world.insert_non_send_resource(DevtoolsState {
+        devtools,
+        image_cache: wgpu_html::layout::ImageCache::default(),
+        pipeline_cache: wgpu_html::PipelineCache::new(),
+        window_entity: None,
+        image_handle: None,
+    });
+}
+
+pub fn input_system(
+    mut dt: NonSendMut<DevtoolsState>,
+    mut cursor_events: EventReader<CursorMoved>,
+    mut keyboard_events: EventReader<KeyboardInput>,
+) {
+    let Some(win) = dt.window_entity else { return };
+    let d = &mut *dt;
+
+    for event in cursor_events.read() {
+        if event.window != win { continue; }
+        if let Some(layout) = d.pipeline_cache.layout() {
+            wgpu_html::interactivity::pointer_move(
+                d.devtools.tree_mut(),
+                layout,
+                (event.position.x, event.position.y),
+            );
+        }
+    }
+
+    for event in keyboard_events.read() {
+        if event.window != win { continue; }
+        let key = logical_key_to_dom_key(&event.logical_key);
+        let code = key_code_to_dom_code(&event.key_code);
+        let tree = d.devtools.tree_mut();
+        if event.state.is_pressed() {
+            tree.key_down(key, code, event.repeat);
+        } else {
+            tree.key_up(key, code);
+        }
+    }
+}
+
+pub fn update_system(
+    mut commands: Commands,
+    mut dt: NonSendMut<DevtoolsState>,
+    overlay: NonSend<HtmlOverlay>,
+    mut images: ResMut<Assets<Image>>,
+    dt_windows: Query<&Window, With<DevtoolsWindow>>,
+    dt_ui_entities: Query<Entity, With<DevtoolsUi>>,
+) {
+    dt.devtools.poll(&overlay.tree);
+
+    let enabled = dt.devtools.is_enabled();
+    let has_window = dt.window_entity.is_some();
+
+    if enabled && !has_window {
+        let win = commands.spawn((
+            DevtoolsWindow,
+            Window {
+                title: "wgpu-html · Devtools".into(),
+                resolution: (600.0, 720.0).into(),
+                ..default()
+            },
+        )).id();
+
+        let image = Image::new_fill(
+            Extent3d { width: 600, height: 720, depth_or_array_layers: 1 },
+            TextureDimension::D2,
+            &[30, 30, 36, 255],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        );
+        let handle = images.add(image);
+
+        commands.spawn((
+            DevtoolsUi,
+            Camera2d,
+            Camera {
+                target: bevy::render::camera::RenderTarget::Window(WindowRef::Entity(win)),
+                ..default()
+            },
+        ));
+        commands.spawn((
+            DevtoolsUi,
+            ImageNode { image: handle.clone(), ..default() },
+            Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+            TargetCamera(win),
+        ));
+
+        dt.window_entity = Some(win);
+        dt.image_handle = Some(handle);
+    }
+
+    if !enabled && has_window {
+        if let Some(win) = dt.window_entity.take() {
+            commands.entity(win).despawn_recursive();
+        }
+        for e in dt_ui_entities.iter() {
+            commands.entity(e).despawn_recursive();
+        }
+        dt.image_handle = None;
+        dt.pipeline_cache.invalidate();
+        return;
+    }
+
+    if !enabled || !dt.devtools.needs_redraw() { return; }
+
+    let Ok(window) = dt_windows.get_single() else { return };
+    let scale = window.scale_factor();
+    let phys_w = (window.width() * scale).ceil() as u32;
+    let phys_h = (window.height() * scale).ceil() as u32;
+
+    let d = &mut *dt;
+    // Devtools renders with the overlay's shared renderer — but devtools
+    // owns its own tree, so it needs its own text_ctx + renderer for the
+    // offscreen pass. We create a lightweight one here lazily.
+    render_devtools(d, &mut images, phys_w, phys_h, scale);
+}
+
+fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u32, phys_h: u32, scale: f32) {
+    // Devtools needs its own renderer since it has a separate tree.
+    // We borrow from HtmlOverlay's renderer in the future; for now
+    // use a thread-local one.
+    thread_local! {
+        static DT_RENDERER: std::cell::RefCell<Option<(wgpu_html_renderer::Renderer, wgpu_html_text::TextContext)>> =
+            std::cell::RefCell::new(None);
+    }
+
+    DT_RENDERER.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        if borrow.is_none() {
+            let mut r = pollster::block_on(wgpu_html_renderer::Renderer::headless());
+            r.clear_color = wgpu_html_renderer::wgpu::Color { r: 0.12, g: 0.12, b: 0.14, a: 1.0 };
+            let tc = wgpu_html_text::TextContext::new(wgpu_html_renderer::GLYPH_ATLAS_SIZE);
+            *borrow = Some((r, tc));
+        }
+        let (renderer, text_ctx) = borrow.as_mut().unwrap();
+
+        text_ctx.sync_fonts(&d.devtools.tree().fonts);
+
+        let (mut list, _layout, _timings) = wgpu_html::paint_tree_cached(
+            d.devtools.tree_mut(),
+            text_ctx,
+            &mut d.image_cache,
+            phys_w as f32,
+            phys_h as f32,
+            scale,
+            0.0,
+            &mut d.pipeline_cache,
+        );
+        list.finalize();
+
+        text_ctx.atlas.upload(&renderer.queue, renderer.glyph_atlas_texture());
+
+        let Ok(rgba) = renderer.render_to_rgba(&list, phys_w, phys_h) else { return };
+
+        if let Some(handle) = &d.image_handle {
+            if let Some(image) = images.get_mut(handle) {
+                if image.width() != phys_w || image.height() != phys_h {
+                    image.resize(Extent3d { width: phys_w, height: phys_h, depth_or_array_layers: 1 });
+                }
+                image.data = rgba;
+            }
+        }
+
+        d.devtools.frame_rendered();
+    });
+}

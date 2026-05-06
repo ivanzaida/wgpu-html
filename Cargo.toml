@@ -21,6 +21,7 @@ members = [
     "crates/wgpu-html-tree",
     "crates/wgpu-html-ui",
     "crates/wgpu-html-ui-demo",
+    "crates/wgpu-html-demo-bevy",
 ]
 
 [workspace.dependencies]

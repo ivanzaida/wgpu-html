@@ -87,16 +87,14 @@ pub(crate) fn begin_capture(
 }
 
 /// Map the staging buffer, strip padding, swizzle BGRA→RGBA if needed,
-/// and write a PNG to `path`. Blocks until the GPU has finished the
-/// previously-submitted copy.
-pub(crate) fn finish_capture(
+/// and return the raw RGBA bytes. Blocks until the GPU has finished.
+pub(crate) fn readback_rgba(
   device: &wgpu::Device,
   stg: StagingBuffer,
-  width: u32,
+  _width: u32,
   height: u32,
   format: wgpu::TextureFormat,
-  path: &Path,
-) -> Result<(), ScreenshotError> {
+) -> Result<Vec<u8>, ScreenshotError> {
   let needs_bgra_swizzle = match format {
     wgpu::TextureFormat::Bgra8UnormSrgb | wgpu::TextureFormat::Bgra8Unorm => true,
     wgpu::TextureFormat::Rgba8UnormSrgb | wgpu::TextureFormat::Rgba8Unorm => false,
@@ -128,7 +126,21 @@ pub(crate) fn finish_capture(
     }
   }
 
-  image::save_buffer(path, &rgba, width, height, image::ColorType::Rgba8).map_err(ScreenshotError::Encode)?;
+  Ok(rgba)
+}
 
+/// Map the staging buffer, strip padding, swizzle BGRA→RGBA if needed,
+/// and write a PNG to `path`. Blocks until the GPU has finished the
+/// previously-submitted copy.
+pub(crate) fn finish_capture(
+  device: &wgpu::Device,
+  stg: StagingBuffer,
+  width: u32,
+  height: u32,
+  format: wgpu::TextureFormat,
+  path: &Path,
+) -> Result<(), ScreenshotError> {
+  let rgba = readback_rgba(device, stg, width, height, format)?;
+  image::save_buffer(path, &rgba, width, height, image::ColorType::Rgba8).map_err(ScreenshotError::Encode)?;
   Ok(())
 }
