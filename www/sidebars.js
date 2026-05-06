@@ -97,9 +97,9 @@ const sidebars = {
         'rust-integration/overview',
         'rust-integration/integrating',
         'rust-integration/winit-harness',
+        'rust-integration/bevy-integration',
         'rust-integration/egui-backend',
         'rust-integration/screenshots',
-        'rust-integration/profiling',
       ],
     },
     {
