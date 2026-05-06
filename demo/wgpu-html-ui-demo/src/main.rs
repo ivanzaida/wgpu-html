@@ -82,17 +82,30 @@ impl Component for DemoApp {
 // ── Winit harness ──────────────────────────────────────────────────────────
 
 struct UiDemoApp {
-  driver: WinitDriver,
   mount: Mount<DemoApp>,
+  tree: Tree,
   devtools: wgpu_html_devtools::Devtools,
+  driver: Option<WinitDriver>,
   devtools_driver: Option<WinitDriver>,
 }
 
 impl ApplicationHandler for UiDemoApp {
-  fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
+  fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    if self.driver.is_some() {
+      return;
+    }
+    let attrs = Window::default_attributes()
+      .with_title("wgpu-html-ui demo")
+      .with_inner_size(winit::dpi::PhysicalSize::new(800u32, 500u32));
+    let window = Arc::new(event_loop.create_window(attrs).unwrap());
+    let tree = std::mem::replace(&mut self.tree, Tree::default());
+    self.driver = Some(WinitDriver::bind(window, tree));
+  }
 
   fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
-    if window_id != self.driver.window_id() {
+    let Some(driver) = &mut self.driver else { return };
+
+    if window_id != driver.window_id() {
       if let Some(dd) = &mut self.devtools_driver {
         if dd.window_id() == window_id {
           match &event {
@@ -118,19 +131,21 @@ impl ApplicationHandler for UiDemoApp {
     match event {
       WindowEvent::CloseRequested => event_loop.exit(),
       WindowEvent::RedrawRequested => {
-        if self.mount.process(&mut self.driver.tree) {
-          self.driver.request_redraw();
+        if self.mount.process(&mut driver.tree) {
+          driver.request_redraw();
         }
-        self.driver.rt.render_frame(&mut self.driver.tree);
+        driver.rt.render_frame(&mut driver.tree);
       }
       other => {
-        self.driver.handle_event(&other);
+        driver.handle_event(&other);
       }
     }
   }
 
   fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-    self.devtools.poll(&self.driver.tree);
+    let Some(driver) = &self.driver else { return };
+
+    self.devtools.poll(&driver.tree);
 
     if self.devtools.is_enabled() {
       if self.devtools_driver.is_none() {
@@ -166,19 +181,13 @@ fn main() {
   let devtools = wgpu_html_devtools::Devtools::attach(&mut tree, false);
 
   let event_loop = EventLoop::new().unwrap();
-  #[allow(deprecated)]
-  let window = Arc::new(
-    event_loop
-      .create_window(
-        Window::default_attributes()
-          .with_title("wgpu-html-ui demo")
-          .with_inner_size(winit::dpi::PhysicalSize::new(800u32, 500u32)),
-      )
-      .unwrap(),
-  );
-  let driver = WinitDriver::bind(window, tree);
-
-  let mut app = UiDemoApp { driver, mount, devtools, devtools_driver: None };
+  let mut app = UiDemoApp {
+    mount,
+    tree,
+    devtools,
+    driver: None,
+    devtools_driver: None,
+  };
   event_loop.set_control_flow(ControlFlow::Wait);
   event_loop.run_app(&mut app).unwrap();
 }
