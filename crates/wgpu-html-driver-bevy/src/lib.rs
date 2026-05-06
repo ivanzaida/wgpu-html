@@ -30,10 +30,34 @@ pub struct WgpuHtmlPlugin;
 
 impl Plugin for WgpuHtmlPlugin {
     fn build(&self, app: &mut App) {
+        let mut renderer = pollster::block_on(Renderer::headless());
+        renderer.clear_color = wgpu_html_renderer::wgpu::Color::TRANSPARENT;
+        let text_ctx = TextContext::new(wgpu_html_renderer::GLYPH_ATLAS_SIZE);
+
+        let image = Image::new_fill(
+            Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            TextureDimension::D2,
+            &[0, 0, 0, 0],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        );
+        let image_handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
+
+        app.world_mut().insert_non_send_resource(HtmlOverlay {
+            tree: Tree::new(wgpu_html_tree::Node::new(wgpu_html_tree::Element::Body(Default::default()))),
+            renderer,
+            text_ctx,
+            image_cache: wgpu_html::layout::ImageCache::default(),
+            pipeline_cache: wgpu_html::PipelineCache::new(),
+            image_handle: image_handle.clone(),
+            captures_input: true,
+            last_cursor: None,
+        });
+
         app
-            .add_systems(Startup, setup_overlay)
-            .add_systems(PreUpdate, forward_input_system.run_if(|r: Option<NonSend<HtmlOverlay>>| r.is_some()))
-            .add_systems(Update, render_overlay_system.run_if(|r: Option<NonSend<HtmlOverlay>>| r.is_some()));
+            .add_systems(Startup, spawn_overlay_entity)
+            .add_systems(PreUpdate, forward_input_system)
+            .add_systems(Update, render_overlay_system);
     }
 }
 
@@ -127,23 +151,10 @@ impl HtmlOverlay {
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 
-fn setup_overlay(world: &mut World) {
-    let mut renderer = pollster::block_on(Renderer::headless());
-    renderer.clear_color = wgpu_html_renderer::wgpu::Color::TRANSPARENT;
-    let text_ctx = TextContext::new(wgpu_html_renderer::GLYPH_ATLAS_SIZE);
-
-    let image = Image::new_fill(
-        Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        &[0, 0, 0, 0],
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    );
-    let image_handle = world.resource_mut::<Assets<Image>>().add(image);
-
-    world.spawn((
+fn spawn_overlay_entity(mut commands: Commands, overlay: NonSend<HtmlOverlay>) {
+    commands.spawn((
         OverlayImage,
-        ImageNode { image: image_handle.clone(), ..default() },
+        ImageNode { image: overlay.image_handle.clone(), ..default() },
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
@@ -154,17 +165,6 @@ fn setup_overlay(world: &mut World) {
         },
         GlobalZIndex(i32::MAX),
     ));
-
-    world.insert_non_send_resource(HtmlOverlay {
-        tree: Tree::default(),
-        renderer,
-        text_ctx,
-        image_cache: wgpu_html::layout::ImageCache::default(),
-        pipeline_cache: wgpu_html::PipelineCache::new(),
-        image_handle,
-        captures_input: true,
-        last_cursor: None,
-    });
 }
 
 // ── Input ──────────────────────────────────────────────────────────────────

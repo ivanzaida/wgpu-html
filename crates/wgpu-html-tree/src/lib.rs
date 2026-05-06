@@ -456,6 +456,22 @@ impl Tree {
     Some(index)
   }
 
+  /// Append all children from `other`'s root into this tree's root.
+  /// If this tree has no root, takes `other`'s root directly.
+  pub fn merge(&mut self, other: Tree) {
+    let Some(other_root) = other.root else { return };
+    match self.root.as_mut() {
+      Some(root) => {
+        if other_root.children.is_empty() { return; }
+        root.children.extend(other_root.children);
+      }
+      None => {
+        self.root = Some(other_root);
+      }
+    }
+    self.generation += 1;
+  }
+
   /// Remove the node at `path` from the tree.
   ///
   /// Bumps `generation` and fires `on_element_removed` hooks.

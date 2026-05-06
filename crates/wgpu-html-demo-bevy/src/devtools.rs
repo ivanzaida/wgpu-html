@@ -27,8 +27,10 @@ pub fn has_devtools(res: Option<NonSend<DevtoolsState>>) -> bool {
 }
 
 pub fn setup(world: &mut World) {
-    let mut overlay = world.get_non_send_resource_mut::<HtmlOverlay>().unwrap();
-    let devtools = Devtools::attach(&mut overlay.tree, false);
+    let devtools = {
+        let mut overlay = world.get_non_send_resource_mut::<HtmlOverlay>().expect("HtmlOverlay must exist — add WgpuHtmlPlugin before this system");
+        Devtools::attach(&mut overlay.tree, false)
+    };
 
     world.insert_non_send_resource(DevtoolsState {
         devtools,
@@ -103,19 +105,19 @@ pub fn update_system(
         );
         let handle = images.add(image);
 
-        commands.spawn((
+        let cam = commands.spawn((
             DevtoolsUi,
             Camera2d,
             Camera {
                 target: bevy::render::camera::RenderTarget::Window(WindowRef::Entity(win)),
                 ..default()
             },
-        ));
+        )).id();
         commands.spawn((
             DevtoolsUi,
             ImageNode { image: handle.clone(), ..default() },
             Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
-            TargetCamera(win),
+            TargetCamera(cam),
         ));
 
         dt.window_entity = Some(win);

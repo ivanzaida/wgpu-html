@@ -2,31 +2,31 @@ use bevy::prelude::*;
 use wgpu_html_driver_bevy::HtmlOverlay;
 
 pub fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut html: NonSendMut<HtmlOverlay>,
+  mut commands: Commands,
+  mut meshes: ResMut<Assets<Mesh>>,
+  mut materials: ResMut<Assets<StandardMaterial>>,
+  mut html: NonSendMut<HtmlOverlay>,
 ) {
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(5.0, 5.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.3))),
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
-    commands.spawn((
-        PointLight { shadows_enabled: true, intensity: 2_000_000.0, ..default() },
-        Transform::from_xyz(4.0, 8.0, 4.0),
-    ));
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
+  commands.spawn((
+    Mesh3d(meshes.add(Plane3d::default().mesh().size(5.0, 5.0))),
+    MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
+  ));
+  commands.spawn((
+    Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+    MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.3))),
+    Transform::from_xyz(0.0, 0.5, 0.0),
+  ));
+  commands.spawn((
+    PointLight { shadows_enabled: true, intensity: 2_000_000.0, ..default() },
+    Transform::from_xyz(4.0, 8.0, 4.0),
+  ));
+  commands.spawn((
+    Camera3d::default(),
+    Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+  ));
 
-    // Parse HTML into nodes and append to the overlay tree.
-    let parsed = wgpu_html::parser::parse(r#"
+  // Parse HTML into nodes and append to the overlay tree.
+  let parsed = wgpu_html::parser::parse(r#"
 <div id="hud" style="font-family: system-ui, sans-serif; padding: 24px; max-width: 400px;">
     <div style="
         background: rgba(15, 15, 35, 0.85);
@@ -49,9 +49,5 @@ pub fn setup(
 </div>
 "#);
 
-    if let Some(root) = parsed.root {
-        for child in root.children {
-            html.append(child);
-        }
-    }
+  html.tree_mut().merge(parsed);
 }
