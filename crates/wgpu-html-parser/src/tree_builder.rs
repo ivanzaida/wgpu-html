@@ -56,8 +56,10 @@ struct TreeBuilder {
   tokens: Vec<Token>,
   pos: usize,
   /// Stack of open elements. `Option<Element>` is `None` for an unknown
-  /// tag — its subtree is parsed but discarded on close.
-  stack: Vec<(String, Option<Element>, Vec<Node>)>,
+  /// tag — its subtree is parsed but discarded on close. The last field
+  /// carries the raw HTML attributes so they can be attached to the
+  /// resulting `Node`.
+  stack: Vec<(String, Option<Element>, Vec<Node>, Vec<(String, String)>)>,
   document: Vec<Node>,
 }
 
@@ -93,7 +95,7 @@ impl TreeBuilder {
 
           if self_closing || is_void_element(&name) {
             if let Some(el) = element {
-              self.push_node(Node::new(el));
+              self.push_node(Node::new(el).with_raw_attrs(attrs));
             }
             // Unknown void → silently dropped.
           } else if name == "body" && self.has_body_on_stack() {
@@ -103,7 +105,7 @@ impl TreeBuilder {
           } else {
             // Auto-close certain elements before opening a new one.
             self.auto_close_before(&name);
-            self.stack.push((name, element, Vec::new()));
+            self.stack.push((name, element, Vec::new(), attrs));
           }
         }
         Token::CloseTag(name) => self.close_tag(&name),
@@ -128,11 +130,11 @@ impl TreeBuilder {
   /// Pop the top element from the stack and add it as a child to its parent.
   /// If the popped element is `None` (unknown tag), the subtree is discarded.
   fn pop_element(&mut self) {
-    let Some((_tag_name, element, children)) = self.stack.pop() else {
+    let Some((_tag_name, element, children, raw_attrs)) = self.stack.pop() else {
       return;
     };
     if let Some(el) = element {
-      self.push_node(Node::new(el).with_children(children));
+      self.push_node(Node::new(el).with_children(children).with_raw_attrs(raw_attrs));
     }
     // else: drop unknown subtree silently
   }

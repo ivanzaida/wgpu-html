@@ -7,7 +7,7 @@ fn text_shrink_demo() {
   let mut tree = wgpu_html_parser::parse(html);
 
   // Register fonts so text shaping works.
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
 
   // Cascade + layout.
   let cascaded = wgpu_html_style::cascade(&tree);

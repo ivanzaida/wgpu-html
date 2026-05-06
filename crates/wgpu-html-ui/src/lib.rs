@@ -1,4 +1,4 @@
-//! Component framework for `wgpu-html`.
+//! Platform-agnostic component framework for `wgpu-html`.
 //!
 //! Provides an Elm-architecture component model with an ergonomic
 //! builder DSL for constructing element trees.
@@ -6,7 +6,7 @@
 //! # Quick start
 //!
 //! ```ignore
-//! use wgpu_html_ui::{el, App, Component, Ctx, El, ShouldRender};
+//! use wgpu_html_ui::{el, Component, Ctx, El, Mount, ShouldRender};
 //!
 //! struct Counter { count: i32 }
 //!
@@ -39,14 +39,6 @@
 //!         ])
 //!     }
 //! }
-//!
-//! fn main() {
-//!     App::new::<Counter>(Props { label: "Count".into() })
-//!         .title("Counter")
-//!         .size(400, 300)
-//!         .run()
-//!         .unwrap();
-//! }
 //! ```
 
 // ── DSL modules (public) ─────────────────────────────────────────────────────
@@ -59,7 +51,7 @@ mod store;
 // ── Core Elm-architecture machinery ─────────────────────────────────────────
 pub mod core;
 
-// ── Application entry points ─────────────────────────────────────────────────
+// ── Mount (manual component driver) ─────────────────────────────────────────
 mod app;
 
 // ── Public re-exports ────────────────────────────────────────────────────────
@@ -67,12 +59,11 @@ pub use core::{
   component::{Component, ShouldRender},
   ctx::{Ctx, MsgSender},
   observable::{Observable, Subscription},
+  runtime::Runtime,
 };
 
-pub use app::{
-  app::{App, SecondaryWindow},
-  mount::Mount,
-};
+pub use app::mount::Mount;
+
 pub use el::{
   AnchorAttrs, AudioAttrs, BlockquoteAttrs, ButtonAttrs, CanvasAttrs, Children, ColAttrs, ColgroupAttrs, DataElAttrs,
   DelAttrs, DetailsAttrs, DialogAttrs, El, FieldsetAttrs, FormAttrs, IframeAttrs, ImgAttrs, InputAttrs, InsAttrs,
@@ -88,10 +79,4 @@ pub mod html {
     AutoComplete, ButtonType, CaptureMode, CrossOrigin, FormEncoding, FormMethod, ImageDecoding, InputType, LinkAs,
     LinkTarget, Loading, OlType, Preload, ReferrerPolicy, SvgLength, TableHeaderScope, TextareaWrap, TrackKind,
   };
-}
-
-/// Register platform system fonts with the tree under the given family alias.
-/// Call this once during app setup so text renders correctly.
-pub(crate) fn register_system_fonts(tree: &mut wgpu_html_tree::Tree) {
-  wgpu_html_driver_winit::register_system_fonts(tree, "sans-serif");
 }

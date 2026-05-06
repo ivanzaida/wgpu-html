@@ -41,7 +41,7 @@ pub use tree_hook::{
   TreeRenderEvent, TreeRenderViewport,
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Tree {
   pub root: Option<Node>,
   /// Fonts available to this document. Populated by the host before
@@ -105,10 +105,10 @@ pub struct Tree {
   pub asset_root: Option<std::path::PathBuf>,
 }
 
-impl Tree {
-  pub fn new(root: Node) -> Self {
-    Self {
-      root: Some(root),
+impl Default for Tree {
+  fn default() -> Self {
+    let mut tree = Self {
+      root: None,
       fonts: FontRegistry::new(),
       interaction: InteractionState::default(),
       dpi_scale_override: None,
@@ -120,7 +120,17 @@ impl Tree {
       cascade_generation: 0,
       profiler: None,
       asset_root: None,
-    }
+    };
+    tree.register_system_fonts("sans-serif");
+    tree
+  }
+}
+
+impl Tree {
+  pub fn new(root: Node) -> Self {
+    let mut tree = Self::default();
+    tree.root = Some(root);
+    tree
   }
 
   /// Override this tree's CSS-pixel to physical-pixel scale.
@@ -164,6 +174,11 @@ impl Tree {
   /// during matching).
   pub fn register_font(&mut self, face: FontFace) -> FontHandle {
     self.fonts.register(face)
+  }
+
+  /// Register platform system fonts under the given family alias.
+  pub fn register_system_fonts(&mut self, family: &str) -> usize {
+    system_fonts::register_system_fonts(self, family)
   }
 
   /// Queue an image URL (or local filesystem path) for pre-loading.

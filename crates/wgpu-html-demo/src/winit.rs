@@ -8,15 +8,15 @@ use std::{
   path::PathBuf,
   process::ExitCode,
   sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    Arc,
+    Mutex,
   },
   time::{Duration, Instant},
 };
 
 use wgpu_html_devtools::Devtools;
-use wgpu_html_driver_winit::{WgpuHtml, WinitRuntime, dispatch, register_system_fonts, system_font_variants};
-use wgpu_html_tree::{FontFace, Tree};
+use wgpu_html_driver_winit::{dispatch, system_font_variants, WinitDriver};
+use wgpu_html_tree::Tree;
 use winit::{
   application::ApplicationHandler,
   event::{ElementState, KeyEvent, WindowEvent},
@@ -24,59 +24,6 @@ use winit::{
   keyboard::{KeyCode, PhysicalKey},
   window::{Window, WindowId},
 };
-
-static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
-
-// ── Demo wiring ─────────────────────────────────────────────────────────────
-
-pub(crate) fn install_demo_callbacks(tree: &mut Tree, click_count: &Arc<AtomicUsize>) {
-  let counter = click_count.clone();
-  if let Some(btn) = tree.get_element_by_id("btn") {
-    btn.on_click.push(Arc::new(move |_| {
-      let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
-      let _ = n;
-    }));
-  }
-  if let Some(panel) = tree.get_element_by_id("panel") {
-    panel.on_mouse_enter.push(Arc::new(|_| {}));
-    panel.on_mouse_leave.push(Arc::new(|_| {}));
-    panel.on_click.push(Arc::new(|_| {}));
-  }
-
-  let log_ids = [
-    "zone-click",
-    "zone-mousedown",
-    "zone-mouseup",
-    "zone-dblclick",
-    "zone-auxclick",
-    "zone-contextmenu",
-    "zone-enterleave",
-    "zone-mousemove",
-    "zone-buttons",
-    "zone-wheel",
-    "zone-keydown",
-    "zone-focus-input",
-    "zone-input",
-    "zone-checkbox",
-    "zone-form",
-    "zone-clipboard",
-    "zone-dragsource",
-    "zone-droptarget",
-    "zone-activate-btn",
-    "zone-activate-link",
-    "zone-submit-btn",
-    "zone-form-input",
-  ];
-  for id in log_ids {
-    if let Some(el) = tree.get_element_by_id(id) {
-      el.on_event.push(Arc::new(move |_ev| {}));
-    }
-  }
-
-  if let Some(el) = tree.get_element_by_id("zone-dragsource") {
-    el.draggable = true;
-  }
-}
 
 // ── Profiling ────────────────────────────────────────────────────────────────
 
@@ -377,26 +324,26 @@ fn json_str(s: &str) -> String {
 // ── Runner ──────────────────────────────────────────────────────────────────
 
 struct DemoApp {
-  tree: Tree,
-  rt: WinitRuntime,
+  driver: WinitDriver,
   profiling: bool,
   stats: Stats,
   commands: CommandQueue,
   devtools: Option<Devtools>,
+  devtools_driver: Option<WinitDriver>,
   stdin_started: bool,
   screenshot_key: Option<KeyCode>,
   exit_on_escape: bool,
 }
 
 impl DemoApp {
-  fn new(tree: Tree, rt: WinitRuntime, profiling_enabled: bool, devtools: Devtools) -> Self {
+  fn new(driver: WinitDriver, profiling_enabled: bool, devtools: Devtools) -> Self {
     Self {
-      tree,
-      rt,
+      driver,
       profiling: profiling_enabled,
       stats: Stats::new(),
       commands: Arc::new(Mutex::new(VecDeque::new())),
       devtools: Some(devtools),
+      devtools_driver: None,
       stdin_started: false,
       screenshot_key: Some(KeyCode::F12),
       exit_on_escape: true,
@@ -417,23 +364,23 @@ impl DemoApp {
     match cmd {
       DemoCommand::Screenshot { selector: None } => {
         let path: PathBuf = format!("screenshot-viewport-{}.png", timestamp()).into();
-        self.rt.renderer.capture_next_frame_to(path.clone());
-        self.rt.driver.window.request_redraw();
+        self.driver.rt.renderer.capture_next_frame_to(path.clone());
+        self.driver.window().request_redraw();
         println!("demo: queued viewport screenshot → {}", path.display());
       }
       DemoCommand::Screenshot { selector: Some(sel) } => {
-        let dom_path = self.tree.query_selector_path(sel.as_str());
+        let dom_path = self.driver.tree.query_selector_path(sel.as_str());
         let Some(path_indices) = dom_path else {
           eprintln!("demo: selector `{sel}` matched no element");
           return;
         };
-        let size = self.rt.driver.window.inner_size();
+        let size = self.driver.window().inner_size();
         let out_path: PathBuf = format!("screenshot-{}-{}.png", sanitise_for_filename(&sel), timestamp()).into();
         let result = wgpu_html::screenshot_node_to(
-          &self.tree,
-          &mut self.rt.text_ctx,
-          &mut self.rt.image_cache,
-          &mut self.rt.renderer,
+          &self.driver.tree,
+          &mut self.driver.rt.text_ctx,
+          &mut self.driver.rt.image_cache,
+          &mut self.driver.rt.renderer,
           &path_indices,
           size.width as f32,
           size.height as f32,
@@ -446,7 +393,7 @@ impl DemoApp {
         }
       }
       DemoCommand::DumpTree { selector } => {
-        let cascaded = wgpu_html_style::cascade(&self.tree);
+        let cascaded = wgpu_html_style::cascade(&self.driver.tree);
         let Some(root) = &cascaded.root else {
           eprintln!("demo: tree has no root");
           return;
@@ -454,7 +401,7 @@ impl DemoApp {
         let (cnode, label) = match &selector {
           None => (root, "tree".to_owned()),
           Some(sel) => {
-            let Some(path_indices) = self.tree.query_selector_path(sel.as_str()) else {
+            let Some(path_indices) = self.driver.tree.query_selector_path(sel.as_str()) else {
               eprintln!("demo: selector `{sel}` matched no element");
               return;
             };
@@ -488,7 +435,7 @@ impl DemoApp {
     // F9 profiling toggle
     if code == KeyCode::F9 {
       self.profiling = !self.profiling;
-      self.rt.profiling.enabled = self.profiling;
+      self.driver.rt.profiling.enabled = self.profiling;
       println!(
         "demo: profiling {}",
         if self.profiling { "enabled" } else { "disabled" }
@@ -508,8 +455,8 @@ impl DemoApp {
     // Screenshot
     if self.screenshot_key == Some(code) {
       let path: PathBuf = format!("screenshot-{}.png", timestamp()).into();
-      self.rt.renderer.capture_next_frame_to(path.clone());
-      self.rt.driver.window.request_redraw();
+      self.driver.rt.renderer.capture_next_frame_to(path.clone());
+      self.driver.window().request_redraw();
       return;
     }
   }
@@ -520,11 +467,25 @@ impl ApplicationHandler for DemoApp {
 
   fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
     // Route secondary window events to devtools.
-    if window_id != self.rt.driver.window.id() {
-      if let Some(devtools) = &mut self.devtools {
-        if devtools.owns_window(window_id) {
-          devtools.handle_window_event(&self.tree, &event);
-          self.rt.driver.window.request_redraw();
+    if window_id != self.driver.window().id() {
+      if let Some(dd) = &mut self.devtools_driver {
+        if dd.window_id() == window_id {
+          let devtools = self.devtools.as_mut().unwrap();
+          match &event {
+            WindowEvent::CloseRequested => {
+              devtools.disable();
+              dd.window().set_visible(false);
+            }
+            WindowEvent::RedrawRequested => {
+              dd.rt.render_frame(devtools.tree_mut());
+              devtools.frame_rendered();
+            }
+            other => {
+              if dispatch(other, &mut dd.rt, devtools.tree_mut()) {
+                dd.request_redraw();
+              }
+            }
+          }
         }
       }
       return;
@@ -537,28 +498,23 @@ impl ApplicationHandler for DemoApp {
         // Drain stdin commands first.
         if !self.stdin_started {
           self.stdin_started = true;
-          spawn_stdin_listener(self.commands.clone(), self.rt.driver.window.clone());
+          spawn_stdin_listener(self.commands.clone(), self.driver.window().clone());
         }
         self.drain_commands();
 
-        // Sync devtools.
-        if let Some(devtools) = &mut self.devtools {
-          devtools.poll(&self.tree, event_loop);
-          let hover = devtools.hovered_path();
-          self.rt.set_inspect_overlay(hover);
-        }
-
-        let timings = self.rt.render_frame(&mut self.tree);
+        let timings = self.driver.handle_event(&WindowEvent::RedrawRequested);
 
         // Profiling.
         if self.profiling {
-          self
-            .stats
-            .add_frame(timings.cascade_ms, timings.layout_ms, timings.paint_ms);
+          if let Some(ref timings) = timings {
+            self
+              .stats
+              .add_frame(timings.cascade_ms, timings.layout_ms, timings.paint_ms);
+          }
           if let Some(line) = self.stats.take_summary_if_due() {
             println!("{line}");
           }
-          if let Some(prof) = &self.tree.profiler {
+          if let Some(prof) = &self.driver.tree.profiler {
             if prof.is_enabled() {
               if let Some(summary) = prof.summary_string() {
                 eprintln!("{summary}");
@@ -568,12 +524,12 @@ impl ApplicationHandler for DemoApp {
         }
 
         // Schedule next wake-up.
-        if self.rt.image_cache.has_pending() {
+        if self.driver.rt.image_cache.has_pending() {
           event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100)));
-        } else if self.rt.image_cache.has_animated() {
+        } else if self.driver.rt.image_cache.has_animated() {
           event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(50)));
-        } else if self.tree.interaction.edit_cursor.is_some() {
-          let elapsed = self.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
+        } else if self.driver.tree.interaction.edit_cursor.is_some() {
+          let elapsed = self.driver.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
           let next = 500u64.saturating_sub(elapsed % 500).max(16);
           event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(next)));
         } else {
@@ -586,9 +542,7 @@ impl ApplicationHandler for DemoApp {
         event: ref key_event, ..
       } => {
         self.handle_key(event_loop, key_event);
-        if dispatch(&event, &mut self.rt, &mut self.tree) {
-          self.rt.driver.window.request_redraw();
-        }
+        self.driver.handle_event(&event);
       }
 
       other => {
@@ -597,14 +551,14 @@ impl ApplicationHandler for DemoApp {
           match &other {
             WindowEvent::CursorMoved { position, .. } => {
               let pos = (position.x as f32, position.y as f32);
-              if let Some(layout) = self.rt.layout() {
-                let doc_pos = wgpu_html::scroll::viewport_to_document(pos, self.rt.scroll_y());
-                let path = layout.hit_path_scrolled(doc_pos, &self.tree.interaction.scroll_offsets);
+              if let Some(layout) = self.driver.rt.layout() {
+                let doc_pos = wgpu_html::scroll::viewport_to_document(pos, self.driver.rt.scroll_y());
+                let path = layout.hit_path_scrolled(doc_pos, &self.driver.tree.interaction.scroll_offsets);
                 if let Some(devtools) = &mut self.devtools {
                   devtools.set_hover_path(path);
                 }
               }
-              self.rt.driver.window.request_redraw();
+              self.driver.window().request_redraw();
               return;
             }
             WindowEvent::MouseInput {
@@ -617,23 +571,47 @@ impl ApplicationHandler for DemoApp {
                   devtools.pick_element(hover);
                 }
               }
-              self.rt.driver.window.request_redraw();
+              self.driver.window().request_redraw();
               return;
             }
             _ => {}
           }
         }
-        if dispatch(&other, &mut self.rt, &mut self.tree) {
-          self.rt.driver.window.request_redraw();
-        }
+        self.driver.handle_event(&other);
       }
     }
   }
 
   fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    if let Some(devtools) = &mut self.devtools {
+      devtools.poll(&self.driver.tree);
+      let hover = devtools.hovered_path();
+      self.driver.rt.set_inspect_overlay(hover);
+
+      // Lazily create / show / hide the devtools window.
+      if devtools.is_enabled() {
+        if self.devtools_driver.is_none() {
+          let attrs = Window::default_attributes()
+            .with_title("DevTools")
+            .with_inner_size(winit::dpi::PhysicalSize::new(1280u32, 720u32));
+          let win = Arc::new(event_loop.create_window(attrs).expect("devtools window"));
+          devtools.tree_mut().register_system_fonts("sans-serif");
+          self.devtools_driver = Some(WinitDriver::bind(win, Tree::default()));
+        }
+        if let Some(dd) = &self.devtools_driver {
+          dd.window().set_visible(true);
+          if devtools.needs_redraw() {
+            dd.request_redraw();
+          }
+        }
+      } else if let Some(dd) = &self.devtools_driver {
+        dd.window().set_visible(false);
+      }
+    }
+
     // Caret blink wake-up.
-    if self.tree.interaction.edit_cursor.is_some() {
-      let elapsed = self.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
+    if self.driver.tree.interaction.edit_cursor.is_some() {
+      let elapsed = self.driver.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
       if 500u64.saturating_sub(elapsed % 500) == 0 {
         event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now()));
       }
@@ -643,7 +621,7 @@ impl ApplicationHandler for DemoApp {
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
-pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool) -> ExitCode {
+pub(crate) fn run(mut tree: Tree, doc_source: String, profiling_enabled: bool) -> ExitCode {
   println!("wgpu-html demo:");
   println!("  renderer  →  winit");
   println!("  F12  →  screenshot");
@@ -658,15 +636,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
     eprintln!("demo: profiling enabled via --profile");
   }
 
-  let click_count = Arc::new(AtomicUsize::new(0));
-  let mut tree = wgpu_html::parser::parse(&doc_html);
-  register_system_fonts(&mut tree, "DemoSans");
-  tree.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
-  install_demo_callbacks(&mut tree, &click_count);
 
-  if doc_source.ends_with("devtools.html") {
-    tree.register_linked_stylesheet("devtools.css", include_str!("../html/devtools.css"));
-  }
   if profiling_enabled {
     tree.profiler = Some(wgpu_html_tree::Profiler::tagged("demo app"));
     tree.profiler.as_ref().map(|p| p.enable());
@@ -688,11 +658,10 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
   #[allow(deprecated)]
   let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
 
-  let driver = WgpuHtml { window };
-  let mut rt = WinitRuntime::new(driver, 1920, 1080);
-  rt.profiling.enabled = profiling_enabled;
+  let mut driver = WinitDriver::bind(window, tree);
+  driver.runtime_mut().profiling.enabled = profiling_enabled;
 
-  let mut app = DemoApp::new(tree, rt, profiling_enabled, devtools);
+  let mut app = DemoApp::new(driver, profiling_enabled, devtools);
   event_loop.set_control_flow(ControlFlow::Wait);
 
   match event_loop.run_app(&mut app) {

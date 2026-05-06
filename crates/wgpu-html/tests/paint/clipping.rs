@@ -495,7 +495,7 @@ fn tree_row_overflow_hidden_clips_span_glyphs() {
           </div>
         </body></html>"#,
   );
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
   let list = paint_tree(&tree, 800.0, 600.0);
   let row_clip = list
     .clips
@@ -550,7 +550,7 @@ fn tree_row_overflow_hidden_pushes_clip_before_span_glyph_idx() {
           </div>
         </body></html>"#,
   );
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
   let list = paint_tree(&tree, 800.0, 600.0);
   let row_clip = list
     .clips

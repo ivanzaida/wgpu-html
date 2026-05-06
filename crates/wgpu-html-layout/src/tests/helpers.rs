@@ -17,7 +17,7 @@ pub(crate) fn layout_scaled(tree: &CascadedTree, viewport_w: f32, viewport_h: f3
 /// Layout with system fonts registered so text has real widths.
 pub(crate) fn layout_with_fonts(html: &str, viewport_w: f32, viewport_h: f32) -> LayoutBox {
   let mut tree = wgpu_html_parser::parse(html);
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
   let cascaded = wgpu_html_style::cascade(&tree);
   let mut text_ctx = wgpu_html_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);

@@ -204,7 +204,7 @@ pub struct Runtime {
 }
 
 impl Runtime {
-  pub(crate) fn root_mounted(&self) -> &MountedComponent {
+  pub fn root_mounted(&self) -> &MountedComponent {
     &self.root
   }
 
@@ -234,7 +234,7 @@ impl Runtime {
   /// When set to `true`, `process` and `force_render` replace
   /// `tree.root` directly instead of navigating into an existing
   /// `html > body` wrapper.
-  pub(crate) fn set_direct_root(&mut self, direct: bool) {
+  pub fn set_direct_root(&mut self, direct: bool) {
     self.direct_root = direct;
   }
 
@@ -308,7 +308,7 @@ impl Runtime {
   }
 
   /// Walk the mounted tree and register any pending component styles.
-  pub(crate) fn register_styles(tree: &mut Tree, mounted: &MountedComponent) {
+  pub fn register_styles(tree: &mut Tree, mounted: &MountedComponent) {
     let css = mounted.state.styles_css();
     if let Some(css) = css {
       let prefix = mounted.state.scope_prefix();

@@ -5,7 +5,9 @@ mod examples;
 mod parse_cmd;
 mod winit;
 
+use std::sync::Arc;
 use std::{path::PathBuf, process::ExitCode};
+use wgpu_html_tree::FontFace;
 
 const DEFAULT_EXAMPLE: &str = "flex_browser_like";
 
@@ -14,6 +16,9 @@ enum RendererKind {
   Winit,
   Egui,
 }
+
+static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
+
 
 // ── CLI dispatch ──────────────────────────────────────────────────────────
 
@@ -80,7 +85,7 @@ fn run() -> ExitCode {
 
 fn run_example(name: &str, profiling: bool, renderer: RendererKind) -> ExitCode {
   match examples::get_example_tree(name) {
-    Some(tree) => launch(tree.to_html(), format!("example:{name}"), profiling, renderer),
+    Some(tree) => launch(tree, format!("example:{name}"), profiling, renderer),
     None => {
       eprintln!("demo: unknown example: {name}");
       println!();
@@ -92,7 +97,7 @@ fn run_example(name: &str, profiling: bool, renderer: RendererKind) -> ExitCode 
 
 fn run_file(path: PathBuf, profiling: bool, renderer: RendererKind) -> ExitCode {
   match std::fs::read_to_string(&path) {
-    Ok(html) => launch(html, path.display().to_string(), profiling, renderer),
+    Ok(html) => launch(wgpu_html::parser::parse(&html), path.display().to_string(), profiling, renderer),
     Err(err) => {
       eprintln!("demo: failed to read HTML document '{}': {err}", path.display());
       ExitCode::FAILURE
@@ -100,10 +105,17 @@ fn run_file(path: PathBuf, profiling: bool, renderer: RendererKind) -> ExitCode 
   }
 }
 
-fn launch(html: String, source: String, profiling: bool, renderer: RendererKind) -> ExitCode {
+fn launch(mut tree: wgpu_html_tree::Tree, source: String, profiling: bool, renderer: RendererKind) -> ExitCode {
+  tree.register_system_fonts("DemoSans");
+  tree.register_font(FontFace::regular("lucide", Arc::from(LUCIDE_FONT)));
+
+  if source.ends_with("devtools.html") {
+    tree.register_linked_stylesheet("devtools.css", include_str!("../html/devtools.css"));
+  }
+
   match renderer {
-    RendererKind::Winit => winit::run(html, source, profiling),
-    RendererKind::Egui => egui::run(html, source, profiling),
+    RendererKind::Winit => winit::run(tree, source, profiling),
+    RendererKind::Egui => egui::run(tree, source, profiling),
   }
 }
 

@@ -1143,6 +1143,18 @@ fn img_html_attrs_respected_after_image_loads() {
   assert_eq!(img.content_rect.w, 64.0, "first pass: width=64");
   assert_eq!(img.content_rect.h, 64.0, "first pass: height=64");
 
+  // Verify the parser correctly parsed width/height attributes
+  let root = tree.root.as_ref().unwrap();
+  let flex_div = &root.children[0];
+  let img_node = &flex_div.children[0];
+  match &img_node.element {
+    wgpu_html_tree::Element::Img(img_el) => {
+      assert_eq!(img_el.width, Some(64), "parsed img.width");
+      assert_eq!(img_el.height, Some(64), "parsed img.height");
+    }
+    _ => panic!("expected Img element"),
+  }
+
   // Wait for the image to load
   std::thread::sleep(std::time::Duration::from_secs(3));
 

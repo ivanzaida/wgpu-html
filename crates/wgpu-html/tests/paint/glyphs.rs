@@ -112,7 +112,7 @@ fn tree_row_painted_glyphs_dont_overlap() {
           </div>
         </body></html>"#,
   );
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
   let list = paint_tree(&tree, 800.0, 600.0);
   let mut rects: Vec<(f32, f32)> = list.glyphs.iter().map(|g| (g.rect.x, g.rect.x + g.rect.w)).collect();
   assert!(!rects.is_empty());
@@ -144,7 +144,7 @@ fn glyphs_fit_within_overflow_hidden_clip() {
            <span>gy0j</span>
          </body>"#,
   );
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
   let list = paint_tree(&tree, 800.0, 600.0);
   assert_glyphs_fit_clips(&list);
 }
@@ -176,7 +176,7 @@ fn glyphs_in_tight_overflow_hidden_flex_row() {
            </div>
          </body></html>"#,
   );
-  wgpu_html_tree::register_system_fonts(&mut tree, "sans-serif");
+  tree.register_system_fonts("sans-serif");
   let list = paint_tree(&tree, 800.0, 600.0);
   assert_glyphs_fit_clips(&list);
 }

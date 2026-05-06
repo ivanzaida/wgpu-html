@@ -4,14 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wgpu-html.workspace = true
-wgpu-html-models.workspace = true
-wgpu-html-parser.workspace = true
-wgpu-html-tree.workspace = true
-wgpu-html-ui.workspace = true
-wgpu-html-renderer.workspace = true
-wgpu-html-text.workspace = true
-wgpu-html-driver-winit     = { path = "../wgpu-html-driver-winit" }
-winit.workspace = true
+wgpu-html-driver          = { path = "../wgpu-html-driver" }
+wgpu-html-tree.workspace  = true
+wgpu-html-ui.workspace    = true
 wgpu-html-events.workspace = true
-wgpu-html-style.workspace = true
+wgpu-html-models.workspace = true

@@ -1,16 +1,26 @@
 mod counter;
 mod text_input;
 
+use std::sync::Arc;
+
+use wgpu_html_driver_winit::{WinitDriver, WindowEvent, dispatch};
 use wgpu_html_models::common::css_enums::*;
+use wgpu_html_tree::Tree;
 use wgpu_html_ui::{
-  App, Component, Ctx, El, ShouldRender, el,
+  Component, Ctx, El, Mount, ShouldRender, el,
   style::{self, px},
+};
+use winit::{
+  application::ApplicationHandler,
+  event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+  window::{Window, WindowId},
 };
 
 use crate::{
   counter::counter::{Counter, CounterProps},
   text_input::TextInput,
 };
+
 // ── Root App Component ──────────────────────────────────────────────────────
 
 struct DemoApp;
@@ -69,15 +79,105 @@ impl Component for DemoApp {
   }
 }
 
+// ── Winit harness ──────────────────────────────────────────────────────────
+
+struct UiDemoApp {
+  driver: WinitDriver,
+  mount: Mount<DemoApp>,
+  devtools: wgpu_html_devtools::Devtools,
+  devtools_driver: Option<WinitDriver>,
+}
+
+impl ApplicationHandler for UiDemoApp {
+  fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
+
+  fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+    if window_id != self.driver.window_id() {
+      if let Some(dd) = &mut self.devtools_driver {
+        if dd.window_id() == window_id {
+          match &event {
+            WindowEvent::CloseRequested => {
+              self.devtools.disable();
+              dd.window().set_visible(false);
+            }
+            WindowEvent::RedrawRequested => {
+              dd.rt.render_frame(self.devtools.tree_mut());
+              self.devtools.frame_rendered();
+            }
+            other => {
+              if dispatch(other, &mut dd.rt, self.devtools.tree_mut()) {
+                dd.request_redraw();
+              }
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    match event {
+      WindowEvent::CloseRequested => event_loop.exit(),
+      WindowEvent::RedrawRequested => {
+        if self.mount.process(&mut self.driver.tree) {
+          self.driver.request_redraw();
+        }
+        self.driver.rt.render_frame(&mut self.driver.tree);
+      }
+      other => {
+        self.driver.handle_event(&other);
+      }
+    }
+  }
+
+  fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    self.devtools.poll(&self.driver.tree);
+
+    if self.devtools.is_enabled() {
+      if self.devtools_driver.is_none() {
+        let attrs = Window::default_attributes()
+          .with_title("DevTools")
+          .with_inner_size(winit::dpi::PhysicalSize::new(1280u32, 720u32));
+        let win = Arc::new(event_loop.create_window(attrs).expect("devtools window"));
+        self.devtools.tree_mut().register_system_fonts("sans-serif");
+        self.devtools_driver = Some(WinitDriver::bind(win, Tree::default()));
+      }
+      if let Some(dd) = &self.devtools_driver {
+        dd.window().set_visible(true);
+        if self.devtools.needs_redraw() {
+          dd.request_redraw();
+        }
+      }
+    } else if let Some(dd) = &self.devtools_driver {
+      dd.window().set_visible(false);
+    }
+  }
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 fn main() {
-  App::new::<DemoApp>(DemoProps)
-    .title("wgpu-html-ui demo")
-    .size(800, 500)
-    .stylesheet("html, body { height: 100%; margin: 0; background: #1a1a1a; }")
-    .stylesheet(include_str!("theme.css"))
-    .with_secondary(|tree| Box::new(wgpu_html_devtools::Devtools::attach(tree, false)))
-    .run()
-    .unwrap();
+  let mut mount = Mount::<DemoApp>::new(DemoProps);
+  let mut tree = Tree::default();
+  tree.register_system_fonts("sans-serif");
+  tree.register_linked_stylesheet("base", "html, body { height: 100%; margin: 0; background: #1a1a1a; }");
+  tree.register_linked_stylesheet("theme", include_str!("theme.css"));
+  mount.render(&mut tree);
+
+  let devtools = wgpu_html_devtools::Devtools::attach(&mut tree, false);
+
+  let event_loop = EventLoop::new().unwrap();
+  let window = Arc::new(
+    event_loop
+      .create_window(
+        Window::default_attributes()
+          .with_title("wgpu-html-ui demo")
+          .with_inner_size(winit::dpi::PhysicalSize::new(800u32, 500u32)),
+      )
+      .unwrap(),
+  );
+  let driver = WinitDriver::bind(window, tree);
+
+  let mut app = UiDemoApp { driver, mount, devtools, devtools_driver: None };
+  event_loop.set_control_flow(ControlFlow::Wait);
+  event_loop.run_app(&mut app).unwrap();
 }

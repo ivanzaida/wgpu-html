@@ -56,6 +56,22 @@ use wgpu_html::{
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Tree};
 
+// ── Secondary window ───────────────────────────────────────────────────────
+
+/// A secondary rendering surface managed alongside the host window.
+///
+/// Platform-agnostic: knows about the [`Tree`] but nothing about
+/// winit/egui/bevy. The host integration is responsible for creating
+/// the actual window, routing platform events, and triggering redraws.
+pub trait SecondaryWindow {
+  /// Process pending state (flags, shared data). Called every frame
+  /// or event-loop iteration by the host.
+  fn poll(&mut self, tree: &Tree);
+
+  /// Whether the secondary window needs a redraw.
+  fn needs_redraw(&self) -> bool;
+}
+
 // ── Driver trait ────────────────────────────────────────────────────────────
 
 /// Bridge between wgpu-html and a platform's windowing/input system.

@@ -3,20 +3,18 @@
 use std::{
   process::ExitCode,
   sync::{
-    Arc,
     atomic::{AtomicUsize, Ordering},
+    Arc,
   },
   time::{Duration, Instant},
 };
 
 use eframe::egui;
 use wgpu_html_driver_egui::EguiRunner;
-use wgpu_html_driver_winit::{register_system_fonts, system_font_variants};
+use wgpu_html_driver_winit::system_font_variants;
 use wgpu_html_tree::Tree;
 
-use crate::winit::install_demo_callbacks;
-
-pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool) -> ExitCode {
+pub(crate) fn run(tree: Tree, doc_source: String, profiling_enabled: bool) -> ExitCode {
   println!("wgpu-html demo:");
   println!("  renderer  ->  egui");
   println!("  doc       ->  {doc_source}");
@@ -38,7 +36,7 @@ pub(crate) fn run(doc_html: String, doc_source: String, profiling_enabled: bool)
   let result = eframe::run_native(
     "wgpu-html egui demo",
     native_options,
-    Box::new(move |_cc| Ok(Box::new(EguiDemoApp::new(doc_html, app_doc_source, profiling_enabled)))),
+    Box::new(move |_cc| Ok(Box::new(EguiDemoApp::new(tree, app_doc_source, profiling_enabled)))),
   );
 
   match result {
@@ -60,11 +58,9 @@ struct EguiDemoApp {
 }
 
 impl EguiDemoApp {
-  fn new(doc_html: String, doc_source: String, profiling_enabled: bool) -> Self {
+  fn new(mut tree: Tree, doc_source: String, profiling_enabled: bool) -> Self {
     let click_count = Arc::new(AtomicUsize::new(0));
-    let mut tree = wgpu_html::parser::parse(&doc_html);
-    register_system_fonts(&mut tree, "DemoSans");
-    install_demo_callbacks(&mut tree, &click_count);
+    tree.register_system_fonts("DemoSans");
 
     // Create a hidden window for the wgpu surface.
     // The EguiRunner needs a surface for Renderer init, but GPU
