@@ -2674,152 +2674,51 @@ fn is_preserved_color_function(v: &str) -> bool {
 }
 
 fn parse_display(value: &str) -> Option<Display> {
-  match value.to_ascii_lowercase().as_str() {
-    "none" => Some(Display::None),
-    "block" => Some(Display::Block),
-    "inline" => Some(Display::Inline),
-    "inline-block" => Some(Display::InlineBlock),
-    "list-item" => Some(Display::ListItem),
-    "flex" => Some(Display::Flex),
-    "inline-flex" => Some(Display::InlineFlex),
-    "grid" => Some(Display::Grid),
-    "inline-grid" => Some(Display::InlineGrid),
-    "table" => Some(Display::Table),
-    "table-caption" => Some(Display::TableCaption),
-    "table-header-group" => Some(Display::TableHeaderGroup),
-    "table-row-group" => Some(Display::TableRowGroup),
-    "table-footer-group" => Some(Display::TableFooterGroup),
-    "table-row" => Some(Display::TableRow),
-    "table-cell" => Some(Display::TableCell),
-    "table-column" => Some(Display::TableColumn),
-    "table-column-group" => Some(Display::TableColumnGroup),
-    "ruby" => Some(Display::Ruby),
-    "ruby-text" => Some(Display::RubyText),
-    "contents" => Some(Display::Contents),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_position(value: &str) -> Option<Position> {
-  match value.to_ascii_lowercase().as_str() {
-    "static" => Some(Position::Static),
-    "relative" => Some(Position::Relative),
-    "absolute" => Some(Position::Absolute),
-    "fixed" => Some(Position::Fixed),
-    "sticky" => Some(Position::Sticky),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_background_clip(value: &str) -> Option<BackgroundClip> {
-  match value.to_ascii_lowercase().as_str() {
-    "border-box" => Some(BackgroundClip::BorderBox),
-    "padding-box" => Some(BackgroundClip::PaddingBox),
-    "content-box" => Some(BackgroundClip::ContentBox),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_background_repeat(value: &str) -> Option<BackgroundRepeat> {
-  match value.to_ascii_lowercase().as_str() {
-    "repeat" => Some(BackgroundRepeat::Repeat),
-    "repeat-x" => Some(BackgroundRepeat::RepeatX),
-    "repeat-y" => Some(BackgroundRepeat::RepeatY),
-    "no-repeat" => Some(BackgroundRepeat::NoRepeat),
-    "space" => Some(BackgroundRepeat::Space),
-    "round" => Some(BackgroundRepeat::Round),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_border_style(value: &str) -> Option<BorderStyle> {
-  match value.to_ascii_lowercase().as_str() {
-    "none" => Some(BorderStyle::None),
-    "hidden" => Some(BorderStyle::Hidden),
-    "solid" => Some(BorderStyle::Solid),
-    "dashed" => Some(BorderStyle::Dashed),
-    "dotted" => Some(BorderStyle::Dotted),
-    "double" => Some(BorderStyle::Double),
-    "groove" => Some(BorderStyle::Groove),
-    "ridge" => Some(BorderStyle::Ridge),
-    "inset" => Some(BorderStyle::Inset),
-    "outset" => Some(BorderStyle::Outset),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_font_weight(value: &str) -> Option<FontWeight> {
-  match value.to_ascii_lowercase().as_str() {
-    "normal" => Some(FontWeight::Normal),
-    "bold" => Some(FontWeight::Bold),
-    "bolder" => Some(FontWeight::Bolder),
-    "lighter" => Some(FontWeight::Lighter),
-    _ => value.parse::<u16>().ok().map(FontWeight::Weight),
-  }
+  value.parse().ok()
 }
 
 fn parse_font_style(value: &str) -> Option<FontStyle> {
-  match value.to_ascii_lowercase().as_str() {
-    "normal" => Some(FontStyle::Normal),
-    "italic" => Some(FontStyle::Italic),
-    "oblique" => Some(FontStyle::Oblique),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_text_align(value: &str) -> Option<TextAlign> {
-  match value.to_ascii_lowercase().as_str() {
-    "left" => Some(TextAlign::Left),
-    "right" => Some(TextAlign::Right),
-    "center" => Some(TextAlign::Center),
-    "justify" => Some(TextAlign::Justify),
-    "start" => Some(TextAlign::Start),
-    "end" => Some(TextAlign::End),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_text_transform(value: &str) -> Option<TextTransform> {
-  match value.to_ascii_lowercase().as_str() {
-    "none" => Some(TextTransform::None),
-    "capitalize" => Some(TextTransform::Capitalize),
-    "uppercase" => Some(TextTransform::Uppercase),
-    "lowercase" => Some(TextTransform::Lowercase),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_white_space(value: &str) -> Option<WhiteSpace> {
-  match value.to_ascii_lowercase().as_str() {
-    "normal" => Some(WhiteSpace::Normal),
-    "nowrap" => Some(WhiteSpace::Nowrap),
-    "pre" => Some(WhiteSpace::Pre),
-    "pre-wrap" => Some(WhiteSpace::PreWrap),
-    "pre-line" => Some(WhiteSpace::PreLine),
-    "break-spaces" => Some(WhiteSpace::BreakSpaces),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_overflow(value: &str) -> Option<Overflow> {
-  match value.to_ascii_lowercase().as_str() {
-    "visible" => Some(Overflow::Visible),
-    "hidden" => Some(Overflow::Hidden),
-    "clip" => Some(Overflow::Clip),
-    "scroll" => Some(Overflow::Scroll),
-    "auto" => Some(Overflow::Auto),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_resize(value: &str) -> Option<Resize> {
-  match value.to_ascii_lowercase().as_str() {
-    "none" => Some(Resize::None),
-    "both" => Some(Resize::Both),
-    "horizontal" => Some(Resize::Horizontal),
-    "vertical" => Some(Resize::Vertical),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_scrollbar_color(value: &str) -> Option<ScrollbarColor> {
@@ -2837,18 +2736,7 @@ fn parse_scrollbar_color(value: &str) -> Option<ScrollbarColor> {
 }
 
 fn parse_scrollbar_width(value: &str) -> Option<ScrollbarWidth> {
-  match value.to_ascii_lowercase().trim() {
-    "auto" => Some(ScrollbarWidth::Auto),
-    "thin" => Some(ScrollbarWidth::Thin),
-    "none" => Some(ScrollbarWidth::None),
-    other => {
-      if let Some(px) = other.strip_suffix("px") {
-        px.trim().parse().ok().map(ScrollbarWidth::Px)
-      } else {
-        None
-      }
-    }
-  }
+  value.parse().ok()
 }
 
 fn apply_overflow_shorthand(value: &str, style: &mut Style) {
@@ -2873,148 +2761,46 @@ fn apply_overflow_shorthand(value: &str, style: &mut Style) {
 }
 
 fn parse_visibility(value: &str) -> Option<Visibility> {
-  match value.to_ascii_lowercase().as_str() {
-    "visible" => Some(Visibility::Visible),
-    "hidden" => Some(Visibility::Hidden),
-    "collapse" => Some(Visibility::Collapse),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_flex_direction(value: &str) -> Option<FlexDirection> {
-  match value.to_ascii_lowercase().as_str() {
-    "row" => Some(FlexDirection::Row),
-    "row-reverse" => Some(FlexDirection::RowReverse),
-    "column" => Some(FlexDirection::Column),
-    "column-reverse" => Some(FlexDirection::ColumnReverse),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_flex_wrap(value: &str) -> Option<FlexWrap> {
-  match value.to_ascii_lowercase().as_str() {
-    "nowrap" => Some(FlexWrap::Nowrap),
-    "wrap" => Some(FlexWrap::Wrap),
-    "wrap-reverse" => Some(FlexWrap::WrapReverse),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_justify_content(value: &str) -> Option<JustifyContent> {
-  match value.to_ascii_lowercase().as_str() {
-    "start" => Some(JustifyContent::Start),
-    "end" => Some(JustifyContent::End),
-    "center" => Some(JustifyContent::Center),
-    "flex-start" => Some(JustifyContent::FlexStart),
-    "flex-end" => Some(JustifyContent::FlexEnd),
-    "left" => Some(JustifyContent::Left),
-    "right" => Some(JustifyContent::Right),
-    "space-between" => Some(JustifyContent::SpaceBetween),
-    "space-around" => Some(JustifyContent::SpaceAround),
-    "space-evenly" => Some(JustifyContent::SpaceEvenly),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_align_items(value: &str) -> Option<AlignItems> {
-  match value.to_ascii_lowercase().as_str() {
-    "normal" => Some(AlignItems::Normal),
-    "stretch" => Some(AlignItems::Stretch),
-    "center" => Some(AlignItems::Center),
-    "start" => Some(AlignItems::Start),
-    "end" => Some(AlignItems::End),
-    "flex-start" => Some(AlignItems::FlexStart),
-    "flex-end" => Some(AlignItems::FlexEnd),
-    "baseline" => Some(AlignItems::Baseline),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_align_content(value: &str) -> Option<AlignContent> {
-  match value.to_ascii_lowercase().as_str() {
-    "normal" => Some(AlignContent::Normal),
-    "stretch" => Some(AlignContent::Stretch),
-    "center" => Some(AlignContent::Center),
-    "start" => Some(AlignContent::Start),
-    "end" => Some(AlignContent::End),
-    "flex-start" => Some(AlignContent::FlexStart),
-    "flex-end" => Some(AlignContent::FlexEnd),
-    "space-between" => Some(AlignContent::SpaceBetween),
-    "space-around" => Some(AlignContent::SpaceAround),
-    "space-evenly" => Some(AlignContent::SpaceEvenly),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_align_self(value: &str) -> Option<AlignSelf> {
-  match value.to_ascii_lowercase().as_str() {
-    "auto" => Some(AlignSelf::Auto),
-    "normal" => Some(AlignSelf::Normal),
-    "stretch" => Some(AlignSelf::Stretch),
-    "center" => Some(AlignSelf::Center),
-    "start" => Some(AlignSelf::Start),
-    "end" => Some(AlignSelf::End),
-    "flex-start" => Some(AlignSelf::FlexStart),
-    "flex-end" => Some(AlignSelf::FlexEnd),
-    "baseline" => Some(AlignSelf::Baseline),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_justify_items(value: &str) -> Option<JustifyItems> {
-  match value.to_ascii_lowercase().as_str() {
-    "normal" => Some(JustifyItems::Normal),
-    "stretch" => Some(JustifyItems::Stretch),
-    "center" => Some(JustifyItems::Center),
-    "start" => Some(JustifyItems::Start),
-    "end" => Some(JustifyItems::End),
-    "flex-start" => Some(JustifyItems::FlexStart),
-    "flex-end" => Some(JustifyItems::FlexEnd),
-    "left" => Some(JustifyItems::Left),
-    "right" => Some(JustifyItems::Right),
-    "baseline" => Some(JustifyItems::Baseline),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_justify_self(value: &str) -> Option<JustifySelf> {
-  match value.to_ascii_lowercase().as_str() {
-    "auto" => Some(JustifySelf::Auto),
-    "normal" => Some(JustifySelf::Normal),
-    "stretch" => Some(JustifySelf::Stretch),
-    "center" => Some(JustifySelf::Center),
-    "start" => Some(JustifySelf::Start),
-    "end" => Some(JustifySelf::End),
-    "flex-start" => Some(JustifySelf::FlexStart),
-    "flex-end" => Some(JustifySelf::FlexEnd),
-    "left" => Some(JustifySelf::Left),
-    "right" => Some(JustifySelf::Right),
-    "baseline" => Some(JustifySelf::Baseline),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 /// `grid-auto-flow: row | column | row dense | column dense | dense`.
 /// `dense` packing isn't honoured at layout time yet; we accept the
 /// keyword for cascade fidelity.
 fn parse_grid_auto_flow(value: &str) -> Option<GridAutoFlow> {
-  let lower = value.to_ascii_lowercase();
-  let tokens: Vec<&str> = lower.split_whitespace().collect();
-  let dense = tokens.iter().any(|t| *t == "dense");
-  let column = tokens.iter().any(|t| *t == "column");
-  match (column, dense) {
-    (true, true) => Some(GridAutoFlow::ColumnDense),
-    (true, false) => Some(GridAutoFlow::Column),
-    (false, true) => Some(GridAutoFlow::RowDense),
-    (false, false) => {
-      // Empty token list is invalid; otherwise default to Row.
-      if tokens.is_empty() {
-        None
-      } else {
-        Some(GridAutoFlow::Row)
-      }
-    }
-  }
+  value.parse().ok()
 }
 
 /// Parse a single grid track size token: `auto`, `<flex>` (`1fr`), or
@@ -3184,27 +2970,7 @@ fn strip_suffix_ci<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
 /// Recognized: `auto`, a positive integer line number, `span <n>`.
 /// Negative line numbers and named lines fall through to `None`.
 fn parse_grid_line(value: &str) -> Option<GridLine> {
-  let trimmed = value.trim();
-  if trimmed.eq_ignore_ascii_case("auto") || trimmed.is_empty() {
-    return Some(GridLine::Auto);
-  }
-  let tokens: Vec<&str> = trimmed.split_whitespace().collect();
-  if tokens.len() == 2 && tokens[0].eq_ignore_ascii_case("span") {
-    if let Ok(n) = tokens[1].parse::<u32>() {
-      if n >= 1 {
-        return Some(GridLine::Span(n));
-      }
-    }
-    return None;
-  }
-  if tokens.len() == 1 {
-    if let Ok(n) = tokens[0].parse::<i32>() {
-      if n != 0 {
-        return Some(GridLine::Line(n));
-      }
-    }
-  }
-  None
+  value.parse().ok()
 }
 
 #[derive(Copy, Clone)]
@@ -3341,49 +3107,17 @@ fn apply_flex_shorthand(value: &str, style: &mut Style) {
 }
 
 fn parse_cursor(value: &str) -> Option<Cursor> {
-  match value.to_ascii_lowercase().as_str() {
-    "auto" => Some(Cursor::Auto),
-    "default" => Some(Cursor::Default),
-    "pointer" => Some(Cursor::Pointer),
-    "text" => Some(Cursor::Text),
-    "move" => Some(Cursor::Move),
-    "not-allowed" => Some(Cursor::NotAllowed),
-    "grab" => Some(Cursor::Grab),
-    "grabbing" => Some(Cursor::Grabbing),
-    "crosshair" => Some(Cursor::Crosshair),
-    "wait" => Some(Cursor::Wait),
-    "help" => Some(Cursor::Help),
-    "progress" => Some(Cursor::Progress),
-    "none" => Some(Cursor::None),
-    "resize" => Some(Cursor::Resize),
-    "col-resize" => Some(Cursor::ColResize),
-    "row-resize" => Some(Cursor::RowResize),
-    _ => Some(Cursor::Raw(value.to_string())),
-  }
+  value.parse().ok()
 }
 
 fn parse_pointer_events(value: &str) -> Option<PointerEvents> {
-  match value.to_ascii_lowercase().as_str() {
-    "auto" => Some(PointerEvents::Auto),
-    "none" => Some(PointerEvents::None),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_user_select(value: &str) -> Option<UserSelect> {
-  match value.to_ascii_lowercase().as_str() {
-    "auto" => Some(UserSelect::Auto),
-    "none" => Some(UserSelect::None),
-    "text" => Some(UserSelect::Text),
-    "all" => Some(UserSelect::All),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_box_sizing(value: &str) -> Option<BoxSizing> {
-  match value.to_ascii_lowercase().as_str() {
-    "content-box" => Some(BoxSizing::ContentBox),
-    "border-box" => Some(BoxSizing::BorderBox),
-    _ => None,
-  }
+  value.parse().ok()
 }

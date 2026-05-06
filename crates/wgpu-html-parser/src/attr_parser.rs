@@ -1003,258 +1003,85 @@ fn parse_bool_attr(value: &str) -> bool {
 }
 
 fn parse_html_direction(value: &str) -> Option<HtmlDirection> {
-  match value.to_ascii_lowercase().as_str() {
-    "ltr" => Some(HtmlDirection::Ltr),
-    "rtl" => Some(HtmlDirection::Rtl),
-    "auto" => Some(HtmlDirection::Auto),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_aria_role(value: &str) -> Option<AriaRole> {
-  match value.to_ascii_lowercase().as_str() {
-    "button" => Some(AriaRole::Button),
-    "checkbox" => Some(AriaRole::Checkbox),
-    "dialog" => Some(AriaRole::Dialog),
-    "link" => Some(AriaRole::Link),
-    "listbox" => Some(AriaRole::Listbox),
-    "menu" => Some(AriaRole::Menu),
-    "menuitem" => Some(AriaRole::Menuitem),
-    "navigation" => Some(AriaRole::Navigation),
-    "option" => Some(AriaRole::Option),
-    "progressbar" => Some(AriaRole::Progressbar),
-    "radio" => Some(AriaRole::Radio),
-    "search" => Some(AriaRole::Search),
-    "slider" => Some(AriaRole::Slider),
-    "status" => Some(AriaRole::Status),
-    "tab" => Some(AriaRole::Tab),
-    "tablist" => Some(AriaRole::Tablist),
-    "textbox" => Some(AriaRole::Textbox),
-    "tooltip" => Some(AriaRole::Tooltip),
-    "tree" => Some(AriaRole::Tree),
-    "treeitem" => Some(AriaRole::Treeitem),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_link_target(value: &str) -> Option<LinkTarget> {
-  match value.to_ascii_lowercase().as_str() {
-    "_blank" => Some(LinkTarget::Blank),
-    "_self" => Some(LinkTarget::SelfTarget),
-    "_parent" => Some(LinkTarget::Parent),
-    "_top" => Some(LinkTarget::Top),
-    "" => None,
-    _ => Some(LinkTarget::Named(value.to_string())),
-  }
+  value.parse().ok()
 }
 
 fn parse_link_as(value: &str) -> Option<LinkAs> {
-  match value.to_ascii_lowercase().as_str() {
-    "audio" => Some(LinkAs::Audio),
-    "document" => Some(LinkAs::Document),
-    "embed" => Some(LinkAs::Embed),
-    "fetch" => Some(LinkAs::Fetch),
-    "font" => Some(LinkAs::Font),
-    "image" => Some(LinkAs::Image),
-    "object" => Some(LinkAs::Object),
-    "script" => Some(LinkAs::Script),
-    "style" => Some(LinkAs::Style),
-    "track" => Some(LinkAs::Track),
-    "video" => Some(LinkAs::Video),
-    "worker" => Some(LinkAs::Worker),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_crossorigin(value: &str) -> Option<CrossOrigin> {
-  match value.to_ascii_lowercase().as_str() {
-    "anonymous" | "" => Some(CrossOrigin::Anonymous),
-    "use-credentials" => Some(CrossOrigin::UseCredentials),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_referrer_policy(value: &str) -> Option<ReferrerPolicy> {
-  match value.to_ascii_lowercase().as_str() {
-    "no-referrer" => Some(ReferrerPolicy::NoReferrer),
-    "no-referrer-when-downgrade" => Some(ReferrerPolicy::NoReferrerWhenDowngrade),
-    "origin" => Some(ReferrerPolicy::Origin),
-    "origin-when-cross-origin" => Some(ReferrerPolicy::OriginWhenCrossOrigin),
-    "same-origin" => Some(ReferrerPolicy::SameOrigin),
-    "strict-origin" => Some(ReferrerPolicy::StrictOrigin),
-    "strict-origin-when-cross-origin" => Some(ReferrerPolicy::StrictOriginWhenCrossOrigin),
-    "unsafe-url" => Some(ReferrerPolicy::UnsafeUrl),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_ol_type(value: &str) -> Option<OlType> {
-  match value {
-    "1" => Some(OlType::Decimal),
-    "a" => Some(OlType::LowerAlpha),
-    "A" => Some(OlType::UpperAlpha),
-    "i" => Some(OlType::LowerRoman),
-    "I" => Some(OlType::UpperRoman),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_loading(value: &str) -> Option<Loading> {
-  match value.to_ascii_lowercase().as_str() {
-    "eager" => Some(Loading::Eager),
-    "lazy" => Some(Loading::Lazy),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_image_decoding(value: &str) -> Option<ImageDecoding> {
-  match value.to_ascii_lowercase().as_str() {
-    "sync" => Some(ImageDecoding::Sync),
-    "async" => Some(ImageDecoding::Async),
-    "auto" => Some(ImageDecoding::Auto),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_preload(value: &str) -> Option<Preload> {
-  match value.to_ascii_lowercase().as_str() {
-    "none" => Some(Preload::None),
-    "metadata" => Some(Preload::Metadata),
-    "auto" | "" => Some(Preload::Auto),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_track_kind(value: &str) -> Option<TrackKind> {
-  match value.to_ascii_lowercase().as_str() {
-    "subtitles" => Some(TrackKind::Subtitles),
-    "captions" => Some(TrackKind::Captions),
-    "descriptions" => Some(TrackKind::Descriptions),
-    "chapters" => Some(TrackKind::Chapters),
-    "metadata" => Some(TrackKind::Metadata),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_svg_length(value: &str) -> Option<SvgLength> {
-  let v = value.trim();
-  if v == "auto" {
-    return Some(SvgLength::Auto);
-  }
-  if let Some(s) = v.strip_suffix("px") {
-    return s.trim().parse::<f32>().ok().map(SvgLength::Px);
-  }
-  if let Some(s) = v.strip_suffix('%') {
-    return s.trim().parse::<f32>().ok().map(SvgLength::Percent);
-  }
-  if let Some(s) = v.strip_suffix("em") {
-    return s.trim().parse::<f32>().ok().map(SvgLength::Em);
-  }
-  if let Some(s) = v.strip_suffix("rem") {
-    return s.trim().parse::<f32>().ok().map(SvgLength::Rem);
-  }
-  // Try as raw number (pixels implied)
-  if let Ok(n) = v.parse::<f32>() {
-    return Some(SvgLength::Px(n));
-  }
-  Some(SvgLength::Raw(value.to_string()))
+  value.parse().ok()
 }
 
 fn parse_table_header_scope(value: &str) -> Option<TableHeaderScope> {
-  match value.to_ascii_lowercase().as_str() {
-    "row" => Some(TableHeaderScope::Row),
-    "col" => Some(TableHeaderScope::Col),
-    "rowgroup" => Some(TableHeaderScope::RowGroup),
-    "colgroup" => Some(TableHeaderScope::ColGroup),
-    "auto" => Some(TableHeaderScope::Auto),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_form_method(value: &str) -> Option<FormMethod> {
-  match value.to_ascii_lowercase().as_str() {
-    "get" => Some(FormMethod::Get),
-    "post" => Some(FormMethod::Post),
-    "dialog" => Some(FormMethod::Dialog),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_form_encoding(value: &str) -> Option<FormEncoding> {
-  match value.to_ascii_lowercase().as_str() {
-    "application/x-www-form-urlencoded" => Some(FormEncoding::UrlEncoded),
-    "multipart/form-data" => Some(FormEncoding::MultipartFormData),
-    "text/plain" => Some(FormEncoding::TextPlain),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_autocomplete(value: &str) -> Option<AutoComplete> {
-  match value.to_ascii_lowercase().as_str() {
-    "on" => Some(AutoComplete::On),
-    "off" => Some(AutoComplete::Off),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_input_type(value: &str) -> Option<InputType> {
-  match value.to_ascii_lowercase().as_str() {
-    "button" => Some(InputType::Button),
-    "checkbox" => Some(InputType::Checkbox),
-    "color" => Some(InputType::Color),
-    "date" => Some(InputType::Date),
-    "datetime-local" => Some(InputType::DatetimeLocal),
-    "email" => Some(InputType::Email),
-    "file" => Some(InputType::File),
-    "hidden" => Some(InputType::Hidden),
-    "image" => Some(InputType::Image),
-    "month" => Some(InputType::Month),
-    "number" => Some(InputType::Number),
-    "password" => Some(InputType::Password),
-    "radio" => Some(InputType::Radio),
-    "range" => Some(InputType::Range),
-    "reset" => Some(InputType::Reset),
-    "search" => Some(InputType::Search),
-    "submit" => Some(InputType::Submit),
-    "tel" => Some(InputType::Tel),
-    "text" => Some(InputType::Text),
-    "time" => Some(InputType::Time),
-    "url" => Some(InputType::Url),
-    "week" => Some(InputType::Week),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_capture_mode(value: &str) -> Option<CaptureMode> {
-  match value.to_ascii_lowercase().as_str() {
-    "user" => Some(CaptureMode::User),
-    "environment" => Some(CaptureMode::Environment),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_textarea_wrap(value: &str) -> Option<TextareaWrap> {
-  match value.to_ascii_lowercase().as_str() {
-    "hard" => Some(TextareaWrap::Hard),
-    "soft" => Some(TextareaWrap::Soft),
-    "off" => Some(TextareaWrap::Off),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_button_type(value: &str) -> Option<ButtonType> {
-  match value.to_ascii_lowercase().as_str() {
-    "button" => Some(ButtonType::Button),
-    "submit" => Some(ButtonType::Submit),
-    "reset" => Some(ButtonType::Reset),
-    _ => None,
-  }
+  value.parse().ok()
 }
 
 fn parse_shadow_root_mode(value: &str) -> Option<ShadowRootMode> {
-  match value.to_ascii_lowercase().as_str() {
-    "open" => Some(ShadowRootMode::Open),
-    "closed" => Some(ShadowRootMode::Closed),
-    _ => None,
-  }
+  value.parse().ok()
 }
