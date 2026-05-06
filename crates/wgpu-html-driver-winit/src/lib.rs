@@ -8,7 +8,7 @@
 //! // In your ApplicationHandler::resumed():
 //! let window = Arc::new(event_loop.create_window(attrs).unwrap());
 //! let tree = wgpu_html_parser::parse(html);
-//! let driver = WinitDriver::bind(window, tree);
+//! let mut driver = WinitDriver::bind(window, tree);
 //!
 //! // In window_event():
 //! driver.handle_event(&event);
@@ -23,7 +23,6 @@ use wgpu_html::layout::Cursor;
 use wgpu_html::PipelineTimings;
 use wgpu_html_driver::{Driver, Runtime};
 use wgpu_html_tree::{Modifier, MouseButton, Tree};
-pub use wgpu_html_tree::{SystemFontVariant, system_font_variants};
 
 pub use winit::{
   event::{KeyEvent, WindowEvent},
@@ -78,6 +77,21 @@ impl WinitDriver {
     }
   }
 
+  /// Dispatch an event into an external tree (not the driver's own).
+  /// Used for secondary windows (e.g. devtools) where the runtime
+  /// belongs to this driver but the tree lives elsewhere.
+  ///
+  /// Returns `true` if the caller should request a redraw.
+  pub fn dispatch_to(&mut self, event: &WindowEvent, tree: &mut Tree) -> bool {
+    dispatch(event, &mut self.rt, tree)
+  }
+
+  /// Render an external tree (not the driver's own).
+  /// Returns pipeline timings.
+  pub fn render(&mut self, tree: &mut Tree) -> PipelineTimings {
+    self.rt.render_frame(tree)
+  }
+
   // ── Tree access ──────────────────────────────────────────────
 
   pub fn tree(&self) -> &Tree {
@@ -102,15 +116,6 @@ impl WinitDriver {
     self.rt.driver.window.request_redraw();
   }
 
-  // ── Runtime access (advanced) ────────────────────────────────
-
-  pub fn runtime(&self) -> &Runtime<WgpuHtml> {
-    &self.rt
-  }
-
-  pub fn runtime_mut(&mut self) -> &mut Runtime<WgpuHtml> {
-    &mut self.rt
-  }
 }
 
 // ── Internal Driver impl ───────────────────────────────────────────────────
@@ -146,7 +151,7 @@ impl Driver for WgpuHtml {
 
 // ── Event dispatch (internal) ──────────────────────────────────────────────
 
-pub fn dispatch(event: &WindowEvent, rt: &mut Runtime<WgpuHtml>, tree: &mut Tree) -> bool {
+fn dispatch(event: &WindowEvent, rt: &mut Runtime<WgpuHtml>, tree: &mut Tree) -> bool {
   match event {
     WindowEvent::Resized(size) => {
       rt.on_resize(tree, size.width, size.height);
@@ -215,9 +220,9 @@ pub fn dispatch(event: &WindowEvent, rt: &mut Runtime<WgpuHtml>, tree: &mut Tree
   }
 }
 
-// ── Type translators (public — useful for custom event handling) ───────────
+// ── Type translators ───────────────────────────────────────────────────────
 
-pub fn mouse_button(button: WinitMouseButton) -> MouseButton {
+fn mouse_button(button: WinitMouseButton) -> MouseButton {
   match button {
     WinitMouseButton::Left => MouseButton::Primary,
     WinitMouseButton::Right => MouseButton::Secondary,
@@ -228,7 +233,7 @@ pub fn mouse_button(button: WinitMouseButton) -> MouseButton {
   }
 }
 
-pub fn keycode_to_modifier(key: KeyCode) -> Option<Modifier> {
+fn keycode_to_modifier(key: KeyCode) -> Option<Modifier> {
   Some(match key {
     KeyCode::ControlLeft | KeyCode::ControlRight => Modifier::Ctrl,
     KeyCode::ShiftLeft | KeyCode::ShiftRight => Modifier::Shift,
@@ -238,7 +243,7 @@ pub fn keycode_to_modifier(key: KeyCode) -> Option<Modifier> {
   })
 }
 
-pub fn extract_key_parts(event: &KeyEvent) -> (String, String, Option<String>) {
+fn extract_key_parts(event: &KeyEvent) -> (String, String, Option<String>) {
   let code_str = match event.physical_key {
     PhysicalKey::Code(key) => keycode_to_dom_code(key),
     PhysicalKey::Unidentified(_) => "Unidentified",
@@ -252,7 +257,7 @@ pub fn extract_key_parts(event: &KeyEvent) -> (String, String, Option<String>) {
   (key_str, code_str.to_string(), text)
 }
 
-pub fn update_modifiers(tree: &mut Tree, event: &KeyEvent) {
+fn update_modifiers(tree: &mut Tree, event: &KeyEvent) {
   if let PhysicalKey::Code(key) = event.physical_key {
     if let Some(modifier) = keycode_to_modifier(key) {
       let down = event.state == ElementState::Pressed;
@@ -261,7 +266,7 @@ pub fn update_modifiers(tree: &mut Tree, event: &KeyEvent) {
   }
 }
 
-pub fn keycode_to_dom_code(key: KeyCode) -> &'static str {
+fn keycode_to_dom_code(key: KeyCode) -> &'static str {
   use KeyCode::*;
   match key {
     KeyA => "KeyA", KeyB => "KeyB", KeyC => "KeyC", KeyD => "KeyD",
@@ -298,7 +303,7 @@ pub fn keycode_to_dom_code(key: KeyCode) -> &'static str {
   }
 }
 
-pub fn wheel_delta_to_pixels(delta: MouseScrollDelta, scale: f32) -> f32 {
+fn wheel_delta_to_pixels(delta: MouseScrollDelta, scale: f32) -> f32 {
   match delta {
     MouseScrollDelta::LineDelta(_x, y) => -y * 48.0 * scale,
     MouseScrollDelta::PixelDelta(pos) => -pos.y as f32,

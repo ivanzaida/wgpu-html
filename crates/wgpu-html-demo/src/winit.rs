@@ -15,7 +15,7 @@ use std::{
 };
 
 use wgpu_html_devtools::Devtools;
-use wgpu_html_driver_winit::{dispatch, system_font_variants, WinitDriver};
+use wgpu_html_driver_winit::WinitDriver;
 use wgpu_html_tree::Tree;
 use winit::{
   application::ApplicationHandler,
@@ -477,11 +477,11 @@ impl ApplicationHandler for DemoApp {
               dd.window().set_visible(false);
             }
             WindowEvent::RedrawRequested => {
-              dd.rt.render_frame(devtools.tree_mut());
+              dd.render(devtools.tree_mut());
               devtools.frame_rendered();
             }
             other => {
-              if dispatch(other, &mut dd.rt, devtools.tree_mut()) {
+              if dd.dispatch_to(other, devtools.tree_mut()) {
                 dd.request_redraw();
               }
             }
@@ -629,7 +629,7 @@ pub(crate) fn run(mut tree: Tree, doc_source: String, profiling_enabled: bool) -
   println!("  F11  →  toggle devtools");
   println!("  Esc  →  quit");
   println!("  doc  →  {doc_source}");
-  if system_font_variants().is_empty() {
+  if tree.fonts.is_empty() {
     eprintln!("demo: no system font found — text will render as zero-size");
   }
   if profiling_enabled {
@@ -659,7 +659,7 @@ pub(crate) fn run(mut tree: Tree, doc_source: String, profiling_enabled: bool) -
   let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
 
   let mut driver = WinitDriver::bind(window, tree);
-  driver.runtime_mut().profiling.enabled = profiling_enabled;
+  driver.rt.profiling.enabled = profiling_enabled;
 
   let mut app = DemoApp::new(driver, profiling_enabled, devtools);
   event_loop.set_control_flow(ControlFlow::Wait);

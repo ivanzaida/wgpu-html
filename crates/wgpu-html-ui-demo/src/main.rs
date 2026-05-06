@@ -3,7 +3,7 @@ mod text_input;
 
 use std::sync::Arc;
 
-use wgpu_html_driver_winit::{WinitDriver, WindowEvent, dispatch};
+use wgpu_html_driver_winit::{WinitDriver, WindowEvent};
 use wgpu_html_models::common::css_enums::*;
 use wgpu_html_tree::Tree;
 use wgpu_html_ui::{
@@ -101,11 +101,11 @@ impl ApplicationHandler for UiDemoApp {
               dd.window().set_visible(false);
             }
             WindowEvent::RedrawRequested => {
-              dd.rt.render_frame(self.devtools.tree_mut());
+              dd.render(self.devtools.tree_mut());
               self.devtools.frame_rendered();
             }
             other => {
-              if dispatch(other, &mut dd.rt, self.devtools.tree_mut()) {
+              if dd.dispatch_to(other, self.devtools.tree_mut()) {
                 dd.request_redraw();
               }
             }

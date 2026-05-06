@@ -11,14 +11,13 @@ use std::{
 
 use eframe::egui;
 use wgpu_html_driver_egui::EguiRunner;
-use wgpu_html_driver_winit::system_font_variants;
 use wgpu_html_tree::Tree;
 
 pub(crate) fn run(tree: Tree, doc_source: String, profiling_enabled: bool) -> ExitCode {
   println!("wgpu-html demo:");
   println!("  renderer  ->  egui");
   println!("  doc       ->  {doc_source}");
-  if system_font_variants().is_empty() {
+  if tree.fonts.is_empty() {
     eprintln!("demo: no system font found — text will render as zero-size");
   }
   if profiling_enabled {
