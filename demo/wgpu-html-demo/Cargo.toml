@@ -9,8 +9,8 @@ wgpu-html-models.workspace   = true
 wgpu-html-style.workspace    = true
 wgpu-html-text.workspace     = true
 wgpu-html-tree.workspace     = true
-wgpu-html-driver-winit       = { path = "../wgpu-html-driver-winit" }
-wgpu-html-driver-egui        = { path = "../wgpu-html-driver-egui" }
+wgpu-html-driver-winit       = { path = "../../drivers/wgpu-html-driver-winit" }
+wgpu-html-driver-egui        = { path = "../../drivers/wgpu-html-driver-egui" }
 wgpu-html-devtools.workspace = true
 winit.workspace              = true
 egui.workspace               = true

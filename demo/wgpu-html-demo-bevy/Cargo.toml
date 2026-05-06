@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wgpu-html-driver-bevy  = { path = "../wgpu-html-driver-bevy" }
-wgpu-html-devtools     = { path = "../wgpu-html-devtools" }
+wgpu-html-driver-bevy  = { path = "../../drivers/wgpu-html-driver-bevy" }
+wgpu-html-devtools     = { path = "../../crates/wgpu-html-devtools" }
 wgpu-html.workspace    = true
-wgpu-html-renderer     = { path = "../wgpu-html-renderer" }
-wgpu-html-text         = { path = "../wgpu-html-text" }
+wgpu-html-renderer     = { path = "../../crates/wgpu-html-renderer" }
+wgpu-html-text         = { path = "../../crates/wgpu-html-text" }
 pollster.workspace     = true
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",

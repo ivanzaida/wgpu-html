@@ -6,9 +6,9 @@ edition = "2024"
 [dependencies]
 wgpu-html.workspace       = true
 wgpu-html-driver           = { path = "../wgpu-html-driver" }
-wgpu-html-renderer         = { path = "../wgpu-html-renderer" }
-wgpu-html-text             = { path = "../wgpu-html-text" }
-wgpu-html-tree             = { path = "../wgpu-html-tree" }
-wgpu-html-parser           = { path = "../wgpu-html-parser" }
+wgpu-html-renderer         = { path = "../../crates/wgpu-html-renderer" }
+wgpu-html-text             = { path = "../../crates/wgpu-html-text" }
+wgpu-html-tree             = { path = "../../crates/wgpu-html-tree" }
+wgpu-html-parser           = { path = "../../crates/wgpu-html-parser" }
 bevy                       = { version = "0.15", default-features = false, features = ["bevy_winit", "bevy_render", "bevy_asset", "bevy_ui"] }
 pollster.workspace         = true

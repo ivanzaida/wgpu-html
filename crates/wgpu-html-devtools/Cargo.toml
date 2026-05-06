@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wgpu-html-driver          = { path = "../wgpu-html-driver" }
+wgpu-html-driver          = { path = "../../drivers/wgpu-html-driver" }
 wgpu-html-tree.workspace  = true
 wgpu-html-ui.workspace    = true
 wgpu-html-events.workspace = true

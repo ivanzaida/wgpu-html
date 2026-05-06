@@ -12,5 +12,5 @@ wgpu-html-ui.workspace       = true
 wgpu-html-models.workspace   = true
 wgpu-html-tree.workspace     = true
 wgpu-html-devtools.workspace = true
-wgpu-html-driver-winit       = { path = "../wgpu-html-driver-winit" }
+wgpu-html-driver-winit       = { path = "../../drivers/wgpu-html-driver-winit" }
 winit.workspace               = true
