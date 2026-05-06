@@ -355,3 +355,193 @@ fn ua_form_font_initial_resets_inherited_text_styles() {
   ));
   assert!(matches!(input.text_align, Some(TextAlign::Start)));
 }
+
+// ── Advanced selector tests ───────────────────────────────────────────────
+// These verify that the cascade delegates to query.rs's full CSS4 matching.
+
+#[test]
+fn cascade_child_combinator() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      .parent > .child { width: 42px; }
+    </style>
+    <div class="parent">
+      <div class="child" id="direct"></div>
+      <div>
+        <div class="child" id="nested"></div>
+      </div>
+    </div>
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let direct = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("direct"))).unwrap();
+  let nested = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("nested"))).unwrap();
+  assert!(matches!(direct.width, Some(CssLength::Px(v)) if (v - 42.0).abs() < 0.01));
+  assert!(nested.width.is_none());
+}
+
+#[test]
+fn cascade_adjacent_sibling_combinator() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      .a + .b { height: 10px; }
+    </style>
+    <div>
+      <div class="a"></div>
+      <div class="b" id="adjacent"></div>
+      <div class="b" id="nonadjacent"></div>
+    </div>
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let adj = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("adjacent"))).unwrap();
+  let nonadj = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("nonadjacent"))).unwrap();
+  assert!(matches!(adj.height, Some(CssLength::Px(v)) if (v - 10.0).abs() < 0.01));
+  assert!(nonadj.height.is_none());
+}
+
+#[test]
+fn cascade_general_sibling_combinator() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      .a ~ .c { width: 5px; }
+    </style>
+    <div>
+      <div class="a"></div>
+      <div class="b"></div>
+      <div class="c" id="sib"></div>
+    </div>
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let sib = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("sib"))).unwrap();
+  assert!(matches!(sib.width, Some(CssLength::Px(v)) if (v - 5.0).abs() < 0.01));
+}
+
+#[test]
+fn cascade_nth_child_pseudo_class() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      .list > div:nth-child(2) { width: 99px; }
+    </style>
+    <div class="list">
+      <div id="first"></div>
+      <div id="second"></div>
+      <div id="third"></div>
+    </div>
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let first = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("first"))).unwrap();
+  let second = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("second"))).unwrap();
+  let third = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("third"))).unwrap();
+  assert!(first.width.is_none());
+  assert!(matches!(second.width, Some(CssLength::Px(v)) if (v - 99.0).abs() < 0.01));
+  assert!(third.width.is_none());
+}
+
+#[test]
+fn cascade_not_pseudo_class() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      div:not(.skip) { height: 77px; }
+    </style>
+    <div id="yes"></div>
+    <div id="no" class="skip"></div>
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let yes = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("yes"))).unwrap();
+  let no = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("no"))).unwrap();
+  assert!(matches!(yes.height, Some(CssLength::Px(v)) if (v - 77.0).abs() < 0.01));
+  assert!(no.height.is_none());
+}
+
+#[test]
+fn cascade_is_pseudo_class() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      :is(.a, .b) { width: 11px; }
+    </style>
+    <div class="a" id="a"></div>
+    <div class="b" id="b"></div>
+    <div class="c" id="c"></div>
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let a = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("a"))).unwrap();
+  let b = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("b"))).unwrap();
+  let c = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("c"))).unwrap();
+  assert!(matches!(a.width, Some(CssLength::Px(v)) if (v - 11.0).abs() < 0.01));
+  assert!(matches!(b.width, Some(CssLength::Px(v)) if (v - 11.0).abs() < 0.01));
+  assert!(c.width.is_none());
+}
+
+#[test]
+fn cascade_attribute_selector() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      input[type="hidden"] { display: none; }
+    </style>
+    <input type="hidden" id="h">
+    <input type="text" id="t">
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let hidden = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("h"))).unwrap();
+  let text = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("t"))).unwrap();
+  assert!(matches!(hidden.display, Some(Display::None)));
+  assert!(!matches!(text.display, Some(Display::None)));
+}
+
+#[test]
+fn cascade_disabled_pseudo_class() {
+  let tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      input:disabled { width: 50px; }
+    </style>
+    <input disabled id="dis">
+    <input id="en">
+    "#,
+  );
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let dis = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("dis"))).unwrap();
+  let en = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("en"))).unwrap();
+  assert!(matches!(dis.width, Some(CssLength::Px(v)) if (v - 50.0).abs() < 0.01));
+  assert!(en.width.is_none());
+}
+
+#[test]
+fn cascade_focus_within_pseudo_class() {
+  let mut tree = wgpu_html_parser::parse(
+    r#"
+    <style>
+      .container:focus-within { width: 200px; }
+    </style>
+    <div class="container" id="c">
+      <input id="inp">
+    </div>
+    "#,
+  );
+  tree.interaction.focus_path = Some(vec![0, 0]);
+  let cascaded = cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  let container = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("c"))).unwrap();
+  assert!(matches!(container.width, Some(CssLength::Px(v)) if (v - 200.0).abs() < 0.01));
+}

@@ -4,7 +4,7 @@ title: CSS Roadmap
 
 # CSS Roadmap — What's Missing
 
-> **Date:** 2026-05-04
+> **Date:** 2026-05-07
 > Companion to the [Implementation Status](/docs/status) page. This doc lists every CSS feature gap, organized by implementation priority.
 
 ---
@@ -13,26 +13,26 @@ title: CSS Roadmap
 
 These must be built from scratch to claim CSS feature parity.
 
-### Selectors in cascade
+### ~~Selectors in cascade~~ ✅ DONE
 
-The stylesheet parser (`stylesheet.rs:441`) drops any rule containing combinators beyond descendant (` `). The query engine (`query.rs`) supports the full CSS Level 4 selector suite — all 4 combinators, 20+ pseudo-classes, attribute operators — but none of it flows through the cascade.
+The cascade delegates to `query.rs`'s full `ComplexSelector::matches_in_tree()` at `lib.rs:1300`. All CSS Level 4 selectors work:
 
 | Feature | Parser | Query engine | Cascade |
 |---------|--------|-------------|---------|
-| `>`, `+`, `~` combinators | ❌ dropped | ✅ full | ❌ none |
-| `:is()`, `:where()`, `:not()` | ❌ dropped | ✅ full | ❌ none |
-| `:has()` | ❌ dropped | ✅ full (relative selectors) | ❌ none |
-| `:nth-child()`, `:nth-of-type()` | ❌ dropped | ✅ full (+ `of S` syntax) | ❌ none |
-| `:disabled`, `:enabled`, `:checked` | ❌ dropped | ✅ full | ❌ none |
-| `:required`, `:optional`, `:read-only`, `:read-write` | ❌ dropped | ✅ full | ❌ none |
-| `:placeholder-shown` | ❌ dropped | ✅ full | ❌ none |
-| `:focus-within`, `:focus-visible` | ❌ dropped | ✅ full | ❌ none |
-| `:lang()`, `:dir()` | ❌ dropped | ✅ full | ❌ none |
-| `:first-of-type`, `:last-of-type`, `:only-child`, `:empty` | ❌ dropped | ✅ full | ❌ none |
-| Multi-value attrs (`~=`, `\|=`, `^=`, `$=`, `*=`) | ❌ dropped | ✅ full | ❌ none |
-| Case-insensitive attribute flag (`i`) | ❌ dropped | ✅ full | ❌ none |
+| `>`, `+`, `~` combinators | ✅ parsed | ✅ full | ✅ **works** |
+| `:is()`, `:where()`, `:not()` | ✅ parsed | ✅ full | ✅ **works** |
+| `:has()` | ✅ parsed | ✅ full (relative selectors) | ✅ **works** |
+| `:nth-child()`, `:nth-of-type()` | ✅ parsed | ✅ full (+ `of S` syntax) | ✅ **works** |
+| `:disabled`, `:enabled`, `:checked` | ✅ parsed | ✅ full | ✅ **works** |
+| `:required`, `:optional`, `:read-only`, `:read-write` | ✅ parsed | ✅ full | ✅ **works** |
+| `:placeholder-shown` | ✅ parsed | ✅ full | ✅ **works** |
+| `:focus-within` | ✅ parsed | ✅ full | ✅ **works** |
+| `:lang()`, `:dir()` | ✅ parsed | ✅ full | ✅ **works** |
+| `:first-of-type`, `:last-of-type`, `:only-child`, `:empty` | ✅ parsed | ✅ full | ✅ **works** |
+| Multi-value attrs (`~=`, `\|=`, `^=`, `$=`, `*=`) | ✅ parsed | ✅ full | ✅ **works** |
+| Case-insensitive attribute flag (`i`) | ✅ parsed | ✅ full | ✅ **works** |
 
-**Fix:** Replace `stylesheet.rs`'s limited `PseudoClass` enum (6 variants) with `query.rs`'s comprehensive one (30+ variants). Wire `query.rs`'s `ComplexSelector::matches_in_tree()` into the cascade's `matches_compound()`.
+> **Note:** `:focus-visible` requires keyboard-vs-pointer focus origin tracking which is not yet implemented.
 
 ### At-rules
 
@@ -116,9 +116,9 @@ These properties are parsed into the `Style` struct or stored as raw strings, bu
 
 | Property | Parser status | Rendering status |
 |----------|-------------|-----------------|
-| `linear-gradient()` | `CssImage::Function(String)` | Zero pixels — no gradient rasterizer |
-| `radial-gradient()` | `CssImage::Function(String)` | Zero pixels |
-| `conic-gradient()` | `CssImage::Function(String)` | Zero pixels |
+| ~~`linear-gradient()`~~ | ~~`CssImage::Function(String)`~~ | ✅ **Done** — CPU rasterization into image pipeline |
+| ~~`radial-gradient()`~~ | ~~`CssImage::Function(String)`~~ | ✅ **Done** — CPU rasterization into image pipeline |
+| ~~`conic-gradient()`~~ | ~~`CssImage::Function(String)`~~ | ✅ **Done** — CPU rasterization into image pipeline |
 | `outline` | Shorthand → 3 deferred longhands | Never rendered |
 | `text-shadow` | Deferred longhand | Never consumed by paint |
 | `border-image` | Shorthand → 5 deferred longhands | No border-image rendering path |
@@ -142,7 +142,6 @@ These properties are parsed into the `Style` struct or stored as raw strings, bu
 |---------|--------|
 | `revert` keyword | Parsed as token but never applied — only used to skip animation-name parsing |
 | `revert-layer` keyword | Same as `revert` |
-| `:where()` in cascade | Not in cascade `PseudoClass` enum — exists only in query engine |
 | Multiple backgrounds | Not supported — `background-image` is single `Option<CssImage>`, not `Vec` |
 | `z-index` stacking contexts | Sorts siblings by value (3 tests pass), but no independent cross-branch stacking |
 
@@ -188,7 +187,7 @@ These CSS properties have no entry in the parser (`apply_css_property`), `Style`
 
 ## 🟢 What works
 
-CSS-Cascade-3 ordering with specificity, `!important` band separation, `inherit`/`initial`/`unset` keywords, `@media` queries (width/height/orientation), `calc()`/`min()`/`max()`/`clamp()` with full AST, `var()`/custom properties with inheritance and cycle detection, complete Flexbox Level 1, complete CSS Grid, positioned layout (absolute/relative/fixed), full querySelector engine (CSS Level 4 selectors), 80+ parsed CSS properties with typed resolution.
+CSS-Cascade-3 ordering with specificity, `!important` band separation, `inherit`/`initial`/`unset` keywords, `@media` queries (width/height/orientation), full CSS Level 4 selectors in cascade (all combinators, 30+ pseudo-classes, attribute operators, `:is`/`:where`/`:not`/`:has`), `calc()`/`min()`/`max()`/`clamp()` with full AST, `var()`/custom properties with inheritance and cycle detection, complete Flexbox Level 1, complete CSS Grid, positioned layout (absolute/relative/fixed), 80+ parsed CSS properties with typed resolution, CSS gradients (`linear-gradient`, `radial-gradient`, `conic-gradient` + repeating variants).
 
 ---
 
@@ -198,9 +197,9 @@ The shortest path to "full CSS producer-grade engine":
 
 | Priority | Task | Impact |
 |----------|------|--------|
-| 1 | Port query engine selectors into cascade (`:is`, `:where`, `:not`, `:nth-child`, `:checked`, `:disabled`, combinators, attribute operators) | Unlocks ~50% of modern CSS in one change |
+| ~~1~~ | ~~Port query engine selectors into cascade~~ | ✅ **Done** — cascade already delegates to query.rs's full CSS4 matching |
 | 2 | Implement `currentColor` resolution | Fixes invisible borders, text decorations, etc. |
-| 3 | Build gradient rasterizer (linear + radial + conic) | Background images become visually useful |
+| ~~3~~ | ~~Build gradient rasterizer (linear + radial + conic)~~ | ✅ **Done** — `linear-gradient`, `radial-gradient`, `conic-gradient` + repeating variants |
 | 4 | Implement `@keyframes` + animation engine | Motion design becomes possible |
 | 5 | Float layout | Required for text-wrap-around-images layouts |
 | 6 | Table layout algorithm | Required for data tables |

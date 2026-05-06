@@ -157,6 +157,111 @@ The URL can be:
 
 Images are loaded asynchronously by the layout crate, cached with TTL and byte-budget eviction, and rendered through the image pipeline. Supported formats include PNG, JPEG, GIF (including animated), and WebP.
 
+## CSS Gradients
+
+All three CSS gradient types are supported as `background-image` values, including their `repeating-*` variants. Gradients are rasterized to RGBA pixel buffers at layout time and rendered through the existing image pipeline.
+
+### `linear-gradient()`
+
+```css
+/* Direction keywords */
+background: linear-gradient(to right, red, blue);
+background: linear-gradient(to bottom right, #ff6b6b, #feca57);
+
+/* Angle */
+background: linear-gradient(45deg, #a29bfe, #fd79a8);
+background: linear-gradient(0.5turn, white, black);
+
+/* Multiple color stops with positions */
+background: linear-gradient(to right, #00b894 0%, #0984e3 50%, #6c5ce7 100%);
+
+/* Default direction is "to bottom" */
+background: linear-gradient(red, blue);
+```
+
+Supported direction formats:
+- `to top`, `to bottom`, `to left`, `to right` and diagonal combinations (`to top right`, etc.)
+- Angles: `deg`, `rad`, `turn`, `grad`
+
+### `radial-gradient()`
+
+```css
+/* Default: ellipse farthest-corner at center */
+background: radial-gradient(white, black);
+
+/* Circle */
+background: radial-gradient(circle, #fdcb6e, #e17055);
+
+/* Custom center position */
+background: radial-gradient(circle at 30% 70%, #74b9ff, #0984e3);
+
+/* Size keywords */
+background: radial-gradient(circle closest-side, #55efc4, #00b894);
+background: radial-gradient(ellipse farthest-corner at 70% 30%, #fab1a0, #e17055);
+
+/* Explicit size */
+background: radial-gradient(circle 100px, red, blue);
+```
+
+Shape keywords: `circle`, `ellipse` (default).
+Size keywords: `closest-side`, `farthest-side`, `closest-corner`, `farthest-corner` (default).
+
+### `conic-gradient()`
+
+```css
+/* Rainbow wheel */
+background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+
+/* Start angle */
+background: conic-gradient(from 45deg, #ff6348, #ffa502, #2ed573, #1e90ff, #ff6348);
+
+/* Custom center */
+background: conic-gradient(at 30% 70%, #e17055, #fdcb6e, #55efc4, #e17055);
+```
+
+### `repeating-*` variants
+
+```css
+/* Diagonal stripes */
+background: repeating-linear-gradient(45deg, #e17055 0px, #e17055 10px, #fdcb6e 10px, #fdcb6e 20px);
+
+/* Concentric rings */
+background: repeating-radial-gradient(circle, #2d3436 0px, #2d3436 10px, #636e72 10px, #636e72 20px);
+
+/* Pinwheel */
+background: repeating-conic-gradient(#e17055 0deg, #fdcb6e 30deg, #55efc4 60deg);
+```
+
+### Color stops
+
+Color stops support all CSS color formats (named, hex, `rgb()`, `rgba()`, `hsl()`, `hsla()`, `transparent`) with optional position in `%` or `px`:
+
+```css
+background: linear-gradient(to right, red 0%, green 50%, blue 100%);
+background: repeating-linear-gradient(90deg, red 0px, blue 20px);
+```
+
+Stops without explicit positions are distributed evenly between their neighbors.
+
+### Gradients with other background properties
+
+Gradients interact with `background-size`, `background-position`, `background-repeat`, and `background-clip`:
+
+```css
+.tiled-gradient {
+  background-image: linear-gradient(red, blue);
+  background-size: 50px 50px;
+  background-repeat: repeat;
+}
+
+.clipped-gradient {
+  background: radial-gradient(circle, white, navy);
+  background-clip: padding-box;
+  border-radius: 12px;
+  border: 4px solid transparent;
+}
+```
+
 ## `background-repeat`
 
 Controls tiling of the background image:
@@ -221,13 +326,33 @@ This ensures that color blending, opacity compositing, and anti-aliasing produce
 }
 ```
 
+### Gradient Card
+
+```css
+.card {
+  background: linear-gradient(145deg, #2d3436, #636e72);
+  border-radius: 12px;
+  padding: 24px;
+  color: white;
+}
+```
+
+### Gradient Button
+
+```css
+.btn {
+  background: linear-gradient(to right, #f093fb, #f5576c);
+  border-radius: 24px;
+  padding: 12px 32px;
+  color: white;
+}
+```
+
 ### Hero Section
 
 ```css
 .hero {
-  background-color: #1a1a2e;
-  background-image: url("hero-overlay.png");
-  background-repeat: no-repeat;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
   padding: 80px 24px;
 }

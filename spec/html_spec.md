@@ -210,18 +210,15 @@ Lines changed: ~80 in `crates/wgpu-html-tree/src/dispatch.rs`
 
 ## P4 — Remaining Rendering Gaps
 
-### P4-1: Gradients (`linear-gradient`, `radial-gradient`, `conic-gradient`)
-Lines changed: ~400 in `crates/wgpu-html-renderer/src/` (new gradient pipeline or quad shader extension)
+### P4-1: Gradients (`linear-gradient`, `radial-gradient`, `conic-gradient`) ✅ DONE
 
 | Item | Status |
 |---|---|
-| Parse gradient color stops and directions into typed structs | ❌ |
-| Layout: precompute gradient tile rects (like `background-image` tiles) | ❌ |
-| Render: GPU gradient via SDF or procedural shader | ❌ |
+| Parse gradient color stops and directions into typed structs | ✅ |
+| Layout: rasterize gradient to RGBA texture, feed into image pipeline | ✅ |
+| Render: CPU rasterization → existing image pipeline (no shader changes) | ✅ |
 
-**Why:** Gradients are extremely common in modern CSS. Currently parsed as opaque `CssImage::Function(String)` and skipped.
-
-**Depends on:** nothing — new renderer feature.
+All three gradient types + `repeating-*` variants. ~500 lines in `crates/wgpu-html-layout/src/gradient.rs`.
 
 ---
 
@@ -403,10 +400,10 @@ Lines changed: ~100 in `crates/wgpu-html-layout/src/flex.rs`
 | **P2** | Selector combinators + pseudo-classes in cascade | 200 | query engine (exists) |
 | **P2** | `:focus-within`, `:disabled` in cascade | 50 | P2-1 |
 | **P2** | `@media` at-rule | ✅ Done | — |
-| **P3** | Checkbox/radio toggle | 40 | none |
+| **P3** | Checkbox/radio toggle | ✅ Done | — |
 | **P3** | `<select>` dropdown | 500 | P0-2 |
-| **P3** | Form submission | 80 | none |
-| **P4** | Gradients | 400 | none |
+| **P3** | Form submission | ✅ Done | — |
+| **P4** | Gradients | ✅ Done | — |
 | **P4** | `box-shadow` | 200 | none |
 | **P4** | `transform` (2D) | 200 | none |
 | **P4** | `filter` | 150 | none |
@@ -414,8 +411,8 @@ Lines changed: ~100 in `crates/wgpu-html-layout/src/flex.rs`
 | **P5** | Whitespace text preservation | 20 | none |
 | **P5** | `<link>` stylesheet loading | 150 | HTTP/file I/O |
 | **P6** | Cursor styling | 30 | none |
-| **P6** | `preventDefault`/`stopPropagation` | 100 | none |
-| **P6** | Double-click synthesis | 50 | none |
+| **P6** | `preventDefault`/`stopPropagation` | ✅ Done | — |
+| **P6** | Double-click synthesis | ✅ Done | — |
 | **P7** | `em`/`rem` font-size resolution | 30 | none |
 | **P7** | Flex baseline alignment | 100 | ascent tracking |
 | **Total** | | **~3,700** | |

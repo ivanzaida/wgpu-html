@@ -171,8 +171,8 @@ Full image support lives in `wgpu-html-layout` and `wgpu-html-renderer`.
 Covered:
 
 - `<img>` with CSS `width` / `height` or HTML attribute sizing
-- `background-image` (URL-backed; function images e.g. `linear-gradient`
-  are still not painted)
+- `background-image` (URL-backed + CSS gradients: `linear-gradient`,
+  `radial-gradient`, `conic-gradient` and `repeating-*` variants)
 - Schemes: `http(s)://` (ureq + rustls, redirect-following, retry with
   exponential backoff), `data:` URIs (base64 + percent-encoded), and
   local filesystem paths
@@ -434,18 +434,12 @@ M-INTER-6 (re-cascade caching).
   click; arrow keys / Home / End for caret movement
 - `pointer-events: none` and `overflow`-clip in hit testing (M-INTER-2)
 - Double-click / triple-click / context-menu / aux-click synthesis
-- `Wheel` event forwarding to element `on_event` callbacks
 - Re-cascade caching, hover-path stickiness across reflow (M-INTER-6)
 - CSS `transform` (layout and hit-test impact)
-- `z-index` and stacking contexts
+- `z-index` stacking contexts (sibling sort done, cross-branch ordering not yet)
 - `@font-face` (generic-family fallback in `FontRegistry::find_first`
   is already shipped)
-  `@font-face` (generic-family fallback in `FontRegistry::find_first`
-  is already shipped)
-- `@media` queries (re-cascade on resize)
 - `clip-path` / SDF non-rectangular clips
-- `wgpu-html-profiler` crate with ring-buffer history, GPU timing, and
-  trace export (see `spec/profiler.md`)
 - `wgpu-html-devtools` inspector crate (partially built — component tree browser, styles inspector, breadcrumb bar exist; self-hosted panel not yet)
 - Render-loop hooks for engine-side animation (no JS; timeline-driven)
 

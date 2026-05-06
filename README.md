@@ -4,7 +4,7 @@ GPU-accelerated HTML/CSS renderer for Rust, built on [wgpu](https://github.com/g
 
 ## Status
 
-Active development. Core pipeline is functional: full HTML5 parsing, CSS cascade with `@media`, Flexbox + Grid layout, inline text with shaping, GPU rendering (quads, glyphs, images), mouse+keyboard interactivity, text editing, text selection, scrolling, and a component framework (`wgpu-html-ui`). Some CSS features are missing (see [full status](./docs/full-status.md)).
+Active development. Core pipeline is functional: full HTML5 parsing, CSS cascade with `@media`, Flexbox + Grid layout, inline text with shaping, GPU rendering (quads, glyphs, images, gradients), mouse+keyboard interactivity, text editing, text selection, scrolling, and a component framework (`wgpu-html-ui`). Some CSS features are missing (see [implementation status](https://ivanzaida.github.io/wgpu-html/docs/status)).
 
 ## What it tries to do
 
@@ -40,10 +40,10 @@ let (display_list, layout) = wgpu_html::paint_tree_returning_layout(
 
 ## Documentation
 
-- [Docs site](https://ivanzaida.github.io/wgpu-html/) (also WIP)
-- [Full status](./docs/full-status.md)
-- [Roadmap](./docs/roadmap.md)
-- [vs RmlUI comparison](./docs/wgpu-html-vs-rmlui.md)
+- [Docs site](https://ivanzaida.github.io/wgpu-html/)
+- [Implementation status](https://ivanzaida.github.io/wgpu-html/docs/status)
+- [CSS roadmap](https://ivanzaida.github.io/wgpu-html/docs/css/css-roadmap)
+- [vs RmlUI comparison](https://ivanzaida.github.io/wgpu-html/docs/comparison-wgpu-html-vs-rmlui)
 
 ## License
 

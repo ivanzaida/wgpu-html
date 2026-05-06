@@ -4,7 +4,7 @@ title: Implementation Status
 
 # Implementation Status
 
-> **Date:** 2026-05-04
+> **Date:** 2026-05-07
 > **Scope:** GPU-accelerated HTML/CSS renderer via `wgpu`. **No JavaScript — ever.**
 
 ## Summary Table
@@ -13,7 +13,7 @@ title: Implementation Status
 |---|---|
 | HTML tokenizer + tree builder | ✅ Done (no HTML5 state machine) |
 | CSS declaration parsing (~80+ properties) | ✅ Done |
-| CSS stylesheet / selectors | ✅ Done (tag, id, class, \*, descendant) |
+| CSS stylesheet / selectors | ✅ Done (full CSS4: all combinators, pseudo-classes, attribute selectors) |
 | `!important` | ✅ Done |
 | CSS-wide keywords (inherit/initial/unset) | ✅ Done |
 | `@media` queries | ✅ Done (width/height/orientation, min/max, not) |
@@ -48,7 +48,7 @@ title: Implementation Status
 | Floats | ❌ Not done |
 | Table layout | ❌ Not done (parsed, falls through to block) |
 | display: inline/inline-block (author-set) | ❌ Not done (IFC auto-detected from content) |
-| Gradients | ❌ Not done (parsed as raw string, skipped in layout) |
+| Gradients (linear/radial/conic + repeating) | ✅ Done (CPU rasterization into image pipeline) |
 | box-shadow | ❌ Not done (parsed as raw string, not consumed) |
 | Transforms / transitions / animations | ❌ Not done (parsed as raw string, not consumed) |
 | Opacity | ✅ Done |
@@ -60,8 +60,9 @@ title: Implementation Status
 | Placeholder rendering | ✅ Done |
 | Text editing + caret navigation | ✅ Done (insert, delete, arrow keys, Home/End, Shift-select, word/line click-select) |
 | Checkbox / radio click toggle | ✅ Done (checkboxes, radios, click-to-toggle) |
-| `<select>` dropdown, form submission | ❌ Not done |
-| `:focus-visible` / `:focus-within` / `:disabled` in cascade | ❌ Not done (query engine only) |
+| Form submission (Enter in input, submit button) | ✅ Done |
+| `<select>` dropdown | ❌ Not done |
+| `:focus-visible` in cascade | ❌ Not done (no keyboard-vs-pointer focus tracking) |
 | Pseudo-elements | ❌ Not done |
 | calc() / min() / max() / clamp() | ✅ Done (full AST + evaluation) |
 | var() / custom properties (`--foo`) | ✅ Done (parsed, inherited, recursive substitution, cycle detection) |
@@ -88,7 +89,8 @@ title: Implementation Status
 
 - **Box model:** `display, position, top/right/bottom/left, width, height, min-/max-width/height, box-sizing`
 - **Spacing:** `margin`, `padding` with 1–4-value shorthand + per-side longhands
-- **Backgrounds:** `background-color, background-clip, background-repeat`, `background-image`, `background-size/-position`
+- **Backgrounds:** `background-color, background-clip, background-repeat`, `background-image` (URL + gradients), `background-size/-position`
+- **Gradients:** `linear-gradient()`, `radial-gradient()`, `conic-gradient()` and `repeating-*` variants — parsed and rasterized to RGBA textures at layout time
 - **Borders:** `border` shorthand, per-side `-width/-style/-color` longhands, `border-radius` with elliptical syntax
 - **Typography:** `color, font-family, font-size, font-weight, font-style, line-height, letter-spacing, text-align, text-transform, white-space, text-decoration, vertical-align`
 - **Overflow:** `overflow, overflow-x, overflow-y`
@@ -106,8 +108,8 @@ title: Implementation Status
 - **`!important`** respected in cascade band ordering
 - **Inheritance:** `color, font-family, font-size, font-weight, font-style, line-height, letter-spacing, text-align, text-transform, white-space, text-decoration, visibility`
 - **CSS-wide keywords:** `inherit` / `initial` / `unset` resolved per-property
-- **Selector matching:** tag, `#id`, multi-`.class`, `*`, descendant combinator
-- **Dynamic pseudo-classes:** `:hover`, `:active`, `:focus` via `MatchContext::for_path`
+- **Selector matching:** Full CSS Level 4 — all combinators (descendant, child `>`, adjacent `+`, general sibling `~`), attribute selectors (all 7 operators), logical pseudo-classes (`:is()`, `:where()`, `:not()`, `:has()`), structural pseudo-classes (`:nth-child()`, `:first-child`, `:last-child`, `:empty`, `:root`, etc.), state pseudo-classes (`:disabled`, `:checked`, `:required`, `:placeholder-shown`, etc.)
+- **Dynamic pseudo-classes:** `:hover`, `:active`, `:focus`, `:focus-within` via `InteractionState`
 
 ### Layout Engine
 
@@ -130,7 +132,7 @@ title: Implementation Status
 
 - **Quad pipeline:** Instanced quads with SDF for rounded fill and stroked rings; solid/dashed/dotted borders; patterned ring shader for dashed/dotted on rounded boxes
 - **Glyph pipeline:** Instanced glyph quads, alpha-tested from atlas texture, per-glyph color
-- **Image pipeline:** Textured quads for `<img>` and `background-image`; animated GIF/WebP frame selection
+- **Image pipeline:** Textured quads for `<img>` and `background-image`; animated GIF/WebP frame selection; CSS gradient rasterization
 - **Overflow clipping:** Rectangular scissor + SDF rounded clipping; nested clip intersection; `overflow-x`/`overflow-y` axis independence
 - **Opacity:** inherited multiplicatively, baked into color alpha
 - **Screenshot:** F12 → PNG export; programmatic `capture_to()`/`capture_rect_to()`/`screenshot_node_to()`
@@ -183,11 +185,7 @@ title: Implementation Status
 
 ### CSS Parsing Gaps
 - **No at-rules:** `@supports`, `@import`, `@keyframes`, `@font-face`, `@page` — not handled (`@media` IS handled)
-- **No child/sibling combinators in cascade:** `>`, `+`, `~` not supported (only descendant ` `). Available in query engine only
-- **No attribute selectors in stylesheet parser.** Available in query engine only
-- **No structural/logical pseudo-classes in cascade.** Dynamic `:hover`/`:active`/`:focus` are supported; query engine supports many more including `:nth-child()`, `:has()`, `:not()`, `:is()`, `:where()`
 - `transform`, `transition`, `animation`, `box-shadow` stored as raw `Option<String>` — never structured or applied
-- Gradients parsed into `CssImage::Function(String)` but layout skips them — no gradient pipeline
 - `filter` property silently dropped by parser
 
 ### Layout Gaps
@@ -200,7 +198,6 @@ title: Implementation Status
 
 ### Rendering Gaps
 - No `background-origin`, `background-attachment`, or multi-layer background rendering
-- **No gradients** — parsed and stored but no gradient pipeline or shader
 - **No box-shadow** — parsed but never consumed
 - **No transforms** — parsed as raw string but never flows to LayoutBox or GPU
 - Border styles `double/groove/ridge/inset/outset` render as plain solid
@@ -209,12 +206,8 @@ title: Implementation Status
 
 ### Interactivity Gaps
 - **No `<select>` dropdown** menu rendering or interaction
-- **No form submission** — `Enter` or `<button type="submit">` doesn't synthesise `SubmitEvent`
 - `:focus-visible`, `:focus-within`, `:disabled` not yet matched in cascade (query engine only)
-- No `Wheel` event dispatch to elements
 - No `cursor` styling (property parsed but not applied to OS cursor)
-- No `preventDefault` / `stopPropagation` semantics
-- `InputEvent` not yet emitted on programmatic value changes
 - No `<link>` stylesheet loading (field exists, no HTTP fetch)
 
 ### Explicitly Out of Scope (Forever)
