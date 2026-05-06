@@ -174,6 +174,7 @@ fn forward_input_system(
     mut cursor_events: EventReader<CursorMoved>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut keyboard_events: EventReader<KeyboardInput>,
+    windows: Query<&Window>,
 ) {
     if !overlay.captures_input {
         cursor_events.clear();
@@ -182,12 +183,14 @@ fn forward_input_system(
         return;
     }
 
+    let scale = windows.iter().next().map(|w| w.scale_factor()).unwrap_or(1.0);
     let o = &mut *overlay;
 
     if let Some(pos) = cursor_events.read().last().map(|e| e.position) {
-        o.last_cursor = Some((pos.x, pos.y));
+        let phys = (pos.x * scale, pos.y * scale);
+        o.last_cursor = Some(phys);
         if let Some(layout) = o.pipeline_cache.layout() {
-            interactivity::pointer_move(&mut o.tree, layout, (pos.x, pos.y));
+            interactivity::pointer_move(&mut o.tree, layout, phys);
         }
     }
 

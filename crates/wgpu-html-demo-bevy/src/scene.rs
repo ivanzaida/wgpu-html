@@ -25,27 +25,91 @@ pub fn setup(
     Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
   ));
 
-  // Parse HTML into nodes and append to the overlay tree.
   let parsed = wgpu_html::parser::parse(r#"
-<div id="hud" style="font-family: system-ui, sans-serif; padding: 24px; max-width: 400px;">
-    <div style="
-        background: rgba(15, 15, 35, 0.85);
-        border: 1px solid rgba(100, 120, 255, 0.4);
-        border-radius: 12px; padding: 20px; color: #e0e0e0;
-    ">
-        <h1 style="margin:0 0 12px;font-size:22px;color:#7b8cff;">wgpu-html in Bevy</h1>
-        <p style="margin:0 0 8px;font-size:14px;line-height:1.5;">
-            This HTML panel is rendered by <b style="color:#a0cfff;">wgpu-html</b>
-            into an offscreen texture, then displayed as a Bevy UI image.
-        </p>
-        <p style="margin:0 0 16px;font-size:13px;color:#999;">
-            Press <b style="color:#ccc;">F11</b> to toggle devtools.
-        </p>
-        <div style="display:flex;gap:8px;">
-            <div style="background:#7b8cff;color:#111;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:bold;">Button A</div>
-            <div style="background:transparent;border:1px solid #7b8cff;color:#7b8cff;padding:8px 16px;border-radius:6px;font-size:13px;">Button B</div>
-        </div>
+<style>
+  .hud {
+    font-family: system-ui, sans-serif;
+    padding: 24px;
+    max-width: 400px;
+  }
+  .card {
+    background: rgba(15, 15, 35, 0.85);
+    border: 1px solid rgba(100, 120, 255, 0.4);
+    border-radius: 12px;
+    padding: 20px;
+    color: #e0e0e0;
+  }
+  .card h1 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: #7b8cff;
+  }
+  .card p {
+    margin: 0 0 8px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .card .muted {
+    font-size: 13px;
+    color: #999;
+    margin: 0 0 16px;
+  }
+  .buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .btn:active {
+    transform: scale(0.96);
+  }
+  .btn-primary {
+    background: #7b8cff;
+    color: #111;
+    font-weight: bold;
+  }
+  .btn-primary:hover {
+    background: #95a4ff;
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid #7b8cff;
+    color: #7b8cff;
+  }
+  .btn-outline:hover {
+    background: rgba(123, 140, 255, 0.15);
+    border-color: #95a4ff;
+    color: #95a4ff;
+  }
+  .card {
+    transition: border-color 0.2s;
+  }
+  .card:hover {
+    border-color: rgba(100, 120, 255, 0.7);
+  }
+  b.highlight { color: #a0cfff; }
+  b.key { color: #ccc; }
+</style>
+<div class="hud">
+  <div class="card">
+    <h1>wgpu-html in Bevy</h1>
+    <p>
+      This HTML panel is rendered by <b class="highlight">wgpu-html</b>
+      into an offscreen texture, then displayed as a Bevy UI image.
+    </p>
+    <p class="muted">
+      Press <b class="key">F11</b> to toggle devtools.
+    </p>
+    <div class="buttons">
+      <div class="btn btn-primary">Button A</div>
+      <div class="btn btn-outline">Button B</div>
     </div>
+  </div>
 </div>
 "#);
 
