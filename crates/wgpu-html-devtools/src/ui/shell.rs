@@ -17,6 +17,7 @@ pub type SharedHostTree = Arc<RwLock<Option<Tree>>>;
 // ── Props / Msg ────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct DevtoolsProps {
   pub shared_hover: SharedHoverPath,
   pub shared_pick_mode: SharedPickMode,

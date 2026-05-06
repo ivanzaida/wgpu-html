@@ -80,7 +80,12 @@ fn fetch_bytes(src: &str) -> Option<FetchResponse> {
 
 fn http_agent() -> &'static ureq::Agent {
   static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-  AGENT.get_or_init(|| ureq::AgentBuilder::new().redirects(0).build())
+  AGENT.get_or_init(|| {
+    ureq::Agent::config_builder()
+      .max_redirects(0)
+      .build()
+      .new_agent()
+  })
 }
 
 fn fetch_remote(src: &str) -> Option<FetchResponse> {
@@ -88,19 +93,23 @@ fn fetch_remote(src: &str) -> Option<FetchResponse> {
   let mut current = src.to_string();
   for _ in 0..=MAX_REDIRECTS {
     let resp = agent.get(&current).call().ok()?;
-    let status = resp.status();
+    let status = resp.status().as_u16();
     if (300..400).contains(&status) && status != 304 {
-      let location = resp.header("Location")?;
+      let location = resp.headers().get("Location")?.to_str().ok()?;
       current = resolve_redirect_target(&current, location)?;
       continue;
     }
     if !(200..300).contains(&status) {
       return None;
     }
-    let max_age = parse_cache_control_max_age(resp.header("Cache-Control"))
-      .or_else(|| parse_expires_relative(resp.header("Date"), resp.header("Expires")));
+    let headers = resp.headers();
+    let cache_control = headers.get("Cache-Control").and_then(|v| v.to_str().ok());
+    let date = headers.get("Date").and_then(|v| v.to_str().ok());
+    let expires = headers.get("Expires").and_then(|v| v.to_str().ok());
+    let max_age = parse_cache_control_max_age(cache_control)
+      .or_else(|| parse_expires_relative(date, expires));
     let mut buf = Vec::new();
-    resp.into_reader().take(REMOTE_BODY_CAP).read_to_end(&mut buf).ok()?;
+    resp.into_body().as_reader().take(REMOTE_BODY_CAP).read_to_end(&mut buf).ok()?;
     return Some(FetchResponse { bytes: buf, max_age });
   }
   None

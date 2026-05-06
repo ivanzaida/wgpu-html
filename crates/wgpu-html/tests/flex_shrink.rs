@@ -3,7 +3,7 @@ use wgpu_html_tree::NodeRect;
 
 #[test]
 fn text_shrink_demo() {
-  let html = include_str!("../../wgpu-html-demo/html/text-shrink.html");
+  let html = include_str!("../../../demo/wgpu-html-demo/html/text-shrink.html");
   let mut tree = wgpu_html_parser::parse(html);
 
   // Register fonts so text shaping works.

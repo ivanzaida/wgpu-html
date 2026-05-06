@@ -73,13 +73,17 @@ pub fn document_bottom(b: &LayoutBox) -> f32 {
 }
 
 /// Compute the viewport scrollbar's track + thumb. Returns `None`
-/// if the document fits or the viewport is too small to host one.
+/// if the document fits, the viewport is too small, or the body
+/// already handles scrolling via `overflow: scroll/auto`.
 pub fn scrollbar_geometry(
   layout: &LayoutBox,
   viewport_w: f32,
   viewport_h: f32,
   scroll_y: f32,
 ) -> Option<ScrollbarGeometry> {
+  if body_handles_scroll(layout) {
+    return None;
+  }
   let doc_h = document_bottom(layout).max(viewport_h);
   if doc_h <= viewport_h + 0.5 || viewport_w < 12.0 || viewport_h <= 0.0 {
     return None;
@@ -138,6 +142,19 @@ pub fn translate_display_list_y(list: &mut DisplayList, dy: f32) {
       rect.y += dy;
     }
   }
+}
+
+/// Check if the body (or html root's first child) already has its
+/// own scrollbar via `overflow-y: scroll|auto`. When true, the
+/// viewport scrollbar is suppressed to avoid double-painting.
+fn body_handles_scroll(layout: &LayoutBox) -> bool {
+  use crate::models::common::css_enums::Overflow;
+  for child in &layout.children {
+    if matches!(child.overflow.y, Overflow::Scroll | Overflow::Auto) {
+      return true;
+    }
+  }
+  false
 }
 
 /// Default scrollbar colors — used only when the layout box has no

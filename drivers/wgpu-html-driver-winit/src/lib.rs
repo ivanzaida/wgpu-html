@@ -30,7 +30,6 @@ pub use winit::{
   window::WindowId,
 };
 use winit::{
-  dpi::PhysicalSize,
   event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta},
   keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
   window::Window,

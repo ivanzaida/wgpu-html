@@ -23,33 +23,34 @@ members = [
 ]
 
 [workspace.dependencies]
-wgpu-html              = { path = "crates/wgpu-html" }
-wgpu-html-devtools     = { path = "crates/wgpu-html-devtools" }
-wgpu-html-events       = { path = "crates/wgpu-html-events" }
-wgpu-html-layout       = { path = "crates/wgpu-html-layout" }
-wgpu-html-models       = { path = "crates/wgpu-html-models" }
-wgpu-html-parser       = { path = "crates/wgpu-html-parser" }
-wgpu-html-renderer     = { path = "crates/wgpu-html-renderer" }
-wgpu-html-style        = { path = "crates/wgpu-html-style" }
-wgpu-html-text         = { path = "crates/wgpu-html-text" }
-wgpu-html-tree         = { path = "crates/wgpu-html-tree" }
-wgpu-html-driver       = { path = "drivers/wgpu-html-driver" }
-wgpu-html-assets       = { path = "crates/wgpu-html-assets" }
-wgpu-html-driver-bevy  = { path = "drivers/wgpu-html-driver-bevy" }
-wgpu-html-driver-egui  = { path = "drivers/wgpu-html-driver-egui" }
+wgpu-html = { path = "crates/wgpu-html" }
+wgpu-html-devtools = { path = "crates/wgpu-html-devtools" }
+wgpu-html-events = { path = "crates/wgpu-html-events" }
+wgpu-html-layout = { path = "crates/wgpu-html-layout" }
+wgpu-html-models = { path = "crates/wgpu-html-models" }
+wgpu-html-parser = { path = "crates/wgpu-html-parser" }
+wgpu-html-renderer = { path = "crates/wgpu-html-renderer" }
+wgpu-html-style = { path = "crates/wgpu-html-style" }
+wgpu-html-text = { path = "crates/wgpu-html-text" }
+wgpu-html-tree = { path = "crates/wgpu-html-tree" }
+wgpu-html-driver = { path = "drivers/wgpu-html-driver" }
+wgpu-html-assets = { path = "crates/wgpu-html-assets" }
+wgpu-html-driver-bevy = { path = "drivers/wgpu-html-driver-bevy" }
+wgpu-html-driver-egui = { path = "drivers/wgpu-html-driver-egui" }
 wgpu-html-driver-winit = { path = "drivers/wgpu-html-driver-winit" }
-wgpu-html-ui           = { path = "crates/wgpu-html-ui" }
+wgpu-html-ui = { path = "crates/wgpu-html-ui" }
 
-wgpu     = "29"
-winit    = "0.30"
+wgpu = "29"
+winit = "0.30"
 pollster = "0.4"
-arboard  = "3"
-egui     = "0.33.3"
-eframe   = "0.33.3"
+arboard = "3"
+egui = "0.33.3"
+eframe = "0.33.3"
 bytemuck = { version = "1", features = ["derive"] }
-image    = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
-ureq     = { version = "2", default-features = false, features = ["tls"] }
-resvg    = "0.44"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
+ureq = "3.3.0"
+resvg = "0.47.0"
+
 
 # ── Dev profile: optimize hot crates for usable FPS during development ──
 # The demo/app code stays at opt-level 0 for fast incremental compiles,

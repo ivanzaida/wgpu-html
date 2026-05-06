@@ -166,6 +166,7 @@ fn main() {
   let devtools = wgpu_html_devtools::Devtools::attach(&mut tree, false);
 
   let event_loop = EventLoop::new().unwrap();
+  #[allow(deprecated)]
   let window = Arc::new(
     event_loop
       .create_window(

@@ -204,7 +204,8 @@ pub struct Runtime {
 }
 
 impl Runtime {
-  pub fn root_mounted(&self) -> &MountedComponent {
+  #[allow(dead_code)]
+  pub(crate) fn root_mounted(&self) -> &MountedComponent {
     &self.root
   }
 
@@ -308,7 +309,7 @@ impl Runtime {
   }
 
   /// Walk the mounted tree and register any pending component styles.
-  pub fn register_styles(tree: &mut Tree, mounted: &MountedComponent) {
+  pub(crate) fn register_styles(tree: &mut Tree, mounted: &MountedComponent) {
     let css = mounted.state.styles_css();
     if let Some(css) = css {
       let prefix = mounted.state.scope_prefix();
