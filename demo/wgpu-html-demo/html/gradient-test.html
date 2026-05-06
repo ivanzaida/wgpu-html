@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {
+    margin: 0;
+    padding: 20px;
+    background: #1a1a2e;
+    font-family: sans-serif;
+    color: #eee;
+  }
+  h2 {
+    margin: 10px 0 6px 0;
+    font-size: 14px;
+    color: #aaa;
+  }
+  .row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .box {
+    width: 150px;
+    height: 100px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #fff;
+  }
+
+  /* ── Linear gradients ── */
+  .lg-default   { background: linear-gradient(red, blue); }
+  .lg-to-right  { background: linear-gradient(to right, #ff6b6b, #feca57); }
+  .lg-45deg     { background: linear-gradient(45deg, #a29bfe, #fd79a8); }
+  .lg-3stops    { background: linear-gradient(to right, #00b894, #0984e3, #6c5ce7); }
+  .lg-corner    { background: linear-gradient(to bottom right, #e17055, #fdcb6e); }
+
+  /* ── Radial gradients ── */
+  .rg-default   { background: radial-gradient(#fff, #2d3436); }
+  .rg-circle    { background: radial-gradient(circle, #fdcb6e, #e17055); }
+  .rg-at-pos    { background: radial-gradient(circle at 30% 70%, #74b9ff, #0984e3); }
+  .rg-closest   { background: radial-gradient(circle closest-side, #55efc4, #00b894); }
+  .rg-ellipse   { background: radial-gradient(ellipse farthest-corner at 70% 30%, #fab1a0, #e17055); }
+
+  /* ── Conic gradients ── */
+  .cg-default   { background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); }
+  .cg-from-45   { background: conic-gradient(from 45deg, #ff6348, #ffa502, #2ed573, #1e90ff, #ff6348); }
+  .cg-at-pos    { background: conic-gradient(at 30% 70%, #e17055, #fdcb6e, #55efc4, #e17055); }
+  .cg-two-color { background: conic-gradient(from 90deg, #2d3436, #dfe6e9); }
+
+  /* ── Repeating gradients ── */
+  .rlg-stripes  { background: repeating-linear-gradient(45deg, #e17055 0px, #e17055 10px, #fdcb6e 10px, #fdcb6e 20px); }
+  .rrg-rings    { background: repeating-radial-gradient(circle, #2d3436 0px, #2d3436 10px, #636e72 10px, #636e72 20px); }
+  .rcg-pinwheel { background: repeating-conic-gradient(#e17055 0deg, #fdcb6e 30deg, #55efc4 60deg); }
+  .rlg-rainbow  { background: repeating-linear-gradient(90deg, red 0px, orange 5px, yellow 10px, green 15px, blue 20px, purple 25px, red 30px); }
+
+  /* ── Gradient + border-radius ── */
+  .circle-grad {
+    width: 100px;
+    height: 100px;
+    border-radius: 50px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+  }
+  .pill-grad {
+    width: 200px;
+    height: 48px;
+    border-radius: 24px;
+    background: linear-gradient(to right, #f093fb, #f5576c);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  /* ── Practical UI patterns ── */
+  .card {
+    width: 200px;
+    padding: 16px;
+    border-radius: 12px;
+    background: linear-gradient(145deg, #2d3436, #636e72);
+  }
+  .card-title {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  .card-text {
+    font-size: 11px;
+    color: #b2bec3;
+  }
+  .header-bar {
+    height: 48px;
+    border-radius: 8px;
+    background: linear-gradient(to right, #6c5ce7, #a29bfe);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="header-bar">Gradient Test Page</div>
+
+  <h2>Linear Gradients</h2>
+  <div class="row">
+    <div class="box lg-default">default (top→bottom)</div>
+    <div class="box lg-to-right">to right</div>
+    <div class="box lg-45deg">45deg</div>
+    <div class="box lg-3stops">3 stops</div>
+    <div class="box lg-corner">to bottom right</div>
+  </div>
+
+  <h2>Radial Gradients</h2>
+  <div class="row">
+    <div class="box rg-default">default ellipse</div>
+    <div class="box rg-circle">circle</div>
+    <div class="box rg-at-pos">circle at 30% 70%</div>
+    <div class="box rg-closest">closest-side</div>
+    <div class="box rg-ellipse">ellipse at 70% 30%</div>
+  </div>
+
+  <h2>Conic Gradients</h2>
+  <div class="row">
+    <div class="box cg-default">rainbow</div>
+    <div class="box cg-from-45">from 45deg</div>
+    <div class="box cg-at-pos">at 30% 70%</div>
+    <div class="box cg-two-color">two-color</div>
+  </div>
+
+  <h2>Repeating Gradients</h2>
+  <div class="row">
+    <div class="box rlg-stripes">stripes</div>
+    <div class="box rrg-rings">rings</div>
+    <div class="box rcg-pinwheel">pinwheel</div>
+    <div class="box rlg-rainbow">rainbow stripes</div>
+  </div>
+
+  <h2>Gradient + Border Radius</h2>
+  <div class="row">
+    <div class="circle-grad"></div>
+    <div class="pill-grad">Pill Button</div>
+  </div>
+
+  <h2>Practical UI</h2>
+  <div class="row">
+    <div class="card">
+      <div class="card-title">Dark Card</div>
+      <div class="card-text">Gradient background on a card component with rounded corners.</div>
+    </div>
+    <div class="card" style="background: linear-gradient(145deg, #0984e3, #6c5ce7);">
+      <div class="card-title">Blue Card</div>
+      <div class="card-text">Inline style gradient with vibrant blue-purple colors.</div>
+    </div>
+  </div>
+</body>
+</html>

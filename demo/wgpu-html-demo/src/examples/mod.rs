@@ -11,6 +11,7 @@ mod flex_grow;
 mod form;
 mod forms_demo;
 mod gif;
+mod gradient_test;
 mod grid;
 mod hello_text;
 mod icons_demo;
@@ -21,6 +22,7 @@ mod overflow;
 mod p0_demo;
 mod position_overlay;
 mod resize;
+mod scroll_test;
 mod scrollbar_test;
 mod svg_test;
 mod text_selection;
@@ -40,6 +42,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "form" => Some(form::build()),
     "forms_demo" => Some(forms_demo::build()),
     "gif" => Some(gif::build()),
+    "gradient_test" => Some(gradient_test::build()),
     "grid" => Some(grid::build()),
     "hello_text" => Some(hello_text::build()),
     "icons_demo" => Some(icons_demo::build()),
@@ -50,6 +53,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "p0_demo" => Some(p0_demo::build()),
     "position_overlay" => Some(position_overlay::build()),
     "resize" => Some(resize::build()),
+    "scroll_test" => Some(scroll_test::build()),
     "scrollbar_test" => Some(scrollbar_test::build()),
     "svg_test" => Some(svg_test::build()),
     "text_selection" => Some(text_selection::build()),
@@ -72,6 +76,7 @@ pub fn list_examples() -> Vec<&'static str> {
     "form",
     "forms_demo",
     "gif",
+    "gradient_test",
     "grid",
     "hello_text",
     "icons_demo",
@@ -82,6 +87,7 @@ pub fn list_examples() -> Vec<&'static str> {
     "p0_demo",
     "position_overlay",
     "resize",
+    "scroll_test",
     "scrollbar_test",
     "svg_test",
     "text_selection",

@@ -48,8 +48,9 @@ use wgpu_html::{
   layout::{Cursor, LayoutBox},
   renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Renderer},
   scroll::{
-    ElementScrollbarDrag, clamp_scroll_y, rect_contains, scroll_element_at,
-    scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
+    ElementScrollbarDrag, clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at,
+    scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_x, translate_display_list_y,
+    viewport_to_document,
   },
   select_all_text, selected_text,
 };
@@ -126,6 +127,7 @@ pub struct Runtime<D: Driver> {
   pub text_ctx: TextContext,
   pub image_cache: wgpu_html::layout::ImageCache,
   pipeline_cache: PipelineCache,
+  scroll_x: f32,
   scroll_y: f32,
   cursor_pos: Option<(f32, f32)>,
   last_layout: Option<LayoutBox>,
@@ -134,10 +136,8 @@ pub struct Runtime<D: Driver> {
   pub profiling: ProfilingOverlay,
   resize_deadline: Option<Instant>,
   inspect_overlay_path: Option<Vec<usize>>,
-  /// Whether the previous frame needed a viewport scrollbar.
-  /// When true, layout width is reduced by the scrollbar width
-  /// so content doesn't overlap.
-  needs_viewport_scrollbar: bool,
+  needs_viewport_scrollbar_y: bool,
+  needs_viewport_scrollbar_x: bool,
 }
 
 /// Tracks multi-click (double / triple) state.
@@ -152,7 +152,10 @@ struct ClickTracker {
 
 #[derive(Debug, Clone)]
 enum ScrollbarDrag {
-  Viewport { grab_offset_y: f32 },
+  Viewport {
+    grab_offset: f32,
+    axis: wgpu_html::scroll::ScrollbarAxis,
+  },
   Element(ElementScrollbarDrag),
 }
 
@@ -359,6 +362,7 @@ impl<D: Driver> Runtime<D> {
       text_ctx: TextContext::new(GLYPH_ATLAS_SIZE),
       image_cache: wgpu_html::layout::ImageCache::default(),
       pipeline_cache: PipelineCache::new(),
+      scroll_x: 0.0,
       scroll_y: 0.0,
       cursor_pos: None,
       last_layout: None,
@@ -367,7 +371,8 @@ impl<D: Driver> Runtime<D> {
       profiling: ProfilingOverlay::new(),
       resize_deadline: None,
       inspect_overlay_path: None,
-      needs_viewport_scrollbar: false,
+      needs_viewport_scrollbar_y: false,
+      needs_viewport_scrollbar_x: false,
     }
   }
 
@@ -375,6 +380,10 @@ impl<D: Driver> Runtime<D> {
 
   pub fn layout(&self) -> Option<&LayoutBox> {
     self.last_layout.as_ref()
+  }
+
+  pub fn scroll_x(&self) -> f32 {
+    self.scroll_x
   }
 
   pub fn scroll_y(&self) -> f32 {
@@ -439,7 +448,7 @@ impl<D: Driver> Runtime<D> {
     // overlap. Uses previous frame's state; if it changes we
     // invalidate the cache and re-layout next frame.
     let scrollbar_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH + 4.0;
-    let content_w = if self.needs_viewport_scrollbar {
+    let content_w = if self.needs_viewport_scrollbar_y {
       paint_w - scrollbar_w
     } else {
       paint_w
@@ -472,30 +481,32 @@ impl<D: Driver> Runtime<D> {
 
     self.last_layout = self.pipeline_cache.layout().cloned();
 
-    // Detect whether viewport needs a scrollbar based on actual
-    // max_scroll — no dependency on document_bottom heuristics.
-    // Compute effective scroll: driver's viewport scroll, or body's
-    // element-level scroll offset (when body has overflow-y: scroll,
-    // scroll_element_at routes wheel events there).
     let body_scroll = tree.interaction.scroll_offsets
       .values().next().map(|s| s.y).unwrap_or(0.0);
-    let effective_scroll = if self.scroll_y.abs() > 0.5 { self.scroll_y } else { body_scroll };
+    let effective_scroll_y = if self.scroll_y.abs() > 0.5 { self.scroll_y } else { body_scroll };
 
-    let max_scroll = self.last_layout.as_ref()
+    let max_scroll_y = self.last_layout.as_ref()
       .map(|l| {
         let driver_max = wgpu_html::scroll::max_scroll_y(l, h as f32);
         if driver_max > 0.5 {
           driver_max
         } else {
-          // Body handles scroll — compute from body's content height.
           wgpu_html::scroll::body_max_scroll(l, h as f32)
         }
       })
       .unwrap_or(0.0);
-    let now_needs = max_scroll > 0.5;
-    if now_needs != self.needs_viewport_scrollbar {
-      self.needs_viewport_scrollbar = now_needs;
+    let max_scroll_x = self.last_layout.as_ref()
+      .map(|l| wgpu_html::scroll::max_scroll_x(l, w as f32))
+      .unwrap_or(0.0);
+
+    let needs_y = max_scroll_y > 0.5;
+    let needs_x = max_scroll_x > 0.5;
+    if needs_y != self.needs_viewport_scrollbar_y {
+      self.needs_viewport_scrollbar_y = needs_y;
       self.pipeline_cache.invalidate();
+    }
+    if needs_x != self.needs_viewport_scrollbar_x {
+      self.needs_viewport_scrollbar_x = needs_x;
     }
 
     if let Some(path) = &self.inspect_overlay_path {
@@ -514,33 +525,55 @@ impl<D: Driver> Runtime<D> {
       }
     }
 
+    translate_display_list_x(&mut list, -self.scroll_x);
     translate_display_list_y(&mut list, -self.scroll_y);
 
-    // Paint viewport scrollbar directly from scroll state.
-    if self.needs_viewport_scrollbar {
-      let vw = w as f32;
-      let vh = h as f32;
-      let doc_h = max_scroll + vh;
-      let track_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH;
-      let margin = 2.0;
-      let track_h = vh - margin * 2.0;
+    // Paint viewport scrollbars.
+    let thumb_color = self.last_layout.as_ref()
+      .and_then(|l| l.overflow.scrollbar_thumb)
+      .unwrap_or(wgpu_html::scroll::DEFAULT_THUMB);
+    let vw = w as f32;
+    let vh = h as f32;
+    let track_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+    let margin = 2.0;
+    let inset = 1.0;
+
+    if self.needs_viewport_scrollbar_y || self.needs_viewport_scrollbar_x {
+      list.push_clip(None, [0.0; 4], [0.0; 4]);
+    }
+    if self.needs_viewport_scrollbar_y {
+      let bar_h = if self.needs_viewport_scrollbar_x { vh - track_w } else { vh };
+      let doc_h = max_scroll_y + vh;
+      let track_h = bar_h - margin * 2.0;
       let thumb_h = (track_h * vh / doc_h).clamp(24.0, track_h);
       let travel = (track_h - thumb_h).max(0.0);
-      let thumb_y = margin + travel * (effective_scroll / max_scroll.max(1.0));
-      let thumb_x = vw - track_w - margin + 1.0;
-      let thumb_w = track_w - 2.0;
+      let thumb_y = margin + travel * (effective_scroll_y / max_scroll_y.max(1.0));
+      let thumb_x = vw - track_w - margin + inset;
+      let thumb_w = track_w - inset * 2.0;
       let radius = thumb_w * 0.5;
-
-      let thumb_color = self.last_layout.as_ref()
-        .and_then(|l| l.overflow.scrollbar_thumb)
-        .unwrap_or(wgpu_html::scroll::DEFAULT_THUMB);
-
-      list.push_clip(None, [0.0; 4], [0.0; 4]);
       list.push_quad_rounded(
         Rect::new(thumb_x, thumb_y, thumb_w, thumb_h),
         thumb_color,
         [radius; 4],
       );
+    }
+    if self.needs_viewport_scrollbar_x {
+      let bar_w = if self.needs_viewport_scrollbar_y { vw - track_w } else { vw };
+      let doc_w = max_scroll_x + vw;
+      let track_w_h = bar_w - margin * 2.0;
+      let thumb_w = (track_w_h * vw / doc_w).clamp(24.0, track_w_h);
+      let travel = (track_w_h - thumb_w).max(0.0);
+      let thumb_x = margin + travel * (self.scroll_x / max_scroll_x.max(1.0));
+      let thumb_y = vh - track_w - margin + inset;
+      let thumb_h = track_w - inset * 2.0;
+      let radius = thumb_h * 0.5;
+      list.push_quad_rounded(
+        Rect::new(thumb_x, thumb_y, thumb_w, thumb_h),
+        thumb_color,
+        [radius; 4],
+      );
+    }
+    if self.needs_viewport_scrollbar_y || self.needs_viewport_scrollbar_x {
       list.finalize();
     }
 
@@ -669,12 +702,38 @@ impl<D: Driver> Runtime<D> {
       if let Some(layout) = self.last_layout.as_ref() {
         let (w, h) = self.driver.inner_size();
         match &drag {
-          ScrollbarDrag::Viewport { grab_offset_y } => {
-            self.scroll_y = scroll_y_from_thumb_top(y - grab_offset_y, layout, w as f32, h as f32);
+          ScrollbarDrag::Viewport { grab_offset, axis } => {
+            use wgpu_html::scroll::ScrollbarAxis;
+            let vw = w as f32;
+            let vh = h as f32;
+            let track_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+            let margin = 2.0;
+            match axis {
+              ScrollbarAxis::Vertical => {
+                let max_sy = wgpu_html::scroll::max_scroll_y(layout, vh);
+                let max_sx = wgpu_html::scroll::max_scroll_x(layout, vw);
+                let bar_h = if max_sx > 0.5 { vh - track_w } else { vh };
+                let track_h = bar_h - margin * 2.0;
+                let thumb_h = (track_h * vh / (max_sy + vh)).clamp(24.0, track_h);
+                let travel = (track_h - thumb_h).max(0.0);
+                let t = ((y - grab_offset - margin) / travel.max(1.0)).clamp(0.0, 1.0);
+                self.scroll_y = t * max_sy;
+              }
+              ScrollbarAxis::Horizontal => {
+                let max_sx = wgpu_html::scroll::max_scroll_x(layout, vw);
+                let max_sy = wgpu_html::scroll::max_scroll_y(layout, vh);
+                let bar_w = if max_sy > 0.5 { vw - track_w } else { vw };
+                let track_w_px = bar_w - margin * 2.0;
+                let thumb_w = (track_w_px * vw / (max_sx + vw)).clamp(24.0, track_w_px);
+                let travel = (track_w_px - thumb_w).max(0.0);
+                let t = ((x - grab_offset - margin) / travel.max(1.0)).clamp(0.0, 1.0);
+                self.scroll_x = t * max_sx;
+              }
+            }
           }
           ScrollbarDrag::Element(el_drag) => {
-            let doc_pos = viewport_to_document((x, y), self.scroll_y);
-            el_drag.update(layout, tree, doc_pos.1);
+            let doc_pos = viewport_to_document((x, y), self.scroll_x, self.scroll_y);
+            el_drag.update(layout, tree, doc_pos.0, doc_pos.1);
           }
         }
         self.driver.request_redraw();
@@ -686,7 +745,7 @@ impl<D: Driver> Runtime<D> {
       return false;
     };
 
-    let doc_pos = viewport_to_document((x, y), self.scroll_y);
+    let doc_pos = viewport_to_document((x, y), self.scroll_x, self.scroll_y);
     let (changed, css_cursor) = interactivity::pointer_move_with_cursor(tree, layout, doc_pos);
     self.driver.set_cursor(css_cursor);
 
@@ -697,6 +756,7 @@ impl<D: Driver> Runtime<D> {
   /// Returns `true` if the caller should redraw.
   pub fn on_pointer_leave(&mut self, tree: &mut Tree) -> bool {
     self.cursor_pos = None;
+    self.scrollbar_drag = None;
     tree.pointer_leave();
     true
   }
@@ -723,7 +783,7 @@ impl<D: Driver> Runtime<D> {
       }
     }
 
-    let doc_pos = viewport_to_document(pos, self.scroll_y);
+    let doc_pos = viewport_to_document(pos, self.scroll_x, self.scroll_y);
 
     if pressed {
       let target_path = {
@@ -757,26 +817,23 @@ impl<D: Driver> Runtime<D> {
   /// [`Self::on_pointer_move`]. Returns `true` if the caller should
   /// redraw.
   pub fn on_wheel(&mut self, tree: &mut Tree, pixel_dy: f32, pixel_dx: f32, _effective_scale: f32) -> bool {
-    // Fire wheel event first so listeners can preventDefault.
-    // Callers should call on_wheel_event separately for this.
-    // Here we just handle scroll.
-
     let Some(layout) = self.last_layout.as_ref() else {
       return false;
     };
     let Some(pos) = self.cursor_pos else {
       return false;
     };
-    let doc_pos = viewport_to_document(pos, self.scroll_y);
+    let doc_pos = viewport_to_document(pos, self.scroll_x, self.scroll_y);
 
     if scroll_element_at(tree, layout, doc_pos, pixel_dx, pixel_dy) {
       interactivity::pointer_move(tree, layout, doc_pos);
       return true;
     }
 
-    let (_w, h) = self.driver.inner_size();
+    let (w, h) = self.driver.inner_size();
     self.scroll_y = clamp_scroll_y(self.scroll_y + pixel_dy, layout, h as f32);
-    let new_doc_pos = viewport_to_document(pos, self.scroll_y);
+    self.scroll_x = clamp_scroll_x(self.scroll_x + pixel_dx, layout, w as f32);
+    let new_doc_pos = viewport_to_document(pos, self.scroll_x, self.scroll_y);
     if let Some(layout) = self.last_layout.as_ref() {
       interactivity::pointer_move(tree, layout, new_doc_pos);
     }
@@ -792,7 +849,7 @@ impl<D: Driver> Runtime<D> {
     let Some(pos) = self.cursor_pos else {
       return false;
     };
-    let doc_pos = viewport_to_document(pos, self.scroll_y);
+    let doc_pos = viewport_to_document(pos, self.scroll_x, self.scroll_y);
     tree.wheel_event(doc_pos, dx, dy, mode)
   }
 
@@ -870,6 +927,7 @@ impl<D: Driver> Runtime<D> {
   pub fn on_resize(&mut self, tree: &mut Tree, width: u32, height: u32) {
     self.renderer.resize(width, height);
     if let Some(layout) = self.last_layout.as_ref() {
+      self.scroll_x = clamp_scroll_x(self.scroll_x, layout, width as f32);
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, height as f32);
     }
     self.scrollbar_drag = None;
@@ -888,38 +946,84 @@ impl<D: Driver> Runtime<D> {
   // ── Scrollbar helpers ───────────────────────────────────────────────────
 
   fn start_scrollbar_drag(&mut self, tree: &mut Tree, pos: (f32, f32)) -> bool {
+    use wgpu_html::scroll::ScrollbarAxis;
     let Some(layout) = self.last_layout.as_ref() else {
       return false;
     };
     let (w, h) = self.driver.inner_size();
-    let doc_pos = viewport_to_document(pos, self.scroll_y);
+    let doc_pos = viewport_to_document(pos, self.scroll_x, self.scroll_y);
 
-    // Element-level scrollbars first.
     if let Some(el_drag) = ElementScrollbarDrag::try_start(layout, doc_pos, tree) {
       self.scrollbar_drag = Some(ScrollbarDrag::Element(el_drag));
       return true;
     }
 
-    // Viewport scrollbar.
-    let Some(geom) = scrollbar_geometry(layout, w as f32, h as f32, self.scroll_y) else {
-      return false;
-    };
-    if rect_contains(geom.thumb, pos) {
-      self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
-        grab_offset_y: pos.1 - geom.thumb.y,
-      });
-      return true;
-    }
-    if rect_contains(geom.track, pos) {
-      let thumb_top = pos.1 - geom.thumb.h * 0.5;
-      self.scroll_y = scroll_y_from_thumb_top(thumb_top, layout, w as f32, h as f32);
-      if let Some(updated) = scrollbar_geometry(layout, w as f32, h as f32, self.scroll_y) {
+    let vw = w as f32;
+    let vh = h as f32;
+    let track_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+    let margin = 2.0;
+    let inset = 1.0;
+    let max_sy = wgpu_html::scroll::max_scroll_y(layout, vh);
+    let max_sx = wgpu_html::scroll::max_scroll_x(layout, vw);
+
+    if max_sy > 0.5 {
+      let bar_h = if max_sx > 0.5 { vh - track_w } else { vh };
+      let track_h = bar_h - margin * 2.0;
+      let thumb_h = (track_h * vh / (max_sy + vh)).clamp(24.0, track_h);
+      let travel = (track_h - thumb_h).max(0.0);
+      let thumb_y = margin + travel * (self.scroll_y / max_sy.max(1.0));
+      let thumb_x = vw - track_w - margin + inset;
+      let thumb_w = track_w - inset * 2.0;
+      let track_rect = Rect::new(vw - track_w - margin, margin, track_w, bar_h - margin * 2.0);
+      let thumb_rect = Rect::new(thumb_x, thumb_y, thumb_w, thumb_h);
+
+      if rect_contains(thumb_rect, pos) {
         self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
-          grab_offset_y: pos.1 - updated.thumb.y,
+          grab_offset: pos.1 - thumb_y,
+          axis: ScrollbarAxis::Vertical,
         });
+        return true;
       }
-      return true;
+      if rect_contains(track_rect, pos) {
+        let t = ((pos.1 - margin - thumb_h * 0.5) / travel.max(1.0)).clamp(0.0, 1.0);
+        self.scroll_y = t * max_sy;
+        self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
+          grab_offset: thumb_h * 0.5,
+          axis: ScrollbarAxis::Vertical,
+        });
+        return true;
+      }
     }
+
+    if max_sx > 0.5 {
+      let bar_w = if max_sy > 0.5 { vw - track_w } else { vw };
+      let track_w_px = bar_w - margin * 2.0;
+      let thumb_w = (track_w_px * vw / (max_sx + vw)).clamp(24.0, track_w_px);
+      let travel = (track_w_px - thumb_w).max(0.0);
+      let thumb_x = margin + travel * (self.scroll_x / max_sx.max(1.0));
+      let thumb_y = vh - track_w - margin + inset;
+      let thumb_h = track_w - inset * 2.0;
+      let track_rect = Rect::new(margin, vh - track_w - margin, bar_w - margin * 2.0, track_w);
+      let thumb_rect = Rect::new(thumb_x, thumb_y, thumb_w, thumb_h);
+
+      if rect_contains(thumb_rect, pos) {
+        self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
+          grab_offset: pos.0 - thumb_x,
+          axis: ScrollbarAxis::Horizontal,
+        });
+        return true;
+      }
+      if rect_contains(track_rect, pos) {
+        let t = ((pos.0 - margin - thumb_w * 0.5) / travel.max(1.0)).clamp(0.0, 1.0);
+        self.scroll_x = t * max_sx;
+        self.scrollbar_drag = Some(ScrollbarDrag::Viewport {
+          grab_offset: thumb_w * 0.5,
+          axis: ScrollbarAxis::Horizontal,
+        });
+        return true;
+      }
+    }
+
     false
   }
 

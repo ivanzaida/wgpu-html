@@ -1,0 +1,277 @@
+<style>
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: #ccc;
+    }
+
+    h2 {
+        color: #8ab4f8;
+        margin: 16px 0 8px 16px;
+    }
+
+    h3 {
+        color: #aaa;
+        margin: 8px 16px 4px;
+        font-size: 13px;
+    }
+
+    .section {
+        margin: 0 16px 24px;
+    }
+
+    .grid {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .card {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .card span {
+        font-size: 11px;
+        color: #888;
+    }
+
+    .box {
+        border-radius: 4px;
+        background-color: #222;
+        padding: 8px;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .box p {
+        margin: 0;
+        white-space: nowrap;
+    }
+
+    .wide-content {
+        width: 400px;
+        white-space: nowrap;
+        background-color: #2e4a1a;
+        padding: 4px 8px;
+        border-radius: 3px;
+        margin: 2px 0;
+        font-size: 11px;
+        color: #8fc;
+    }
+
+    .tall-content {
+        height: 300px;
+        width: 60px;
+        background-color: #1a2e4a;
+        border-radius: 3px;
+        font-size: 10px;
+        color: #8bf;
+        padding: 4px;
+    }
+</style>
+
+<h2>Viewport scroll</h2>
+<div class="section">
+    <h3>This page is intentionally tall and wide to test viewport scrolling on both axes.</h3>
+</div>
+
+<!-- Vertical-only scroll containers -->
+<h2>overflow-y: scroll</h2>
+<div class="section">
+    <div class="grid">
+        <div class="card"><span>vertical only (default)</span>
+            <div class="box" style="width: 160px; height: 120px; overflow-y: scroll;">
+                <p>Line 1 - hello</p>
+                <p>Line 2 - world</p>
+                <p>Line 3 - scroll</p>
+                <p>Line 4 - test</p>
+                <p>Line 5 - page</p>
+                <p>Line 6 - demo</p>
+                <p>Line 7 - wgpu</p>
+                <p>Line 8 - html</p>
+                <p>Line 9 - render</p>
+                <p>Line 10 - engine</p>
+            </div>
+        </div>
+        <div class="card"><span>thin scrollbar</span>
+            <div class="box" style="width: 160px; height: 120px; overflow-y: scroll; scrollbar-width: thin;">
+                <p>Line 1 - hello</p>
+                <p>Line 2 - world</p>
+                <p>Line 3 - scroll</p>
+                <p>Line 4 - test</p>
+                <p>Line 5 - page</p>
+                <p>Line 6 - demo</p>
+                <p>Line 7 - wgpu</p>
+                <p>Line 8 - html</p>
+                <p>Line 9 - render</p>
+                <p>Line 10 - engine</p>
+            </div>
+        </div>
+        <div class="card"><span>colored scrollbar</span>
+            <div class="box" style="width: 160px; height: 120px; overflow-y: scroll; scrollbar-color: #e74a8f #2a1a2a;">
+                <p>Line 1 - hello</p>
+                <p>Line 2 - world</p>
+                <p>Line 3 - scroll</p>
+                <p>Line 4 - test</p>
+                <p>Line 5 - page</p>
+                <p>Line 6 - demo</p>
+                <p>Line 7 - wgpu</p>
+                <p>Line 8 - html</p>
+                <p>Line 9 - render</p>
+                <p>Line 10 - engine</p>
+            </div>
+        </div>
+        <div class="card"><span>overflow-y: auto (short content)</span>
+            <div class="box" style="width: 160px; height: 120px; overflow-y: auto;">
+                <p>Line 1 - fits</p>
+                <p>Line 2 - no bar</p>
+            </div>
+        </div>
+        <div class="card"><span>overflow-y: auto (overflows)</span>
+            <div class="box" style="width: 160px; height: 120px; overflow-y: auto;">
+                <p>Line 1 - hello</p>
+                <p>Line 2 - world</p>
+                <p>Line 3 - scroll</p>
+                <p>Line 4 - test</p>
+                <p>Line 5 - page</p>
+                <p>Line 6 - demo</p>
+                <p>Line 7 - wgpu</p>
+                <p>Line 8 - html</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Horizontal scroll containers -->
+<h2>overflow-x: scroll</h2>
+<div class="section">
+    <div class="grid">
+        <div class="card"><span>horizontal scroll</span>
+            <div class="box" style="width: 200px; height: 100px; overflow-x: scroll; overflow-y: hidden;">
+                <div class="wide-content">This line is much wider than the container to force horizontal scrolling</div>
+                <div class="wide-content">Another wide line of content that extends beyond the box boundary</div>
+                <div class="wide-content">Third wide line demonstrating overflow-x: scroll behavior</div>
+            </div>
+        </div>
+        <div class="card"><span>overflow-x: auto (overflows)</span>
+            <div class="box" style="width: 200px; height: 100px; overflow-x: auto; overflow-y: hidden;">
+                <div class="wide-content">Auto horizontal scroll when content overflows the container width</div>
+                <div class="wide-content">Second line also extends past the right edge of this box</div>
+            </div>
+        </div>
+        <div class="card"><span>overflow-x: auto (fits)</span>
+            <div class="box" style="width: 200px; height: 100px; overflow-x: auto; overflow-y: hidden;">
+                <p>Short text.</p>
+                <p>No scrollbar.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Both axes -->
+<h2>overflow: scroll (both axes)</h2>
+<div class="section">
+    <div class="grid">
+        <div class="card"><span>both X and Y overflow</span>
+            <div class="box" style="width: 200px; height: 140px; overflow: scroll;">
+                <div class="wide-content">Wide content that forces a horizontal scrollbar to appear</div>
+                <p>Line 1</p>
+                <p>Line 2</p>
+                <p>Line 3</p>
+                <p>Line 4</p>
+                <p>Line 5</p>
+                <p>Line 6</p>
+                <p>Line 7</p>
+                <p>Line 8</p>
+                <p>Line 9</p>
+                <p>Line 10</p>
+            </div>
+        </div>
+        <div class="card"><span>overflow: auto (both overflow)</span>
+            <div class="box" style="width: 200px; height: 140px; overflow: auto;">
+                <div class="wide-content">Wide content that forces a horizontal scrollbar to appear</div>
+                <p>Line 1</p>
+                <p>Line 2</p>
+                <p>Line 3</p>
+                <p>Line 4</p>
+                <p>Line 5</p>
+                <p>Line 6</p>
+                <p>Line 7</p>
+                <p>Line 8</p>
+            </div>
+        </div>
+        <div class="card"><span>nested scroll containers</span>
+            <div class="box" style="width: 220px; height: 160px; overflow-y: scroll;">
+                <p>Outer scroll (Y)</p>
+                <div class="box" style="width: 180px; height: 80px; overflow-x: scroll; overflow-y: hidden; background-color: #2a2a2a; margin: 4px 0;">
+                    <div class="wide-content">Inner scroll (X) — nested horizontal scroll inside vertical</div>
+                </div>
+                <p>More outer content</p>
+                <p>Line A</p>
+                <p>Line B</p>
+                <p>Line C</p>
+                <p>Line D</p>
+                <p>Line E</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overflow hidden comparison -->
+<h2>overflow: hidden (no scroll)</h2>
+<div class="section">
+    <div class="grid">
+        <div class="card"><span>hidden X</span>
+            <div class="box" style="width: 200px; height: 80px; overflow-x: hidden; overflow-y: hidden;">
+                <div class="wide-content">This wide content is clipped, not scrollable</div>
+            </div>
+        </div>
+        <div class="card"><span>hidden Y</span>
+            <div class="box" style="width: 160px; height: 80px; overflow-y: hidden;">
+                <p>Line 1</p>
+                <p>Line 2</p>
+                <p>Line 3</p>
+                <p>Line 4</p>
+                <p>Line 5</p>
+                <p>Line 6</p>
+            </div>
+        </div>
+        <div class="card"><span>hidden both</span>
+            <div class="box" style="width: 160px; height: 80px; overflow: hidden;">
+                <div class="wide-content">Clipped on both axes</div>
+                <p>Line 1</p>
+                <p>Line 2</p>
+                <p>Line 3</p>
+                <p>Line 4</p>
+                <p>Line 5</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wide block to force viewport horizontal scroll -->
+<h2>Wide block (viewport X scroll)</h2>
+<div class="section">
+    <div style="width: 2000px; height: 60px; background: linear-gradient(90deg, #4a8fe7, #e74a8f); border-radius: 6px; display: flex; align-items: center; padding: 0 16px;">
+        <p style="margin: 0; color: white; font-size: 14px; white-space: nowrap;">This block is 2000px wide — scroll the viewport horizontally to see the full gradient bar</p>
+    </div>
+</div>
+
+<!-- Tall block to force viewport vertical scroll -->
+<h2>Tall block (viewport Y scroll)</h2>
+<div class="section">
+    <div style="display: flex; gap: 12px;">
+        <div style="width: 120px; height: 800px; background: linear-gradient(180deg, #2ecc71, #1a2e1a); border-radius: 6px; padding: 12px;">
+            <p style="margin: 0; color: white; font-size: 12px;">800px tall</p>
+        </div>
+        <div style="width: 120px; height: 800px; background: linear-gradient(180deg, #f39c12, #2e2a1a); border-radius: 6px; padding: 12px;">
+            <p style="margin: 0; color: white; font-size: 12px;">800px tall</p>
+        </div>
+        <div style="width: 120px; height: 800px; background: linear-gradient(180deg, #e74c3c, #2e1a1a); border-radius: 6px; padding: 12px;">
+            <p style="margin: 0; color: white; font-size: 12px;">800px tall</p>
+        </div>
+    </div>
+</div>

@@ -26,6 +26,7 @@ use wgpu_html_tree::{Element, Node, ScrollOffset, TextCursor, Tree};
 
 mod color;
 mod flex;
+mod gradient;
 mod grid;
 mod length;
 mod svg;
@@ -249,13 +250,41 @@ fn compute_bg_tiles(
 /// finished loading yet, or the resolved tile size collapses to zero.
 fn resolve_background_image(style: &Style, bg: Rect, images: &mut ImageCache) -> Option<BackgroundImagePaint> {
   use wgpu_html_models::common::css_enums::BackgroundRepeat as BR;
-  let url = match style.background_image.as_ref()? {
-    CssImage::Url(url) => url,
-    CssImage::Function(_) => return None,
-  };
-  let img = images.load_image_url(url, None, None)?;
 
-  let (tile_w, tile_h) = resolve_bg_size(style.background_size.as_deref(), img.width, img.height, bg.w, bg.h);
+  let (image_id, data, img_w, img_h) = match style.background_image.as_ref()? {
+    CssImage::Url(url) => {
+      let img = images.load_image_url(url, None, None)?;
+      (img.image_id, img.data, img.width, img.height)
+    }
+    CssImage::Function(func) => {
+      let grad = gradient::parse_gradient(func)?;
+      // Gradients have no intrinsic dimensions — use background box size
+      let (tile_w, tile_h) = resolve_bg_size(style.background_size.as_deref(), bg.w as u32, bg.h as u32, bg.w, bg.h);
+      if tile_w <= 0.0 || tile_h <= 0.0 {
+        return None;
+      }
+      let w = (tile_w.round() as u32).max(1).min(4096);
+      let h = (tile_h.round() as u32).max(1).min(4096);
+      let pixels = gradient::rasterize(&grad, w, h);
+      let id = gradient::gradient_image_id(func, w, h);
+
+      let (off_x, off_y) = resolve_bg_position(style.background_position.as_deref(), bg.w, bg.h, tile_w, tile_h);
+      let repeat = style.background_repeat.clone().unwrap_or(BR::Repeat);
+      let tiles = compute_bg_tiles(bg, tile_w, tile_h, off_x, off_y, repeat);
+      if tiles.is_empty() {
+        return None;
+      }
+      return Some(BackgroundImagePaint {
+        image_id: id,
+        data: std::sync::Arc::new(pixels),
+        width: w,
+        height: h,
+        tiles,
+      });
+    }
+  };
+
+  let (tile_w, tile_h) = resolve_bg_size(style.background_size.as_deref(), img_w, img_h, bg.w, bg.h);
   if tile_w <= 0.0 || tile_h <= 0.0 {
     return None;
   }
@@ -266,10 +295,10 @@ fn resolve_background_image(style: &Style, bg: Rect, images: &mut ImageCache) ->
     return None;
   }
   Some(BackgroundImagePaint {
-    image_id: img.image_id,
-    data: img.data,
-    width: img.width,
-    height: img.height,
+    image_id,
+    data,
+    width: img_w,
+    height: img_h,
     tiles,
   })
 }

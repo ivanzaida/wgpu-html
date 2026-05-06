@@ -199,12 +199,25 @@ fn dispatch(event: &WindowEvent, rt: &mut Runtime<WgpuHtml>, tree: &mut Tree) ->
       if prevented {
         return true;
       }
-      let pixel_dy = wheel_delta_to_pixels(*delta, scale);
-      let pixel_dx = match delta {
-        MouseScrollDelta::LineDelta(x, _) => -*x * 48.0 * scale,
-        MouseScrollDelta::PixelDelta(pos) => -pos.x as f32,
+      let mut pixel_dy = wheel_delta_to_pixels(*delta, scale);
+      let mut pixel_dx = match delta {
+        MouseScrollDelta::LineDelta(x, _) => *x * 48.0 * scale,
+        MouseScrollDelta::PixelDelta(pos) => pos.x as f32,
       };
+      if tree.interaction.modifiers.shift && pixel_dx.abs() < 0.5 {
+        pixel_dx = pixel_dy;
+        pixel_dy = 0.0;
+      }
       rt.on_wheel(tree, pixel_dy, pixel_dx, scale)
+    }
+
+    WindowEvent::ModifiersChanged(mods) => {
+      let state = mods.state();
+      tree.set_modifier(Modifier::Shift, state.shift_key());
+      tree.set_modifier(Modifier::Ctrl, state.control_key());
+      tree.set_modifier(Modifier::Alt, state.alt_key());
+      tree.set_modifier(Modifier::Meta, state.super_key());
+      false
     }
 
     WindowEvent::KeyboardInput { event, .. } => {

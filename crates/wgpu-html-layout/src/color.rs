@@ -144,10 +144,118 @@ fn hsl_to_rgb(h: f32, s: f32, l: f32, a: f32) -> [f32; 4] {
   [r1 + m, g1 + m, b1 + m, a]
 }
 
-fn srgb_to_linear(c: f32) -> f32 {
+pub(crate) fn srgb_to_linear(c: f32) -> f32 {
   if c <= 0.04045 {
     c / 12.92
   } else {
     ((c + 0.055) / 1.055).powf(2.4)
   }
+}
+
+pub(crate) fn linear_to_srgb(c: f32) -> f32 {
+  if c <= 0.0031308 {
+    c * 12.92
+  } else {
+    1.055 * c.powf(1.0 / 2.4) - 0.055
+  }
+}
+
+pub(crate) fn color_to_srgb_u8(c: Color) -> [u8; 4] {
+  [
+    (linear_to_srgb(c[0].clamp(0.0, 1.0)) * 255.0 + 0.5) as u8,
+    (linear_to_srgb(c[1].clamp(0.0, 1.0)) * 255.0 + 0.5) as u8,
+    (linear_to_srgb(c[2].clamp(0.0, 1.0)) * 255.0 + 0.5) as u8,
+    (c[3].clamp(0.0, 1.0) * 255.0 + 0.5) as u8,
+  ]
+}
+
+/// Parse a CSS color string directly into a linear RGBA color.
+pub(crate) fn parse_color_str(s: &str) -> Option<Color> {
+  let s = s.trim();
+  if s.is_empty() {
+    return None;
+  }
+  if s.eq_ignore_ascii_case("transparent") {
+    return Some([0.0, 0.0, 0.0, 0.0]);
+  }
+  if s.starts_with('#') {
+    let srgb = parse_hex(s)?;
+    return Some(linearize(srgb));
+  }
+  if let Some(paren) = s.find('(') {
+    if !s.ends_with(')') {
+      return None;
+    }
+    let name = s[..paren].trim().to_ascii_lowercase();
+    let inner = &s[paren + 1..s.len() - 1];
+    return match name.as_str() {
+      "rgb" | "rgba" => parse_rgb_args(inner),
+      "hsl" | "hsla" => parse_hsl_args(inner),
+      _ => None,
+    };
+  }
+  let srgb = named_color(s)?;
+  Some(linearize(srgb))
+}
+
+fn linearize(srgb: [f32; 4]) -> Color {
+  [srgb_to_linear(srgb[0]), srgb_to_linear(srgb[1]), srgb_to_linear(srgb[2]), srgb[3]]
+}
+
+fn split_color_args(s: &str) -> Vec<String> {
+  if s.contains(',') {
+    s.split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect()
+  } else {
+    s.split(|c: char| c.is_whitespace() || c == '/')
+      .map(|p| p.trim().to_string())
+      .filter(|p| !p.is_empty())
+      .collect()
+  }
+}
+
+fn parse_color_component(s: &str, max: f32) -> Option<f32> {
+  let s = s.trim();
+  if let Some(pct) = s.strip_suffix('%') {
+    let v: f32 = pct.trim().parse().ok()?;
+    Some((v / 100.0).clamp(0.0, 1.0))
+  } else {
+    let v: f32 = s.parse().ok()?;
+    Some((v / max).clamp(0.0, 1.0))
+  }
+}
+
+fn parse_alpha_component(s: &str) -> Option<f32> {
+  let s = s.trim();
+  if let Some(pct) = s.strip_suffix('%') {
+    let v: f32 = pct.trim().parse().ok()?;
+    Some((v / 100.0).clamp(0.0, 1.0))
+  } else {
+    let v: f32 = s.parse().ok()?;
+    Some(v.clamp(0.0, 1.0))
+  }
+}
+
+fn parse_rgb_args(inner: &str) -> Option<Color> {
+  let args = split_color_args(inner);
+  if args.len() < 3 {
+    return None;
+  }
+  let r = parse_color_component(&args[0], 255.0)?;
+  let g = parse_color_component(&args[1], 255.0)?;
+  let b = parse_color_component(&args[2], 255.0)?;
+  let a = if args.len() >= 4 { parse_alpha_component(&args[3])? } else { 1.0 };
+  Some([srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), a])
+}
+
+fn parse_hsl_args(inner: &str) -> Option<Color> {
+  let args = split_color_args(inner);
+  if args.len() < 3 {
+    return None;
+  }
+  let h: f32 = args[0].trim().trim_end_matches("deg").parse().ok()?;
+  let s: f32 = args[1].trim().trim_end_matches('%').parse().ok()?;
+  let l: f32 = args[2].trim().trim_end_matches('%').parse().ok()?;
+  let a = if args.len() >= 4 { parse_alpha_component(&args[3])? } else { 1.0 };
+  let srgb = hsl_to_rgb(h, s, l, a);
+  Some(linearize(srgb))
 }

@@ -552,7 +552,7 @@ impl ApplicationHandler for DemoApp {
             WindowEvent::CursorMoved { position, .. } => {
               let pos = (position.x as f32, position.y as f32);
               if let Some(layout) = self.driver.rt.layout() {
-                let doc_pos = wgpu_html::scroll::viewport_to_document(pos, self.driver.rt.scroll_y());
+                let doc_pos = wgpu_html::scroll::viewport_to_document(pos, self.driver.rt.scroll_x(), self.driver.rt.scroll_y());
                 let path = layout.hit_path_scrolled(doc_pos, &self.driver.tree.interaction.scroll_offsets);
                 if let Some(devtools) = &mut self.devtools {
                   devtools.set_hover_path(path);

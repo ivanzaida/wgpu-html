@@ -587,7 +587,7 @@ fn paint_box_in_clip(
     );
   }
 
-  paint_scrollbars(b, out, paint_offset_x, paint_offset_y, scroll_y, opacity, path);
+  paint_scrollbars(b, out, paint_offset_x, paint_offset_y, scroll_x, scroll_y, opacity, path);
 }
 
 /// Paint the CSS resize handle (three diagonal lines) in the
@@ -756,16 +756,12 @@ fn paint_scrollbars(
   out: &mut DisplayList,
   paint_offset_x: f32,
   paint_offset_y: f32,
+  scroll_x: f32,
   scroll_y: f32,
   opacity: f32,
   path: &[usize],
 ) {
-  // Suppress body-level scrollbars — the driver paints the viewport
-  // scrollbar in screen space (after scroll translation).
   if path.len() <= 1 {
-    return;
-  }
-  if !should_paint_vertical_scrollbar(b) {
     return;
   }
   let pad = shift_rect_xy(padding_box(b), paint_offset_x, paint_offset_y);
@@ -773,26 +769,55 @@ fn paint_scrollbars(
     return;
   }
   let track_w = b.overflow.scrollbar_width.min(pad.w);
-  let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
   let track_color = b.overflow.scrollbar_track.unwrap_or(crate::scroll::DEFAULT_TRACK);
-  out.push_quad(track, apply_opacity(track_color, opacity));
-
-  let scroll_h = scrollable_content_height(b).max(pad.h);
-  let max_scroll = (scroll_h - pad.h).max(0.0);
-  let ratio = (pad.h / scroll_h).clamp(0.0, 1.0);
-  let thumb_h = (pad.h * ratio).clamp(SCROLLBAR_MIN_THUMB.min(pad.h), pad.h);
-  let travel = (pad.h - thumb_h).max(0.0);
-  let thumb_y = track.y + travel * (scroll_y / max_scroll.max(1.0));
-  let inset = (track_w * 0.2).clamp(1.0, 3.0);
-  let thumb = Rect::new(
-    track.x + inset,
-    thumb_y + inset,
-    (track.w - inset * 2.0).max(1.0),
-    (thumb_h - inset * 2.0).max(1.0),
-  );
   let thumb_color = b.overflow.scrollbar_thumb.unwrap_or(crate::scroll::DEFAULT_THUMB);
-  let radius = thumb.w * 0.5;
-  out.push_quad_rounded(thumb, apply_opacity(thumb_color, opacity), [radius; 4]);
+
+  let has_vbar = should_paint_vertical_scrollbar(b);
+  let has_hbar = should_paint_horizontal_scrollbar(b);
+
+  if has_vbar && track_w > 0.0 {
+    let bar_h = if has_hbar { pad.h - track_w } else { pad.h };
+    let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, bar_h);
+    out.push_quad(track, apply_opacity(track_color, opacity));
+
+    let scroll_h = scrollable_content_height(b).max(pad.h);
+    let max_scroll = (scroll_h - pad.h).max(0.0);
+    let ratio = (bar_h / scroll_h.max(1.0)).clamp(0.0, 1.0);
+    let thumb_h = (bar_h * ratio).clamp(SCROLLBAR_MIN_THUMB.min(bar_h), bar_h);
+    let travel = (bar_h - thumb_h).max(0.0);
+    let thumb_y = track.y + travel * (scroll_y / max_scroll.max(1.0));
+    let inset = (track_w * 0.2).clamp(1.0, 3.0);
+    let thumb = Rect::new(
+      track.x + inset,
+      thumb_y + inset,
+      (track.w - inset * 2.0).max(1.0),
+      (thumb_h - inset * 2.0).max(1.0),
+    );
+    let radius = thumb.w * 0.5;
+    out.push_quad_rounded(thumb, apply_opacity(thumb_color, opacity), [radius; 4]);
+  }
+
+  if has_hbar && track_w > 0.0 {
+    let bar_w = if has_vbar { pad.w - track_w } else { pad.w };
+    let track = Rect::new(pad.x, pad.y + pad.h - track_w, bar_w, track_w);
+    out.push_quad(track, apply_opacity(track_color, opacity));
+
+    let scroll_w = scrollable_content_width(b).max(pad.w);
+    let max_scroll = (scroll_w - pad.w).max(0.0);
+    let ratio = (bar_w / scroll_w.max(1.0)).clamp(0.0, 1.0);
+    let thumb_w = (bar_w * ratio).clamp(SCROLLBAR_MIN_THUMB.min(bar_w), bar_w);
+    let travel = (bar_w - thumb_w).max(0.0);
+    let thumb_x = track.x + travel * (scroll_x / max_scroll.max(1.0));
+    let inset = (track_w * 0.2).clamp(1.0, 3.0);
+    let thumb = Rect::new(
+      thumb_x + inset,
+      track.y + inset,
+      (thumb_w - inset * 2.0).max(1.0),
+      (track.h - inset * 2.0).max(1.0),
+    );
+    let radius = thumb.h * 0.5;
+    out.push_quad_rounded(thumb, apply_opacity(thumb_color, opacity), [radius; 4]);
+  }
 }
 
 fn element_scroll_y(b: &LayoutBox, path: &[usize], scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> f32 {
@@ -820,6 +845,17 @@ fn should_paint_vertical_scrollbar(b: &LayoutBox) -> bool {
   match b.overflow.y {
     Overflow::Scroll => true,
     Overflow::Auto => scrollable_content_height(b) > padding_box(b).h + 0.5,
+    _ => false,
+  }
+}
+
+fn should_paint_horizontal_scrollbar(b: &LayoutBox) -> bool {
+  if b.overflow.scrollbar_width <= 0.0 {
+    return false;
+  }
+  match b.overflow.x {
+    Overflow::Scroll => true,
+    Overflow::Auto => scrollable_content_width(b) > padding_box(b).w + 0.5,
     _ => false,
   }
 }
