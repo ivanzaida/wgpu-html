@@ -87,8 +87,10 @@ impl EguiDemoApp {
 }
 
 impl eframe::App for EguiDemoApp {
-  fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-    egui::TopBottomPanel::top("demo-toolbar").show(ctx, |ui| {
+  fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {}
+
+  fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    egui::Panel::top("demo-toolbar").show_inside(ui, |ui| {
       ui.horizontal(|ui| {
         ui.label("wgpu-html egui");
         ui.separator();
@@ -102,7 +104,7 @@ impl eframe::App for EguiDemoApp {
       });
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show_inside(ui, |ui| {
       let size = ui.available_size().max(egui::vec2(1.0, 1.0));
       let out = self.html.show(ui, &mut self.tree, size);
       if self.profiling_enabled {

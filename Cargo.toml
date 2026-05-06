@@ -44,8 +44,8 @@ wgpu = "29"
 winit = "0.30"
 pollster = "0.4"
 arboard = "3"
-egui = "0.33.3"
-eframe = "0.33.3"
+egui = "0.34"
+eframe = "0.34"
 bytemuck = { version = "1", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 ureq = "3.3.0"
