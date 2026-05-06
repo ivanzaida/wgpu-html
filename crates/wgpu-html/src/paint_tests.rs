@@ -800,8 +800,8 @@ fn overflow_y_scroll_paints_vertical_scrollbar() {
 
   let list = paint_tree(&tree, 800.0, 600.0);
 
-  assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_TRACK));
-  assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_THUMB));
+  assert!(list.quads.iter().any(|q| q.color == crate::scroll::DEFAULT_TRACK));
+  assert!(list.quads.iter().any(|q| q.color == crate::scroll::DEFAULT_THUMB));
 }
 
 #[test]
@@ -817,8 +817,8 @@ fn overflow_y_scroll_paints_scrollbar_without_overflow() {
 
   let list = paint_tree(&tree, 800.0, 600.0);
 
-  assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_TRACK));
-  assert!(list.quads.iter().any(|q| q.color == SCROLLBAR_THUMB));
+  assert!(list.quads.iter().any(|q| q.color == crate::scroll::DEFAULT_TRACK));
+  assert!(list.quads.iter().any(|q| q.color == crate::scroll::DEFAULT_THUMB));
 }
 
 #[test]
@@ -845,12 +845,12 @@ fn overflow_scroll_offset_moves_descendants_and_thumb() {
   let track = list
     .quads
     .iter()
-    .find(|q| q.color == SCROLLBAR_TRACK)
+    .find(|q| q.color == crate::scroll::DEFAULT_TRACK)
     .expect("scrollbar track");
   let thumb = list
     .quads
     .iter()
-    .find(|q| q.color == SCROLLBAR_THUMB)
+    .find(|q| q.color == crate::scroll::DEFAULT_THUMB)
     .expect("scrollbar thumb");
   assert!(thumb.rect.y > track.rect.y + 2.0);
 }
@@ -868,8 +868,8 @@ fn overflow_y_auto_without_overflow_does_not_paint_scrollbar() {
 
   let list = paint_tree(&tree, 800.0, 600.0);
 
-  assert!(!list.quads.iter().any(|q| q.color == SCROLLBAR_TRACK));
-  assert!(!list.quads.iter().any(|q| q.color == SCROLLBAR_THUMB));
+  assert!(!list.quads.iter().any(|q| q.color == crate::scroll::DEFAULT_TRACK));
+  assert!(!list.quads.iter().any(|q| q.color == crate::scroll::DEFAULT_THUMB));
 }
 
 #[test]

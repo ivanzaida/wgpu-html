@@ -13,9 +13,6 @@ use wgpu_html_tree::{ScrollOffset, SelectionColors, TextCursor, TextSelection, T
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 const SCROLLBAR_MIN_THUMB: f32 = 18.0;
-pub const SCROLLBAR_TRACK: [f32; 4] = [0.15, 0.18, 0.22, 0.45];
-
-pub const SCROLLBAR_THUMB: [f32; 4] = [0.55, 0.60, 0.68, 0.85];
 fn apply_opacity(mut color: wgpu_html_renderer::Color, opacity: f32) -> wgpu_html_renderer::Color {
   color[3] *= opacity.clamp(0.0, 1.0);
   color
@@ -771,7 +768,7 @@ fn paint_scrollbars(
   }
   let track_w = b.overflow.scrollbar_width.min(pad.w);
   let track = Rect::new(pad.x + pad.w - track_w, pad.y, track_w, pad.h);
-  let track_color = b.overflow.scrollbar_track.unwrap_or(SCROLLBAR_TRACK);
+  let track_color = b.overflow.scrollbar_track.unwrap_or(crate::scroll::DEFAULT_TRACK);
   out.push_quad(track, apply_opacity(track_color, opacity));
 
   let scroll_h = scrollable_content_height(b).max(pad.h);
@@ -787,8 +784,9 @@ fn paint_scrollbars(
     (track.w - inset * 2.0).max(1.0),
     (thumb_h - inset * 2.0).max(1.0),
   );
-  let thumb_color = b.overflow.scrollbar_thumb.unwrap_or(SCROLLBAR_THUMB);
-  out.push_quad(thumb, apply_opacity(thumb_color, opacity));
+  let thumb_color = b.overflow.scrollbar_thumb.unwrap_or(crate::scroll::DEFAULT_THUMB);
+  let radius = thumb.w * 0.5;
+  out.push_quad_rounded(thumb, apply_opacity(thumb_color, opacity), [radius; 4]);
 }
 
 fn element_scroll_y(b: &LayoutBox, path: &[usize], scroll_offsets: &BTreeMap<Vec<usize>, ScrollOffset>) -> f32 {

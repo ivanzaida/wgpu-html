@@ -548,6 +548,13 @@ template {
   display: none;
 }
 
+/* Scrollbar */
+
+html {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-width: auto;
+}
+
 /* Default focus */
 
 :focus {

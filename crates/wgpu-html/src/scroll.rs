@@ -140,8 +140,14 @@ pub fn translate_display_list_y(list: &mut DisplayList, dy: f32) {
   }
 }
 
+/// Default scrollbar colors — used only when the layout box has no
+/// `scrollbar-color` set (i.e. the UA stylesheet didn't cascade).
+pub const DEFAULT_TRACK: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
+pub const DEFAULT_THUMB: [f32; 4] = [1.0, 1.0, 1.0, 0.2];
+
 /// Append the viewport scrollbar (track + thumb) to `list` as a
-/// final clip-less section. No-op if the document fits.
+/// final clip-less section. Colors come from the root layout box's
+/// `scrollbar-color` CSS property (set in the UA stylesheet by default).
 pub fn paint_viewport_scrollbar(
   list: &mut DisplayList,
   layout: &LayoutBox,
@@ -153,9 +159,17 @@ pub fn paint_viewport_scrollbar(
     return;
   };
 
+  let track_color = layout.overflow.scrollbar_track.unwrap_or(DEFAULT_TRACK);
+  let thumb_color = layout.overflow.scrollbar_thumb.unwrap_or(DEFAULT_THUMB);
+
+  let radius = geom.thumb.w * 0.5;
   list.push_clip(None, [0.0; 4], [0.0; 4]);
-  list.push_quad(geom.track, [0.0, 0.0, 0.0, 0.18]);
-  list.push_quad(geom.thumb, [0.0, 0.0, 0.0, 0.55]);
+  if track_color[3] > 0.0 {
+    list.push_quad(geom.track, track_color);
+  }
+  if thumb_color[3] > 0.0 {
+    list.push_quad_rounded(geom.thumb, thumb_color, [radius; 4]);
+  }
   list.finalize();
 }
 
