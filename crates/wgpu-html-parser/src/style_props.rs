@@ -19,7 +19,7 @@
 
 use std::collections::HashMap;
 
-use wgpu_html_models::Style;
+use wgpu_html_models::{ArcStr, Style};
 
 use crate::{
   css_parser::CssWideKeyword,
@@ -39,7 +39,7 @@ fn clear_background_values(values: &mut Style) {
   values.background_clip = None;
 }
 
-fn clear_background_keywords(keywords: &mut HashMap<String, CssWideKeyword>) {
+fn clear_background_keywords(keywords: &mut HashMap<ArcStr, CssWideKeyword>) {
   keywords.remove("background");
   keywords.remove("background-color");
   keywords.remove("background-image");
@@ -77,7 +77,7 @@ fn apply_deferred_keyword(values: &mut Style, parent: Option<&Style>, prop: &str
   match kw {
     CssWideKeyword::Inherit => {
       if let Some(value) = parent.and_then(|p| p.deferred_longhands.get(prop)) {
-        values.deferred_longhands.insert(prop.to_string(), value.clone());
+        values.deferred_longhands.insert(ArcStr::from(prop), value.clone());
       } else {
         values.deferred_longhands.remove(prop);
       }
@@ -88,7 +88,7 @@ fn apply_deferred_keyword(values: &mut Style, parent: Option<&Style>, prop: &str
     CssWideKeyword::Unset => {
       if is_inherited_deferred_longhand(prop) {
         if let Some(value) = parent.and_then(|p| p.deferred_longhands.get(prop)) {
-          values.deferred_longhands.insert(prop.to_string(), value.clone());
+          values.deferred_longhands.insert(ArcStr::from(prop), value.clone());
         } else {
           values.deferred_longhands.remove(prop);
         }
@@ -113,7 +113,7 @@ fn apply_all_keyword(values: &mut Style, parent: Option<&Style>, kw: CssWideKeyw
         for prop in all_deferred_longhands() {
           if is_inherited_deferred_longhand(prop) {
             if let Some(value) = parent.deferred_longhands.get(*prop) {
-              next.deferred_longhands.insert((*prop).to_string(), value.clone());
+              next.deferred_longhands.insert(ArcStr::from(*prop), value.clone());
             }
           }
         }
@@ -125,7 +125,7 @@ fn apply_all_keyword(values: &mut Style, parent: Option<&Style>, kw: CssWideKeyw
   *values = next;
 }
 
-fn clear_keywords_covered_by_value(prop: &str, keywords: &mut HashMap<String, CssWideKeyword>) {
+fn clear_keywords_covered_by_value(prop: &str, keywords: &mut HashMap<ArcStr, CssWideKeyword>) {
   keywords.remove(prop);
   for shorthand in all_shorthands() {
     if shorthand_contains_member(shorthand, prop) {
@@ -176,7 +176,7 @@ macro_rules! style_props {
         /// the same property.
         pub fn merge_values_clearing_keywords(
             dst: &mut Style,
-            keywords: &mut HashMap<String, CssWideKeyword>,
+            keywords: &mut HashMap<ArcStr, CssWideKeyword>,
             src: &Style,
         ) {
             for prop in &src.reset_properties {

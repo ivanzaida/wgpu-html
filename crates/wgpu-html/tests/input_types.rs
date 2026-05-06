@@ -153,7 +153,7 @@ fn password_input_stores_cleartext_but_renders_bullets() {
     Element::Input(inp) => inp.value.clone().unwrap_or_default(),
     _ => panic!("expected Input"),
   };
-  assert_eq!(pw_value, typed, "password element stores cleartext");
+  assert_eq!(&*pw_value, typed, "password element stores cleartext");
 
   // ── Type the same text into the plain text field ────────────
   tree.blur();

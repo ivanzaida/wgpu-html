@@ -1,3 +1,4 @@
+use wgpu_html_models::ArcStr;
 use wgpu_html_tree::{Element, Node, Tree};
 
 use crate::{attr_parser, tokenizer::Token};
@@ -59,7 +60,7 @@ struct TreeBuilder {
   /// tag — its subtree is parsed but discarded on close. The last field
   /// carries the raw HTML attributes so they can be attached to the
   /// resulting `Node`.
-  stack: Vec<(String, Option<Element>, Vec<Node>, Vec<(String, String)>)>,
+  stack: Vec<(String, Option<Element>, Vec<Node>, Vec<(ArcStr, ArcStr)>)>,
   document: Vec<Node>,
 }
 
@@ -83,7 +84,7 @@ impl TreeBuilder {
         Token::Doctype(_) | Token::Comment(_) => {}
         Token::Text(text) => {
           if !text.trim().is_empty() {
-            self.push_node(Node::new(Element::Text(text)));
+            self.push_node(Node::new(Element::Text(ArcStr::from(text))));
           }
         }
         Token::OpenTag {
@@ -91,6 +92,10 @@ impl TreeBuilder {
           attrs,
           self_closing,
         } => {
+          let attrs: Vec<(ArcStr, ArcStr)> = attrs
+            .into_iter()
+            .map(|(k, v)| (ArcStr::from(k.as_str()), ArcStr::from(v.as_str())))
+            .collect();
           let element = attr_parser::parse_element(&name, &attrs);
 
           if self_closing || is_void_element(&name) {

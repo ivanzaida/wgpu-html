@@ -2480,7 +2480,7 @@ fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
       ) {
         return None;
       }
-      let val = inp.value.clone().unwrap_or_default();
+      let val: String = inp.value.as_deref().unwrap_or_default().to_string();
       let ro = inp.readonly.unwrap_or(false);
       Some((val, false, ro))
     }
@@ -2496,8 +2496,8 @@ fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
 /// Write a new value back to the focused form control.
 fn write_value(node: &mut Node, value: String) {
   match &mut node.element {
-    Element::Input(inp) => inp.value = Some(value),
-    Element::Textarea(ta) => ta.value = Some(value),
+    Element::Input(inp) => inp.value = Some(value.into()),
+    Element::Textarea(ta) => ta.value = Some(value.into()),
     _ => {}
   }
 }
@@ -2507,7 +2507,7 @@ fn form_control_state(tree: &Tree, path: &[usize]) -> (Option<String>, Option<bo
     return (None, None);
   };
   match &node.element {
-    Element::Input(inp) => (inp.value.clone(), inp.checked),
+    Element::Input(inp) => (inp.value.as_deref().map(|s| s.to_string()), inp.checked),
     Element::Textarea(ta) => (Some(textarea_value(ta, &node.children)), None),
     _ => (None, None),
   }

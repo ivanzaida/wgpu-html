@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 
-use wgpu_html_models::Style;
+use wgpu_html_models::{ArcStr, Style};
 pub use wgpu_html_tree::query::{
   AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, SelectorList,
 };
@@ -64,8 +64,8 @@ pub struct Rule {
   pub selectors: SelectorList,
   pub declarations: Style,
   pub important: Style,
-  pub keywords: HashMap<String, CssWideKeyword>,
-  pub important_keywords: HashMap<String, CssWideKeyword>,
+  pub keywords: HashMap<ArcStr, CssWideKeyword>,
+  pub important_keywords: HashMap<ArcStr, CssWideKeyword>,
   /// Active media conditions enclosing this rule. Multiple entries
   /// come from nested `@media` blocks and are ANDed by the cascade.
   pub media: Vec<MediaQueryList>,

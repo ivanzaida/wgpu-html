@@ -18,7 +18,7 @@ use std::{
 };
 
 use wgpu_html_models as m;
-use wgpu_html_models::Style;
+use wgpu_html_models::{ArcStr, Style};
 use wgpu_html_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
   MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule, Stylesheet, parse_inline_style_decls, parse_stylesheet,
@@ -447,7 +447,7 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
   let stylesheets = [ua_prepared_stylesheet(), author.as_ref()];
   let interaction = &tree.interaction;
   let mut path: Vec<usize> = Vec::new();
-  let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> = HashMap::new();
+  let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)> = HashMap::new();
   let cascade_ctx = CascadeContext::new(&stylesheets);
   let Some(root) = tree.root.as_ref() else {
     return CascadedTree { root: None };
@@ -585,7 +585,7 @@ pub fn cascade_incremental_with_media(
   };
 
   let mut path: Vec<usize> = Vec::new();
-  let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> = HashMap::new();
+  let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)> = HashMap::new();
   let cascade_ctx = CascadeContext::new(&sheets);
   re_cascade_dirty(
     dom_root,
@@ -654,7 +654,7 @@ fn re_cascade_dirty(
   ancestors: &[(&Element, MatchContext)],
   path: &mut Vec<usize>,
   interaction: &InteractionState,
-  decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
+  decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)>,
   dirty: &HashSet<Vec<usize>>,
   dirty_subtrees: &HashSet<Vec<usize>>,
   sibling_count: Option<usize>,
@@ -784,7 +784,7 @@ fn collect_stylesheet_source(tree: &Tree) -> String {
   // <link> element in the DOM (e.g. component styles registered
   // programmatically).
   for (href, sheet_css) in &tree.linked_stylesheets {
-    if !referenced.contains(href.as_str()) {
+    if !referenced.contains(&**href) {
       append_stylesheet_source(&mut css, sheet_css, None);
     }
   }
@@ -793,7 +793,7 @@ fn collect_stylesheet_source(tree: &Tree) -> String {
 
 fn gather<'a>(
   node: &'a Node,
-  linked_stylesheets: &'a HashMap<String, String>,
+  linked_stylesheets: &'a HashMap<ArcStr, ArcStr>,
   out: &mut String,
   inside_template: bool,
   referenced: &mut HashSet<&'a str>,
@@ -876,7 +876,7 @@ fn cascade_node(
   ancestors: &[(&Element, MatchContext)],
   path: &mut Vec<usize>,
   interaction: &InteractionState,
-  decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)>,
+  decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)>,
   sibling_count: Option<usize>,
   cascade_ctx: &CascadeContext,
   media: &MediaContext,
@@ -970,7 +970,7 @@ fn cascade_node(
 /// resolved style. Skips properties already touched by a CSS-wide
 /// keyword in this layer — those have been resolved authoritatively
 /// (an explicit `initial` shouldn't be implicitly re-inherited).
-fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, CssWideKeyword>) {
+fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<ArcStr, CssWideKeyword>) {
   macro_rules! inherit {
         ($(($field:ident, $name:literal)),* $(,)?) => {
             $(
@@ -1112,7 +1112,7 @@ pub fn computed_style(element: &Element, sheet: &Stylesheet) -> Style {
 /// layer's keyword for the same property. The returned keyword map
 /// is what's left over for `cascade_node` to resolve against the
 /// parent's already-resolved style.
-pub fn computed_decls(element: &Element, sheet: &Stylesheet) -> (Style, HashMap<String, CssWideKeyword>) {
+pub fn computed_decls(element: &Element, sheet: &Stylesheet) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   computed_decls_in_tree(element, sheet, &[])
 }
 
@@ -1124,7 +1124,7 @@ pub fn computed_decls_in_tree(
   element: &Element,
   sheet: &Stylesheet,
   ancestors: &[&Element],
-) -> (Style, HashMap<String, CssWideKeyword>) {
+) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   let with_default: Vec<(&Element, MatchContext)> = ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
   // Dummy root/path for public API without tree access.
   let dummy_root = Node::new(Element::Div(m::Div::default()));
@@ -1148,7 +1148,7 @@ pub fn computed_decls_in_tree_with_context(
   ancestors: &[(&Element, MatchContext)],
   root: &Node,
   path: &[usize],
-) -> (Style, HashMap<String, CssWideKeyword>) {
+) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   let prepared = PreparedStylesheet::from_sheet(Arc::new(sheet.clone()));
   computed_decls_in_prepared_stylesheets_with_context(
     element,
@@ -1171,9 +1171,9 @@ fn computed_decls_in_prepared_stylesheets_with_context(
   root: &Node,
   path: &[usize],
   interaction: &InteractionState,
-) -> (Style, HashMap<String, CssWideKeyword>) {
+) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   let mut values = Style::default();
-  let mut keywords: HashMap<String, CssWideKeyword> = HashMap::new();
+  let mut keywords: HashMap<ArcStr, CssWideKeyword> = HashMap::new();
   let inline = element_style_attr(element).map(parse_inline_style_decls);
   let tag = element_tag(element);
   let id = element_id(element);
@@ -1394,9 +1394,9 @@ fn selector_subject_might_match(
 /// also wrote a value for.
 fn apply_layer_if_nonempty(
   values: &mut Style,
-  keywords: &mut HashMap<String, CssWideKeyword>,
+  keywords: &mut HashMap<ArcStr, CssWideKeyword>,
   layer_values: &Style,
-  layer_keywords: &HashMap<String, CssWideKeyword>,
+  layer_keywords: &HashMap<ArcStr, CssWideKeyword>,
 ) {
   if layer_keywords.is_empty() && !style_has_values(layer_values) {
     return;
@@ -1406,9 +1406,9 @@ fn apply_layer_if_nonempty(
 
 fn apply_layer(
   values: &mut Style,
-  keywords: &mut HashMap<String, CssWideKeyword>,
+  keywords: &mut HashMap<ArcStr, CssWideKeyword>,
   layer_values: &Style,
-  layer_keywords: &HashMap<String, CssWideKeyword>,
+  layer_keywords: &HashMap<ArcStr, CssWideKeyword>,
 ) {
   for prop in &layer_values.keyword_reset_properties {
     wgpu_html_parser::clear_value_for(prop, values);

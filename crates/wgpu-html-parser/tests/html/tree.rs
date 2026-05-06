@@ -354,9 +354,9 @@ fn multiple_data_attrs_are_all_preserved() {
     panic!("expected div")
   };
   assert_eq!(d.data_attrs.len(), 3);
-  assert_eq!(d.data_attrs.get("id").map(String::as_str), Some("42"));
-  assert_eq!(d.data_attrs.get("name").map(String::as_str), Some("hello"));
-  assert_eq!(d.data_attrs.get("foo").map(String::as_str), Some("bar"));
+  assert_eq!(d.data_attrs.get("id").map(|s| &**s), Some("42"));
+  assert_eq!(d.data_attrs.get("name").map(|s| &**s), Some("hello"));
+  assert_eq!(d.data_attrs.get("foo").map(|s| &**s), Some("bar"));
   assert!(d.aria_attrs.is_empty());
 }
 
@@ -367,7 +367,7 @@ fn multiple_aria_attrs_are_all_preserved() {
     panic!("expected button")
   };
   assert_eq!(b.aria_attrs.len(), 3);
-  assert_eq!(b.aria_attrs.get("label").map(String::as_str), Some("Close"));
-  assert_eq!(b.aria_attrs.get("pressed").map(String::as_str), Some("false"));
-  assert_eq!(b.aria_attrs.get("controls").map(String::as_str), Some("menu"));
+  assert_eq!(b.aria_attrs.get("label").map(|s| &**s), Some("Close"));
+  assert_eq!(b.aria_attrs.get("pressed").map(|s| &**s), Some("false"));
+  assert_eq!(b.aria_attrs.get("controls").map(|s| &**s), Some("menu"));
 }

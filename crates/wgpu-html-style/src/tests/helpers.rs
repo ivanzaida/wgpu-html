@@ -10,8 +10,8 @@ pub(crate) fn elem_div() -> Element {
 
 pub(crate) fn elem_div_with(id: Option<&str>, class: Option<&str>) -> Element {
   let mut d = wgpu_html_models::Div::default();
-  d.id = id.map(str::to_string);
-  d.class = class.map(str::to_string);
+  d.id = id.map(|s| ArcStr::from(s));
+  d.class = class.map(|s| ArcStr::from(s));
   Element::Div(d)
 }
 

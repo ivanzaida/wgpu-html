@@ -310,7 +310,7 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
 
     let placeholder = El {
       node: Node::new(m::Div {
-        id: Some(marker_id.clone()),
+        id: Some(wgpu_html_models::ArcStr::from(marker_id.as_str())),
         ..Default::default()
       }),
     };

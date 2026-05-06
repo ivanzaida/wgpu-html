@@ -107,7 +107,7 @@ fn length_math_functions_parse_inside_calc() {
 #[test]
 fn color_named() {
   let style = s("color: red;");
-  assert!(matches!(style.color, Some(CssColor::Named(ref n)) if n == "red"));
+  assert!(matches!(style.color, Some(CssColor::Named(ref n)) if &**n == "red"));
 }
 
 #[test]
@@ -115,14 +115,14 @@ fn color_hex_long() {
   let style = s("background-color: #ff0080;");
   assert!(matches!(
       style.background_color,
-      Some(CssColor::Hex(ref s)) if s == "#ff0080"
+      Some(CssColor::Hex(ref s)) if &**s == "#ff0080"
   ));
 }
 
 #[test]
 fn color_hex_short() {
   let style = s("color: #f0a;");
-  assert!(matches!(style.color, Some(CssColor::Hex(ref s)) if s == "#f0a"));
+  assert!(matches!(style.color, Some(CssColor::Hex(ref s)) if &**s == "#f0a"));
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn color_hsla() {
 #[test]
 fn color_modern_functions_are_preserved() {
   let style = s("color: oklch(60% 0.2 30);");
-  assert!(matches!(style.color, Some(CssColor::Function(ref f)) if f == "oklch(60% 0.2 30)"));
+  assert!(matches!(style.color, Some(CssColor::Function(ref f)) if &**f == "oklch(60% 0.2 30)"));
 }
 
 #[test]
@@ -431,7 +431,7 @@ fn font_shorthand_sets_typed_core_and_deferred_variant() {
   assert!(matches!(style.line_height, Some(CssLength::Px(v)) if v == 24.0));
   assert_eq!(style.font_family.as_deref(), Some("Inter, sans-serif"));
   assert_eq!(
-    style.deferred_longhands.get("font-variant").map(String::as_str),
+    style.deferred_longhands.get("font-variant").map(|s| &**s),
     Some("small-caps")
   );
 }
@@ -442,14 +442,14 @@ fn font_shorthand_resets_members_and_later_font_size_overrides() {
   assert!(matches!(style.font_style, Some(FontStyle::Normal)));
   assert!(matches!(style.font_weight, Some(FontWeight::Normal)));
   assert!(matches!(style.font_size, Some(CssLength::Px(v)) if v == 16.0));
-  assert!(matches!(style.line_height, Some(CssLength::Raw(ref v)) if v == "normal"));
+  assert!(matches!(style.line_height, Some(CssLength::Raw(ref v)) if &**v == "normal"));
   assert_eq!(style.font_family.as_deref(), Some("Arial, sans-serif"));
   assert_eq!(
-    style.deferred_longhands.get("font-variant").map(String::as_str),
+    style.deferred_longhands.get("font-variant").map(|s| &**s),
     Some("normal")
   );
   assert_eq!(
-    style.deferred_longhands.get("font-stretch").map(String::as_str),
+    style.deferred_longhands.get("font-stretch").map(|s| &**s),
     Some("normal")
   );
 }
@@ -458,7 +458,7 @@ fn font_shorthand_resets_members_and_later_font_size_overrides() {
 fn later_font_shorthand_resets_earlier_font_longhands() {
   let style = s("font-size: 16px; line-height: 20px; font: 15px Arial, sans-serif;");
   assert!(matches!(style.font_size, Some(CssLength::Px(v)) if v == 15.0));
-  assert!(matches!(style.line_height, Some(CssLength::Raw(ref v)) if v == "normal"));
+  assert!(matches!(style.line_height, Some(CssLength::Raw(ref v)) if &**v == "normal"));
   assert_eq!(style.font_family.as_deref(), Some("Arial, sans-serif"));
 }
 
@@ -470,19 +470,19 @@ fn animation_shorthand_preserves_member_longhands() {
     Some("fade 1s linear 200ms 2 reverse both paused")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-name").map(String::as_str),
+    style.deferred_longhands.get("animation-name").map(|s| &**s),
     Some("fade")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-duration").map(String::as_str),
+    style.deferred_longhands.get("animation-duration").map(|s| &**s),
     Some("1s")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-delay").map(String::as_str),
+    style.deferred_longhands.get("animation-delay").map(|s| &**s),
     Some("200ms")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-play-state").map(String::as_str),
+    style.deferred_longhands.get("animation-play-state").map(|s| &**s),
     Some("paused")
   );
 }
@@ -491,18 +491,18 @@ fn animation_shorthand_preserves_member_longhands() {
 fn animation_shorthand_none_can_be_name_and_scroll_function_is_timeline() {
   let style = s("animation: none 1s linear scroll(root block);");
   assert_eq!(
-    style.deferred_longhands.get("animation-name").map(String::as_str),
+    style.deferred_longhands.get("animation-name").map(|s| &**s),
     Some("none")
   );
   assert_eq!(
     style
       .deferred_longhands
       .get("animation-timing-function")
-      .map(String::as_str),
+      .map(|s| &**s),
     Some("linear")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-timeline").map(String::as_str),
+    style.deferred_longhands.get("animation-timeline").map(|s| &**s),
     Some("scroll(root block)")
   );
 }
@@ -511,19 +511,19 @@ fn animation_shorthand_none_can_be_name_and_scroll_function_is_timeline() {
 fn animation_shorthand_multi_layer_keeps_member_alignment() {
   let style = s("animation: fade 1s ease-in, spin 2s 500ms linear paused;");
   assert_eq!(
-    style.deferred_longhands.get("animation-name").map(String::as_str),
+    style.deferred_longhands.get("animation-name").map(|s| &**s),
     Some("fade, spin")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-duration").map(String::as_str),
+    style.deferred_longhands.get("animation-duration").map(|s| &**s),
     Some("1s, 2s")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-delay").map(String::as_str),
+    style.deferred_longhands.get("animation-delay").map(|s| &**s),
     Some("0s, 500ms")
   );
   assert_eq!(
-    style.deferred_longhands.get("animation-play-state").map(String::as_str),
+    style.deferred_longhands.get("animation-play-state").map(|s| &**s),
     Some("running, paused")
   );
 }
@@ -536,19 +536,19 @@ fn transition_shorthand_preserves_member_longhands() {
     Some("opacity 200ms ease-in 50ms allow-discrete")
   );
   assert_eq!(
-    style.deferred_longhands.get("transition-property").map(String::as_str),
+    style.deferred_longhands.get("transition-property").map(|s| &**s),
     Some("opacity")
   );
   assert_eq!(
-    style.deferred_longhands.get("transition-duration").map(String::as_str),
+    style.deferred_longhands.get("transition-duration").map(|s| &**s),
     Some("200ms")
   );
   assert_eq!(
-    style.deferred_longhands.get("transition-delay").map(String::as_str),
+    style.deferred_longhands.get("transition-delay").map(|s| &**s),
     Some("50ms")
   );
   assert_eq!(
-    style.deferred_longhands.get("transition-behavior").map(String::as_str),
+    style.deferred_longhands.get("transition-behavior").map(|s| &**s),
     Some("allow-discrete")
   );
 }
@@ -557,14 +557,14 @@ fn transition_shorthand_preserves_member_longhands() {
 fn transition_shorthand_linear_is_timing_function_not_property() {
   let style = s("transition: opacity 200ms linear 50ms;");
   assert_eq!(
-    style.deferred_longhands.get("transition-property").map(String::as_str),
+    style.deferred_longhands.get("transition-property").map(|s| &**s),
     Some("opacity")
   );
   assert_eq!(
     style
       .deferred_longhands
       .get("transition-timing-function")
-      .map(String::as_str),
+      .map(|s| &**s),
     Some("linear")
   );
 }
@@ -573,22 +573,22 @@ fn transition_shorthand_linear_is_timing_function_not_property() {
 fn transition_shorthand_none_can_be_property_and_layers_keep_defaults() {
   let style = s("transition: none 150ms ease-out, opacity 200ms;");
   assert_eq!(
-    style.deferred_longhands.get("transition-property").map(String::as_str),
+    style.deferred_longhands.get("transition-property").map(|s| &**s),
     Some("none, opacity")
   );
   assert_eq!(
-    style.deferred_longhands.get("transition-duration").map(String::as_str),
+    style.deferred_longhands.get("transition-duration").map(|s| &**s),
     Some("150ms, 200ms")
   );
   assert_eq!(
-    style.deferred_longhands.get("transition-delay").map(String::as_str),
+    style.deferred_longhands.get("transition-delay").map(|s| &**s),
     Some("0s, 0s")
   );
   assert_eq!(
     style
       .deferred_longhands
       .get("transition-timing-function")
-      .map(String::as_str),
+      .map(|s| &**s),
     Some("ease-out, ease")
   );
 }
@@ -757,7 +757,7 @@ fn background_shorthand_color_sets_background_color() {
   assert_eq!(style.background.as_deref(), Some("#1b1d22"));
   assert!(matches!(
       style.background_color,
-      Some(CssColor::Hex(ref s)) if s == "#1b1d22"
+      Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"
   ));
 }
 
@@ -766,7 +766,7 @@ fn background_shorthand_resets_supported_longhands_in_same_block() {
   let style = s("background-image: url('assets/bg.png'); background-repeat: repeat-x; background: #1b1d22;");
   assert!(matches!(
       style.background_color,
-      Some(CssColor::Hex(ref s)) if s == "#1b1d22"
+      Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"
   ));
   assert!(style.background_image.is_none());
   assert!(style.background_repeat.is_none());
@@ -779,11 +779,11 @@ fn background_shorthand_picks_up_supported_non_color_pieces() {
   assert!(style.background_clip.is_some());
   assert!(matches!(
       style.background_image,
-      Some(CssImage::Url(ref url)) if url == "assets/bg.png"
+      Some(CssImage::Url(ref url)) if &**url == "assets/bg.png"
   ));
   assert!(matches!(
       style.background_color,
-      Some(CssColor::Hex(ref s)) if s == "#1b1d22"
+      Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"
   ));
 }
 
@@ -792,7 +792,7 @@ fn background_image_url_parses_to_typed_image() {
   let style = s("background-image: url('assets/bg.png');");
   assert!(matches!(
       style.background_image,
-      Some(CssImage::Url(ref url)) if url == "assets/bg.png"
+      Some(CssImage::Url(ref url)) if &**url == "assets/bg.png"
   ));
 }
 
@@ -801,7 +801,7 @@ fn background_image_function_is_preserved() {
   let style = s("background-image: linear-gradient(red, blue);");
   assert!(matches!(
       style.background_image,
-      Some(CssImage::Function(ref f)) if f == "linear-gradient(red, blue)"
+      Some(CssImage::Function(ref f)) if &**f == "linear-gradient(red, blue)"
   ));
 }
 
@@ -866,7 +866,7 @@ fn border_shorthand_fans_to_all_sides() {
     &style.border_bottom_color,
     &style.border_left_color,
   ] {
-    assert!(matches!(c, Some(CssColor::Named(n)) if n == "red"));
+    assert!(matches!(c, Some(CssColor::Named(n)) if &**n == "red"));
   }
 }
 
@@ -875,7 +875,7 @@ fn border_shorthand_token_order_does_not_matter() {
   let style = s("border: dashed #00f 4px;");
   assert!(matches!(style.border_top_width, Some(CssLength::Px(v)) if v == 4.0));
   assert!(matches!(style.border_top_style, Some(BorderStyle::Dashed)));
-  assert!(matches!(style.border_top_color, Some(CssColor::Hex(ref s)) if s == "#00f"));
+  assert!(matches!(style.border_top_color, Some(CssColor::Hex(ref s)) if &**s == "#00f"));
 }
 
 #[test]
@@ -925,7 +925,7 @@ fn later_border_longhand_overrides_partial_shorthand_reset() {
   let style = s("border-color: red; border: 2px solid; border-top-color: blue;");
   assert!(matches!(
       style.border_top_color,
-      Some(CssColor::Named(ref v)) if v == "blue"
+      Some(CssColor::Named(ref v)) if &**v == "blue"
   ));
   assert!(style.border_right_color.is_none());
 }
@@ -953,10 +953,10 @@ fn border_width_box_shorthand_four_values() {
 #[test]
 fn border_color_box_shorthand_four_values() {
   let style = s("border-color: red green blue gold;");
-  assert!(matches!(style.border_top_color,    Some(CssColor::Named(ref n)) if n == "red"));
-  assert!(matches!(style.border_right_color,  Some(CssColor::Named(ref n)) if n == "green"));
-  assert!(matches!(style.border_bottom_color, Some(CssColor::Named(ref n)) if n == "blue"));
-  assert!(matches!(style.border_left_color,   Some(CssColor::Named(ref n)) if n == "gold"));
+  assert!(matches!(style.border_top_color,    Some(CssColor::Named(ref n)) if &**n == "red"));
+  assert!(matches!(style.border_right_color,  Some(CssColor::Named(ref n)) if &**n == "green"));
+  assert!(matches!(style.border_bottom_color, Some(CssColor::Named(ref n)) if &**n == "blue"));
+  assert!(matches!(style.border_left_color,   Some(CssColor::Named(ref n)) if &**n == "gold"));
 }
 
 #[test]
@@ -1081,5 +1081,5 @@ fn duplicate_property_last_wins() {
   let CssColor::Named(n) = style.color.unwrap() else {
     panic!("expected named")
   };
-  assert_eq!(n, "red");
+  assert_eq!(&*n, "red");
 }

@@ -8,7 +8,7 @@ use wgpu_html_tree::{Element, Modifiers, MouseButton, MouseEvent, Node, Tree};
 
 fn div_with_id(id: &str) -> m::Div {
   m::Div {
-    id: Some(id.to_string()),
+    id: Some(id.into()),
     ..m::Div::default()
   }
 }
@@ -89,7 +89,7 @@ fn first_match_wins_in_document_order() {
 #[test]
 fn template_content_can_be_cloned_and_appended_by_id() {
   let mut template = m::Template::default();
-  template.id = Some("tpl".to_owned());
+  template.id = Some("tpl".into());
   let body = Node::new(m::Body::default()).with_children(vec![
     Node::new(template).with_children(vec![Node::new(div_with_id("from-template"))]),
     Node::new(div_with_id("host")),
@@ -118,7 +118,7 @@ fn template_content_can_be_cloned_and_appended_by_id() {
 #[test]
 fn template_content_can_be_inserted_at_path_index() {
   let mut template = m::Template::default();
-  template.id = Some("tpl".to_owned());
+  template.id = Some("tpl".into());
   let body = Node::new(m::Body::default()).with_children(vec![
     Node::new(template).with_children(vec![Node::new(div_with_id("inserted"))]),
     Node::new(div_with_id("host"))

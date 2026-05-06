@@ -8,7 +8,7 @@
 
 use std::{collections::HashMap, ops::Range, time::Duration};
 
-use wgpu_html_models as m;
+use wgpu_html_models::{self as m, ArcStr};
 
 mod dispatch;
 mod events;
@@ -75,13 +75,13 @@ pub struct Tree {
   /// already-cached URLs are skipped — so it's safe to populate
   /// once at startup via [`Tree::preload_asset`] and forget about
   /// it.
-  pub preload_queue: Vec<String>,
+  pub preload_queue: Vec<ArcStr>,
   /// Stylesheet sources resolved by the host for
   /// `<link rel="stylesheet" href="...">` elements. The engine does
   /// not fetch CSS by itself; integrations can register local,
   /// embedded, or already-fetched stylesheets here, keyed by the
   /// exact `href` used in the document.
-  pub linked_stylesheets: HashMap<String, String>,
+  pub linked_stylesheets: HashMap<ArcStr, ArcStr>,
   /// Host hooks registered on this document. Integration crates emit through
   /// `Tree::emit_*` methods so hook dispatch stays owned by this crate.
   pub hooks: Vec<TreeHookHandle>,
@@ -152,7 +152,7 @@ impl Tree {
 
   /// Set a CSS custom property on the document root. Shorthand for
   /// `tree.root.set_custom_property(name, value)`.
-  pub fn set_custom_property(&mut self, name: impl Into<String>, value: impl Into<String>) {
+  pub fn set_custom_property(&mut self, name: impl Into<ArcStr>, value: impl Into<ArcStr>) {
     if let Some(root) = &mut self.root {
       root.set_custom_property(name, value);
       self.generation += 1;
@@ -160,7 +160,7 @@ impl Tree {
   }
 
   /// Remove a programmatic custom property from the document root.
-  pub fn remove_custom_property(&mut self, name: &str) -> Option<String> {
+  pub fn remove_custom_property(&mut self, name: &str) -> Option<ArcStr> {
     let v = self.root.as_mut()?.remove_custom_property(name);
     if v.is_some() {
       self.generation += 1;
@@ -193,7 +193,7 @@ impl Tree {
   /// tree.preload_asset("https://example.com/hero.png");
   /// tree.preload_asset("assets/icons/menu.png");
   /// ```
-  pub fn preload_asset(&mut self, src: impl Into<String>) {
+  pub fn preload_asset(&mut self, src: impl Into<ArcStr>) {
     let s = src.into();
     if s.is_empty() || self.preload_queue.iter().any(|u| u == &s) {
       return;
@@ -206,7 +206,7 @@ impl Tree {
   /// This resolves links by exact `href` string. Relative paths,
   /// filesystem lookup, package embeds, and network fetching remain
   /// host responsibilities so the core renderer stays deterministic.
-  pub fn register_linked_stylesheet(&mut self, href: impl Into<String>, css: impl Into<String>) {
+  pub fn register_linked_stylesheet(&mut self, href: impl Into<ArcStr>, css: impl Into<ArcStr>) {
     let href = href.into();
     if href.trim().is_empty() {
       return;
@@ -217,7 +217,7 @@ impl Tree {
   }
 
   /// Remove a previously registered linked stylesheet.
-  pub fn remove_linked_stylesheet(&mut self, href: &str) -> Option<String> {
+  pub fn remove_linked_stylesheet(&mut self, href: &str) -> Option<ArcStr> {
     let removed = self.linked_stylesheets.remove(href);
     if removed.is_some() {
       self.generation += 1;
@@ -544,7 +544,7 @@ pub struct Node {
   /// cascade sees them after author/inline layers, and they
   /// inherit to descendants just like CSS-declared custom
   /// properties. Keys include the `--` prefix (e.g. `"--color"`).
-  pub custom_properties: HashMap<String, String>,
+  pub custom_properties: HashMap<ArcStr, ArcStr>,
   /// Fires when a primary-button press *and* the matching release
   /// both land inside this node's subtree. Bubbles target → root.
   /// Multiple handlers accumulate — calling `.on_click()` again
@@ -639,7 +639,7 @@ pub struct Node {
   pub rect: Option<NodeRect>,
   /// Raw HTML attributes as parsed from the source (name, value pairs).
   /// Includes all attributes — standard, non-standard, and custom.
-  pub raw_attrs: Vec<(String, String)>,
+  pub raw_attrs: Vec<(ArcStr, ArcStr)>,
 }
 
 impl std::fmt::Debug for Node {
@@ -744,13 +744,13 @@ impl Node {
   }
 
   /// Set the raw HTML attributes as parsed from source.
-  pub fn with_raw_attrs(mut self, attrs: Vec<(String, String)>) -> Self {
+  pub fn with_raw_attrs(mut self, attrs: Vec<(ArcStr, ArcStr)>) -> Self {
     self.raw_attrs = attrs;
     self
   }
 
   /// The raw HTML attributes exactly as they appeared in the source.
-  pub fn raw_attrs(&self) -> &[(String, String)] {
+  pub fn raw_attrs(&self) -> &[(ArcStr, ArcStr)] {
     &self.raw_attrs
   }
 
@@ -759,19 +759,19 @@ impl Node {
   /// is available via `var(--name)` in CSS values.
   ///
   /// `name` must include the `--` prefix (e.g. `"--theme-color"`).
-  pub fn set_custom_property(&mut self, name: impl Into<String>, value: impl Into<String>) {
+  pub fn set_custom_property(&mut self, name: impl Into<ArcStr>, value: impl Into<ArcStr>) {
     self.custom_properties.insert(name.into(), value.into());
   }
 
   /// Remove a previously set programmatic custom property.
-  pub fn remove_custom_property(&mut self, name: &str) -> Option<String> {
+  pub fn remove_custom_property(&mut self, name: &str) -> Option<ArcStr> {
     self.custom_properties.remove(name)
   }
 
   /// Read a programmatic custom property set on this node (does NOT
   /// walk the cascade or ancestors).
   pub fn custom_property(&self, name: &str) -> Option<&str> {
-    self.custom_properties.get(name).map(|s| s.as_str())
+    self.custom_properties.get(name).map(|s| &**s)
   }
 
   /// Depth-first search for a descendant (or `self`) whose `id`
@@ -921,7 +921,7 @@ impl Node {
 /// One variant per HTML element kind, plus raw text.
 #[derive(Debug, Clone)]
 pub enum Element {
-  Text(String),
+  Text(ArcStr),
 
   Html(m::Html),
   Head(m::Head),
@@ -1048,14 +1048,14 @@ macro_rules! element_from {
     };
 }
 
-impl From<String> for Element {
-  fn from(s: String) -> Self {
+impl From<ArcStr> for Element {
+  fn from(s: ArcStr) -> Self {
     Element::Text(s)
   }
 }
 impl From<&str> for Element {
   fn from(s: &str) -> Self {
-    Element::Text(s.to_owned())
+    Element::Text(s.into())
   }
 }
 
@@ -1266,13 +1266,13 @@ impl Element {
   /// `value`, `placeholder`, `href`, `src`, `alt`, `for`,
   /// `content`, plus boolean form attributes `disabled`,
   /// `readonly`, `required`, `checked`, `selected`, `multiple`,
-  /// `autofocus`). Boolean attributes return `Some(String::new())`
+  /// `autofocus`). Boolean attributes return `Some(ArcStr::from(""))`
   /// when present so they participate in `[attr]` presence
   /// filters, and `[attr=""]` matches them — same shape as the
   /// browser's reflection of HTML boolean attributes.
   ///
   /// `Text` nodes have no attributes and always return `None`.
-  pub fn attr(&self, name: &str) -> Option<String> {
+  pub fn attr(&self, name: &str) -> Option<ArcStr> {
     let lname = name.to_ascii_lowercase();
 
     if let Some(v) = self.global_attr(&lname) {
@@ -1287,7 +1287,7 @@ impl Element {
     self.specific_attr(&lname)
   }
 
-  fn global_attr(&self, name: &str) -> Option<String> {
+  fn global_attr(&self, name: &str) -> Option<ArcStr> {
     macro_rules! arms {
             ($($v:ident),* $(,)?) => {
                 match self {
@@ -1303,10 +1303,10 @@ impl Element {
                                 HtmlDirection::Ltr => "ltr",
                                 HtmlDirection::Rtl => "rtl",
                                 HtmlDirection::Auto => "auto",
-                            }.to_owned()
+                            }.into()
                         }),
-                        "tabindex" => e.tabindex.map(|t| t.to_string()),
-                        "hidden" => match e.hidden { Some(true) => Some(String::new()), _ => None },
+                        "tabindex" => e.tabindex.map(|t| ArcStr::from(t.to_string())),
+                        "hidden" => match e.hidden { Some(true) => Some(ArcStr::from("")), _ => None },
                         "style" => e.style.clone(),
                         _ => None,
                     },)*
@@ -1316,7 +1316,7 @@ impl Element {
     all_element_variants!(arms)
   }
 
-  fn data_attr(&self, suffix: &str) -> Option<String> {
+  fn data_attr(&self, suffix: &str) -> Option<ArcStr> {
     macro_rules! arms {
             ($($v:ident),* $(,)?) => {
                 match self {
@@ -1328,7 +1328,7 @@ impl Element {
     all_element_variants!(arms)
   }
 
-  fn aria_attr(&self, suffix: &str) -> Option<String> {
+  fn aria_attr(&self, suffix: &str) -> Option<ArcStr> {
     macro_rules! arms {
             ($($v:ident),* $(,)?) => {
                 match self {
@@ -1340,12 +1340,12 @@ impl Element {
     all_element_variants!(arms)
   }
 
-  fn specific_attr(&self, name: &str) -> Option<String> {
+  fn specific_attr(&self, name: &str) -> Option<ArcStr> {
     // Boolean attribute helper: `Some(true)` becomes the empty
     // string (`[attr]` presence test), anything else `None`.
-    fn flag(b: Option<bool>) -> Option<String> {
+    fn flag(b: Option<bool>) -> Option<ArcStr> {
       match b {
-        Some(true) => Some(String::new()),
+        Some(true) => Some(ArcStr::from("")),
         _ => None,
       }
     }
@@ -1377,7 +1377,7 @@ impl Element {
           Url => "url",
           Week => "week",
         }
-        .to_owned()
+        .into()
       }),
       ("type", Element::Button(e)) => e.r#type.as_ref().map(|t| {
         use m::common::html_enums::ButtonType::*;
@@ -1386,7 +1386,7 @@ impl Element {
           Submit => "submit",
           Reset => "reset",
         }
-        .to_owned()
+        .into()
       }),
       ("type", Element::Source(e)) => e.r#type.clone(),
       ("type", Element::Script(e)) => e.r#type.clone(),
@@ -1412,9 +1412,9 @@ impl Element {
       ("value", Element::Button(e)) => e.value.clone(),
       ("value", Element::OptionElement(e)) => e.value.clone(),
       ("value", Element::Data(e)) => e.value.clone(),
-      ("value", Element::Progress(e)) => e.value.map(|v| v.to_string()),
-      ("value", Element::Meter(e)) => e.value.map(|v| v.to_string()),
-      ("value", Element::Li(e)) => e.value.map(|v| v.to_string()),
+      ("value", Element::Progress(e)) => e.value.map(|v| ArcStr::from(v.to_string())),
+      ("value", Element::Meter(e)) => e.value.map(|v| ArcStr::from(v.to_string())),
+      ("value", Element::Li(e)) => e.value.map(|v| ArcStr::from(v.to_string())),
 
       // content (meta)
       ("content", Element::Meta(e)) => e.content.clone(),
@@ -1437,7 +1437,7 @@ impl Element {
 
       // for
       ("for", Element::Label(e)) => e.r#for.clone(),
-      ("for", Element::Output(e)) => e.r#for.as_ref().map(|v| v.join(" ")),
+      ("for", Element::Output(e)) => e.r#for.as_ref().map(|v| ArcStr::from(v.join(" "))),
 
       // placeholder
       ("placeholder", Element::Input(e)) => e.placeholder.clone(),
@@ -1474,14 +1474,14 @@ impl Element {
       ("open", Element::Details(e)) => flag(e.open),
 
       // width / height
-      ("width", Element::Img(e)) => e.width.map(|v| v.to_string()),
-      ("height", Element::Img(e)) => e.height.map(|v| v.to_string()),
-      ("width", Element::Video(e)) => e.width.map(|v| v.to_string()),
-      ("height", Element::Video(e)) => e.height.map(|v| v.to_string()),
-      ("width", Element::Canvas(e)) => e.width.map(|v| v.to_string()),
-      ("height", Element::Canvas(e)) => e.height.map(|v| v.to_string()),
-      ("width", Element::Iframe(e)) => e.width.map(|v| v.to_string()),
-      ("height", Element::Iframe(e)) => e.height.map(|v| v.to_string()),
+      ("width", Element::Img(e)) => e.width.map(|v| ArcStr::from(v.to_string())),
+      ("height", Element::Img(e)) => e.height.map(|v| ArcStr::from(v.to_string())),
+      ("width", Element::Video(e)) => e.width.map(|v| ArcStr::from(v.to_string())),
+      ("height", Element::Video(e)) => e.height.map(|v| ArcStr::from(v.to_string())),
+      ("width", Element::Canvas(e)) => e.width.map(|v| ArcStr::from(v.to_string())),
+      ("height", Element::Canvas(e)) => e.height.map(|v| ArcStr::from(v.to_string())),
+      ("width", Element::Iframe(e)) => e.width.map(|v| ArcStr::from(v.to_string())),
+      ("height", Element::Iframe(e)) => e.height.map(|v| ArcStr::from(v.to_string())),
 
       _ => None,
     }
@@ -1646,7 +1646,7 @@ impl Node {
     buf
   }
 
-  fn write_html_into(&self, buf: &mut String, stylesheets: &std::collections::HashMap<String, String>, raw_text: bool) {
+  fn write_html_into(&self, buf: &mut String, stylesheets: &std::collections::HashMap<ArcStr, ArcStr>, raw_text: bool) {
     use std::fmt::Write;
 
     match &self.element {

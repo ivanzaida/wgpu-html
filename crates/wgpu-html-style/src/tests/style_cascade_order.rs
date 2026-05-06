@@ -16,7 +16,7 @@ fn id_beats_class() {
   let style = computed_style(&el, &sheet);
   let bg = style.background_color.expect("set");
   // The id rule has higher specificity → red wins.
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn class_beats_tag() {
   let el = elem_div_with(None, Some("card"));
   let style = computed_style(&el, &sheet);
   let bg = style.background_color.expect("set");
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn inline_beats_id() {
   div.style = Some("background-color: red;".into());
   let style = computed_style(&Element::Div(div), &sheet);
   let bg = style.background_color.expect("set");
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn background_shorthand_higher_priority_clears_lower_priority_image() {
   let div = first_div(&tree);
   assert!(matches!(
       div.style.background_color,
-      Some(CssColor::Hex(ref s)) if s == "#1b1d22"
+      Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"
   ));
   assert!(div.style.background_image.is_none());
 }
@@ -84,13 +84,13 @@ fn font_shorthand_and_longhand_obey_source_order_in_one_rule() {
     div.style.font_weight,
     Some(wgpu_html_models::common::css_enums::FontWeight::Normal)
   ));
-  assert!(matches!(div.style.line_height, Some(CssLength::Raw(ref v)) if v == "normal"));
+  assert!(matches!(div.style.line_height, Some(CssLength::Raw(ref v)) if &**v == "normal"));
   assert_eq!(
-    div.style.deferred_longhands.get("font-variant").map(String::as_str),
+    div.style.deferred_longhands.get("font-variant").map(|s| &**s),
     Some("normal")
   );
   assert_eq!(
-    div.style.deferred_longhands.get("font-stretch").map(String::as_str),
+    div.style.deferred_longhands.get("font-stretch").map(|s| &**s),
     Some("normal")
   );
 }
@@ -106,7 +106,7 @@ fn rules_at_same_specificity_apply_in_source_order() {
   let el = elem_div_with(None, Some("card"));
   let style = computed_style(&el, &sheet);
   let bg = style.background_color.expect("set");
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
 
 #[test]

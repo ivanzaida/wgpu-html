@@ -67,7 +67,7 @@ fn find_element_lets_caller_mutate_style() {
     // The whole point of returning &mut Node: mutate the source
     // element's style attribute, then re-cascade and re-layout.
     if let wgpu_html_tree::Element::Div(div) = &mut node.element {
-      div.style = Some("width: 123px; height: 40px; margin: 10px 0 0 10px;".to_string());
+      div.style = Some("width: 123px; height: 40px; margin: 10px 0 0 10px;".into());
     } else {
       panic!("expected a Div at the hit point");
     }

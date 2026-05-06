@@ -319,8 +319,8 @@ impl Runtime {
       } else {
         format!("__component_{prefix}")
       };
-      if !tree.linked_stylesheets.contains_key(&href) {
-        tree.register_linked_stylesheet(&href, &css);
+      if !tree.linked_stylesheets.contains_key(href.as_str()) {
+        tree.register_linked_stylesheet(href.as_str(), css.as_str());
       }
     }
     for (_key, child) in &mounted.children {

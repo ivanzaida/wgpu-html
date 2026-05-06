@@ -46,7 +46,7 @@ fn apply_inherit_uses_parent_value() {
   apply_keyword(&mut child, Some(&parent), "color", CssWideKeyword::Inherit);
   assert!(matches!(
       child.color.as_ref().unwrap(),
-      CssColor::Named(s) if s == "white"
+      CssColor::Named(ref s) if &**s == "white"
   ));
 }
 
@@ -68,7 +68,7 @@ fn apply_unset_inherits_for_inherited_props() {
   apply_keyword(&mut child, Some(&parent), "color", CssWideKeyword::Unset);
   assert!(matches!(
       child.color.as_ref().unwrap(),
-      CssColor::Named(s) if s == "blue"
+      CssColor::Named(ref s) if &**s == "blue"
   ));
 }
 
@@ -91,7 +91,7 @@ fn apply_background_inherit_copies_supported_longhands() {
   parent.background_color = Some(CssColor::Hex("#1b1d22".into()));
   parent.background_position = Some("center".into());
   apply_keyword(&mut child, Some(&parent), "background", CssWideKeyword::Inherit);
-  assert!(matches!(child.background_color, Some(CssColor::Hex(ref s)) if s == "#1b1d22"));
+  assert!(matches!(child.background_color, Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"));
   assert_eq!(child.background.as_deref(), Some("#1b1d22"));
   assert_eq!(child.background_position.as_deref(), Some("center"));
 }
@@ -99,7 +99,7 @@ fn apply_background_inherit_copies_supported_longhands() {
 #[test]
 fn merge_values_clears_keywords_for_touched_fields() {
   let mut dst = Style::default();
-  let mut kw: HashMap<String, CssWideKeyword> = HashMap::new();
+  let mut kw: HashMap<wgpu_html_models::ArcStr, CssWideKeyword> = HashMap::new();
   kw.insert("color".into(), CssWideKeyword::Inherit);
   kw.insert("width".into(), CssWideKeyword::Initial);
   let mut src = Style::default();
@@ -114,7 +114,7 @@ fn merge_values_clears_keywords_for_touched_fields() {
 fn background_shorthand_merge_clears_related_keywords_and_values() {
   let mut dst = Style::default();
   dst.background_image = Some(wgpu_html_models::common::css_enums::CssImage::Url("a.png".into()));
-  let mut kw: HashMap<String, CssWideKeyword> = HashMap::new();
+  let mut kw: HashMap<wgpu_html_models::ArcStr, CssWideKeyword> = HashMap::new();
   kw.insert("background-color".into(), CssWideKeyword::Inherit);
   kw.insert("background-repeat".into(), CssWideKeyword::Initial);
 
@@ -123,7 +123,7 @@ fn background_shorthand_merge_clears_related_keywords_and_values() {
   src.background_color = Some(CssColor::Hex("#1b1d22".into()));
 
   merge_values_clearing_keywords(&mut dst, &mut kw, &src);
-  assert!(matches!(dst.background_color, Some(CssColor::Hex(ref s)) if s == "#1b1d22"));
+  assert!(matches!(dst.background_color, Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"));
   assert!(dst.background_image.is_none());
   assert!(!kw.contains_key("background-color"));
   assert!(!kw.contains_key("background-repeat"));

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use wgpu_html_models::{Style, common::css_enums::*};
+use wgpu_html_models::{ArcStr, Style, common::css_enums::*};
 
 use crate::{
   shorthands::{all_shorthands, is_deferred_longhand, shorthand_contains_member, shorthand_members},
@@ -52,8 +52,8 @@ impl CssWideKeyword {
 pub struct StyleDecls {
   pub normal: Style,
   pub important: Style,
-  pub keywords_normal: HashMap<String, CssWideKeyword>,
-  pub keywords_important: HashMap<String, CssWideKeyword>,
+  pub keywords_normal: HashMap<ArcStr, CssWideKeyword>,
+  pub keywords_important: HashMap<ArcStr, CssWideKeyword>,
 }
 
 /// Parse an inline CSS style string (e.g. `"display: flex; color: red;"`)
@@ -86,10 +86,10 @@ pub fn parse_inline_style_decls(css: &str) -> StyleDecls {
       let raw_prop = property.trim();
       // CSS custom properties (--*) are case-sensitive; everything
       // else is ASCII-lowercased per the CSS spec.
-      let property = if raw_prop.starts_with("--") {
-        raw_prop.to_owned()
+      let property: ArcStr = if raw_prop.starts_with("--") {
+        ArcStr::from(raw_prop)
       } else {
-        raw_prop.to_ascii_lowercase()
+        ArcStr::from(raw_prop.to_ascii_lowercase().as_str())
       };
       let (value, important) = strip_important(value.trim());
 
@@ -130,7 +130,7 @@ pub fn parse_inline_style_decls(css: &str) -> StyleDecls {
   decls
 }
 
-fn clear_keywords_for_property(prop: &str, keywords: &mut HashMap<String, CssWideKeyword>) {
+fn clear_keywords_for_property(prop: &str, keywords: &mut HashMap<ArcStr, CssWideKeyword>) {
   keywords.remove(prop);
   for shorthand in all_shorthands() {
     if shorthand_contains_member(shorthand, prop) {
@@ -151,11 +151,11 @@ fn mark_keyword_resets(style: &mut Style, prop: &str) {
     for member in members {
       if *member != prop {
         mark_keyword_resets(style, member);
-        style.keyword_reset_properties.insert((*member).to_string());
+        style.keyword_reset_properties.insert(ArcStr::from(*member));
       }
     }
   } else {
-    style.keyword_reset_properties.insert(prop.to_string());
+    style.keyword_reset_properties.insert(ArcStr::from(prop));
   }
 }
 
@@ -326,12 +326,12 @@ fn overlay(dst: &mut Style, src: &Style) {
 pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
   // Custom properties (--*): store in side-car map.
   if property.starts_with("--") {
-    style.custom_properties.insert(property.to_owned(), value.to_owned());
+    style.custom_properties.insert(ArcStr::from(property), ArcStr::from(value));
     return;
   }
   // Values containing var(): defer resolution until computed-value time.
   if value_contains_var(value) {
-    style.var_properties.insert(property.to_owned(), value.to_owned());
+    style.var_properties.insert(ArcStr::from(property), ArcStr::from(value));
     return;
   }
   match property {
@@ -384,7 +384,7 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "background" => apply_background_shorthand(value, style),
     "background-color" => style.background_color = parse_css_color(value),
     "background-image" => style.background_image = parse_css_image(value),
-    "background-size" => style.background_size = Some(value.to_string()),
+    "background-size" => style.background_size = Some(ArcStr::from(value)),
     "background-position" => apply_background_position_shorthand(value, style),
     "background-repeat" => style.background_repeat = parse_background_repeat(value),
     "background-clip" => style.background_clip = parse_background_clip(value),
@@ -434,7 +434,7 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
       &mut style.border_bottom_left_radius,
       &mut style.border_bottom_left_radius_v,
     ),
-    "font-family" => style.font_family = Some(value.to_string()),
+    "font-family" => style.font_family = Some(ArcStr::from(value)),
     "font-size" => style.font_size = parse_css_length(value),
     "font-weight" => style.font_weight = parse_font_weight(value),
     "font-style" => style.font_style = parse_font_style(value),
@@ -460,7 +460,7 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "fill-rule" => {
       let v = value.trim();
       if matches!(v, "nonzero" | "evenodd") {
-        style.svg_fill_rule = Some(v.to_string());
+        style.svg_fill_rule = Some(ArcStr::from(v));
       }
     }
     "stroke" => style.svg_stroke = parse_css_color(value),
@@ -469,19 +469,19 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "stroke-linecap" => {
       let v = value.trim();
       if matches!(v, "butt" | "round" | "square") {
-        style.svg_stroke_linecap = Some(v.to_string());
+        style.svg_stroke_linecap = Some(ArcStr::from(v));
       }
     }
     "stroke-linejoin" => {
       let v = value.trim();
       if matches!(v, "miter" | "round" | "bevel" | "arcs" | "miter-clip") {
-        style.svg_stroke_linejoin = Some(v.to_string());
+        style.svg_stroke_linejoin = Some(ArcStr::from(v));
       }
     }
     "stroke-dasharray" => {
       let v = value.trim();
       if v != "none" {
-        style.svg_stroke_dasharray = Some(v.to_string());
+        style.svg_stroke_dasharray = Some(ArcStr::from(v));
       }
     }
     "stroke-dashoffset" => style.svg_stroke_dashoffset = parse_css_length(value),
@@ -522,18 +522,18 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "grid-row-end" => style.grid_row_end = parse_grid_line(value),
     "justify-items" => style.justify_items = parse_justify_items(value),
     "justify-self" => style.justify_self = parse_justify_self(value),
-    "transform" => style.transform = Some(value.to_string()),
-    "transform-origin" => style.transform_origin = Some(value.to_string()),
+    "transform" => style.transform = Some(ArcStr::from(value)),
+    "transform-origin" => style.transform_origin = Some(ArcStr::from(value)),
     "transition" => apply_transition_shorthand(value, style),
     "animation" => apply_animation_shorthand(value, style),
     "cursor" => style.cursor = parse_cursor(value),
     "pointer-events" => style.pointer_events = parse_pointer_events(value),
     "user-select" => style.user_select = parse_user_select(value),
-    "box-shadow" => style.box_shadow = Some(value.to_string()),
+    "box-shadow" => style.box_shadow = Some(ArcStr::from(value)),
     "box-sizing" => style.box_sizing = parse_box_sizing(value),
     _ if shorthand_members(property).is_some() => apply_generic_shorthand(style, property, value),
     _ if is_deferred_longhand(property) => {
-      style.deferred_longhands.insert(property.to_string(), value.to_string());
+      style.deferred_longhands.insert(ArcStr::from(property), ArcStr::from(value));
     }
     _ => {} // Unknown CSS properties are silently ignored
   }
@@ -579,22 +579,22 @@ fn value_contains_var(value: &str) -> bool {
 /// and re-parse the resolved value through `apply_css_property`.
 pub fn resolve_var_references(style: &mut Style) {
   // Phase 1 — resolve var() inside custom property values.
-  let keys: Vec<String> = style.custom_properties.keys().cloned().collect();
+  let keys: Vec<ArcStr> = style.custom_properties.keys().cloned().collect();
   let mut resolved_cp = style.custom_properties.clone();
   for key in &keys {
     let mut resolving = std::collections::HashSet::new();
-    if let Some(val) = resolved_cp.get(key).cloned() {
+    if let Some(val) = resolved_cp.get(key.as_ref()).cloned() {
       if value_contains_var(&val) {
-        resolving.insert(key.clone());
+        resolving.insert(key.to_string());
         let substituted = substitute_vars(&val, &resolved_cp, &mut resolving);
-        resolved_cp.insert(key.clone(), substituted);
+        resolved_cp.insert(key.clone(), ArcStr::from(substituted.as_str()));
       }
     }
   }
   style.custom_properties = resolved_cp;
 
   // Phase 2 — resolve var() in regular property declarations.
-  let pending: Vec<(String, String)> = style.var_properties.drain().collect();
+  let pending: Vec<(ArcStr, ArcStr)> = style.var_properties.drain().collect();
   for (prop, raw_value) in pending {
     let mut resolving = std::collections::HashSet::new();
     let resolved = substitute_vars(&raw_value, &style.custom_properties, &mut resolving);
@@ -609,7 +609,7 @@ pub fn resolve_var_references(style: &mut Style) {
 /// cycles via `resolving` and falls back gracefully.
 fn substitute_vars(
   value: &str,
-  custom_props: &std::collections::HashMap<String, String>,
+  custom_props: &std::collections::HashMap<ArcStr, ArcStr>,
   resolving: &mut std::collections::HashSet<String>,
 ) -> String {
   let bytes = value.as_bytes();
@@ -674,7 +674,7 @@ fn substitute_vars(
               out.push_str(&substitute_vars(fb.trim(), custom_props, resolving));
             }
           } else if let Some(cp_val) = custom_props.get(name) {
-            let mut resolved = cp_val.clone();
+            let mut resolved = cp_val.to_string();
             if value_contains_var(&resolved) {
               resolving.insert(name.to_owned());
               resolved = substitute_vars(&resolved, custom_props, resolving);
@@ -938,13 +938,13 @@ fn apply_generic_shorthand(style: &mut Style, property: &str, value: &str) {
 fn mark_shorthand_reset(style: &mut Style, property: &str) {
   if let Some(members) = shorthand_members(property) {
     for member in members {
-      style.reset_properties.insert((*member).to_string());
+      style.reset_properties.insert(ArcStr::from(*member));
     }
   }
 }
 
-fn set_deferred(style: &mut Style, property: &str, value: impl Into<String>) {
-  style.deferred_longhands.insert(property.to_string(), value.into());
+fn set_deferred(style: &mut Style, property: &str, value: impl AsRef<str>) {
+  style.deferred_longhands.insert(ArcStr::from(property), ArcStr::from(value.as_ref()));
 }
 
 fn apply_placeholder_shorthand(style: &mut Style, property: &str, value: &str) {
@@ -1071,7 +1071,7 @@ fn apply_background_position_shorthand(value: &str, style: &mut Style) {
     style,
     &["background-position", "background-position-x", "background-position-y"],
   );
-  style.background_position = Some(value.to_string());
+  style.background_position = Some(ArcStr::from(value));
   let parts = split_top_level_whitespace(value);
   if let Some(x) = parts.first() {
     set_deferred(style, "background-position-x", *x);
@@ -1092,7 +1092,7 @@ fn apply_text_decoration_shorthand(value: &str, style: &mut Style) {
       "text-decoration-thickness",
     ],
   );
-  style.text_decoration = Some(value.to_string());
+  style.text_decoration = Some(ArcStr::from(value));
   let mut lines = Vec::new();
   for token in split_top_level_whitespace(value) {
     match token.to_ascii_lowercase().as_str() {
@@ -1137,7 +1137,7 @@ fn apply_white_space_property(value: &str, style: &mut Style) {
 
 fn apply_animation_shorthand(value: &str, style: &mut Style) {
   mark_shorthand_reset(style, "animation");
-  style.animation = Some(value.to_string());
+  style.animation = Some(ArcStr::from(value));
   let mut names = Vec::new();
   let mut durations = Vec::new();
   let mut timing = Vec::new();
@@ -1252,7 +1252,7 @@ fn apply_animation_shorthand(value: &str, style: &mut Style) {
 
 fn apply_transition_shorthand(value: &str, style: &mut Style) {
   mark_shorthand_reset(style, "transition");
-  style.transition = Some(value.to_string());
+  style.transition = Some(ArcStr::from(value));
   let mut properties = Vec::new();
   let mut durations = Vec::new();
   let mut timing = Vec::new();
@@ -1330,7 +1330,7 @@ fn apply_font_shorthand(value: &str, style: &mut Style) {
   set_deferred(style, "font-stretch", "normal");
   style.font_style = Some(FontStyle::Normal);
   style.font_weight = Some(FontWeight::Normal);
-  style.line_height = Some(CssLength::Raw("normal".to_string()));
+  style.line_height = Some(CssLength::Raw(ArcStr::from("normal")));
 
   let tokens = split_top_level_whitespace(value);
   let mut size_idx = None;
@@ -1381,7 +1381,7 @@ fn apply_font_shorthand(value: &str, style: &mut Style) {
       size_idx + 1
     };
     if family_start < tokens.len() {
-      style.font_family = Some(tokens[family_start..].join(" "));
+      style.font_family = Some(ArcStr::from(tokens[family_start..].join(" ").as_str()));
     }
   }
 }
@@ -1500,7 +1500,7 @@ fn apply_three_part_borderish_deferred(
 
 fn mark_property_resets(style: &mut Style, props: &[&str]) {
   for prop in props {
-    style.reset_properties.insert((*prop).to_string());
+    style.reset_properties.insert(ArcStr::from(*prop));
   }
 }
 
@@ -1592,7 +1592,7 @@ fn css_length_to_string(len: &CssLength) -> String {
     CssLength::Vmax(v) => format!("{v}vmax"),
     CssLength::Auto => "auto".into(),
     CssLength::Zero => "0".into(),
-    CssLength::Raw(v) => v.clone(),
+    CssLength::Raw(v) => v.to_string(),
     CssLength::Calc(v) => format!("calc({v:?})"),
     CssLength::Min(v) => format!("min({v:?})"),
     CssLength::Max(v) => format!("max({v:?})"),
@@ -1620,7 +1620,7 @@ enum Side {
 /// a shorthand for the four `border-<side>-<piece>` longhands).
 pub fn parse_border_shorthand(value: &str, style: &mut Style) {
   mark_shorthand_reset(style, "border");
-  style.border = Some(value.to_string());
+  style.border = Some(ArcStr::from(value));
   let (w, s, c) = parse_border_pieces(value);
   if let Some(w) = w {
     style.border_top_width = Some(w.clone());
@@ -1737,7 +1737,7 @@ fn parse_border_pieces(value: &str) -> (Option<CssLength>, Option<BorderStyle>, 
 
 fn apply_background_shorthand(value: &str, style: &mut Style) {
   clear_value_for("background", style);
-  style.background = Some(value.to_string());
+  style.background = Some(ArcStr::from(value));
 
   for token in split_top_level_whitespace(value) {
     if token == "/" {
@@ -2186,7 +2186,7 @@ pub fn parse_css_length(value: &str) -> Option<CssLength> {
     if let Some(expr) = parse_css_math_expr(inner) {
       return Some(CssLength::Calc(Box::new(expr)));
     }
-    return Some(CssLength::Raw(v.to_string()));
+    return Some(CssLength::Raw(ArcStr::from(v)));
   }
   if let Some(inner) = strip_func(v, "min") {
     let args: Vec<CssLength> = split_top_level_commas(inner)
@@ -2196,7 +2196,7 @@ pub fn parse_css_length(value: &str) -> Option<CssLength> {
     if !args.is_empty() {
       return Some(CssLength::Min(args));
     }
-    return Some(CssLength::Raw(v.to_string()));
+    return Some(CssLength::Raw(ArcStr::from(v)));
   }
   if let Some(inner) = strip_func(v, "max") {
     let args: Vec<CssLength> = split_top_level_commas(inner)
@@ -2206,7 +2206,7 @@ pub fn parse_css_length(value: &str) -> Option<CssLength> {
     if !args.is_empty() {
       return Some(CssLength::Max(args));
     }
-    return Some(CssLength::Raw(v.to_string()));
+    return Some(CssLength::Raw(ArcStr::from(v)));
   }
   if let Some(inner) = strip_func(v, "clamp") {
     let args: Vec<CssLength> = split_top_level_commas(inner)
@@ -2220,10 +2220,10 @@ pub fn parse_css_length(value: &str) -> Option<CssLength> {
         max: Box::new(args[2].clone()),
       });
     }
-    return Some(CssLength::Raw(v.to_string()));
+    return Some(CssLength::Raw(ArcStr::from(v)));
   }
   if let Some(inner) = strip_func(v, "fit-content") {
-    return parse_css_length(inner).or_else(|| Some(CssLength::Raw(v.to_string())));
+    return parse_css_length(inner).or_else(|| Some(CssLength::Raw(ArcStr::from(v))));
   }
   if is_numeric_function_value(v) {
     if let Some(expr) = parse_css_math_expr(v) {
@@ -2255,7 +2255,7 @@ pub fn parse_css_length(value: &str) -> Option<CssLength> {
     return s.trim().parse::<f32>().ok().map(CssLength::Vmax);
   }
   // Bare number (treat as raw)
-  Some(CssLength::Raw(v.to_string()))
+  Some(CssLength::Raw(ArcStr::from(v)))
 }
 
 fn is_numeric_function_value(v: &str) -> bool {
@@ -2516,7 +2516,7 @@ pub fn parse_css_color(value: &str) -> Option<CssColor> {
     return Some(CssColor::CurrentColor);
   }
   if v.starts_with('#') {
-    return Some(CssColor::Hex(v.to_string()));
+    return Some(CssColor::Hex(ArcStr::from(v)));
   }
   if let Some(inner) = strip_func(v, "rgba").or_else(|| strip_func(v, "rgb")) {
     let parts = split_color_function_args(inner);
@@ -2543,10 +2543,10 @@ pub fn parse_css_color(value: &str) -> Option<CssColor> {
     }
   }
   if is_preserved_color_function(v) {
-    return Some(CssColor::Function(v.to_string()));
+    return Some(CssColor::Function(ArcStr::from(v)));
   }
   // Treat as named color
-  Some(CssColor::Named(v.to_string()))
+  Some(CssColor::Named(ArcStr::from(v)))
 }
 
 pub fn parse_css_image(value: &str) -> Option<CssImage> {
@@ -2558,12 +2558,12 @@ pub fn parse_css_image(value: &str) -> Option<CssImage> {
     return Some(CssImage::Url(url));
   }
   if looks_like_function(v) {
-    return Some(CssImage::Function(v.to_string()));
+    return Some(CssImage::Function(ArcStr::from(v)));
   }
   None
 }
 
-pub fn parse_css_url(value: &str) -> Option<String> {
+pub fn parse_css_url(value: &str) -> Option<ArcStr> {
   let inner = strip_function(value, "url")?;
   let inner = inner.trim();
   if inner.is_empty() {
@@ -2582,7 +2582,7 @@ pub fn parse_css_url(value: &str) -> Option<String> {
   if trimmed.is_empty() {
     None
   } else {
-    Some(trimmed.to_string())
+    Some(ArcStr::from(trimmed))
   }
 }
 
@@ -2987,8 +2987,8 @@ enum GridAxis {
 fn apply_grid_axis_shorthand(value: &str, style: &mut Style, axis: GridAxis) {
   // Round-trip the raw value for cascade introspection.
   match axis {
-    GridAxis::Column => style.grid_column = Some(value.to_string()),
-    GridAxis::Row => style.grid_row = Some(value.to_string()),
+    GridAxis::Column => style.grid_column = Some(ArcStr::from(value)),
+    GridAxis::Row => style.grid_row = Some(ArcStr::from(value)),
   }
   let trimmed = value.trim();
   if trimmed.is_empty() {
@@ -3030,7 +3030,7 @@ fn apply_grid_axis_shorthand(value: &str, style: &mut Style, axis: GridAxis) {
 /// - A bare positive number (`1`, `0.5`) is a flex factor.
 /// - Anything else (`100px`, `30%`, `auto`) is treated as basis.
 fn apply_flex_shorthand(value: &str, style: &mut Style) {
-  style.flex = Some(value.to_string());
+  style.flex = Some(ArcStr::from(value));
   let trimmed = value.trim();
   let lower = trimmed.to_ascii_lowercase();
   match lower.as_str() {

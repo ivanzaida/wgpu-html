@@ -17,6 +17,7 @@
 use std::sync::Arc;
 
 use wgpu_html_models as m;
+use wgpu_html_models::ArcStr;
 use wgpu_html_tree::{Element, HtmlEvent, MouseEvent, Node};
 
 use crate::Observable;
@@ -149,7 +150,7 @@ macro_rules! with_all_variants {
 macro_rules! impl_global_attr_methods {
     ($($V:ident),* $(,)?) => {
         impl El {
-            pub fn id(mut self, value: impl Into<String>) -> Self {
+            pub fn id(mut self, value: impl Into<ArcStr>) -> Self {
                 let v = Some(value.into());
                 match &mut self.node.element {
                     Element::Text(_) => {}
@@ -158,7 +159,7 @@ macro_rules! impl_global_attr_methods {
                 self
             }
 
-            pub fn class(mut self, value: impl Into<String>) -> Self {
+            pub fn class(mut self, value: impl Into<ArcStr>) -> Self {
                 let v = Some(value.into());
                 match &mut self.node.element {
                     Element::Text(_) => {}
@@ -167,7 +168,7 @@ macro_rules! impl_global_attr_methods {
                 self
             }
 
-            pub fn style(mut self, value: impl Into<String>) -> Self {
+            pub fn style(mut self, value: impl Into<ArcStr>) -> Self {
                 let v = Some(value.into());
                 match &mut self.node.element {
                     Element::Text(_) => {}
@@ -176,7 +177,7 @@ macro_rules! impl_global_attr_methods {
                 self
             }
 
-            pub fn attr_title(mut self, value: impl Into<String>) -> Self {
+            pub fn attr_title(mut self, value: impl Into<ArcStr>) -> Self {
                 let v = Some(value.into());
                 match &mut self.node.element {
                     Element::Text(_) => {}
@@ -202,7 +203,7 @@ macro_rules! impl_global_attr_methods {
             }
 
             /// Set a `data-*` attribute.
-            pub fn data(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+            pub fn data(mut self, key: impl Into<ArcStr>, value: impl Into<ArcStr>) -> Self {
                 let k = key.into();
                 let v = value.into();
                 match &mut self.node.element {
@@ -221,7 +222,7 @@ with_all_variants!(impl_global_attr_methods);
 
 impl El {
   /// Append a text child node.
-  pub fn text(mut self, t: impl Into<String>) -> Self {
+  pub fn text(mut self, t: impl Into<ArcStr>) -> Self {
     self.node.children.push(Node::new(t.into()));
     self
   }
@@ -239,9 +240,9 @@ impl El {
   }
 
   /// Set a raw HTML attribute and reflect common typed fields.
-  pub fn attribute(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-    let name = name.into();
-    let value = value.into();
+  pub fn attribute(mut self, name: impl Into<ArcStr>, value: impl Into<ArcStr>) -> Self {
+    let name: ArcStr = name.into();
+    let value: ArcStr = value.into();
     reflect_attribute(&mut self.node.element, &name, &value);
     self.node.raw_attrs.push((name, value));
     self
@@ -263,7 +264,7 @@ impl El {
 
   /// Two-way bind an input/textarea value.
   pub fn bind_value(mut self, value: Observable<String>) -> Self {
-    let current = value.get();
+    let current: ArcStr = ArcStr::from(value.get());
     match &mut self.node.element {
       Element::Input(input) => input.value = Some(current),
       Element::Textarea(textarea) => textarea.value = Some(current),
@@ -619,8 +620,8 @@ fn reflect_attribute(element: &mut Element, name: &str, value: &str) {
   let name = name.to_ascii_lowercase();
   match (name.as_str(), element) {
     ("type", Element::Input(input)) => input.r#type = parse_input_type(value),
-    ("value", Element::Input(input)) => input.value = Some(value.to_string()),
-    ("value", Element::Textarea(textarea)) => textarea.value = Some(value.to_string()),
+    ("value", Element::Input(input)) => input.value = Some(ArcStr::from(value)),
+    ("value", Element::Textarea(textarea)) => textarea.value = Some(ArcStr::from(value)),
     ("checked", Element::Input(input)) => input.checked = Some(parse_bool_attr(value)),
     _ => {}
   }
@@ -744,7 +745,7 @@ macro_rules! element_attrs {
     // ── Signature arms ────────────────────────────────────────────────────
 
     (@sig $method:ident string) => {
-        fn $method(self, value: impl Into<String>) -> Self;
+        fn $method(self, value: impl Into<ArcStr>) -> Self;
     };
     (@sig $method:ident bool) => {
         fn $method(self, value: bool) -> Self;
@@ -765,7 +766,7 @@ macro_rules! element_attrs {
     // ── Implementation arms ───────────────────────────────────────────────
 
     (@impl_method $model:ty, $method:ident, $field:ident, string) => {
-        fn $method(mut self, value: impl Into<String>) -> Self {
+        fn $method(mut self, value: impl Into<ArcStr>) -> Self {
             if let Some(m) = <$model as ElementModel>::from_element_mut(&mut self.node.element) {
                 m.$field = Some(value.into());
             }
@@ -1394,7 +1395,7 @@ el_constructors! {
 
 /// Create a text node.
 #[inline]
-pub fn text(t: impl Into<String>) -> El {
+pub fn text(t: impl Into<ArcStr>) -> El {
   El {
     node: Node::new(t.into()),
   }
@@ -1412,7 +1413,7 @@ pub fn empty() -> El {
 
 impl El {
   /// Set a CSS custom property on this node.
-  pub fn custom_property(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+  pub fn custom_property(mut self, name: impl Into<ArcStr>, value: impl Into<ArcStr>) -> Self {
     self.node.custom_properties.insert(name.into(), value.into());
     self
   }

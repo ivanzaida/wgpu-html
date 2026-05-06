@@ -1,17 +1,18 @@
 use wgpu_html_models as html;
+use wgpu_html_models::ArcStr;
 use wgpu_html_models::common::html_enums::*;
 use wgpu_html_tree::Element;
 
 /// Parse a tag name and raw attribute list into a typed `Element`.
 ///
 /// Returns `None` for unrecognized tags; callers should drop the subtree.
-pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
+pub fn parse_element(tag: &str, attrs: &[(ArcStr, ArcStr)]) -> Option<Element> {
   Some(match tag {
     "html" => {
       let mut el = html::Html::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "xmlns" => el.xmlns = Some(v.clone()),
           _ => {}
         }
@@ -27,7 +28,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Body::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "onload" => el.onload = Some(v.clone()),
           "onunload" => el.onunload = Some(v.clone()),
           _ => {}
@@ -44,7 +45,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Meta::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "name" => el.name = Some(v.clone()),
           "content" => el.content = Some(v.clone()),
           "charset" => el.charset = Some(v.clone()),
@@ -58,7 +59,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Link::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "href" => el.href = Some(v.clone()),
           "rel" => el.rel = Some(v.clone()),
           "type" => el.r#type = Some(v.clone()),
@@ -78,7 +79,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::StyleElement::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "type" => el.r#type = Some(v.clone()),
           "media" => el.media = Some(v.clone()),
           "nonce" => el.nonce = Some(v.clone()),
@@ -91,7 +92,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Script::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "type" => el.r#type = Some(v.clone()),
           "async" => el.r#async = Some(parse_bool_attr(v)),
@@ -165,7 +166,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Blockquote::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "cite" => el.cite = Some(v.clone()),
           _ => {}
         }
@@ -186,7 +187,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::A::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "href" => el.href = Some(v.clone()),
           "target" => el.target = parse_link_target(v),
           "download" => el.download = Some(v.clone()),
@@ -289,7 +290,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Time::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "datetime" => el.datetime = Some(v.clone()),
           _ => {}
         }
@@ -305,7 +306,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Ol::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "reversed" => el.reversed = Some(parse_bool_attr(v)),
           "start" => el.start = v.parse().ok(),
           "type" => el.r#type = parse_ol_type(v),
@@ -318,7 +319,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Li::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "value" => el.value = v.parse().ok(),
           _ => {}
         }
@@ -384,7 +385,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Img::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "alt" => el.alt = Some(v.clone()),
           "width" => el.width = v.parse().ok(),
@@ -411,7 +412,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Source::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "srcset" => el.srcset = Some(v.clone()),
           "sizes" => el.sizes = Some(v.clone()),
@@ -428,7 +429,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Video::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "controls" => el.controls = Some(parse_bool_attr(v)),
           "autoplay" => el.autoplay = Some(parse_bool_attr(v)),
@@ -449,7 +450,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Audio::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "controls" => el.controls = Some(parse_bool_attr(v)),
           "autoplay" => el.autoplay = Some(parse_bool_attr(v)),
@@ -466,7 +467,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Track::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "kind" => el.kind = parse_track_kind(v),
           "srclang" => el.srclang = Some(v.clone()),
@@ -481,7 +482,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Iframe::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "src" => el.src = Some(v.clone()),
           "srcdoc" => el.srcdoc = Some(v.clone()),
           "name" => el.name = Some(v.clone()),
@@ -501,7 +502,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Canvas::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "width" => el.width = v.parse().ok(),
           "height" => el.height = v.parse().ok(),
           _ => {}
@@ -513,7 +514,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Svg::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "width" => el.width = parse_svg_length(v),
           "height" => el.height = parse_svg_length(v),
           "viewbox" => el.view_box = Some(v.clone()),
@@ -528,7 +529,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
     "path" => {
       let mut el = html::SvgPath::default();
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "id" => el.id = Some(v.clone()),
           "d" => el.d = Some(v.clone()),
           "fill" => el.fill = Some(v.clone()),
@@ -576,7 +577,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Th::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "colspan" => el.colspan = v.parse().ok(),
           "rowspan" => el.rowspan = v.parse().ok(),
           "headers" => el.headers = Some(v.clone()),
@@ -591,7 +592,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Td::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "colspan" => el.colspan = v.parse().ok(),
           "rowspan" => el.rowspan = v.parse().ok(),
           "headers" => el.headers = Some(v.clone()),
@@ -604,7 +605,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Colgroup::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "span" => el.span = v.parse().ok(),
           _ => {}
         }
@@ -615,7 +616,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Col::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "span" => el.span = v.parse().ok(),
           _ => {}
         }
@@ -626,7 +627,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Form::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "action" => el.action = Some(v.clone()),
           "method" => el.method = parse_form_method(v),
           "enctype" => el.enctype = parse_form_encoding(v),
@@ -644,7 +645,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Label::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "for" => el.r#for = Some(v.clone()),
           _ => {}
         }
@@ -655,7 +656,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Input::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "type" => el.r#type = parse_input_type(v),
           "name" => el.name = Some(v.clone()),
           "value" => el.value = Some(v.clone()),
@@ -687,7 +688,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Textarea::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "name" => el.name = Some(v.clone()),
           "placeholder" => el.placeholder = Some(v.clone()),
           "required" => el.required = Some(parse_bool_attr(v)),
@@ -710,7 +711,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Button::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "type" => el.r#type = parse_button_type(v),
           "name" => el.name = Some(v.clone()),
           "value" => el.value = Some(v.clone()),
@@ -731,7 +732,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Select::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "name" => el.name = Some(v.clone()),
           "required" => el.required = Some(parse_bool_attr(v)),
           "disabled" => el.disabled = Some(parse_bool_attr(v)),
@@ -748,7 +749,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::OptionElement::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "value" => el.value = Some(v.clone()),
           "label" => el.label = Some(v.clone()),
           "selected" => el.selected = Some(parse_bool_attr(v)),
@@ -762,7 +763,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Optgroup::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "label" => el.label = Some(v.clone()),
           "disabled" => el.disabled = Some(parse_bool_attr(v)),
           _ => {}
@@ -774,7 +775,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Fieldset::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "disabled" => el.disabled = Some(parse_bool_attr(v)),
           "form" => el.form = Some(v.clone()),
           "name" => el.name = Some(v.clone()),
@@ -797,8 +798,8 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Output::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
-          "for" => el.r#for = Some(v.split_whitespace().map(String::from).collect()),
+        match &**n {
+          "for" => el.r#for = Some(v.split_whitespace().map(ArcStr::from).collect()),
           "form" => el.form = Some(v.clone()),
           "name" => el.name = Some(v.clone()),
           _ => {}
@@ -810,7 +811,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Progress::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "value" => el.value = v.parse().ok(),
           "max" => el.max = v.parse().ok(),
           _ => {}
@@ -822,7 +823,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Meter::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "value" => el.value = v.parse().ok(),
           "min" => el.min = v.parse().ok(),
           "max" => el.max = v.parse().ok(),
@@ -838,7 +839,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Details::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "open" => el.open = Some(parse_bool_attr(v)),
           "name" => el.name = Some(v.clone()),
           _ => {}
@@ -855,7 +856,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Dialog::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "open" => el.open = Some(parse_bool_attr(v)),
           _ => {}
         }
@@ -866,7 +867,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Template::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "shadowrootmode" => el.shadowrootmode = parse_shadow_root_mode(v),
           _ => {}
         }
@@ -877,7 +878,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Slot::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "name" => el.name = Some(v.clone()),
           _ => {}
         }
@@ -888,7 +889,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Del::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "cite" => el.cite = Some(v.clone()),
           "datetime" => el.datetime = Some(v.clone()),
           _ => {}
@@ -900,7 +901,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Ins::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "cite" => el.cite = Some(v.clone()),
           "datetime" => el.datetime = Some(v.clone()),
           _ => {}
@@ -927,7 +928,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
       let mut el = html::Data::default();
       set_global!(el, attrs);
       for (n, v) in attrs {
-        match n.as_str() {
+        match &**n {
           "value" => el.value = Some(v.clone()),
           _ => {}
         }
@@ -960,7 +961,7 @@ pub fn parse_element(tag: &str, attrs: &[(String, String)]) -> Option<Element> {
 macro_rules! set_global {
   ($el:expr, $attrs:expr) => {
     for (name, value) in $attrs {
-      match name.as_str() {
+      match &**name {
         "id" => $el.id = Some(value.clone()),
         "class" => $el.class = Some(value.clone()),
         "style" => $el.style = Some(value.clone()),
@@ -977,9 +978,9 @@ macro_rules! set_global {
         "role" => $el.role = parse_aria_role(value),
         _ => {
           if let Some(suffix) = name.strip_prefix("aria-") {
-            $el.aria_attrs.insert(suffix.to_string(), value.clone());
+            $el.aria_attrs.insert(ArcStr::from(suffix), value.clone());
           } else if let Some(suffix) = name.strip_prefix("data-") {
-            $el.data_attrs.insert(suffix.to_string(), value.clone());
+            $el.data_attrs.insert(ArcStr::from(suffix), value.clone());
           }
         }
       }

@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use wgpu_html_models::{
   Style,
   common::css_enums::{
-    BorderStyle, BoxSizing, CssImage, CssLength, Display, Overflow, Position, ScrollbarColor, ScrollbarWidth,
+    BorderStyle, BoxSizing, CssColor, CssImage, CssLength, Display, Overflow, Position, ScrollbarColor, ScrollbarWidth,
     WhiteSpace,
   },
 };
@@ -35,7 +35,7 @@ pub use wgpu_html_assets::{AssetIo, Fetcher, ImageData, ImageFrame, current_fram
 
 pub type ImageCache = AssetIo<wgpu_html_assets::blocking::BlockingFetcher>;
 
-pub use color::{Color, resolve_color};
+pub use color::{Color, resolve_color, resolve_with_current};
 pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, Resize, UserSelect};
 
 // ---------------------------------------------------------------------------
@@ -941,53 +941,35 @@ fn intersect_rects_for_hit(a: Rect, b: Rect) -> Rect {
 /// pseudo-class rules are known to be paint-only.
 pub fn patch_layout_colors(layout: &mut LayoutBox, cascaded: &CascadedTree) {
   if let Some(root) = &cascaded.root {
-    patch_node_colors(layout, root);
+    patch_node_colors(layout, root, color::BLACK);
   }
 }
 
-fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode) {
-  // Patch this node's paint properties from the cascade.
+fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Color) {
+  use color::{resolve_foreground, resolve_with_current};
   let style = &node.style;
-  b.background = style.background_color.as_ref().and_then(resolve_color);
+
+  let fg = resolve_foreground(style.color.as_ref(), inherited_color);
+
+  b.background = style.background_color.as_ref().and_then(|c| resolve_with_current(c, fg));
   b.opacity = resolved_opacity(style);
   b.pointer_events = resolved_pointer_events(style);
   b.user_select = resolved_user_select(style);
 
-  // Text color: only for text boxes or boxes with text_color set.
   if b.text_color.is_some() || matches!(b.kind, BoxKind::Text) {
-    b.text_color = style.color.as_ref().and_then(resolve_color);
+    b.text_color = Some(fg);
   }
 
-  // Border colors. When a border side has no explicit color, fall
-  // back to currentColor (CSS `color` property) per spec.  The
-  // shorthand `border: 1px solid` without a color must still paint.
-  let resolved_color = style.color.as_ref().and_then(resolve_color);
+  let resolve_border = |c: &CssColor| resolve_with_current(c, fg);
   b.border_colors = BorderColors {
-    top: style
-      .border_top_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_color),
-    right: style
-      .border_right_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_color),
-    bottom: style
-      .border_bottom_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_color),
-    left: style
-      .border_left_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_color),
+    top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    right: style.border_right_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    bottom: style.border_bottom_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    left: style.border_left_color.as_ref().and_then(resolve_border).or(Some(fg)),
   };
 
-  // Recurse into children in lockstep.
   for (child_box, child_node) in b.children.iter_mut().zip(node.children.iter()) {
-    patch_node_colors(child_box, child_node);
+    patch_node_colors(child_box, child_node, fg);
   }
 }
 
@@ -1527,21 +1509,14 @@ fn layout_block(
     margin.vertical() + border_rect.h,
   );
 
-  let background = style.background_color.as_ref().and_then(resolve_color);
-  let resolved_fg = style.color.as_ref().and_then(resolve_color);
+  let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
+  let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
-    top: style.border_top_color.as_ref().and_then(resolve_color).or(resolved_fg),
-    right: style
-      .border_right_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_fg),
-    bottom: style
-      .border_bottom_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_fg),
-    left: style.border_left_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    right: style.border_right_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    bottom: style.border_bottom_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    left: style.border_left_color.as_ref().and_then(resolve_border).or(Some(fg)),
   };
   let border_styles = BorderStyles {
     top: style.border_top_style.clone(),
@@ -2843,21 +2818,14 @@ fn layout_atomic_inline_subtree(
     margin.vertical() + border_rect.h,
   );
 
-  let background = style.background_color.as_ref().and_then(resolve_color);
-  let resolved_fg = style.color.as_ref().and_then(resolve_color);
+  let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
+  let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
-    top: style.border_top_color.as_ref().and_then(resolve_color).or(resolved_fg),
-    right: style
-      .border_right_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_fg),
-    bottom: style
-      .border_bottom_color
-      .as_ref()
-      .and_then(resolve_color)
-      .or(resolved_fg),
-    left: style.border_left_color.as_ref().and_then(resolve_color).or(resolved_fg),
+    top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    right: style.border_right_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    bottom: style.border_bottom_color.as_ref().and_then(resolve_border).or(Some(fg)),
+    left: style.border_left_color.as_ref().and_then(resolve_border).or(Some(fg)),
   };
   let border_styles = BorderStyles {
     top: style.border_top_style.clone(),

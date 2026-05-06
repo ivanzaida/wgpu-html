@@ -26,12 +26,12 @@ impl Component for TextInput {
         el::input()
           .input_type(InputType::Text)
           .placeholder("test")
-          .value(&self.value),
+          .value(self.value.as_str()),
       )
       .child(
         el::p()
           .class(ctx.scoped("value"))
-          .text(&format!("You typed: {}", self.value)),
+          .text(format!("You typed: {}", self.value).as_str()),
       )
   }
 

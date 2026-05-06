@@ -8,10 +8,12 @@ use wgpu_html_models::common::css_enums::CssColor;
 /// Linear RGBA in 0..1.
 pub type Color = [f32; 4];
 
+pub const BLACK: Color = [0.0, 0.0, 0.0, 1.0];
+
 pub fn resolve_color(c: &CssColor) -> Option<Color> {
   let srgb = match c {
     CssColor::Transparent => return Some([0.0, 0.0, 0.0, 0.0]),
-    CssColor::CurrentColor => return None, // not tracked yet
+    CssColor::CurrentColor => return None,
     CssColor::Rgb(r, g, b) => [*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, 1.0],
     CssColor::Rgba(r, g, b, a) => [*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, *a],
     CssColor::Hex(s) => parse_hex(s)?,
@@ -142,6 +144,25 @@ fn hsl_to_rgb(h: f32, s: f32, l: f32, a: f32) -> [f32; 4] {
   };
   let m = l - c / 2.0;
   [r1 + m, g1 + m, b1 + m, a]
+}
+
+/// Resolve a color, substituting `current` for `currentColor`.
+pub fn resolve_with_current(c: &CssColor, current: Color) -> Option<Color> {
+  if matches!(c, CssColor::CurrentColor) {
+    Some(current)
+  } else {
+    resolve_color(c)
+  }
+}
+
+/// Resolve the foreground `color` property for an element.
+/// `currentColor` on `color` itself means "inherited value", so we
+/// fall back to the parent's resolved foreground.
+pub(crate) fn resolve_foreground(style_color: Option<&CssColor>, inherited: Color) -> Color {
+  match style_color {
+    Some(c) => resolve_with_current(c, inherited).unwrap_or(inherited),
+    None => inherited,
+  }
 }
 
 pub(crate) fn srgb_to_linear(c: f32) -> f32 {

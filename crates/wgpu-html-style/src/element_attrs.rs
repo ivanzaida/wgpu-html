@@ -1,6 +1,7 @@
 //! Generic accessors over the typed element variants.
 
 use wgpu_html_models::common::html_enums::{ButtonType, HtmlDirection, InputType};
+use wgpu_html_models::ArcStr;
 use wgpu_html_tree::Element;
 
 /// Expand `$cb!(...)` with the same comma-separated list of `Element`
@@ -201,12 +202,12 @@ pub fn element_attr(el: &Element, name: &str) -> Option<String> {
     "id" => element_id(el).map(str::to_string),
     "class" => element_class(el).map(str::to_string),
     "style" => element_style_attr(el).map(str::to_string),
-    "title" => global_attr_string(el, |e| e.title().cloned()),
-    "lang" => global_attr_string(el, |e| e.lang().cloned()),
+    "title" => global_attr_string(el, |e| e.title().map(|s| s.to_string())),
+    "lang" => global_attr_string(el, |e| e.lang().map(|s| s.to_string())),
     "dir" => global_attr_string(el, |e| e.dir().map(direction_attr_value).map(str::to_string)),
     "hidden" => global_bool_attr(el, |e| e.hidden()),
     "tabindex" => global_attr_string(el, |e| e.tabindex().map(|v| v.to_string())),
-    "accesskey" => global_attr_string(el, |e| e.accesskey().cloned()),
+    "accesskey" => global_attr_string(el, |e| e.accesskey().map(|s| s.to_string())),
     "contenteditable" => global_bool_attr(el, |e| e.contenteditable()),
     "draggable" => global_bool_attr(el, |e| e.draggable()),
     "spellcheck" => global_bool_attr(el, |e| e.spellcheck()),
@@ -235,38 +236,38 @@ where
 }
 
 trait GlobalAttrs {
-  fn title(&self) -> Option<&String>;
-  fn lang(&self) -> Option<&String>;
+  fn title(&self) -> Option<&ArcStr>;
+  fn lang(&self) -> Option<&ArcStr>;
   fn dir(&self) -> Option<&HtmlDirection>;
   fn hidden(&self) -> Option<bool>;
   fn tabindex(&self) -> Option<i32>;
-  fn accesskey(&self) -> Option<&String>;
+  fn accesskey(&self) -> Option<&ArcStr>;
   fn contenteditable(&self) -> Option<bool>;
   fn draggable(&self) -> Option<bool>;
   fn spellcheck(&self) -> Option<bool>;
   fn translate(&self) -> Option<bool>;
-  fn aria_attr(&self, name: &str) -> Option<&String>;
-  fn data_attr(&self, name: &str) -> Option<&String>;
+  fn aria_attr(&self, name: &str) -> Option<&ArcStr>;
+  fn data_attr(&self, name: &str) -> Option<&ArcStr>;
 }
 
 macro_rules! impl_global_attrs {
     ($($ty:path),* $(,)?) => {
         $(
             impl GlobalAttrs for $ty {
-                fn title(&self) -> Option<&String> { self.title.as_ref() }
-                fn lang(&self) -> Option<&String> { self.lang.as_ref() }
+                fn title(&self) -> Option<&ArcStr> { self.title.as_ref() }
+                fn lang(&self) -> Option<&ArcStr> { self.lang.as_ref() }
                 fn dir(&self) -> Option<&HtmlDirection> { self.dir.as_ref() }
                 fn hidden(&self) -> Option<bool> { self.hidden }
                 fn tabindex(&self) -> Option<i32> { self.tabindex }
-                fn accesskey(&self) -> Option<&String> { self.accesskey.as_ref() }
+                fn accesskey(&self) -> Option<&ArcStr> { self.accesskey.as_ref() }
                 fn contenteditable(&self) -> Option<bool> { self.contenteditable }
                 fn draggable(&self) -> Option<bool> { self.draggable }
                 fn spellcheck(&self) -> Option<bool> { self.spellcheck }
                 fn translate(&self) -> Option<bool> { self.translate }
-                fn aria_attr(&self, name: &str) -> Option<&String> {
+                fn aria_attr(&self, name: &str) -> Option<&ArcStr> {
                     self.aria_attrs.get(name)
                 }
-                fn data_attr(&self, name: &str) -> Option<&String> {
+                fn data_attr(&self, name: &str) -> Option<&ArcStr> {
                     self.data_attrs.get(name)
                 }
             }
@@ -394,10 +395,10 @@ fn with_global_attrs<R>(el: &Element, f: impl FnOnce(&dyn GlobalAttrs) -> R) -> 
 
 fn data_or_aria_attr(el: &Element, name: &str) -> Option<String> {
   if let Some(suffix) = name.strip_prefix("data-") {
-    return with_global_attrs(el, |e| e.data_attr(suffix).cloned()).flatten();
+    return with_global_attrs(el, |e| e.data_attr(suffix).map(|s| s.to_string())).flatten();
   }
   if let Some(suffix) = name.strip_prefix("aria-") {
-    return with_global_attrs(el, |e| e.aria_attr(suffix).cloned()).flatten();
+    return with_global_attrs(el, |e| e.aria_attr(suffix).map(|s| s.to_string())).flatten();
   }
   None
 }

@@ -16,7 +16,7 @@ fn hover_rule_does_not_match_without_state() {
   let cascaded = cascade(&tree);
   let style = find_style(&cascaded.root.unwrap(), &|el| element_id(el) == Some("b")).expect("found");
   let bg = style.background_color.expect("set");
-  assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "blue"));
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn hover_rule_applies_when_path_in_hover_chain() {
   let bg = style.background_color.expect("set");
   // :hover rule wins now (same specificity as #b alone, source order
   // says the :hover rule comes second).
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn ancestor_in_hover_chain_also_hovers() {
   let cascaded = cascade(&tree);
   let outer_style = find_style(&cascaded.root.unwrap(), &|el| element_id(el) == Some("outer")).expect("found");
   let bg = outer_style.background_color.expect("set");
-  assert!(matches!(bg, CssColor::Named(s) if s == "yellow"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "yellow"));
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn hover_specificity_beats_plain_class() {
   let style = find_style(&cascaded.root.unwrap(), &|el| matches!(el, Element::Div(_))).expect("found");
   let bg = style.background_color.expect("set");
   // div:hover (tag + pseudo = 1 tag + 1 class) beats plain div (1 tag).
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn focus_rule_applies_only_to_focused_element() {
   let inner_style = find_style(&cascaded.root.as_ref().unwrap(), &|el| element_id(el) == Some("inner")).expect("found");
   let inner_bg = inner_style.background_color.expect("set");
   assert!(
-    matches!(inner_bg.clone(), CssColor::Named(s) if s == "red"),
+    matches!(inner_bg.clone(), CssColor::Named(ref s) if &**s == "red"),
     "inner background expected red, got {inner_bg:?}"
   );
 
@@ -119,7 +119,7 @@ fn focus_rule_applies_only_to_focused_element() {
   let outer_style = find_style(&cascaded.root.as_ref().unwrap(), &|el| element_id(el) == Some("outer")).expect("found");
   let outer_bg = outer_style.background_color.expect("set");
   assert!(
-    matches!(outer_bg.clone(), CssColor::Named(s) if s == "white"),
+    matches!(outer_bg.clone(), CssColor::Named(ref s) if &**s == "white"),
     "outer background expected white (focus does not propagate), got {outer_bg:?}"
   );
 }
@@ -140,5 +140,5 @@ fn focus_rule_does_not_apply_when_focus_path_is_none() {
   let cascaded = cascade(&tree);
   let style = find_style(&cascaded.root.unwrap(), &|el| element_id(el) == Some("x")).expect("found");
   let bg = style.background_color.expect("set");
-  assert!(matches!(bg, CssColor::Named(s) if s == "white"));
+  assert!(matches!(bg, CssColor::Named(ref s) if &**s == "white"));
 }

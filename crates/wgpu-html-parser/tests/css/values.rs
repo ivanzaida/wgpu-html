@@ -16,7 +16,7 @@ fn parse_css_length_values() {
 
 #[test]
 fn parse_css_color_hex() {
-  assert!(matches!(parse_css_color("#ff0000"), Some(CssColor::Hex(ref s)) if s == "#ff0000"));
+  assert!(matches!(parse_css_color("#ff0000"), Some(CssColor::Hex(ref s)) if &**s == "#ff0000"));
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn important_is_case_insensitive_and_whitespace_tolerant() {
 fn parse_inline_style_folds_important_back_in() {
   let style = parse_inline_style("color: red; color: blue !important;");
   let c = style.color.expect("color set");
-  assert!(matches!(c, CssColor::Named(s) if s == "blue"));
+  assert!(matches!(c, CssColor::Named(ref s) if &**s == "blue"));
 }
 
 #[test]

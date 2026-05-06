@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::ArcStr;
+
 use crate::common::css_enums::{
   AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssImage,
   CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine, GridTrackSize,
@@ -44,22 +46,22 @@ pub struct Style {
   // css property: padding-left
   pub padding_left: Option<CssLength>,
   pub color: Option<CssColor>,
-  pub background: Option<String>,
+  pub background: Option<ArcStr>,
   // css property: background-color
   pub background_color: Option<CssColor>,
   // css property: background-image
   pub background_image: Option<CssImage>,
   // css property: background-size
-  pub background_size: Option<String>,
+  pub background_size: Option<ArcStr>,
   // css property: background-position
-  pub background_position: Option<String>,
+  pub background_position: Option<ArcStr>,
   // css property: background-repeat
   pub background_repeat: Option<BackgroundRepeat>,
   // css property: background-clip
   pub background_clip: Option<BackgroundClip>,
   /// Raw value of the `border` shorthand. Kept for round-tripping;
   /// layout reads the per-side fields below instead.
-  pub border: Option<String>,
+  pub border: Option<ArcStr>,
 
   // css property: border-top-width / -right- / -bottom- / -left-
   pub border_top_width: Option<CssLength>,
@@ -94,7 +96,7 @@ pub struct Style {
   pub border_bottom_right_radius_v: Option<CssLength>,
   pub border_bottom_left_radius_v: Option<CssLength>,
   // css property: font-family
-  pub font_family: Option<String>,
+  pub font_family: Option<ArcStr>,
   // css property: font-size
   pub font_size: Option<CssLength>,
   // css property: font-weight
@@ -108,7 +110,7 @@ pub struct Style {
   // css property: text-align
   pub text_align: Option<TextAlign>,
   // css property: text-decoration
-  pub text_decoration: Option<String>,
+  pub text_decoration: Option<ArcStr>,
   // css property: text-transform
   pub text_transform: Option<TextTransform>,
   // css property: white-space
@@ -135,7 +137,7 @@ pub struct Style {
   // css property: fill-opacity
   pub svg_fill_opacity: Option<f32>,
   // css property: fill-rule  ("nonzero" | "evenodd")
-  pub svg_fill_rule: Option<String>,
+  pub svg_fill_rule: Option<ArcStr>,
   // css property: stroke
   pub svg_stroke: Option<CssColor>,
   // css property: stroke-width
@@ -143,11 +145,11 @@ pub struct Style {
   // css property: stroke-opacity
   pub svg_stroke_opacity: Option<f32>,
   // css property: stroke-linecap  ("butt" | "round" | "square")
-  pub svg_stroke_linecap: Option<String>,
+  pub svg_stroke_linecap: Option<ArcStr>,
   // css property: stroke-linejoin ("miter" | "round" | "bevel")
-  pub svg_stroke_linejoin: Option<String>,
+  pub svg_stroke_linejoin: Option<ArcStr>,
   // css property: stroke-dasharray
-  pub svg_stroke_dasharray: Option<String>,
+  pub svg_stroke_dasharray: Option<ArcStr>,
   // css property: stroke-dashoffset
   pub svg_stroke_dashoffset: Option<CssLength>,
   // css property: flex-direction
@@ -169,7 +171,7 @@ pub struct Style {
   pub row_gap: Option<CssLength>,
   // css property: column-gap
   pub column_gap: Option<CssLength>,
-  pub flex: Option<String>,
+  pub flex: Option<ArcStr>,
   // css property: flex-grow
   pub flex_grow: Option<f32>,
   // css property: flex-shrink
@@ -195,49 +197,49 @@ pub struct Style {
   pub grid_row_end: Option<GridLine>,
   /// Raw `grid-column` shorthand, preserved for round-tripping;
   /// layout reads the start/end longhands above.
-  pub grid_column: Option<String>,
+  pub grid_column: Option<ArcStr>,
   /// Raw `grid-row` shorthand; same treatment as `grid_column`.
-  pub grid_row: Option<String>,
+  pub grid_row: Option<ArcStr>,
   // CSS Grid: default inline-axis alignment for items.
   pub justify_items: Option<JustifyItems>,
   // CSS Grid: per-item override of `justify-items`.
   pub justify_self: Option<JustifySelf>,
-  pub transform: Option<String>,
+  pub transform: Option<ArcStr>,
   // css property: transform-origin
-  pub transform_origin: Option<String>,
-  pub transition: Option<String>,
-  pub animation: Option<String>,
+  pub transform_origin: Option<ArcStr>,
+  pub transition: Option<ArcStr>,
+  pub animation: Option<ArcStr>,
   pub cursor: Option<Cursor>,
   // css property: pointer-events
   pub pointer_events: Option<PointerEvents>,
   // css property: user-select
   pub user_select: Option<UserSelect>,
   // css property: box-shadow
-  pub box_shadow: Option<String>,
+  pub box_shadow: Option<ArcStr>,
   // css property: box-sizing
   pub box_sizing: Option<BoxSizing>,
   /// Longhands that the engine recognizes and preserves for future
   /// implementation, but doesn't model as dedicated typed fields yet.
   /// Keys are CSS kebab-case property names.
-  pub deferred_longhands: HashMap<String, String>,
+  pub deferred_longhands: HashMap<ArcStr, ArcStr>,
   /// CSS custom properties (`--name: value`). Keys are the full
   /// property name including the `--` prefix, case-preserved.
   /// Custom properties are always inherited.
-  pub custom_properties: HashMap<String, String>,
+  pub custom_properties: HashMap<ArcStr, ArcStr>,
   /// Regular CSS property declarations whose value contains an
   /// unresolved `var()` reference. Keys are the CSS property name
   /// (e.g. `"color"`), values are the raw declaration value string
   /// (e.g. `"var(--theme-color)"`). Resolved at computed-value
   /// time by `resolve_var_references`.
-  pub var_properties: HashMap<String, String>,
+  pub var_properties: HashMap<ArcStr, ArcStr>,
   /// Longhands that a parsed shorthand declaration must reset before
   /// applying its explicit member values. This lets shorthands clear
   /// previously-set longhands even when the shorthand's initial value
   /// for that member is represented as `None` in the typed model.
-  pub reset_properties: HashSet<String>,
+  pub reset_properties: HashSet<ArcStr>,
   /// Longhands reset by a CSS-wide keyword on a shorthand. These do
   /// not represent a value declaration themselves; cascade uses them
   /// to block later implicit inheritance for the omitted members when
   /// a following longhand value clears the covering shorthand keyword.
-  pub keyword_reset_properties: HashSet<String>,
+  pub keyword_reset_properties: HashSet<ArcStr>,
 }

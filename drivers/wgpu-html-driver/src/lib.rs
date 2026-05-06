@@ -280,7 +280,7 @@ impl ProfilingOverlay {
     if let Some(div) = tree.get_element_by_id(id) {
       if let Some(span) = div.children.first_mut() {
         if let Some(text) = span.children.first_mut() {
-          text.element = wgpu_html_tree::Element::Text(label);
+          text.element = wgpu_html_tree::Element::Text(label.into());
         }
       }
       return;

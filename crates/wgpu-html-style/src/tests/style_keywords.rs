@@ -19,7 +19,7 @@ fn inherit_keyword_takes_parent_value_for_non_inherited_property() {
   );
   let div = first_div(&tree);
   let bg = div.style.background_color.as_ref().unwrap();
-  assert!(matches!(bg, CssColor::Named(s) if s == "orange"));
+  assert!(matches!(bg, CssColor::Named(s) if &**s == "orange"));
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn unset_acts_as_inherit_for_inherited_property() {
   let div = first_div(&tree);
   // `color` is inherited → `unset` === `inherit` → red.
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "red"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "red"));
 }
 
 #[test]
@@ -172,7 +172,7 @@ fn deferred_longhand_value_after_shorthand_keyword_clears_covering_keyword() {
       .style
       .deferred_longhands
       .get("transition-duration")
-      .map(String::as_str),
+      .map(|s| &**s),
     Some("200ms")
   );
   assert!(!div.style.deferred_longhands.contains_key("transition-property"));
@@ -212,11 +212,11 @@ fn deferred_inherited_longhand_flows_through_cascade() {
       .style
       .deferred_longhands
       .get("white-space-collapse")
-      .map(String::as_str),
+      .map(|s| &**s),
     Some("preserve")
   );
   assert_eq!(
-    div.style.deferred_longhands.get("text-wrap-mode").map(String::as_str),
+    div.style.deferred_longhands.get("text-wrap-mode").map(|s| &**s),
     Some("wrap")
   );
 }
@@ -236,7 +236,7 @@ fn inherit_within_a_block_displaces_an_earlier_value() {
   );
   let div = first_div(&tree);
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "green"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "green"));
 }
 
 #[test]
@@ -254,7 +254,7 @@ fn value_after_keyword_within_a_block_displaces_the_keyword() {
   );
   let div = first_div(&tree);
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "red"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "red"));
 }
 
 #[test]
@@ -283,7 +283,7 @@ fn keyword_loses_to_more_specific_important_value() {
   // Layer 4 (inline !important) — empty.
   // Resolution: keyword Inherit → parent.color = green.
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "green"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "green"));
 }
 
 #[test]

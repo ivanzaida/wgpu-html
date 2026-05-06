@@ -132,8 +132,8 @@ fn field_value(tree: &Tree, focus_path: &[usize]) -> Option<String> {
     .as_ref()
     .and_then(|r| r.at_path(focus_path))
     .and_then(|node| match &node.element {
-      wgpu_html_tree::Element::Input(inp) => Some(inp.value.clone().unwrap_or_default()),
-      wgpu_html_tree::Element::Textarea(ta) => Some(ta.value.clone().unwrap_or_default()),
+      wgpu_html_tree::Element::Input(inp) => Some(inp.value.as_deref().unwrap_or_default().to_string()),
+      wgpu_html_tree::Element::Textarea(ta) => Some(ta.value.as_deref().unwrap_or_default().to_string()),
       _ => None,
     })
 }

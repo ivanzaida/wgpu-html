@@ -91,15 +91,15 @@ fn escape_attr(s: &str) -> String {
 /// Convert a `CssColor` to an SVG-compatible paint string.
 fn css_color_to_svg(c: &CssColor) -> String {
   match c {
-    CssColor::Named(n) => n.clone(),
-    CssColor::Hex(h) => h.clone(),
+    CssColor::Named(n) => n.to_string(),
+    CssColor::Hex(h) => h.to_string(),
     CssColor::Rgb(r, g, b) => format!("rgb({},{},{})", r, g, b),
     CssColor::Rgba(r, g, b, a) => format!("rgba({},{},{},{})", r, g, b, a),
     CssColor::Hsl(h, s, l) => format!("hsl({},{:.1}%,{:.1}%)", h, s, l),
     CssColor::Hsla(h, s, l, a) => format!("hsla({},{:.1}%,{:.1}%,{})", h, s, l, a),
     CssColor::Transparent => "none".to_string(),
     CssColor::CurrentColor => "currentColor".to_string(),
-    CssColor::Function(f) => f.clone(),
+    CssColor::Function(f) => f.to_string(),
   }
 }
 
@@ -126,7 +126,7 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     out.push('"');
   }
   // fill: CSS cascade wins over HTML attr, which wins over no value.
-  let fill_str: Option<String> = s.svg_fill.as_ref().map(css_color_to_svg).or_else(|| p.fill.clone());
+  let fill_str: Option<String> = s.svg_fill.as_ref().map(css_color_to_svg).or_else(|| p.fill.as_ref().map(|s| s.to_string()));
   if let Some(v) = &fill_str {
     out.push_str(" fill=\"");
     out.push_str(&escape_attr(v));
@@ -144,7 +144,7 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     out.push_str(&format!(" fill-opacity=\"{}\"", v));
   }
   // stroke
-  let stroke_str: Option<String> = s.svg_stroke.as_ref().map(css_color_to_svg).or_else(|| p.stroke.clone());
+  let stroke_str: Option<String> = s.svg_stroke.as_ref().map(css_color_to_svg).or_else(|| p.stroke.as_ref().map(|s| s.to_string()));
   if let Some(v) = &stroke_str {
     out.push_str(" stroke=\"");
     out.push_str(&escape_attr(v));
@@ -155,7 +155,7 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     .svg_stroke_width
     .as_ref()
     .and_then(css_length_to_svg)
-    .or_else(|| p.stroke_width.clone());
+    .or_else(|| p.stroke_width.as_ref().map(|s| s.to_string()));
   if let Some(v) = &sw {
     out.push_str(" stroke-width=\"");
     out.push_str(&escape_attr(v));
@@ -188,7 +188,7 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     out.push_str(&format!(" stroke-dashoffset=\"{}\"", v));
   }
   // opacity (general)
-  let opacity: Option<String> = s.opacity.map(|v| format!("{}", v)).or_else(|| p.opacity.clone());
+  let opacity: Option<String> = s.opacity.map(|v| format!("{}", v)).or_else(|| p.opacity.as_ref().map(|s| s.to_string()));
   if let Some(v) = &opacity {
     out.push_str(" opacity=\"");
     out.push_str(&escape_attr(v));
@@ -261,7 +261,7 @@ pub fn serialize_svg_node(node: &CascadedNode) -> String {
     .svg_fill
     .as_ref()
     .map(css_color_to_svg)
-    .or_else(|| svg.fill.clone());
+    .or_else(|| svg.fill.as_ref().map(|s| s.to_string()));
   if let Some(f) = &root_fill {
     out.push_str(" fill=\"");
     out.push_str(&escape_attr(f));
@@ -272,7 +272,7 @@ pub fn serialize_svg_node(node: &CascadedNode) -> String {
     .svg_stroke
     .as_ref()
     .map(css_color_to_svg)
-    .or_else(|| svg.stroke.clone());
+    .or_else(|| svg.stroke.as_ref().map(|s| s.to_string()));
   if let Some(s) = &root_stroke {
     out.push_str(" stroke=\"");
     out.push_str(&escape_attr(s));

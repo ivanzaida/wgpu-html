@@ -218,6 +218,114 @@ fn elliptical_radius_h_v_split() {
   assert_eq!(r.bottom_right.v, 10.0);
 }
 
+// ---------------------------------------------------------------------------
+// currentColor
+// ---------------------------------------------------------------------------
+
+const LINEAR_RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+const LINEAR_BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+
+#[test]
+fn border_no_explicit_color_uses_foreground() {
+  let tree = make(
+    r#"<div style="margin: 0; width: 50px; height: 50px;
+                   color: red; border: 2px solid;"></div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let div = first_child(&root);
+  assert_eq!(div.border.top, 2.0);
+  assert_eq!(div.border_colors.top, Some(LINEAR_RED));
+  assert_eq!(div.border_colors.right, Some(LINEAR_RED));
+  assert_eq!(div.border_colors.bottom, Some(LINEAR_RED));
+  assert_eq!(div.border_colors.left, Some(LINEAR_RED));
+}
+
+#[test]
+fn border_color_currentcolor_keyword_resolves() {
+  let tree = make(
+    r#"<div style="margin: 0; width: 50px; height: 50px;
+                   color: blue; border: 2px solid currentColor;"></div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let div = first_child(&root);
+  assert_eq!(div.border_colors.top, Some(LINEAR_BLUE));
+  assert_eq!(div.border_colors.left, Some(LINEAR_BLUE));
+}
+
+#[test]
+fn border_color_inherits_from_parent_color() {
+  let tree = make(
+    r#"<div style="margin: 0; color: red;">
+         <div id="child" style="width: 50px; height: 50px; border: 1px solid;"></div>
+       </div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let outer = first_child(&root);
+  let inner = first_child(outer);
+  assert_eq!(inner.border_colors.top, Some(LINEAR_RED));
+}
+
+#[test]
+fn text_color_inherits_through_cascade() {
+  let tree = make(
+    r#"<div style="margin: 0; color: blue;">
+         <span>text</span>
+       </div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  fn find_text(b: &LayoutBox) -> Option<&LayoutBox> {
+    if matches!(b.kind, BoxKind::Text) {
+      return Some(b);
+    }
+    b.children.iter().find_map(find_text)
+  }
+  let text = find_text(&root).expect("found text box");
+  assert_eq!(text.text_color, Some(LINEAR_BLUE));
+}
+
+#[test]
+fn background_color_currentcolor_resolves() {
+  let tree = make(
+    r#"<div style="margin: 0; width: 50px; height: 50px;
+                   color: red; background-color: currentColor;"></div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let div = first_child(&root);
+  assert_eq!(div.background, Some(LINEAR_RED));
+}
+
+#[test]
+fn border_without_color_defaults_to_black_when_no_color_property() {
+  let tree = make(
+    r#"<div style="margin: 0; width: 50px; height: 50px;
+                   border: 2px solid;"></div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let div = first_child(&root);
+  assert_eq!(div.border.top, 2.0);
+  assert_eq!(div.border_colors.top, Some(BLACK));
+}
+
+#[test]
+fn nested_currentcolor_threads_through_tree() {
+  let tree = make(
+    r#"<div style="margin: 0; color: red;">
+         <div style="color: blue;">
+           <div id="leaf" style="width: 40px; height: 40px; border: 1px solid;"></div>
+         </div>
+       </div>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let mid = first_child(first_child(&root));
+  let leaf = first_child(mid);
+  assert_eq!(leaf.border_colors.top, Some(LINEAR_BLUE));
+}
+
+// ---------------------------------------------------------------------------
+// border-radius
+// ---------------------------------------------------------------------------
+
 #[test]
 fn per_corner_h_v_in_longhand() {
   let tree = make(

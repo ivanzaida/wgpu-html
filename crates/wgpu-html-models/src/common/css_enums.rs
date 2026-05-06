@@ -1,5 +1,7 @@
 use std::{fmt, str::FromStr};
 
+use crate::ArcStr;
+
 #[derive(Debug, Clone)]
 pub enum CssLength {
   Px(f32),
@@ -20,7 +22,7 @@ pub enum CssLength {
     preferred: Box<CssLength>,
     max: Box<CssLength>,
   },
-  Raw(String),
+  Raw(ArcStr),
 }
 
 #[derive(Debug, Clone)]
@@ -57,21 +59,21 @@ pub enum CssNumericFunction {
 
 #[derive(Debug, Clone)]
 pub enum CssColor {
-  Named(String),
-  Hex(String),
+  Named(ArcStr),
+  Hex(ArcStr),
   Rgb(u8, u8, u8),
   Rgba(u8, u8, u8, f32),
   Hsl(f32, f32, f32),
   Hsla(f32, f32, f32, f32),
   Transparent,
   CurrentColor,
-  Function(String),
+  Function(ArcStr),
 }
 
 #[derive(Debug, Clone)]
 pub enum CssImage {
-  Url(String),
-  Function(String),
+  Url(ArcStr),
+  Function(ArcStr),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -374,7 +376,7 @@ pub enum Cursor {
   Resize,
   ColResize,
   RowResize,
-  Raw(String),
+  Raw(ArcStr),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -965,7 +967,7 @@ impl FromStr for Cursor {
       "resize" => Ok(Cursor::Resize),
       "col-resize" => Ok(Cursor::ColResize),
       "row-resize" => Ok(Cursor::RowResize),
-      _ => Ok(Cursor::Raw(trimmed.to_string())),
+      _ => Ok(Cursor::Raw(ArcStr::from(trimmed))),
     }
   }
 }

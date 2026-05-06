@@ -391,12 +391,12 @@ fn wrap_policy_respects_white_space_and_text_wrap_mode() {
 
   style
     .deferred_longhands
-    .insert("text-wrap-mode".to_string(), "nowrap".to_string());
+    .insert("text-wrap-mode".into(), "nowrap".into());
   assert!(!style_wraps_text(&style));
 
   style
     .deferred_longhands
-    .insert("text-wrap-mode".to_string(), "wrap".to_string());
+    .insert("text-wrap-mode".into(), "wrap".into());
   assert!(style_wraps_text(&style));
 }
 

@@ -47,7 +47,7 @@ fn apply_inherit_uses_parent_value() {
   let mut parent = Style::default();
   parent.color = Some(CssColor::Named("white".into()));
   apply_keyword(&mut child, Some(&parent), "color", CssWideKeyword::Inherit);
-  assert!(matches!(child.color.as_ref().unwrap(), CssColor::Named(s) if s == "white"));
+  assert!(matches!(child.color.as_ref().unwrap(), CssColor::Named(s) if &**s == "white"));
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn apply_unset_inherits_for_inherited_props() {
   let mut parent = Style::default();
   parent.color = Some(CssColor::Named("blue".into()));
   apply_keyword(&mut child, Some(&parent), "color", CssWideKeyword::Unset);
-  assert!(matches!(child.color.as_ref().unwrap(), CssColor::Named(s) if s == "blue"));
+  assert!(matches!(child.color.as_ref().unwrap(), CssColor::Named(s) if &**s == "blue"));
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn apply_background_inherit_copies_supported_longhands() {
   parent.background_color = Some(CssColor::Hex("#1b1d22".into()));
   parent.background_position = Some("center".into());
   apply_keyword(&mut child, Some(&parent), "background", CssWideKeyword::Inherit);
-  assert!(matches!(child.background_color, Some(CssColor::Hex(ref s)) if s == "#1b1d22"));
+  assert!(matches!(child.background_color, Some(CssColor::Hex(ref s)) if &**s == "#1b1d22"));
   assert_eq!(child.background.as_deref(), Some("#1b1d22"));
   assert_eq!(child.background_position.as_deref(), Some("center"));
 }
@@ -96,7 +96,7 @@ fn apply_background_inherit_copies_supported_longhands() {
 #[test]
 fn merge_values_clears_keywords_for_touched_fields() {
   let mut dst = Style::default();
-  let mut kw: HashMap<String, CssWideKeyword> = HashMap::new();
+  let mut kw: HashMap<wgpu_html_models::ArcStr, CssWideKeyword> = HashMap::new();
   kw.insert("color".into(), CssWideKeyword::Inherit);
   kw.insert("width".into(), CssWideKeyword::Initial);
   let mut src = Style::default();

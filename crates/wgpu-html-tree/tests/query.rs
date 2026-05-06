@@ -32,24 +32,24 @@ use wgpu_html_tree::{CompoundSelector, Node, SelectorList, Tree, query::AttrOp};
 
 fn div(id: Option<&str>, class: Option<&str>) -> m::Div {
   m::Div {
-    id: id.map(str::to_owned),
-    class: class.map(str::to_owned),
+    id: id.map(|s| std::sync::Arc::<str>::from(s)),
+    class: class.map(|s| std::sync::Arc::<str>::from(s)),
     ..m::Div::default()
   }
 }
 
 fn span(id: Option<&str>, class: Option<&str>) -> m::Span {
   m::Span {
-    id: id.map(str::to_owned),
-    class: class.map(str::to_owned),
+    id: id.map(|s| std::sync::Arc::<str>::from(s)),
+    class: class.map(|s| std::sync::Arc::<str>::from(s)),
     ..m::Span::default()
   }
 }
 
 fn p(id: Option<&str>, class: Option<&str>) -> m::P {
   m::P {
-    id: id.map(str::to_owned),
-    class: class.map(str::to_owned),
+    id: id.map(|s| std::sync::Arc::<str>::from(s)),
+    class: class.map(|s| std::sync::Arc::<str>::from(s)),
     ..m::P::default()
   }
 }
@@ -1220,9 +1220,9 @@ fn attribute_op_includes_matches_class_token() {
 #[test]
 fn attribute_op_dashmatch_for_lang() {
   let mut e = m::Div::default();
-  e.lang = Some("en-US".to_owned());
+  e.lang = Some("en-US".into());
   let mut e2 = m::Div::default();
-  e2.lang = Some("english".to_owned());
+  e2.lang = Some("english".into());
   let body = Node::new(m::Body::default()).with_children(vec![Node::new(e), Node::new(e2)]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("[lang|=en]");
@@ -1232,11 +1232,11 @@ fn attribute_op_dashmatch_for_lang() {
 #[test]
 fn attribute_op_prefix_suffix_substring() {
   let mut a1 = m::A::default();
-  a1.href = Some("https://example.com/path".to_owned());
+  a1.href = Some("https://example.com/path".into());
   let mut a2 = m::A::default();
-  a2.href = Some("/local".to_owned());
+  a2.href = Some("/local".into());
   let mut a3 = m::A::default();
-  a3.href = Some("https://example.com/file.pdf".to_owned());
+  a3.href = Some("https://example.com/file.pdf".into());
   let body = Node::new(m::Body::default()).with_children(vec![Node::new(a1), Node::new(a2), Node::new(a3)]);
   let mut tree = Tree::new(body);
 
@@ -1255,7 +1255,7 @@ fn attribute_op_prefix_suffix_substring() {
 fn attribute_case_insensitive_flag() {
   use m::common::html_enums::InputType;
   let body = Node::new(m::Body::default()).with_children(vec![Node::new(m::Input {
-    id: Some("pw".to_owned()),
+    id: Some("pw".into()),
     r#type: Some(InputType::Password),
     ..m::Input::default()
   })]);
@@ -1366,12 +1366,12 @@ fn input_type_password_user_case() {
   use m::common::html_enums::InputType;
   let body = Node::new(m::Body::default()).with_children(vec![
     Node::new(m::Input {
-      id: Some("user".to_owned()),
+      id: Some("user".into()),
       r#type: Some(InputType::Text),
       ..m::Input::default()
     }),
     Node::new(m::Input {
-      id: Some("pass".to_owned()),
+      id: Some("pass".into()),
       r#type: Some(InputType::Password),
       ..m::Input::default()
     }),

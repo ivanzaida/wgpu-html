@@ -240,7 +240,7 @@ fn write_attrs(out: &mut String, el: &wgpu_html_tree::Element, indent: &str) {
   let mut attrs: Vec<(&str, String)> = Vec::new();
   for n in &names {
     if let Some(v) = el.attr(n) {
-      attrs.push((n, v));
+      attrs.push((n, v.to_string()));
     }
   }
   if !attrs.is_empty() {
@@ -286,7 +286,7 @@ fn write_computed_style(out: &mut String, s: &wgpu_html_models::Style, indent: &
   p!("cursor", s.cursor);
   p!("z-index", s.z_index);
   for (k, v) in &s.custom_properties {
-    props.push((k, v.clone()));
+    props.push((&**k, v.to_string()));
   }
   if !props.is_empty() {
     let _ = write!(out, ",\n{indent}\"computedStyle\": {{");

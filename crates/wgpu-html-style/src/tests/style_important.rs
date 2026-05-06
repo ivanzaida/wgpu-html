@@ -17,7 +17,7 @@ fn important_in_lower_specificity_beats_normal_in_higher() {
   );
   let div = first_div(&tree);
   let bg = div.style.background_color.as_ref().unwrap();
-  assert!(matches!(bg, CssColor::Named(s) if s == "green"));
+  assert!(matches!(bg, CssColor::Named(s) if &**s == "green"));
 }
 
 #[test]
@@ -34,7 +34,7 @@ fn important_specificity_still_orders_within_band() {
   );
   let div = first_div(&tree);
   let bg = div.style.background_color.as_ref().unwrap();
-  assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
+  assert!(matches!(bg, CssColor::Named(s) if &**s == "blue"));
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn important_author_overrides_inline_normal() {
   );
   let div = first_div(&tree);
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "green"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "green"));
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn inline_important_beats_author_important() {
   );
   let div = first_div(&tree);
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "red"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "red"));
 }
 
 #[test]
@@ -89,10 +89,10 @@ fn important_does_not_leak_across_properties() {
   let div = first_div(&tree);
   // color: !important from div wins.
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "green"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "green"));
   // background-color: #x (normal, more specific) wins.
   let bg = div.style.background_color.as_ref().unwrap();
-  assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
+  assert!(matches!(bg, CssColor::Named(s) if &**s == "blue"));
 }
 
 #[test]
@@ -110,5 +110,5 @@ fn important_whitespace_variants_are_recognised() {
   );
   let div = first_div(&tree);
   let c = div.style.color.as_ref().unwrap();
-  assert!(matches!(c, CssColor::Named(s) if s == "red"));
+  assert!(matches!(c, CssColor::Named(s) if &**s == "red"));
 }

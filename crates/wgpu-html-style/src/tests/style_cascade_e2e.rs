@@ -50,7 +50,7 @@ fn cascade_inline_style_takes_precedence_over_block() {
     .find(|c| matches!(c.element, Element::Div(_)))
     .unwrap();
   let bg = div.style.background_color.as_ref().unwrap();
-  assert!(matches!(bg, CssColor::Named(s) if s == "red"));
+  assert!(matches!(bg, CssColor::Named(s) if &**s == "red"));
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn stylesheet_collection_skips_template_contents() {
   )
   .unwrap();
   let bg = div.background_color.as_ref().unwrap();
-  assert!(matches!(bg, CssColor::Named(s) if s == "blue"));
+  assert!(matches!(bg, CssColor::Named(s) if &**s == "blue"));
 }
 
 #[test]
@@ -323,7 +323,7 @@ fn ua_attribute_selectors_apply() {
   assert_eq!(abbr.text_decoration.as_deref(), Some("underline dotted"));
 
   let rtl = find_style(root, &|el| matches!(el, Element::Div(d) if d.dir.is_some())).unwrap();
-  assert_eq!(rtl.deferred_longhands.get("direction").map(String::as_str), Some("rtl"));
+  assert_eq!(rtl.deferred_longhands.get("direction").map(|s| &**s), Some("rtl"));
 }
 
 #[test]
@@ -345,13 +345,13 @@ fn ua_form_font_initial_resets_inherited_text_styles() {
   let cascaded = cascade(&tree);
   let input = find_style(cascaded.root.as_ref().unwrap(), &|el| matches!(el, Element::Input(_))).unwrap();
   assert!(input.font_size.is_none());
-  assert!(matches!(input.color, Some(CssColor::Named(ref v)) if v == "fieldtext"));
+  assert!(matches!(input.color, Some(CssColor::Named(ref v)) if &**v == "fieldtext"));
   assert!(input.font_weight.is_none());
   assert!(input.font_style.is_none());
-  assert!(matches!(input.line_height, Some(CssLength::Raw(ref v)) if v == "normal"));
+  assert!(matches!(input.line_height, Some(CssLength::Raw(ref v)) if &**v == "normal"));
   assert!(matches!(
       input.letter_spacing,
-      Some(CssLength::Raw(ref v)) if v == "normal"
+      Some(CssLength::Raw(ref v)) if &**v == "normal"
   ));
   assert!(matches!(input.text_align, Some(TextAlign::Start)));
 }

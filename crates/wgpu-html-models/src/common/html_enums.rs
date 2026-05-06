@@ -1,3 +1,4 @@
+use crate::ArcStr;
 use std::{fmt, str::FromStr};
 
 #[derive(Debug, Clone)]
@@ -71,7 +72,7 @@ pub enum LinkTarget {
   SelfTarget,
   Parent,
   Top,
-  Named(String),
+  Named(ArcStr),
 }
 
 #[derive(Debug, Clone)]
@@ -119,7 +120,7 @@ pub enum SvgLength {
   Em(f32),
   Rem(f32),
   Auto,
-  Raw(String),
+  Raw(ArcStr),
 }
 
 #[derive(Debug, Clone)]
@@ -340,7 +341,7 @@ impl FromStr for LinkTarget {
       "_parent" => Ok(LinkTarget::Parent),
       "_top" => Ok(LinkTarget::Top),
       "" => Err(()),
-      _ => Ok(LinkTarget::Named(trimmed.to_string())),
+      _ => Ok(LinkTarget::Named(ArcStr::from(trimmed))),
     }
   }
 }
@@ -456,7 +457,7 @@ impl FromStr for SvgLength {
     if let Ok(value) = trimmed.parse::<f32>() {
       return Ok(SvgLength::Px(value));
     }
-    Ok(SvgLength::Raw(trimmed.to_string()))
+    Ok(SvgLength::Raw(ArcStr::from(trimmed)))
   }
 }
 
@@ -566,7 +567,7 @@ mod tests {
     assert_eq!(LinkTarget::Blank.to_string(), "_blank");
 
     let named = "preview-frame".parse::<LinkTarget>().unwrap();
-    assert!(matches!(named, LinkTarget::Named(ref value) if value == "preview-frame"));
+    assert!(matches!(named, LinkTarget::Named(ref value) if &**value == "preview-frame"));
     assert_eq!(named.to_string(), "preview-frame");
     assert!("".parse::<LinkTarget>().is_err());
   }
@@ -577,7 +578,7 @@ mod tests {
     assert_eq!(SvgLength::Percent(50.0).to_string(), "50%");
 
     let raw = "calc(100% - 1rem)".parse::<SvgLength>().unwrap();
-    assert!(matches!(raw, SvgLength::Raw(ref value) if value == "calc(100% - 1rem)"));
+    assert!(matches!(raw, SvgLength::Raw(ref value) if &**value == "calc(100% - 1rem)"));
     assert_eq!(raw.to_string(), "calc(100% - 1rem)");
   }
 }
