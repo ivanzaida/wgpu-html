@@ -20,8 +20,18 @@ wgpu-html runs its own headless wgpu device (independent of Bevy's render pipeli
 ```toml
 [dependencies]
 wgpu-html-driver-bevy = { path = "drivers/wgpu-html-driver-bevy" }
-bevy = "0.15"
+bevy = { version = "0.18", default-features = false, features = [
+    "bevy_winit", "bevy_render", "bevy_asset",
+    "bevy_ui", "bevy_ui_render",
+    "bevy_core_pipeline", "bevy_pbr",
+    "bevy_state", "default_font",
+    "tonemapping_luts", "zstd_rust",
+] }
 ```
+
+:::caution
+`bevy_ui_render` is required. Without it, Bevy performs UI layout but skips GPU drawing — your overlay will be invisible.
+:::
 
 ```rust
 use bevy::prelude::*;
@@ -50,7 +60,7 @@ fn setup(mut html: NonSendMut<HtmlOverlay>) {
 
 ## HtmlOverlay API
 
-`HtmlOverlay` is inserted as a non-send resource by the plugin. Access it in systems via `NonSendMut<HtmlOverlay>`.
+`HtmlOverlay` is inserted as a non-send resource by the plugin during `Plugin::build()`, so it's available immediately in `Startup` systems. Access it via `NonSendMut<HtmlOverlay>`.
 
 ### DOM Manipulation
 
@@ -151,7 +161,7 @@ See `demo/wgpu-html-demo-bevy/src/devtools.rs` for the full implementation.
 
 ## DPI Scaling
 
-The overlay automatically reads the window's `scale_factor()` and renders at physical pixel resolution. CSS pixel values map correctly at any DPI — a `400px` panel stays 400 CSS pixels regardless of display scaling.
+The overlay automatically reads the window's `scale_factor()` and renders at physical pixel resolution. Input coordinates are scaled from Bevy's logical pixels to physical pixels before hit-testing. CSS pixel values map correctly at any DPI — a `400px` panel stays 400 CSS pixels regardless of display scaling.
 
 ## How It Works
 
@@ -161,6 +171,16 @@ Each frame the plugin:
 2. Runs the full pipeline: cascade → layout → paint → `DisplayList`
 3. Uploads glyph atlas rasters
 4. Calls `Renderer::render_to_rgba()` — renders the `DisplayList` into an offscreen texture and reads back RGBA pixels
-5. Writes the pixels into the Bevy `Image` asset backing the fullscreen `ImageNode`
+5. Replaces the Bevy `Image` asset backing the fullscreen `ImageNode`
 
 The overlay entity is spawned at `GlobalZIndex(i32::MAX)` with `position: absolute` covering 100% of the viewport.
+
+## Bevy Version Notes
+
+Tested with **Bevy 0.18**. Key differences from earlier Bevy versions:
+
+- Events use `MessageReader` instead of `EventReader`
+- `RenderTarget` is a separate component, not a `Camera` field
+- `Image.data` is `Option<Vec<u8>>`
+- `bevy_ui_render` feature is required for UI GPU rendering
+- `WindowResolution::new()` takes `u32` dimensions

@@ -239,7 +239,7 @@ fn render_overlay_system(
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window>,
 ) {
-    let Some(window) = windows.iter().next() else { return };
+    let Some(window) = windows.iter().next() else { return; };
     let scale = window.scale_factor();
     let phys_w = (window.width() * scale).ceil() as u32;
     let phys_h = (window.height() * scale).ceil() as u32;
@@ -260,18 +260,21 @@ fn render_overlay_system(
         0.0,
         &mut o.pipeline_cache,
     );
+
     list.finalize();
 
     o.text_ctx.atlas.upload(&o.renderer.queue, o.renderer.glyph_atlas_texture());
 
     let Ok(rgba) = o.renderer.render_to_rgba(&list, phys_w, phys_h) else { return };
 
-    if let Some(image) = images.get_mut(&o.image_handle) {
-        if image.width() != phys_w || image.height() != phys_h {
-            image.resize(Extent3d { width: phys_w, height: phys_h, depth_or_array_layers: 1 });
-        }
-        image.data = Some(rgba);
-    }
+    let new_image = Image::new(
+        Extent3d { width: phys_w, height: phys_h, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        rgba,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+    let _ = images.insert(o.image_handle.id(), new_image);
 }
 
 // ── Key translation ────────────────────────────────────────────────────────
