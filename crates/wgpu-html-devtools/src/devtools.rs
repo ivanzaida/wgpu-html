@@ -6,11 +6,11 @@
 //! process).
 
 use std::sync::{
-  Arc,
   atomic::{AtomicBool, Ordering},
+  Arc,
 };
 
-use wgpu_html_driver_winit::{WinitRuntime, dispatch, new_window, register_system_fonts};
+use wgpu_html_driver_winit::{dispatch, new_window, register_system_fonts, WinitRuntime};
 use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 use winit::{event::WindowEvent, event_loop::ActiveEventLoop, window::WindowId};
@@ -19,155 +19,6 @@ use crate::ui::{DevtoolsComponent, DevtoolsProps, SharedHostTree, SharedHoverPat
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
-
-/// CSS for the devtools UI (inline — no external file dependency).
-const CSS: &str = r#"
-:root {
-    --bg-primary: #202124;
-    --bg-secondary: #292A2D;
-    --bg-tertiary: #35363A;
-    --bg-hover: #3C4043;
-    --bg-selected: #073655;
-    --bg-selected-hover: #0A4166;
-    --border: #3C4043;
-    --divider: #5F6368;
-    --text-primary: #E8EAED;
-    --text-secondary: #9AA0A6;
-    --text-muted: #5F6368;
-    --accent-blue: #8AB4F8;
-    --tag-color: #5DB0D7;
-    --attr-name: #9AA0A6;
-    --attr-value: #F28B82;
-    --selector: #D2E3FC;
-    --property: #9AA0A6;
-    --value: #FF8BCB;
-    --unit: #FDD663;
-}
-html, body { height: 100%; }
-body {
-    margin: 0;
-    font-family: sans-serif;
-    font-size: 11px;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.devtools-root {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-    min-height: 0;
-}
-.toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 30px;
-    padding: 0 8px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-.icon { font-family: lucide; }
-.pick-btn { color: var(--text-secondary); font-size: 14px; font-family: lucide; cursor: pointer; }
-.pick-btn:hover { color: var(--text-primary); }
-.pick-active { color: var(--accent-blue); }
-.tb-divider { width: 1px; height: 16px; background: var(--divider); }
-.filter {
-    display: flex; align-items: center; gap: 6px; height: 22px;
-    padding: 0 8px; background: var(--bg-tertiary); border-radius: 3px; width: 200px;
-}
-.filter-icon { color: var(--text-muted); font-family: lucide; font-size: 12px; }
-.filter-text { color: var(--text-muted); font-size: 11px; }
-.main { display: flex; flex-grow: 1; min-height: 0; }
-.tree-panel {
-    display: flex; flex-direction: column; width: 50%; min-width: 0;
-    flex-shrink: 0;
-    background: var(--bg-primary);
-}
-.divider {
-    width: 4px; flex-shrink: 0; cursor: col-resize;
-    background: var(--border);
-}
-.divider:hover { background: var(--accent-blue); }
-.tree-rows {
-    flex-grow: 1; display: flex; flex-direction: column;
-    padding: 8px 0; overflow: auto; min-width: 0;
-}
-.tree-row {
-    display: flex; align-items: center; height: 18px; flex-shrink: 0;
-    padding-right: 8px; white-space: nowrap; overflow: hidden; cursor: default;
-}
-.tree-row:hover { background-color: var(--bg-hover); }
-.tree-row-selected { background-color: var(--bg-selected); }
-.tree-row-selected:hover { background-color: var(--bg-selected-hover); }
-.chevron { color: var(--text-secondary); font-family: lucide; font-size: 10px; width: 12px; margin-right: 2px; flex-shrink: 0; }
-.tag { color: var(--tag-color); }
-.bracket { color: var(--text-secondary); }
-.attr-n { margin-left: 4px; color: var(--attr-name); }
-.attr-v { color: var(--attr-value); }
-.text-node { color: var(--text-muted); font-style: italic; }
-.breadcrumb {
-    display: flex; align-items: center; gap: 4px; height: 22px;
-    padding: 0 12px; background: var(--bg-secondary);
-    border-top: 1px solid var(--border); flex-shrink: 0;
-    font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden;
-}
-.bc-active { color: var(--accent-blue); font-weight: 600; }
-.styles-panel {
-    display: flex; flex-direction: column; flex-grow: 1;
-    background: var(--bg-primary); min-width: 0;
-}
-.tab-bar {
-    display: flex; align-items: center; gap: 16px; height: 28px;
-    padding: 0 12px; background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
-.tab {
-    height: 100%; display: flex; align-items: center; padding: 0 4px;
-    color: var(--text-secondary); font-size: 11px; font-weight: 500;
-    cursor: default; border-bottom: 2px solid transparent;
-}
-.tab:hover { color: var(--text-primary); }
-.tab-active { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--accent-blue); }
-.style-search {
-    display: flex; align-items: center; gap: 8px; height: 28px;
-    padding: 0 12px; background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
-.ss-label { color: var(--text-muted); font-size: 11px; }
-.ss-input {
-    flex-grow: 1; height: 20px; background: var(--bg-tertiary); border: 1px solid var(--border);
-    border-radius: 3px; color: var(--text-primary); font-size: 11px; padding: 0 6px;
-    min-width: 0;
-}
-.ss-spacer { flex-grow: 1; }
-.ss-btn {
-    padding: 0 6px; height: 18px; display: flex; align-items: center;
-    color: var(--text-secondary); font-size: 10px; border-radius: 3px; cursor: default;
-}
-.ss-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-.ss-btn-active { background: var(--bg-tertiary); color: var(--accent-blue); }
-.styles-content { flex-grow: 1; display: flex; flex-direction: column; overflow: auto; }
-.rule { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); cursor: default; flex-shrink: 0; }
-.rule:hover { background: rgba(255, 255, 255, 0.02); }
-.rule-header { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 12px; }
-.selector-text { color: var(--selector); }
-.brace { color: var(--text-secondary); }
-.decl {
-    display: flex; align-items: center; height: 18px;
-    padding: 0 12px 0 28px; white-space: nowrap; overflow: hidden; cursor: default;
-}
-.decl:hover { background: var(--bg-hover); }
-.cb { width: 10px; height: 10px; border: 1px solid var(--text-muted); border-radius: 2px; margin-right: 6px; flex-shrink: 0; }
-.prop { color: var(--property); }
-.colon { color: var(--text-secondary); }
-.val { color: var(--value); }
-.semi { color: var(--text-secondary); }
-.rule-end { height: 18px; padding: 0 12px; display: flex; align-items: center; color: var(--text-secondary); }
-"#;
 
 // ── Devtools ─────────────────────────────────────────────────────
 
@@ -214,7 +65,6 @@ impl Devtools {
     let mut tree = Tree::default();
     let lucide = FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
     tree.register_font(lucide);
-    tree.register_linked_stylesheet("devtools.css", CSS);
     register_system_fonts(&mut tree, "sans-serif");
 
     if enable_profiler {
@@ -266,11 +116,10 @@ impl Devtools {
     // Auto-enable so it opens on first poll.
     devtools.enabled = true;
 
-    // Register F11 hook on the host tree.
-    let toggle_flag = devtools.toggle_requested.clone();
-    host_tree
-      .hooks
-      .push(TreeHookHandle::new(DevtoolsKeyHook { toggle_flag }));
+ 
+    host_tree.root.as_mut().unwrap().on_keyup.push(Arc::new(|e| {
+      println!("keyup on host tree")
+    }));
 
     devtools
   }

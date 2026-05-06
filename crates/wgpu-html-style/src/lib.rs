@@ -449,7 +449,9 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
   let mut path: Vec<usize> = Vec::new();
   let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<String, CssWideKeyword>)> = HashMap::new();
   let cascade_ctx = CascadeContext::new(&stylesheets);
-  let root = tree.root.as_ref().expect("tree has a root for cascade");
+  let Some(root) = tree.root.as_ref() else {
+    return CascadedTree { root: None };
+  };
   CascadedTree {
     root: Some(cascade_node(
       root,

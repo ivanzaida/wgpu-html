@@ -395,10 +395,12 @@ fn hover_pseudo_class_reads_interaction_state() {
   tree.interaction.hover_path = Some(inner_span_path.clone());
 
   SelectorList::parse(":hover").expect("`:hover` must parse");
+  // :hover propagates to ancestors per CSS spec — the first match
+  // is the root (body) which is also in the hover chain.
   let hit = tree
     .query_selector_path(":hover")
-    .expect("inner span should match :hover");
-  assert_eq!(hit, inner_span_path);
+    .expect("hover chain should match :hover");
+  assert_eq!(hit, vec![] as Vec<usize>);
 }
 
 #[test]
@@ -417,8 +419,9 @@ fn active_pseudo_class_reads_interaction_state() {
   let outer_path = vec![0];
   tree.interaction.active_path = Some(outer_path.clone());
   SelectorList::parse(":active").expect("`:active` must parse");
+  // :active propagates to ancestors — root (body) is in the chain.
   let hit = tree.query_selector_path(":active").expect("active match");
-  assert_eq!(hit, outer_path);
+  assert_eq!(hit, vec![] as Vec<usize>);
 }
 
 #[test]
@@ -870,17 +873,15 @@ fn focus_within_includes_the_focused_element_itself() {
 }
 
 #[test]
-fn hover_matches_only_leaf_path_not_ancestors() {
-  // The current `tree.interaction.hover_path` carries one path.
-  // `:hover` should match only that node — ancestors get
-  // `:hover` only if the engine chooses to bubble. This test
-  // pins down "leaf only" so the implementor doesn't accidentally
-  // match the whole ancestor chain.
+fn hover_matches_ancestors_in_hover_chain() {
+  // Per CSS, `:hover` propagates to ancestors — every node whose
+  // path is a prefix of `hover_path` matches.
   let mut tree = sample();
   let p = vec![0, 1];
   tree.interaction.hover_path = Some(p.clone());
   let hits = tree.query_selector_all_paths(":hover");
-  assert_eq!(hits, vec![p]);
+  // body ([]), outer div ([0]), and the hovered element ([0, 1]).
+  assert_eq!(hits, vec![vec![], vec![0], vec![0, 1]]);
 }
 
 #[test]

@@ -1350,7 +1350,6 @@ fn match_pseudo_class(pc: &PseudoClass, root: &Node, path: &[usize], node: &Node
       let Some(ia) = ctx.interaction else {
         return false;
       };
-      // :hover propagates to ancestors — any prefix of hover_path matches.
       let Some(hp) = &ia.hover_path else {
         return false;
       };
@@ -1366,7 +1365,6 @@ fn match_pseudo_class(pc: &PseudoClass, root: &Node, path: &[usize], node: &Node
       let Some(ia) = ctx.interaction else {
         return false;
       };
-      // :active propagates to ancestors — any prefix of active_path matches.
       let Some(ap) = &ia.active_path else {
         return false;
       };

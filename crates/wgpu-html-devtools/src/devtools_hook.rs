@@ -3,8 +3,8 @@
 //! Shift+F12: dump the devtools tree as HTML for browser debugging.
 
 use std::sync::{
-  Arc,
   atomic::{AtomicBool, Ordering},
+  Arc,
 };
 
 use wgpu_html_tree::{Tree, TreeHook, TreeHookResponse};
@@ -23,12 +23,6 @@ impl TreeHook for DumpHtmlHook {
     event: &mut wgpu_html_events::events::KeyboardEvent,
   ) -> TreeHookResponse {
     let is_keydown = event.base.base.event_type.as_str() == "keydown";
-    if is_keydown {
-      eprintln!(
-        "[devtools-hook] keydown code={:?} shift={} repeat={}",
-        event.code, event.shift_key, event.repeat
-      );
-    }
     if event.code == "F12" && event.shift_key && is_keydown && !event.repeat {
       eprintln!("[devtools-hook] Shift+F12 detected, setting dump flag");
       self.flag.store(true, Ordering::Relaxed);

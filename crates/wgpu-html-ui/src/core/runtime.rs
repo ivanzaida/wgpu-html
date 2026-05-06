@@ -44,6 +44,9 @@ pub(crate) trait AnyComponent {
   /// Component's scope prefix.
   fn scope_prefix(&self) -> &'static str;
 
+  /// Unique type identifier for stylesheet deduplication.
+  fn component_type_id(&self) -> TypeId;
+
   /// Generated scoped CSS, if the component defines styles.
   fn styles_css(&self) -> Option<String>;
 }
@@ -54,6 +57,7 @@ pub(crate) struct ComponentState<C: Component> {
   component: C,
   props: C::Props,
   sender: MsgSender<C::Msg>,
+  cached_scope: &'static str,
 }
 
 impl<C: Component> ComponentState<C>
@@ -64,10 +68,13 @@ where
   pub(crate) fn new(props: &C::Props, wake: Arc<dyn Fn() + Send + Sync>) -> Self {
     let sender = MsgSender::new(wake);
     let component = C::create(props);
+    let sheet_scope = C::styles().scope();
+    let cached_scope = if sheet_scope.is_empty() { C::scope() } else { sheet_scope };
     Self {
       component,
       props: props.clone(),
       sender,
+      cached_scope,
     }
   }
 }
@@ -86,14 +93,18 @@ where
   }
 
   fn render(&self) -> (Node, Vec<ChildSlot>) {
-    let ctx = Ctx::new(self.sender.clone(), C::scope());
+    let ctx = Ctx::new(self.sender.clone(), self.cached_scope);
     let el = self.component.view(&self.props, &ctx);
     let children = ctx.children.into_inner();
     (el.into_node(), children)
   }
 
   fn scope_prefix(&self) -> &'static str {
-    C::scope()
+    self.cached_scope
+  }
+
+  fn component_type_id(&self) -> TypeId {
+    TypeId::of::<C>()
   }
 
   fn styles_css(&self) -> Option<String> {
@@ -101,7 +112,7 @@ where
     if sheet.is_empty() {
       return None;
     }
-    let prefix = C::scope();
+    let prefix = self.cached_scope;
     if prefix.is_empty() {
       Some(sheet.to_css())
     } else {
@@ -301,8 +312,9 @@ impl Runtime {
     let css = mounted.state.styles_css();
     if let Some(css) = css {
       let prefix = mounted.state.scope_prefix();
+      let type_id = mounted.state.component_type_id();
       let href = if prefix.is_empty() {
-        "__component_global".to_string()
+        format!("__component_{type_id:?}")
       } else {
         format!("__component_{prefix}")
       };

@@ -502,6 +502,20 @@ macro_rules! css_keyword_enum {
         Err(())
       }
     }
+
+    impl From<&str> for $ty {
+      fn from(value: &str) -> Self {
+        value
+          .parse()
+          .unwrap_or_else(|_| panic!("invalid CSS keyword `{value}`"))
+      }
+    }
+
+    impl From<String> for $ty {
+      fn from(value: String) -> Self {
+        value.as_str().into()
+      }
+    }
   };
 }
 
@@ -605,6 +619,20 @@ impl FromStr for FontWeight {
   }
 }
 
+impl From<&str> for FontWeight {
+  fn from(value: &str) -> Self {
+    value
+      .parse()
+      .unwrap_or_else(|_| panic!("invalid CSS font-weight `{value}`"))
+  }
+}
+
+impl From<String> for FontWeight {
+  fn from(value: String) -> Self {
+    value.as_str().into()
+  }
+}
+
 css_keyword_enum!(FontStyle {
   FontStyle::Normal => "normal",
   FontStyle::Italic => "italic",
@@ -670,6 +698,20 @@ impl FromStr for ScrollbarWidth {
         .map(ScrollbarWidth::Px)
         .ok_or(()),
     }
+  }
+}
+
+impl From<&str> for ScrollbarWidth {
+  fn from(value: &str) -> Self {
+    value
+      .parse()
+      .unwrap_or_else(|_| panic!("invalid CSS scrollbar-width `{value}`"))
+  }
+}
+
+impl From<String> for ScrollbarWidth {
+  fn from(value: String) -> Self {
+    value.as_str().into()
   }
 }
 
@@ -800,6 +842,20 @@ impl FromStr for GridAutoFlow {
   }
 }
 
+impl From<&str> for GridAutoFlow {
+  fn from(value: &str) -> Self {
+    value
+      .parse()
+      .unwrap_or_else(|_| panic!("invalid CSS grid-auto-flow `{value}`"))
+  }
+}
+
+impl From<String> for GridAutoFlow {
+  fn from(value: String) -> Self {
+    value.as_str().into()
+  }
+}
+
 impl fmt::Display for GridLine {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
@@ -836,6 +892,20 @@ impl FromStr for GridLine {
         .ok_or(());
     }
     Err(())
+  }
+}
+
+impl From<&str> for GridLine {
+  fn from(value: &str) -> Self {
+    value
+      .parse()
+      .unwrap_or_else(|_| panic!("invalid CSS grid line `{value}`"))
+  }
+}
+
+impl From<String> for GridLine {
+  fn from(value: String) -> Self {
+    value.as_str().into()
   }
 }
 
@@ -897,6 +967,18 @@ impl FromStr for Cursor {
       "row-resize" => Ok(Cursor::RowResize),
       _ => Ok(Cursor::Raw(trimmed.to_string())),
     }
+  }
+}
+
+impl From<&str> for Cursor {
+  fn from(value: &str) -> Self {
+    value.parse().expect("cursor parsing is infallible")
+  }
+}
+
+impl From<String> for Cursor {
+  fn from(value: String) -> Self {
+    value.as_str().into()
   }
 }
 
@@ -964,6 +1046,15 @@ mod tests {
     let parsed: Display = " inline-grid ".parse().unwrap();
     assert_eq!(parsed, Display::InlineGrid);
     assert_eq!(parsed.to_string(), "inline-grid");
+  }
+
+  #[test]
+  fn css_keyword_enums_convert_from_strings() {
+    let direction: FlexDirection = "column-reverse".into();
+    assert_eq!(direction, FlexDirection::ColumnReverse);
+
+    let justify: JustifyContent = String::from("space-between").into();
+    assert_eq!(justify, JustifyContent::SpaceBetween);
   }
 
   #[test]
