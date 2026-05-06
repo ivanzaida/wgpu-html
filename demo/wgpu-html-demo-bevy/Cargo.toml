@@ -10,7 +10,7 @@ wgpu-html.workspace    = true
 wgpu-html-renderer     = { path = "../../crates/wgpu-html-renderer" }
 wgpu-html-text         = { path = "../../crates/wgpu-html-text" }
 pollster.workspace     = true
-bevy = { version = "0.15", default-features = false, features = [
+bevy = { version = "0.18", default-features = false, features = [
     "bevy_winit",
     "bevy_render",
     "bevy_asset",
@@ -20,5 +20,6 @@ bevy = { version = "0.15", default-features = false, features = [
     "bevy_state",
     "default_font",
     "tonemapping_luts",
+    "zstd_rust",
     "x11",
 ] }

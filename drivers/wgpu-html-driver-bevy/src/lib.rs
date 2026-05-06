@@ -14,7 +14,7 @@
 
 use bevy::{
     prelude::*,
-    render::render_asset::RenderAssetUsages,
+    asset::RenderAssetUsages,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     input::{keyboard::KeyboardInput, mouse::MouseButtonInput, ButtonState},
     window::CursorMoved,
@@ -171,9 +171,9 @@ fn spawn_overlay_entity(mut commands: Commands, overlay: NonSend<HtmlOverlay>) {
 
 fn forward_input_system(
     mut overlay: NonSendMut<HtmlOverlay>,
-    mut cursor_events: EventReader<CursorMoved>,
-    mut mouse_button_events: EventReader<MouseButtonInput>,
-    mut keyboard_events: EventReader<KeyboardInput>,
+    mut cursor_events: MessageReader<CursorMoved>,
+    mut mouse_button_events: MessageReader<MouseButtonInput>,
+    mut keyboard_events: MessageReader<KeyboardInput>,
     windows: Query<&Window>,
 ) {
     if !overlay.captures_input {
@@ -270,7 +270,7 @@ fn render_overlay_system(
         if image.width() != phys_w || image.height() != phys_h {
             image.resize(Extent3d { width: phys_w, height: phys_h, depth_or_array_layers: 1 });
         }
-        image.data = rgba;
+        image.data = Some(rgba);
     }
 }
 

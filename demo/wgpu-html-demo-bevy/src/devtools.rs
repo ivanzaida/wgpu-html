@@ -1,9 +1,9 @@
 use bevy::{
     prelude::*,
-    render::render_asset::RenderAssetUsages,
+    asset::RenderAssetUsages,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     input::keyboard::KeyboardInput,
-    window::{CursorMoved, WindowRef},
+    window::CursorMoved,
 };
 use wgpu_html_devtools::Devtools;
 use wgpu_html_driver_bevy::{HtmlOverlay, logical_key_to_dom_key, key_code_to_dom_code};
@@ -43,8 +43,8 @@ pub fn setup(world: &mut World) {
 
 pub fn input_system(
     mut dt: NonSendMut<DevtoolsState>,
-    mut cursor_events: EventReader<CursorMoved>,
-    mut keyboard_events: EventReader<KeyboardInput>,
+    mut cursor_events: MessageReader<CursorMoved>,
+    mut keyboard_events: MessageReader<KeyboardInput>,
 ) {
     let Some(win) = dt.window_entity else { return };
     let d = &mut *dt;
@@ -91,7 +91,7 @@ pub fn update_system(
             DevtoolsWindow,
             Window {
                 title: "wgpu-html · Devtools".into(),
-                resolution: (600.0, 720.0).into(),
+                resolution: bevy::window::WindowResolution::new(600, 720),
                 ..default()
             },
         )).id();
@@ -108,16 +108,13 @@ pub fn update_system(
         let cam = commands.spawn((
             DevtoolsUi,
             Camera2d,
-            Camera {
-                target: bevy::render::camera::RenderTarget::Window(WindowRef::Entity(win)),
-                ..default()
-            },
+            bevy::camera::RenderTarget::Window(bevy::window::WindowRef::Entity(win)),
         )).id();
         commands.spawn((
             DevtoolsUi,
             ImageNode { image: handle.clone(), ..default() },
             Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
-            TargetCamera(cam),
+            UiTargetCamera(cam),
         ));
 
         dt.window_entity = Some(win);
@@ -126,10 +123,10 @@ pub fn update_system(
 
     if !enabled && has_window {
         if let Some(win) = dt.window_entity.take() {
-            commands.entity(win).despawn_recursive();
+            commands.entity(win).despawn();
         }
         for e in dt_ui_entities.iter() {
-            commands.entity(e).despawn_recursive();
+            commands.entity(e).despawn();
         }
         dt.image_handle = None;
         dt.pipeline_cache.invalidate();
@@ -138,22 +135,16 @@ pub fn update_system(
 
     if !enabled || !dt.devtools.needs_redraw() { return; }
 
-    let Ok(window) = dt_windows.get_single() else { return };
+    let Ok(window) = dt_windows.single() else { return };
     let scale = window.scale_factor();
     let phys_w = (window.width() * scale).ceil() as u32;
     let phys_h = (window.height() * scale).ceil() as u32;
 
     let d = &mut *dt;
-    // Devtools renders with the overlay's shared renderer — but devtools
-    // owns its own tree, so it needs its own text_ctx + renderer for the
-    // offscreen pass. We create a lightweight one here lazily.
     render_devtools(d, &mut images, phys_w, phys_h, scale);
 }
 
 fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u32, phys_h: u32, scale: f32) {
-    // Devtools needs its own renderer since it has a separate tree.
-    // We borrow from HtmlOverlay's renderer in the future; for now
-    // use a thread-local one.
     thread_local! {
         static DT_RENDERER: std::cell::RefCell<Option<(wgpu_html_renderer::Renderer, wgpu_html_text::TextContext)>> =
             std::cell::RefCell::new(None);
@@ -192,7 +183,7 @@ fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u3
                 if image.width() != phys_w || image.height() != phys_h {
                     image.resize(Extent3d { width: phys_w, height: phys_h, depth_or_array_layers: 1 });
                 }
-                image.data = rgba;
+                image.data = Some(rgba);
             }
         }
 
