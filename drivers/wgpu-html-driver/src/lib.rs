@@ -48,7 +48,7 @@ use wgpu_html::{
   layout::{Cursor, LayoutBox},
   renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Renderer},
   scroll::{
-    ElementScrollbarDrag, clamp_scroll_y, paint_viewport_scrollbar, rect_contains, scroll_element_at,
+    ElementScrollbarDrag, clamp_scroll_y, rect_contains, scroll_element_at,
     scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_y, viewport_to_document,
   },
   select_all_text, selected_text,
@@ -134,6 +134,10 @@ pub struct Runtime<D: Driver> {
   pub profiling: ProfilingOverlay,
   resize_deadline: Option<Instant>,
   inspect_overlay_path: Option<Vec<usize>>,
+  /// Whether the previous frame needed a viewport scrollbar.
+  /// When true, layout width is reduced by the scrollbar width
+  /// so content doesn't overlap.
+  needs_viewport_scrollbar: bool,
 }
 
 /// Tracks multi-click (double / triple) state.
@@ -363,6 +367,7 @@ impl<D: Driver> Runtime<D> {
       profiling: ProfilingOverlay::new(),
       resize_deadline: None,
       inspect_overlay_path: None,
+      needs_viewport_scrollbar: false,
     }
   }
 
@@ -430,11 +435,21 @@ impl<D: Driver> Runtime<D> {
       (w as f32, h as f32)
     };
 
+    // Reserve space for the viewport scrollbar so content doesn't
+    // overlap. Uses previous frame's state; if it changes we
+    // invalidate the cache and re-layout next frame.
+    let scrollbar_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH + 4.0;
+    let content_w = if self.needs_viewport_scrollbar {
+      paint_w - scrollbar_w
+    } else {
+      paint_w
+    };
+
     let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
       tree,
       &mut self.text_ctx,
       &mut self.image_cache,
-      paint_w,
+      content_w,
       paint_h,
       scale,
       self.scroll_y,
@@ -443,11 +458,45 @@ impl<D: Driver> Runtime<D> {
 
     if let Some(layout) = layout {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
+      if let Some([r, g, b, a]) = layout.background {
+        self.renderer.clear_color = wgpu::Color {
+          r: r as f64,
+          g: g as f64,
+          b: b as f64,
+          a: a as f64,
+        };
+      }
     } else {
       self.scroll_y = 0.0;
     }
 
     self.last_layout = self.pipeline_cache.layout().cloned();
+
+    // Detect whether viewport needs a scrollbar based on actual
+    // max_scroll — no dependency on document_bottom heuristics.
+    // Compute effective scroll: driver's viewport scroll, or body's
+    // element-level scroll offset (when body has overflow-y: scroll,
+    // scroll_element_at routes wheel events there).
+    let body_scroll = tree.interaction.scroll_offsets
+      .values().next().map(|s| s.y).unwrap_or(0.0);
+    let effective_scroll = if self.scroll_y.abs() > 0.5 { self.scroll_y } else { body_scroll };
+
+    let max_scroll = self.last_layout.as_ref()
+      .map(|l| {
+        let driver_max = wgpu_html::scroll::max_scroll_y(l, h as f32);
+        if driver_max > 0.5 {
+          driver_max
+        } else {
+          // Body handles scroll — compute from body's content height.
+          wgpu_html::scroll::body_max_scroll(l, h as f32)
+        }
+      })
+      .unwrap_or(0.0);
+    let now_needs = max_scroll > 0.5;
+    if now_needs != self.needs_viewport_scrollbar {
+      self.needs_viewport_scrollbar = now_needs;
+      self.pipeline_cache.invalidate();
+    }
 
     if let Some(path) = &self.inspect_overlay_path {
       if let Some(ref layout) = self.last_layout {
@@ -459,7 +508,7 @@ impl<D: Driver> Runtime<D> {
           path,
           0.0,
           scale,
-          paint_w,
+          content_w,
           paint_h,
         );
       }
@@ -467,8 +516,32 @@ impl<D: Driver> Runtime<D> {
 
     translate_display_list_y(&mut list, -self.scroll_y);
 
-    if let Some(ref layout) = self.last_layout {
-      paint_viewport_scrollbar(&mut list, layout, w as f32, h as f32, self.scroll_y);
+    // Paint viewport scrollbar directly from scroll state.
+    if self.needs_viewport_scrollbar {
+      let vw = w as f32;
+      let vh = h as f32;
+      let doc_h = max_scroll + vh;
+      let track_w = wgpu_html::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+      let margin = 2.0;
+      let track_h = vh - margin * 2.0;
+      let thumb_h = (track_h * vh / doc_h).clamp(24.0, track_h);
+      let travel = (track_h - thumb_h).max(0.0);
+      let thumb_y = margin + travel * (effective_scroll / max_scroll.max(1.0));
+      let thumb_x = vw - track_w - margin + 1.0;
+      let thumb_w = track_w - 2.0;
+      let radius = thumb_w * 0.5;
+
+      let thumb_color = self.last_layout.as_ref()
+        .and_then(|l| l.overflow.scrollbar_thumb)
+        .unwrap_or(wgpu_html::scroll::DEFAULT_THUMB);
+
+      list.push_clip(None, [0.0; 4], [0.0; 4]);
+      list.push_quad_rounded(
+        Rect::new(thumb_x, thumb_y, thumb_w, thumb_h),
+        thumb_color,
+        [radius; 4],
+      );
+      list.finalize();
     }
 
     // Record frame timings and draw the bar chart.
@@ -541,6 +614,14 @@ impl<D: Driver> Runtime<D> {
 
     if let Some(layout) = layout {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
+      if let Some([r, g, b, a]) = layout.background {
+        self.renderer.clear_color = wgpu::Color {
+          r: r as f64,
+          g: g as f64,
+          b: b as f64,
+          a: a as f64,
+        };
+      }
     } else {
       self.scroll_y = 0.0;
     }

@@ -325,10 +325,10 @@ fn overflow_clip_range_only_covers_descendants() {
 fn overflow_y_scroll_paints_vertical_scrollbar() {
   let tree = wgpu_html_parser::parse(
     r#"<body style="margin: 0;">
-                <div style="width: 100px; max-height: 50px;
+                <div><div style="width: 100px; max-height: 50px;
                              overflow-y: scroll; background-color: white;">
                     <div style="height: 120px; background-color: blue;"></div>
-                </div>
+                </div></div>
             </body>"#,
   );
   let list = paint_tree(&tree, 800.0, 600.0);
@@ -340,10 +340,10 @@ fn overflow_y_scroll_paints_vertical_scrollbar() {
 fn overflow_y_scroll_paints_scrollbar_without_overflow() {
   let tree = wgpu_html_parser::parse(
     r#"<body style="margin: 0;">
-                <div style="width: 100px; height: 80px;
+                <div><div style="width: 100px; height: 80px;
                              overflow-y: scroll; background-color: white;">
                     <div style="height: 20px; background-color: blue;"></div>
-                </div>
+                </div></div>
             </body>"#,
   );
   let list = paint_tree(&tree, 800.0, 600.0);
@@ -355,16 +355,16 @@ fn overflow_y_scroll_paints_scrollbar_without_overflow() {
 fn overflow_scroll_offset_moves_descendants_and_thumb() {
   let mut tree = wgpu_html_parser::parse(
     r#"<body style="margin: 0;">
-                <div style="width: 100px; max-height: 50px;
+                <div><div style="width: 100px; max-height: 50px;
                              overflow-y: scroll; background-color: white;">
                     <div style="height: 120px; background-color: blue;"></div>
-                </div>
+                </div></div>
             </body>"#,
   );
   tree
     .interaction
     .scroll_offsets
-    .insert(vec![0], wgpu_html_tree::ScrollOffset { x: 0.0, y: 30.0 });
+    .insert(vec![0, 0], wgpu_html_tree::ScrollOffset { x: 0.0, y: 30.0 });
   let list = paint_tree(&tree, 800.0, 600.0);
   let blue = list
     .quads

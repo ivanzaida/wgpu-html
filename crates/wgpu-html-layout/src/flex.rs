@@ -23,7 +23,8 @@
 use wgpu_html_models::{
   Style,
   common::css_enums::{
-    AlignContent, AlignItems, AlignSelf, BoxSizing, CssLength, FlexDirection, FlexWrap, JustifyContent, Overflow,
+    AlignContent, AlignItems, AlignSelf, BoxSizing, CssLength, Display, FlexDirection, FlexWrap, JustifyContent,
+    Overflow,
   },
 };
 use wgpu_html_style::CascadedNode;
@@ -103,10 +104,7 @@ pub(crate) fn layout_flex_children(
   // ----------------------------------------------------------------
   let mut items: Vec<FlexItem> = Vec::with_capacity(parent.children.len());
   for (idx, child) in parent.children.iter().enumerate() {
-    if matches!(
-      child.style.display,
-      Some(wgpu_html_models::common::css_enums::Display::None)
-    ) {
+    if matches!(child.style.display, Some(Display::None)) {
       continue;
     }
     let item = build_item(child, idx, is_row, main_axis_size, cross_axis_size, ctx);
@@ -899,21 +897,11 @@ fn replaced_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> 
   }
 }
 
-/// Approximate max-content main-axis size for a flex item by walking
-/// its text descendants.
+/// Max-content main-axis size for a flex item (content-box).
 ///
-/// CSS-Sizing-3 §5.2 defines max-content as the size required to lay
-/// out the box's content on a single line. For replaced items
-/// `replaced_intrinsic_main` covers `<img>`; this function covers the
-/// remaining "non-replaced wrapper around text" case
-/// (`<button>Submit</button>`, `<a>link text</a>`, `<span>foo</span>`,
-/// …) that would otherwise fall through to `base_size = 0` and
-/// collapse the item to padding-only width.
-///
-/// For row-direction containers it sums each text descendant's shaped
-/// one-line width (closest spec-correct max-content for inline-flowing
-/// content). For column-direction it returns the maximum descendant
-/// text height (a stacked-block approximation).
+/// Walks the subtree measuring text leaves, respecting explicit sizes
+/// on intermediate containers and distinguishing inline flow (sum of
+/// widths) from block stacking (max of widths).
 ///
 /// Padding / border on the item itself is *not* added here — the
 /// caller treats the result as content-box, and the flex layout adds
@@ -923,36 +911,100 @@ fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Opti
     let (w, h) = measure_text_leaf(text, &node.style, ctx);
     return Some(if is_row { w } else { h });
   }
-  // Scan children first (buttons have text children whose
-  // intrinsic width must be measured).
   let mut sum_main = 0.0_f32;
   let mut max_main = 0.0_f32;
   let mut found = false;
   for child in &node.children {
-    if let Some(v) = text_intrinsic_main(child, is_row, ctx) {
+    if matches!(child.style.display, Some(Display::None)) {
+      continue;
+    }
+    if let Some(v) = child_intrinsic_outer_main(child, is_row, ctx) {
       sum_main += v;
       max_main = max_main.max(v);
       found = true;
     }
   }
   if found {
-    return Some(if is_row { sum_main } else { max_main });
+    return Some(if is_row && children_flow_inline(node) {
+      sum_main
+    } else {
+      max_main
+    });
   }
-  // Form controls (`<input>`, `<textarea>`, `<select>`, `<button>`)
-  // have an intrinsic height of one line even when they have no DOM
-  // children. Without this, a column-direction flex container gives
-  // them 0 content height because the recursive child scan finds
-  // nothing, and the `form_control_default_line_height` fallback in
-  // `layout_block` is bypassed by the flex height override.
-  // Only applies on the cross axis (height in column flex) — for
-  // the main axis (width in row flex) we return None to let the
-  // flex algorithm use 0 / auto sizing.
   if !is_row && crate::form_control_default_line_height(node) {
     let font_size = crate::font_size_px(&node.style).unwrap_or(16.0);
     let line_h = crate::line_height_px(&node.style, font_size);
     return Some(line_h);
   }
   None
+}
+
+/// Border-box intrinsic main size for a child node, i.e. the space it
+/// consumes in its parent's content area. Includes the child's own
+/// padding + border; respects explicit `width`/`height` so that a
+/// fixed-width container contributes its CSS size rather than the
+/// (potentially much larger) text content inside it.
+fn child_intrinsic_outer_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Option<f32> {
+  let style = &node.style;
+  let frame = child_frame_main(style, is_row, ctx);
+
+  let main_prop = if is_row { style.width.as_ref() } else { style.height.as_ref() };
+  if let Some(v) = resolve_axis_length(main_prop, None, ctx) {
+    let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
+    return Some(match box_sizing {
+      BoxSizing::ContentBox => v + frame,
+      BoxSizing::BorderBox => v.max(frame),
+    });
+  }
+
+  if let Some(v) = replaced_intrinsic_main(node, is_row, ctx) {
+    return Some(v + frame);
+  }
+
+  let content = text_intrinsic_main(node, is_row, ctx)?;
+  Some(content + frame)
+}
+
+fn child_frame_main(style: &Style, is_row: bool, ctx: &mut Ctx) -> f32 {
+  if is_row {
+    let pl = resolve_axis_length(style.padding_left.as_ref().or(style.padding.as_ref()), None, ctx).unwrap_or(0.0);
+    let pr = resolve_axis_length(style.padding_right.as_ref().or(style.padding.as_ref()), None, ctx).unwrap_or(0.0);
+    let bl = resolve_axis_length(style.border_left_width.as_ref(), None, ctx).unwrap_or(0.0);
+    let br = resolve_axis_length(style.border_right_width.as_ref(), None, ctx).unwrap_or(0.0);
+    pl + pr + bl + br
+  } else {
+    let pt = resolve_axis_length(style.padding_top.as_ref().or(style.padding.as_ref()), None, ctx).unwrap_or(0.0);
+    let pb = resolve_axis_length(style.padding_bottom.as_ref().or(style.padding.as_ref()), None, ctx).unwrap_or(0.0);
+    let bt = resolve_axis_length(style.border_top_width.as_ref(), None, ctx).unwrap_or(0.0);
+    let bb = resolve_axis_length(style.border_bottom_width.as_ref(), None, ctx).unwrap_or(0.0);
+    pt + pb + bt + bb
+  }
+}
+
+fn children_flow_inline(node: &CascadedNode) -> bool {
+  node.children.iter().all(|child| {
+    if let Some(d) = child.style.display.as_ref() {
+      return matches!(d, Display::Inline | Display::InlineBlock | Display::InlineFlex | Display::None);
+    }
+    matches!(
+      &child.element,
+      Element::Text(_)
+        | Element::Span(_)
+        | Element::A(_)
+        | Element::Strong(_)
+        | Element::B(_)
+        | Element::Em(_)
+        | Element::I(_)
+        | Element::U(_)
+        | Element::S(_)
+        | Element::Small(_)
+        | Element::Mark(_)
+        | Element::Code(_)
+        | Element::Kbd(_)
+        | Element::Samp(_)
+        | Element::Img(_)
+    )
+  })
 }
 
 // ---------------------------------------------------------------------------

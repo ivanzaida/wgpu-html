@@ -54,19 +54,24 @@ pub fn max_scroll_y(layout: &LayoutBox, viewport_h: f32) -> f32 {
 }
 
 /// Bottom edge (in document space) of the deepest descendant.
-/// Stops recursing into children that have overflow clipping
-/// (hidden / auto / scroll), since their visible extent is bounded
-/// by their own border-rect.
+/// Stops recursing into overflow-clipped children (hidden / auto /
+/// scroll) since their visible extent is bounded by their own rect,
+/// but always recurses through the top-level elements (html → body)
+/// so the viewport scroll sees the true content height.
 pub fn document_bottom(b: &LayoutBox) -> f32 {
+  document_bottom_inner(b, 0)
+}
+
+fn document_bottom_inner(b: &LayoutBox, depth: usize) -> f32 {
   b.children
     .iter()
     .map(|child| {
       use crate::models::common::css_enums::Overflow;
-      if matches!(child.overflow.y, Overflow::Hidden | Overflow::Auto | Overflow::Scroll) {
-        // Clipped container — its visible extent is its own rect.
+      let is_clipped = matches!(child.overflow.y, Overflow::Hidden | Overflow::Auto | Overflow::Scroll);
+      if is_clipped && depth > 1 {
         child.margin_rect.y + child.margin_rect.h
       } else {
-        document_bottom(child)
+        document_bottom_inner(child, depth + 1)
       }
     })
     .fold(b.margin_rect.y + b.margin_rect.h, f32::max)
@@ -81,15 +86,12 @@ pub fn scrollbar_geometry(
   viewport_h: f32,
   scroll_y: f32,
 ) -> Option<ScrollbarGeometry> {
-  if body_handles_scroll(layout) {
-    return None;
-  }
   let doc_h = document_bottom(layout).max(viewport_h);
   if doc_h <= viewport_h + 0.5 || viewport_w < 12.0 || viewport_h <= 0.0 {
     return None;
   }
 
-  let track_w = 10.0;
+  let track_w = VIEWPORT_SCROLLBAR_WIDTH;
   let margin = 2.0;
   let track = Rect::new(
     viewport_w - track_w - margin,
@@ -144,18 +146,50 @@ pub fn translate_display_list_y(list: &mut DisplayList, dy: f32) {
   }
 }
 
-/// Check if the body (or html root's first child) already has its
-/// own scrollbar via `overflow-y: scroll|auto`. When true, the
-/// viewport scrollbar is suppressed to avoid double-painting.
-fn body_handles_scroll(layout: &LayoutBox) -> bool {
+/// Check if the root or any top-level descendant (html → body)
+/// already has a scrollbar via `overflow-y: scroll|auto`. When true,
+/// the viewport scrollbar is suppressed to avoid double-painting.
+pub fn body_handles_scroll(layout: &LayoutBox) -> bool {
   use crate::models::common::css_enums::Overflow;
+  if matches!(layout.overflow.y, Overflow::Scroll | Overflow::Auto) {
+    return true;
+  }
   for child in &layout.children {
     if matches!(child.overflow.y, Overflow::Scroll | Overflow::Auto) {
       return true;
     }
+    for grandchild in &child.children {
+      if matches!(grandchild.overflow.y, Overflow::Scroll | Overflow::Auto) {
+        return true;
+      }
+    }
   }
   false
 }
+
+/// Max scroll for the body element when it handles scrolling.
+/// Walks through root → body and computes scrollable content height.
+pub fn body_max_scroll(layout: &LayoutBox, viewport_h: f32) -> f32 {
+  use crate::models::common::css_enums::Overflow;
+  for child in &layout.children {
+    if matches!(child.overflow.y, Overflow::Scroll | Overflow::Auto) {
+      let pad = element_padding_box(child);
+      let content_h = scrollable_content_height(child);
+      return (content_h - pad.h).max(0.0);
+    }
+    for grandchild in &child.children {
+      if matches!(grandchild.overflow.y, Overflow::Scroll | Overflow::Auto) {
+        let pad = element_padding_box(grandchild);
+        let content_h = scrollable_content_height(grandchild);
+        return (content_h - pad.h).max(0.0);
+      }
+    }
+  }
+  0.0
+}
+
+/// Width of the viewport scrollbar track in CSS pixels.
+pub const VIEWPORT_SCROLLBAR_WIDTH: f32 = 10.0;
 
 /// Default scrollbar colors — used only when the layout box has no
 /// `scrollbar-color` set (i.e. the UA stylesheet didn't cascade).

@@ -587,7 +587,7 @@ fn paint_box_in_clip(
     );
   }
 
-  paint_scrollbars(b, out, paint_offset_x, paint_offset_y, scroll_y, opacity);
+  paint_scrollbars(b, out, paint_offset_x, paint_offset_y, scroll_y, opacity, path);
 }
 
 /// Paint the CSS resize handle (three diagonal lines) in the
@@ -758,7 +758,13 @@ fn paint_scrollbars(
   paint_offset_y: f32,
   scroll_y: f32,
   opacity: f32,
+  path: &[usize],
 ) {
+  // Suppress body-level scrollbars — the driver paints the viewport
+  // scrollbar in screen space (after scroll translation).
+  if path.len() <= 1 {
+    return;
+  }
   if !should_paint_vertical_scrollbar(b) {
     return;
   }
