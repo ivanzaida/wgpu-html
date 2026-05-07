@@ -457,6 +457,49 @@ fn range_has_zero_border_width() {
 }
 
 #[test]
+fn range_in_flex_column_matches_sibling_width() {
+  let tree = make(
+    r#"<body style="margin:0;">
+      <div style="display:flex; flex-direction:column; width:300px;">
+        <span>Range</span>
+        <input type="range" />
+      </div>
+    </body>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let container = &root.children[0];
+  let span = &container.children[0];
+  let range = find_box_with_form_control(&root).expect("range box");
+
+  eprintln!("container content: x={} w={}", container.content_rect.x, container.content_rect.w);
+  eprintln!("span border:      x={} w={}", span.border_rect.x, span.border_rect.w);
+  eprintln!("range border:     x={} w={}", range.border_rect.x, range.border_rect.w);
+  eprintln!("range content:    x={} w={}", range.content_rect.x, range.content_rect.w);
+  eprintln!("range margin:     l={} r={}", range.margin_rect.x - container.content_rect.x,
+    (container.content_rect.x + container.content_rect.w) - (range.margin_rect.x + range.margin_rect.w));
+  eprintln!("range border:     l={} r={} t={} b={}", range.border.left, range.border.right, range.border.top, range.border.bottom);
+  eprintln!("range margin_rect: x={} w={}", range.margin_rect.x, range.margin_rect.w);
+  eprintln!("range border_rect: x={} w={}", range.border_rect.x, range.border_rect.w);
+  eprintln!("gap: margin_w - border_w = {}", range.margin_rect.w - range.border_rect.w);
+  eprintln!("range padding:    l={} r={}",
+    range.content_rect.x - range.border_rect.x - range.border.left,
+    (range.border_rect.x + range.border_rect.w) - (range.content_rect.x + range.content_rect.w) - range.border.right);
+
+  let container_left = container.content_rect.x;
+  let container_right = container_left + container.content_rect.w;
+  assert!(
+    (range.content_rect.x - container_left).abs() < 1.0,
+    "range content should start at container left: range.x={} container.x={}",
+    range.content_rect.x, container_left,
+  );
+  assert!(
+    ((range.content_rect.x + range.content_rect.w) - container_right).abs() < 1.0,
+    "range content should end at container right: range.right={} container.right={}",
+    range.content_rect.x + range.content_rect.w, container_right,
+  );
+}
+
+#[test]
 fn checkbox_has_zero_border_width() {
   let tree = make(r#"<body style="margin:0;"><input type="checkbox" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();

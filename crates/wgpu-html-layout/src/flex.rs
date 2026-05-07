@@ -689,10 +689,16 @@ fn build_item<'a>(
   let auto_bottom = is_auto_margin(&style.margin_bottom, &style.margin);
   let auto_left = is_auto_margin(&style.margin_left, &style.margin);
 
-  let border_top = resolve_axis_length(style.border_top_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
-  let border_right = resolve_axis_length(style.border_right_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
-  let border_bottom = resolve_axis_length(style.border_bottom_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
-  let border_left = resolve_axis_length(style.border_left_width.as_ref(), parent_inner_main, ctx).unwrap_or(0.0);
+  let mut bw = |width: Option<&CssLength>, bstyle: &Option<wgpu_html_models::common::css_enums::BorderStyle>| -> f32 {
+    if matches!(bstyle, Some(wgpu_html_models::common::css_enums::BorderStyle::None | wgpu_html_models::common::css_enums::BorderStyle::Hidden)) {
+      return 0.0;
+    }
+    resolve_axis_length(width, parent_inner_main, ctx).unwrap_or(0.0)
+  };
+  let border_top = bw(style.border_top_width.as_ref(), &style.border_top_style);
+  let border_right = bw(style.border_right_width.as_ref(), &style.border_right_style);
+  let border_bottom = bw(style.border_bottom_width.as_ref(), &style.border_bottom_style);
+  let border_left = bw(style.border_left_width.as_ref(), &style.border_left_style);
 
   let pad_top = side_pad(&style.padding_top, &style.padding, parent_inner_main, ctx);
   let pad_right = side_pad(&style.padding_right, &style.padding, parent_inner_main, ctx);
