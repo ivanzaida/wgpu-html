@@ -415,6 +415,7 @@ button {
 }
 
 button,
+input[type="color"],
 input[type="button"],
 input[type="submit"],
 input[type="reset"] {
@@ -422,16 +423,19 @@ input[type="reset"] {
   text-align: center;
   cursor: default;
   box-sizing: border-box;
-  padding-top: 2px;
-  padding-bottom: 2px;
-  padding-left: 6px;
-  padding-right: 6px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  padding-left: 8px;
+  padding-right: 8px;
   border: 2px outset;
+  border-radius: 3px;
   background-color: buttonface;
   color: buttontext;
+  white-space: pre;
 }
 
 input {
+  cursor: text;
   padding-top: 1px;
   padding-bottom: 1px;
   padding-left: 2px;
@@ -450,12 +454,15 @@ input[type="radio"] {
   width: 13px;
   height: 13px;
   box-sizing: border-box;
+  cursor: default;
   padding: 0;
   margin-top: 3px;
   margin-bottom: 3px;
   margin-left: 4px;
   margin-right: 3px;
   border: 1px solid;
+  background-color: initial;
+  color: initial;
 }
 
 input[type="radio"] {
@@ -473,14 +480,9 @@ input[type="range"] {
 }
 
 input[type="color"] {
-  width: 44px;
-  height: 23px;
-  box-sizing: border-box;
-  padding-top: 1px;
-  padding-bottom: 1px;
-  padding-left: 2px;
-  padding-right: 2px;
-  border: 1px solid;
+  width: 64px;
+  height: 32px;
+  padding: 4px;
 }
 
 input[type="file"] {
@@ -495,10 +497,12 @@ textarea {
   overflow-wrap: break-word;
   overflow: auto;
   resize: both;
+  cursor: text;
   border: 2px inset;
   padding: 2px;
   background-color: field;
   color: fieldtext;
+  font-family: monospace;
 }
 
 select {
