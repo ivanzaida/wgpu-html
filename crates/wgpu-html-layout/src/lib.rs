@@ -1881,7 +1881,12 @@ fn compute_value_run(
       ) {
         return (None, None);
       }
-      let val = inp.value.as_deref().unwrap_or("");
+      let default_label = match inp.r#type {
+        Some(InputType::Submit) => "Submit",
+        Some(InputType::Reset) => "Reset",
+        _ => "",
+      };
+      let val = inp.value.as_deref().unwrap_or(default_label);
       if val.is_empty() {
         return (None, None);
       }
