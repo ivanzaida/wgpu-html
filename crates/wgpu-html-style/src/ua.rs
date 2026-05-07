@@ -431,7 +431,6 @@ input[type="reset"] {
   border-radius: 3px;
   background-color: buttonface;
   color: buttontext;
-  white-space: pre;
 }
 
 input {

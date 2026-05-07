@@ -2110,7 +2110,8 @@ pub(crate) fn form_control_default_line_height(node: &CascadedNode) -> bool {
   use wgpu_html_models::common::html_enums::InputType;
   match &node.element {
     Element::Input(inp) => !matches!(inp.r#type, Some(InputType::Hidden)),
-    Element::Textarea(_) | Element::Select(_) | Element::Button(_) => true,
+    Element::Textarea(_) | Element::Select(_) => true,
+    Element::Button(_) => node.children.is_empty(),
     _ => false,
   }
 }
