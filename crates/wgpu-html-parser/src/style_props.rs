@@ -360,6 +360,8 @@ style_props! {
     border_bottom_left_radius_v => "border-bottom-left-radius-v";
     box_shadow => "box-shadow";
     content => "content";
+    list_style_type => "list-style-type" ,inherited;
+    list_style_position => "list-style-position" ,inherited;
 
     // Typography (inherited block) -----------------------------------
     color => "color" ,inherited;

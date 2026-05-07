@@ -2588,6 +2588,7 @@ fn is_inline_level(node: &CascadedNode) -> bool {
       | Element::Rt(_)
       | Element::Rp(_)
       | Element::Img(_)
+      | Element::CustomElement(_)
   )
 }
 
@@ -2605,6 +2606,7 @@ fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
       first_letter: None,
       placeholder: None,
       selection: None,
+      marker: None,
     }],
     before: None,
     after: None,
@@ -2612,12 +2614,16 @@ fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
     first_letter: None,
     placeholder: None,
     selection: None,
+    marker: None,
   }
 }
 
 fn effective_children(node: &CascadedNode) -> Vec<std::borrow::Cow<'_, CascadedNode>> {
   use std::borrow::Cow;
-  let mut out = Vec::with_capacity(node.children.len() + 2);
+  let mut out = Vec::with_capacity(node.children.len() + 3);
+  if let Some(ref pe) = node.marker {
+    out.push(Cow::Owned(make_pseudo_node(pe)));
+  }
   if let Some(ref pe) = node.before {
     out.push(Cow::Owned(make_pseudo_node(pe)));
   }
@@ -2631,7 +2637,7 @@ fn effective_children(node: &CascadedNode) -> Vec<std::borrow::Cow<'_, CascadedN
 }
 
 fn has_pseudo_elements(node: &CascadedNode) -> bool {
-  node.before.is_some() || node.after.is_some()
+  node.before.is_some() || node.after.is_some() || node.marker.is_some()
 }
 
 /// True when every child of `node` is an inline-level box, so the
@@ -3459,6 +3465,10 @@ fn collect_paragraph_spans(
   }
 
   let leaf_start = plan.spans.len() as u32;
+  if let Some(ref pe) = node.marker {
+    let pseudo = make_pseudo_node(pe);
+    collect_paragraph_spans(&pseudo, plan, ctx, collapse, opacity);
+  }
   if let Some(ref pe) = node.before {
     let pseudo = make_pseudo_node(pe);
     collect_paragraph_spans(&pseudo, plan, ctx, collapse, opacity);
@@ -3543,6 +3553,10 @@ fn layout_inline_paragraph(
   //    bounds we'll need after shaping).
   let mut plan = ParagraphPlan::default();
   let mut collapse = ParagraphCollapseState::default();
+  if let Some(ref pe) = node.marker {
+    let pseudo = make_pseudo_node(pe);
+    collect_paragraph_spans(&pseudo, &mut plan, ctx, &mut collapse, 1.0);
+  }
   if let Some(ref pe) = node.before {
     let pseudo = make_pseudo_node(pe);
     collect_paragraph_spans(&pseudo, &mut plan, ctx, &mut collapse, 1.0);

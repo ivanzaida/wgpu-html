@@ -62,7 +62,7 @@ The stylesheet parser at `stylesheet.rs:310` skips every `@`-prefixed block exce
 | `::first-letter` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on first glyph |
 | `::placeholder` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on placeholder text |
 | `::selection` | ✅ parsed | ✅ **matched + styled** | ✅ **color + background** override on selected text |
-| `::marker` | ✅ parsed | ❌ not matched | ❌ none (requires list-style + counter infrastructure) |
+| `::marker` | ✅ parsed | ✅ **auto-generated** | ✅ **bullets + numbered** (disc/circle/square, decimal, alpha, roman) |
 
 ### Layout gaps
 

@@ -19,6 +19,7 @@ use std::{
 
 use wgpu_html_models as m;
 use wgpu_html_models::{ArcStr, Style};
+use wgpu_html_models::common::css_enums::ListStyleType;
 use wgpu_html_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
   MediaQuery, MediaQueryList, MediaType, PseudoClass, PseudoElement, Rule, Stylesheet, parse_inline_style_decls,
@@ -131,6 +132,7 @@ pub struct CascadedNode {
   pub first_letter: Option<Style>,
   pub placeholder: Option<Style>,
   pub selection: Option<Style>,
+  pub marker: Option<PseudoElementStyle>,
 }
 
 impl CascadedNode {
@@ -733,6 +735,7 @@ fn re_cascade_dirty(
     cached.selection = compute_pseudo_style_only(
       PseudoElement::Selection, &node.element, &style, sheets, root, path, interaction,
     );
+    cached.marker = compute_marker(&node.element, &style, root, path, sheets, interaction);
     cached.style = style;
   }
 
@@ -1079,6 +1082,170 @@ fn compute_pseudo_style_only(
   Some(style)
 }
 
+fn compute_marker(
+  element: &Element,
+  style: &Style,
+  root: &Node,
+  path: &[usize],
+  sheets: &[&PreparedStylesheet],
+  interaction: &InteractionState,
+) -> Option<PseudoElementStyle> {
+  use wgpu_html_models::common::css_enums::{Display, ListStyleType};
+
+  if !matches!(style.display, Some(Display::ListItem)) {
+    return None;
+  }
+  let lst = style.list_style_type.unwrap_or(ListStyleType::Disc);
+  if matches!(lst, ListStyleType::None) {
+    return None;
+  }
+
+  let text = match lst {
+    ListStyleType::Disc => "\u{2022} ".into(),
+    ListStyleType::Circle => "\u{25E6} ".into(),
+    ListStyleType::Square => "\u{25AA} ".into(),
+    ListStyleType::None => return None,
+    _ => {
+      let ordinal = compute_ordinal(element, root, path);
+      format_ordinal(ordinal, lst)
+    }
+  };
+
+  let mut marker_style = compute_pseudo_element_style(
+    PseudoElement::Marker, element, style, sheets, root, path, interaction,
+  );
+
+  if let Some(ref mut ms) = marker_style {
+    if ms.content_text.is_empty() {
+      ms.content_text = ArcStr::from(text.as_str());
+    }
+    Some(ms.clone())
+  } else {
+    Some(PseudoElementStyle {
+      style: Style {
+        display: Some(Display::Inline),
+        ..Style::default()
+      },
+      content_text: ArcStr::from(text.as_str()),
+    })
+  }
+}
+
+fn compute_ordinal(element: &Element, root: &Node, path: &[usize]) -> i32 {
+  if let Element::Li(li) = element {
+    if let Some(v) = li.value {
+      return v;
+    }
+  }
+
+  if path.is_empty() {
+    return 1;
+  }
+  let parent_path = &path[..path.len() - 1];
+  let my_idx = *path.last().unwrap();
+  let parent = {
+    let mut cur = root;
+    for &i in parent_path {
+      let Some(c) = cur.children.get(i) else { return 1 };
+      cur = c;
+    }
+    cur
+  };
+
+  let start = match &parent.element {
+    Element::Ol(ol) => ol.start.unwrap_or(1),
+    _ => 1,
+  };
+  let reversed = matches!(&parent.element, Element::Ol(ol) if ol.reversed == Some(true));
+
+  let mut pos = 0i32;
+  for (i, child) in parent.children.iter().enumerate() {
+    if i > my_idx {
+      break;
+    }
+    if matches!(child.element, Element::Li(_)) {
+      pos += 1;
+    }
+  }
+
+  if reversed {
+    let total_li = parent
+      .children
+      .iter()
+      .filter(|c| matches!(c.element, Element::Li(_)))
+      .count() as i32;
+    start + total_li - pos
+  } else {
+    start + pos - 1
+  }
+}
+
+fn format_ordinal(n: i32, style: ListStyleType) -> String {
+  use wgpu_html_models::common::css_enums::ListStyleType;
+  match style {
+    ListStyleType::Decimal => format!("{}. ", n),
+    ListStyleType::DecimalLeadingZero => format!("{:02}. ", n),
+    ListStyleType::LowerAlpha => format!("{}. ", ordinal_to_alpha(n, false)),
+    ListStyleType::UpperAlpha => format!("{}. ", ordinal_to_alpha(n, true)),
+    ListStyleType::LowerRoman => format!("{}. ", ordinal_to_roman(n, false)),
+    ListStyleType::UpperRoman => format!("{}. ", ordinal_to_roman(n, true)),
+    _ => format!("{}. ", n),
+  }
+}
+
+fn ordinal_to_alpha(n: i32, upper: bool) -> String {
+  if n <= 0 {
+    return n.to_string();
+  }
+  let mut result = String::new();
+  let mut val = n as u32;
+  while val > 0 {
+    val -= 1;
+    let c = if upper {
+      (b'A' + (val % 26) as u8) as char
+    } else {
+      (b'a' + (val % 26) as u8) as char
+    };
+    result.insert(0, c);
+    val /= 26;
+  }
+  result
+}
+
+fn ordinal_to_roman(n: i32, upper: bool) -> String {
+  if n <= 0 || n > 3999 {
+    return n.to_string();
+  }
+  let values = [
+    (1000, "m"),
+    (900, "cm"),
+    (500, "d"),
+    (400, "cd"),
+    (100, "c"),
+    (90, "xc"),
+    (50, "l"),
+    (40, "xl"),
+    (10, "x"),
+    (9, "ix"),
+    (5, "v"),
+    (4, "iv"),
+    (1, "i"),
+  ];
+  let mut result = String::new();
+  let mut val = n;
+  for &(threshold, numeral) in &values {
+    while val >= threshold {
+      result.push_str(numeral);
+      val -= threshold;
+    }
+  }
+  if upper {
+    result.to_uppercase()
+  } else {
+    result
+  }
+}
+
 /// Recursive cascade. `ancestors[0]` is the immediate parent element
 /// (with its `MatchContext`), deeper indices going further up — used
 /// by the selector matcher so descendant-combinator rules
@@ -1197,6 +1364,8 @@ fn cascade_node(
     PseudoElement::Selection, &node.element, &style, sheets, root, path, interaction,
   );
 
+  let marker = compute_marker(&node.element, &style, root, path, sheets, interaction);
+
   CascadedNode {
     element: node.element.clone(),
     style,
@@ -1207,6 +1376,7 @@ fn cascade_node(
     first_letter,
     placeholder,
     selection,
+    marker,
   }
 }
 
@@ -1254,6 +1424,8 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<ArcStr, Cs
     (svg_stroke_dashoffset, "stroke-dashoffset"),
     (pointer_events, "pointer-events"),
     (user_select, "user-select"),
+    (list_style_type, "list-style-type"),
+    (list_style_position, "list-style-position"),
   );
   // Deferred longhands: bulk-clone when child has no overrides and
   // no keyword/reset blocks apply. One HashMap::clone instead of N
@@ -1788,6 +1960,8 @@ fn style_has_values(style: &Style) -> bool {
     pointer_events,
     user_select,
     content,
+    list_style_type,
+    list_style_position,
     box_shadow,
     box_sizing,
   ) || !style.deferred_longhands.is_empty()

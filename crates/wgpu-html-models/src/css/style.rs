@@ -4,9 +4,9 @@ use crate::ArcStr;
 
 use crate::common::css_enums::{
   AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssContent,
-  CssImage, CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine, GridTrackSize,
-  JustifyContent, JustifyItems, JustifySelf, Overflow, PointerEvents, Position, Resize, ScrollbarColor, ScrollbarWidth,
-  TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
+  CssImage, CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine,
+  GridTrackSize, JustifyContent, JustifyItems, JustifySelf, ListStylePosition, ListStyleType, Overflow, PointerEvents,
+  Position, Resize, ScrollbarColor, ScrollbarWidth, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -215,6 +215,8 @@ pub struct Style {
   // css property: user-select
   pub user_select: Option<UserSelect>,
   pub content: Option<CssContent>,
+  pub list_style_type: Option<ListStyleType>,
+  pub list_style_position: Option<ListStylePosition>,
   // css property: box-shadow
   pub box_shadow: Option<ArcStr>,
   // css property: box-sizing

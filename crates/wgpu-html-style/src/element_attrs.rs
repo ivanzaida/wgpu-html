@@ -118,11 +118,12 @@ macro_rules! arms_list {
 }
 
 /// Tag name (lowercase) for an `Element`. `Text` returns `None`.
-pub fn element_tag(el: &Element) -> Option<&'static str> {
+pub fn element_tag(el: &Element) -> Option<&str> {
   macro_rules! arms {
         ($($v:ident => $tag:literal),* $(,)?) => {
             match el {
                 Element::Text(_) => None,
+                Element::CustomElement(e) => Some(&e.tag_name),
                 $(Element::$v(_) => Some($tag),)*
             }
         };
@@ -166,6 +167,7 @@ pub fn element_id(el: &Element) -> Option<&str> {
         ($($v:ident),* $(,)?) => {
             match el {
                 Element::Text(_) => None,
+                Element::CustomElement(e) => e.id.as_deref(),
                 $(Element::$v(e) => e.id.as_deref(),)*
             }
         };
@@ -178,6 +180,7 @@ pub fn element_class(el: &Element) -> Option<&str> {
         ($($v:ident),* $(,)?) => {
             match el {
                 Element::Text(_) => None,
+                Element::CustomElement(e) => e.class.as_deref(),
                 $(Element::$v(e) => e.class.as_deref(),)*
             }
         };
@@ -190,6 +193,7 @@ pub fn element_style_attr(el: &Element) -> Option<&str> {
         ($($v:ident),* $(,)?) => {
             match el {
                 Element::Text(_) => None,
+                Element::CustomElement(e) => e.style.as_deref(),
                 $(Element::$v(e) => e.style.as_deref(),)*
             }
         };
@@ -217,7 +221,15 @@ pub fn element_attr(el: &Element, name: &str) -> Option<String> {
       Element::Dialog(e) => bool_attr(e.open),
       _ => None,
     },
-    _ => data_or_aria_attr(el, name),
+    _ => {
+      if let Some(v) = data_or_aria_attr(el, name) {
+        return Some(v);
+      }
+      if let Element::CustomElement(e) = el {
+        return e.custom_attrs.get(name).map(|s| s.to_string());
+      }
+      None
+    }
   }
 }
 
@@ -379,6 +391,7 @@ impl_global_attrs!(
   wgpu_html_models::Ruby,
   wgpu_html_models::Rt,
   wgpu_html_models::Rp,
+  wgpu_html_models::CustomElement,
 );
 
 fn with_global_attrs<R>(el: &Element, f: impl FnOnce(&dyn GlobalAttrs) -> R) -> Option<R> {
@@ -386,6 +399,7 @@ fn with_global_attrs<R>(el: &Element, f: impl FnOnce(&dyn GlobalAttrs) -> R) -> 
         ($($v:ident),* $(,)?) => {
             match el {
                 Element::Text(_) => None,
+                Element::CustomElement(e) => Some(f(e)),
                 $(Element::$v(e) => Some(f(e)),)*
             }
         };

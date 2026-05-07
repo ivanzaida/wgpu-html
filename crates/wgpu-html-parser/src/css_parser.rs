@@ -532,6 +532,8 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "content" => style.content = parse_css_content(value),
     "box-shadow" => style.box_shadow = Some(ArcStr::from(value)),
     "box-sizing" => style.box_sizing = parse_box_sizing(value),
+    "list-style-type" => style.list_style_type = parse_list_style_type(value),
+    "list-style-position" => style.list_style_position = parse_list_style_position(value),
     _ if shorthand_members(property).is_some() => apply_generic_shorthand(style, property, value),
     _ if is_deferred_longhand(property) => {
       style.deferred_longhands.insert(ArcStr::from(property), ArcStr::from(value));
@@ -1412,10 +1414,12 @@ fn apply_list_style_shorthand(style: &mut Style, value: &str) {
   mark_shorthand_reset(style, "list-style");
   for token in split_top_level_whitespace(value) {
     match token.to_ascii_lowercase().as_str() {
-      "inside" | "outside" => set_deferred(style, "list-style-position", token),
-      _ if parse_css_image(token).is_some() || token.eq_ignore_ascii_case("none") => {
+      "inside" | "outside" => style.list_style_position = parse_list_style_position(token),
+      _ if parse_list_style_type(token).is_some() => style.list_style_type = parse_list_style_type(token),
+      _ if parse_css_image(token).is_some() => {
         set_deferred(style, "list-style-image", token)
       }
+      "none" => style.list_style_type = Some(ListStyleType::None),
       _ => set_deferred(style, "list-style-type", token),
     }
   }
@@ -3121,6 +3125,30 @@ fn parse_user_select(value: &str) -> Option<UserSelect> {
 
 fn parse_box_sizing(value: &str) -> Option<BoxSizing> {
   value.parse().ok()
+}
+
+fn parse_list_style_type(value: &str) -> Option<ListStyleType> {
+  match value.trim().to_ascii_lowercase().as_str() {
+    "disc" => Some(ListStyleType::Disc),
+    "circle" => Some(ListStyleType::Circle),
+    "square" => Some(ListStyleType::Square),
+    "decimal" => Some(ListStyleType::Decimal),
+    "decimal-leading-zero" => Some(ListStyleType::DecimalLeadingZero),
+    "lower-alpha" | "lower-latin" => Some(ListStyleType::LowerAlpha),
+    "upper-alpha" | "upper-latin" => Some(ListStyleType::UpperAlpha),
+    "lower-roman" => Some(ListStyleType::LowerRoman),
+    "upper-roman" => Some(ListStyleType::UpperRoman),
+    "none" => Some(ListStyleType::None),
+    _ => None,
+  }
+}
+
+fn parse_list_style_position(value: &str) -> Option<ListStylePosition> {
+  match value.trim().to_ascii_lowercase().as_str() {
+    "inside" => Some(ListStylePosition::Inside),
+    "outside" => Some(ListStylePosition::Outside),
+    _ => None,
+  }
 }
 
 fn parse_css_content(value: &str) -> Option<CssContent> {

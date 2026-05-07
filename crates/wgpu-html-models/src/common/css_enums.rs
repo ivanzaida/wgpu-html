@@ -401,6 +401,26 @@ pub enum UserSelect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListStyleType {
+  Disc,
+  Circle,
+  Square,
+  Decimal,
+  DecimalLeadingZero,
+  LowerAlpha,
+  UpperAlpha,
+  LowerRoman,
+  UpperRoman,
+  None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListStylePosition {
+  Inside,
+  Outside,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoxSizing {
   ContentBox,
   BorderBox,

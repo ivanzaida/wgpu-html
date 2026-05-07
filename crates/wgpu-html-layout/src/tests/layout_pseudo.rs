@@ -26,6 +26,86 @@ fn cascade_pseudo_element_style_computed() {
   assert_eq!(pe.content_text.as_ref(), "X");
 }
 
+// ---------------------------------------------------------------------------
+// ::marker
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ul_list_items_get_bullet_markers() {
+  let root = layout_with_fonts(
+    r#"<body style="margin: 0; font-family: sans-serif;">
+      <ul><li>one</li><li>two</li></ul>
+    </body>"#,
+    800.0,
+    600.0,
+  );
+  let text = find_text_content(&root);
+  assert!(text.contains("\u{2022}"), "should contain bullet marker, got: {text}");
+  assert!(text.contains("one"), "should contain list text, got: {text}");
+}
+
+#[test]
+fn ol_list_items_get_numbered_markers() {
+  let root = layout_with_fonts(
+    r#"<body style="margin: 0; font-family: sans-serif;">
+      <ol><li>first</li><li>second</li><li>third</li></ol>
+    </body>"#,
+    800.0,
+    600.0,
+  );
+  let text = find_text_content(&root);
+  assert!(text.contains("1."), "should contain number 1, got: {text}");
+  assert!(text.contains("2."), "should contain number 2, got: {text}");
+  assert!(text.contains("3."), "should contain number 3, got: {text}");
+}
+
+#[test]
+fn ol_start_attribute_offsets_numbering() {
+  let root = layout_with_fonts(
+    r#"<body style="margin: 0; font-family: sans-serif;">
+      <ol start="5"><li>a</li><li>b</li></ol>
+    </body>"#,
+    800.0,
+    600.0,
+  );
+  let text = find_text_content(&root);
+  assert!(text.contains("5."), "should start at 5, got: {text}");
+  assert!(text.contains("6."), "should have 6, got: {text}");
+}
+
+#[test]
+fn list_style_none_hides_markers() {
+  let root = layout_with_fonts(
+    r#"<body style="margin: 0; font-family: sans-serif;">
+      <ul style="list-style-type: none;"><li>item</li></ul>
+    </body>"#,
+    800.0,
+    600.0,
+  );
+  let text = find_text_content(&root);
+  assert!(!text.contains("\u{2022}"), "should not contain bullet, got: {text}");
+  assert!(text.contains("item"), "should contain text, got: {text}");
+}
+
+#[test]
+fn cascade_marker_computed_for_list_item() {
+  let tree = wgpu_html_parser::parse(
+    r#"<ul><li>test</li></ul>"#,
+  );
+  let cascaded = wgpu_html_style::cascade(&tree);
+  let root = cascaded.root.as_ref().unwrap();
+  fn find_li(n: &wgpu_html_style::CascadedNode) -> Option<&wgpu_html_style::CascadedNode> {
+    if matches!(n.element, wgpu_html_tree::Element::Li(_)) {
+      return Some(n);
+    }
+    n.children.iter().find_map(find_li)
+  }
+  let li = find_li(root).expect("found li");
+  assert!(li.marker.is_some(), "li should have marker pseudo-element");
+  let marker = li.marker.as_ref().unwrap();
+  assert!(marker.content_text.contains("\u{2022}"), "marker should be bullet, got: {}", marker.content_text);
+}
+
 fn find_text_content(b: &LayoutBox) -> String {
   let mut out = String::new();
   if let Some(ref run) = b.text_run {

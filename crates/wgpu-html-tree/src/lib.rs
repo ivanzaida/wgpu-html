@@ -1034,6 +1034,7 @@ pub enum Element {
   Ruby(m::Ruby),
   Rt(m::Rt),
   Rp(m::Rp),
+  CustomElement(m::CustomElement),
 }
 
 /// Generate `From<T> for Element` impls so `Node::new(Div::default())` works.
@@ -1097,6 +1098,7 @@ element_from! {
     Template => m::Template, Slot => m::Slot, Del => m::Del, Ins => m::Ins,
     Bdi => m::Bdi, Bdo => m::Bdo, Wbr => m::Wbr, Data => m::Data,
     Ruby => m::Ruby, Rt => m::Rt, Rp => m::Rp,
+    CustomElement => m::CustomElement,
 }
 
 /// Same variant list used for any "do this for every element" dispatch.
@@ -1207,6 +1209,7 @@ macro_rules! all_element_variants {
       Ruby,
       Rt,
       Rp,
+      CustomElement,
     )
   };
 }
@@ -1483,13 +1486,14 @@ impl Element {
       ("width", Element::Iframe(e)) => e.width.map(|v| ArcStr::from(v.to_string())),
       ("height", Element::Iframe(e)) => e.height.map(|v| ArcStr::from(v.to_string())),
 
+      (name, Element::CustomElement(e)) => e.custom_attrs.get(name).cloned(),
       _ => None,
     }
   }
 
   /// Lowercase HTML tag name for this element (e.g. `"div"`,
   /// `"option"`, `"style"`). `Text` returns `"#text"`.
-  pub fn tag_name(&self) -> &'static str {
+  pub fn tag_name(&self) -> &str {
     match self {
       Element::Text(_) => "#text",
       Element::StyleElement(_) => "style",
@@ -1595,6 +1599,7 @@ impl Element {
       Element::Ruby(_) => "ruby",
       Element::Rt(_) => "rt",
       Element::Rp(_) => "rp",
+      Element::CustomElement(e) => &e.tag_name,
     }
   }
 }
@@ -1685,6 +1690,16 @@ impl Node {
 
     write_map_attrs(buf, &self.element, "data-");
     write_map_attrs(buf, &self.element, "aria-");
+
+    if let Element::CustomElement(e) = &self.element {
+      let mut keys: Vec<_> = e.custom_attrs.keys().collect();
+      keys.sort();
+      for key in keys {
+        if let Some(val) = e.custom_attrs.get(key) {
+          let _ = write!(buf, " {key}=\"{}\"", html_escape_attr(val));
+        }
+      }
+    }
 
     buf.push('>');
 
