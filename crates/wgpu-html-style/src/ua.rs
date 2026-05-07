@@ -398,7 +398,10 @@ input,
 textarea,
 select,
 button {
-  font: initial;
+  font-size: 13.333px;
+  font-family: sans-serif;
+  font-weight: normal;
+  font-style: normal;
   color: initial;
   letter-spacing: normal;
   word-spacing: normal;

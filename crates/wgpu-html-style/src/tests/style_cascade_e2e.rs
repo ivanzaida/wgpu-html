@@ -344,10 +344,10 @@ fn ua_form_font_initial_resets_inherited_text_styles() {
   );
   let cascaded = cascade(&tree);
   let input = find_style(cascaded.root.as_ref().unwrap(), &|el| matches!(el, Element::Input(_))).unwrap();
-  assert!(input.font_size.is_none());
+  assert!(input.font_size.is_some(), "UA should set explicit font-size on form controls");
   assert!(matches!(input.color, Some(CssColor::Named(ref v)) if &**v == "fieldtext"));
-  assert!(input.font_weight.is_none());
-  assert!(input.font_style.is_none());
+  assert!(input.font_weight.is_some(), "UA should reset font-weight on form controls");
+  assert!(input.font_style.is_some(), "UA should reset font-style on form controls");
   assert!(matches!(input.line_height, Some(CssLength::Raw(ref v)) if &**v == "normal"));
   assert!(matches!(
       input.letter_spacing,

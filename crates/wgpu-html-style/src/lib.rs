@@ -22,8 +22,8 @@ use wgpu_html_models::{ArcStr, Style};
 use wgpu_html_models::common::css_enums::ListStyleType;
 use wgpu_html_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
-  MediaQuery, MediaQueryList, MediaType, PseudoClass, PseudoElement, Rule, Stylesheet, parse_inline_style_decls,
-  parse_stylesheet,
+  MediaQuery, MediaQueryList, MediaType, PseudoClass, PseudoElement, Rule, Stylesheet, parse_import_directive,
+  parse_inline_style_decls, parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
@@ -822,7 +822,153 @@ fn collect_stylesheet_source(tree: &Tree) -> String {
       append_stylesheet_source(&mut css, sheet_css, None);
     }
   }
+  // Resolve @import directives by inlining from linked_stylesheets.
+  let mut seen = HashSet::new();
+  css = resolve_imports(&css, tree, &mut seen);
   css
+}
+
+/// Return the list of `@import` URLs in the tree's collected CSS that
+/// are not yet present in `tree.linked_stylesheets`. The host / paint
+/// pipeline can use this to discover which CSS files need loading.
+pub fn collect_import_urls(tree: &Tree) -> Vec<String> {
+  let css = {
+    let mut css = String::new();
+    let mut referenced: HashSet<&str> = HashSet::new();
+    if let Some(root) = &tree.root {
+      gather(root, &tree.linked_stylesheets, &mut css, false, &mut referenced);
+    }
+    for (href, sheet_css) in &tree.linked_stylesheets {
+      if !referenced.contains(&**href) {
+        append_stylesheet_source(&mut css, sheet_css, None);
+      }
+    }
+    css
+  };
+  extract_import_urls_from_css(&css, tree)
+}
+
+fn extract_import_urls_from_css(css: &str, tree: &Tree) -> Vec<String> {
+  let mut urls = Vec::new();
+  let mut seen = HashSet::new();
+  collect_import_urls_recursive(css, tree, &mut urls, &mut seen);
+  urls
+}
+
+fn collect_import_urls_recursive(
+  css: &str,
+  tree: &Tree,
+  out: &mut Vec<String>,
+  seen: &mut HashSet<String>,
+) {
+  for (url, _media) in scan_imports(css) {
+    let resolved = tree.resolve_asset_path(&url).into_owned();
+    if !seen.insert(resolved.clone()) {
+      continue;
+    }
+    if tree.linked_stylesheets.contains_key(resolved.as_str()) {
+      if let Some(child_css) = tree.linked_stylesheets.get(resolved.as_str()) {
+        collect_import_urls_recursive(child_css, tree, out, seen);
+      }
+    } else {
+      out.push(resolved);
+    }
+  }
+}
+
+fn resolve_imports(css: &str, tree: &Tree, seen: &mut HashSet<String>) -> String {
+  let imports = scan_imports(css);
+  if imports.is_empty() {
+    return css.to_owned();
+  }
+  let mut result = css.to_owned();
+  for (url, media) in imports.into_iter().rev() {
+    let resolved = tree.resolve_asset_path(&url);
+    if !seen.insert(resolved.to_string()) {
+      remove_import_directive(&mut result, &url);
+      continue;
+    }
+    if let Some(imported_css) = tree.linked_stylesheets.get(resolved.as_ref()) {
+      let imported = resolve_imports(imported_css, tree, seen);
+      replace_import_directive(&mut result, &url, &imported, media.as_deref());
+    }
+  }
+  result
+}
+
+/// Scan CSS text for `@import` directives and return (url, media) pairs.
+fn scan_imports(css: &str) -> Vec<(String, Option<String>)> {
+  let mut results = Vec::new();
+  let mut pos = 0;
+  let bytes = css.as_bytes();
+  while pos < bytes.len() {
+    while pos < bytes.len() && bytes[pos].is_ascii_whitespace() {
+      pos += 1;
+    }
+    if pos >= bytes.len() {
+      break;
+    }
+    let rest = &css[pos..];
+    if rest.starts_with("@charset") {
+      if let Some(semi) = rest.find(';') {
+        pos += semi + 1;
+        continue;
+      }
+      break;
+    }
+    if rest
+      .strip_prefix("@import")
+      .filter(|r| r.starts_with(|c: char| c.is_ascii_whitespace() || c == '\'' || c == '"'))
+      .is_some()
+    {
+      if let Some(semi_rel) = rest.find(';') {
+        let directive_body = &rest[7..semi_rel].trim();
+        if let Some((url, media)) = parse_import_directive(directive_body) {
+          results.push((url.to_owned(), media.map(|s| s.to_owned())));
+        }
+        pos += semi_rel + 1;
+        continue;
+      }
+    }
+    break;
+  }
+  results
+}
+
+fn remove_import_directive(css: &mut String, url: &str) {
+  if let Some(range) = find_import_range(css, url) {
+    css.replace_range(range, "");
+  }
+}
+
+fn replace_import_directive(css: &mut String, url: &str, replacement: &str, media: Option<&str>) {
+  if let Some(range) = find_import_range(css, url) {
+    let mut inlined = String::new();
+    if let Some(media) = media.filter(|s| !s.is_empty()) {
+      inlined.push_str("@media ");
+      inlined.push_str(media);
+      inlined.push_str(" {\n");
+    }
+    inlined.push_str(replacement);
+    if media.filter(|s| !s.is_empty()).is_some() {
+      inlined.push_str("\n}\n");
+    }
+    css.replace_range(range, &inlined);
+  }
+}
+
+fn find_import_range(css: &str, url: &str) -> Option<std::ops::Range<usize>> {
+  let mut search_start = 0;
+  while let Some(at_pos) = css[search_start..].find("@import").map(|i| search_start + i) {
+    if let Some(semi_pos) = css[at_pos..].find(';').map(|i| at_pos + i) {
+      let body = &css[at_pos + 7..semi_pos];
+      if body.contains(url) {
+        return Some(at_pos..semi_pos + 1);
+      }
+    }
+    search_start = at_pos + 7;
+  }
+  None
 }
 
 fn gather<'a>(
@@ -1618,7 +1764,9 @@ fn computed_decls_in_prepared_stylesheets_with_context(
       })
     })
     .collect();
-  matched_rules.sort_by_key(|(spec, sheet_idx, rule_idx, ..)| (*spec, *sheet_idx, *rule_idx));
+  // CSS cascade: origin > specificity > source order.
+  // sheet_idx 0 = UA, 1 = author — author rules always beat UA.
+  matched_rules.sort_by_key(|(spec, sheet_idx, rule_idx, ..)| (*sheet_idx, *spec, *rule_idx));
 
   // 1. Author normal.
   for (_, _, _, rule, normal_nonempty, _) in &matched_rules {

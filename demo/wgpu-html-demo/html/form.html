@@ -7,37 +7,138 @@
         font-family: sans-serif;
         font-size: 14px;
     }
+
     input {
         background: #1c1c20;
         color: #ddd;
         border: 1px solid #333;
         border-radius: 4px;
         padding: 8px 10px;
-        font-size: 13px;
     }
 </style>
+<form
+        style="
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 320px;
+    padding: 16px;
+    border: 1px solid #d6d6d6;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+  "
+>
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Button</span>
+        <input name="button" type="button" value="Button"/>
+    </label>
 
-<form style="display: flex; flex-direction: column; gap: 10px; width: 300px">
-    <input type="button" value="Button" />
-    <input type="checkbox" />
-    <input type="color" />
-    <input type="date" />
-    <input type="datetime-local" />
-    <input type="email" placeholder="email@example.com" />
-    <input type="file" />
-    <input type="hidden" value="hidden-value" />
-    <input type="image" src="submit.png" alt="Submit" />
-    <input type="month" />
-    <input type="number" />
-    <input type="password" placeholder="Password" />
-    <input type="radio" />
-    <input type="range" />
-    <input type="reset" />
-    <input type="search" placeholder="Search" />
-    <input type="submit" />
-    <input type="tel" placeholder="+380..." />
-    <input type="text" placeholder="Text" />
-    <input type="time" />
-    <input type="url" placeholder="https://example.com" />
-    <input type="week" />
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Checkbox</span>
+        <input name="checkbox" type="checkbox"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Color</span>
+        <input name="color" type="color"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Date</span>
+        <input name="date" type="date"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Datetime Local</span>
+        <input name="datetime-local" type="datetime-local"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Email</span>
+        <input name="email" placeholder="email@example.com" type="email"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>File</span>
+        <input name="file" type="file"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Hidden</span>
+        <input name="hidden" type="hidden" value="hidden-value"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Image</span>
+        <input alt="Submit" name="image" src="submit.png" type="image"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Month</span>
+        <input name="month" type="month"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Number</span>
+        <input name="number" type="number"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Password</span>
+        <input name="password" placeholder="Password" type="password"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Radio</span>
+        <input name="radio" type="radio"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Range</span>
+        <input name="range" type="range"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Reset</span>
+        <input name="reset" type="reset" value="Reset"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Search</span>
+        <input name="search" placeholder="Search" type="search"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Submit</span>
+        <input name="submit" type="submit" value="Submit"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Telephone</span>
+        <input name="tel" placeholder="+380..." type="tel"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Text</span>
+        <input name="text" placeholder="Text" type="text"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Time</span>
+        <input name="time" type="time"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>URL</span>
+        <input name="url" placeholder="https://example.com" type="url"/>
+    </label>
+
+    <label style="display: flex; flex-direction: column; gap: 4px">
+        <span>Week</span>
+        <input name="week" type="week"/>
+    </label>
+
+    <button type="submit">
+        Submit button
+    </button>
 </form>

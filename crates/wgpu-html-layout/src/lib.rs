@@ -1941,6 +1941,17 @@ fn compute_value_run(
   if !wraps_multiline {
     if let Some(run) = run.as_mut() {
       vcenter_run_in_rect(run, content_rect.h);
+      if matches!(
+        node.style.text_align,
+        Some(wgpu_html_models::common::css_enums::TextAlign::Center)
+      ) {
+        let dx = (content_rect.w - run.width).max(0.0) * 0.5;
+        if dx > 0.01 {
+          for g in run.glyphs.iter_mut() {
+            g.x += dx;
+          }
+        }
+      }
     }
   }
 
