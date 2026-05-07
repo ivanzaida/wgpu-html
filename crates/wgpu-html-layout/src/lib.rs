@@ -505,6 +505,10 @@ pub struct LayoutBox {
   /// already-positioned tile rectangles (one for `no-repeat`, many
   /// for `repeat` modes). The painter just iterates the tiles.
   pub background_image: Option<BackgroundImagePaint>,
+  pub first_line_color: Option<Color>,
+  pub first_letter_color: Option<Color>,
+  pub selection_bg: Option<Color>,
+  pub selection_fg: Option<Color>,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -967,6 +971,19 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Co
     bottom: style.border_bottom_color.as_ref().and_then(resolve_border).or(Some(fg)),
     left: style.border_left_color.as_ref().and_then(resolve_border).or(Some(fg)),
   };
+
+  b.first_line_color = node.first_line.as_ref().and_then(|s| s.color.as_ref()).and_then(resolve_color);
+  b.first_letter_color = node.first_letter.as_ref().and_then(|s| s.color.as_ref()).and_then(resolve_color);
+  b.selection_bg = node
+    .selection
+    .as_ref()
+    .and_then(|s| s.background_color.as_ref())
+    .and_then(resolve_color);
+  b.selection_fg = node
+    .selection
+    .as_ref()
+    .and_then(|s| s.color.as_ref())
+    .and_then(resolve_color);
 
   for (child_box, child_node) in b.children.iter_mut().zip(node.children.iter()) {
     patch_node_colors(child_box, child_node, fg);
@@ -1615,6 +1632,10 @@ fn layout_block(
     z_index: resolved_z_index(style),
     image: effective_image,
     background_image,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children,
     is_fixed: false,
   }
@@ -1829,16 +1850,21 @@ fn compute_placeholder_run(
     }
   }
 
-  // ::placeholder color: cascaded `color` with alpha halved,
-  // matching the browser default `::placeholder` styling.
-  // Fallback when no color cascades: the UA default text color
-  // (black) at 50% opacity.
+  // ::placeholder style: use CSS ::placeholder color if specified,
+  // otherwise fall back to cascaded `color` with alpha halved.
   let color = node
-    .style
-    .color
+    .placeholder
     .as_ref()
+    .and_then(|ps| ps.color.as_ref())
     .and_then(resolve_color)
-    .map(|[r, g, b, a]| [r, g, b, a * 0.5])
+    .or_else(|| {
+      node
+        .style
+        .color
+        .as_ref()
+        .and_then(resolve_color)
+        .map(|[r, g, b, a]| [r, g, b, a * 0.5])
+    })
     .unwrap_or([0.0, 0.0, 0.0, 0.5]);
 
   // Override per-glyph colors to the placeholder color. Glyphs
@@ -2392,6 +2418,10 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     z_index: None,
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
   }
@@ -2464,6 +2494,10 @@ fn make_text_leaf(
     z_index: resolved_z_index(style),
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
   };
@@ -2567,9 +2601,17 @@ fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
       children: vec![],
       before: None,
       after: None,
+      first_line: None,
+      first_letter: None,
+      placeholder: None,
+      selection: None,
     }],
     before: None,
     after: None,
+    first_line: None,
+    first_letter: None,
+    placeholder: None,
+    selection: None,
   }
 }
 
@@ -2773,6 +2815,10 @@ fn layout_inline_subtree(
     z_index: resolved_z_index(&node.style),
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: final_children,
     is_fixed: false,
   };
@@ -2956,6 +3002,10 @@ fn layout_atomic_inline_subtree(
       z_index: resolved_z_index(style),
       image: None,
       background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
       children,
       is_fixed: false,
     },
@@ -3471,6 +3521,10 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     z_index: None,
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
   }
@@ -3692,6 +3746,10 @@ fn layout_inline_paragraph(
     z_index: resolved_z_index(&node.style),
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
   };

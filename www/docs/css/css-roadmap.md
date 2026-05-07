@@ -58,11 +58,11 @@ The stylesheet parser at `stylesheet.rs:310` skips every `@`-prefixed block exce
 |---------------|--------|---------|----------|
 | `::before` | ✅ parsed | ✅ **matched + styled** | ✅ **rendered** (block + inline) |
 | `::after` | ✅ parsed | ✅ **matched + styled** | ✅ **rendered** (block + inline) |
-| `::first-line` | ✅ parsed | ❌ not matched | ❌ none |
-| `::first-letter` | ✅ parsed | ❌ not matched | ❌ none |
-| `::placeholder` | ❌ not parsed | ❌ none | ❌ none (placeholder text uses HTML attribute instead) |
-| `::selection` | ❌ not parsed | ❌ none | ❌ none |
-| `::marker` | ❌ not parsed | ❌ none | ❌ none |
+| `::first-line` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on first-line glyphs |
+| `::first-letter` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on first glyph |
+| `::placeholder` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on placeholder text |
+| `::selection` | ✅ parsed | ✅ **matched + styled** | ✅ **color + background** override on selected text |
+| `::marker` | ✅ parsed | ❌ not matched | ❌ none (requires list-style + counter infrastructure) |
 
 ### Layout gaps
 

@@ -264,6 +264,10 @@ fn paint_box_in_clip(
   } else {
     paint_offset_y
   };
+  let selection_colors = SelectionColors {
+    background: b.selection_bg.unwrap_or(selection_colors.background),
+    foreground: b.selection_fg.unwrap_or(selection_colors.foreground),
+  };
   let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
   let rect = to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y);
   let (rh, rv) = corner_radii(b);
@@ -435,16 +439,24 @@ fn paint_box_in_clip(
         uv_max[0] = uv_min[0] + uv_range_x * keep_frac;
       }
 
-      // Per-glyph color: each glyph carries its source span's
-      // resolved foreground (set at shape time). The per-leaf
-      // `text_color` on the box stays around as a hint for
-      // decorations / fallbacks but glyphs paint at `g.color`.
+      let first_line_range = run.lines.first().map(|l| l.glyph_range);
+      let base_color = if b.first_letter_color.is_some() && idx == 0 {
+        b.first_letter_color.unwrap()
+      } else if let Some(flc) = b.first_line_color {
+        if first_line_range.is_some_and(|(s, e)| idx >= s && idx < e) {
+          flc
+        } else {
+          g.color
+        }
+      } else {
+        g.color
+      };
       let glyph_color = if selected_range.is_some_and(|(start, end)| idx >= start && idx < end) {
         selection_colors.foreground
       } else if edit_sel_glyph_range.is_some_and(|(s, e)| idx >= s && idx < e) {
         selection_colors.foreground
       } else {
-        g.color
+        base_color
       };
       out.push_glyph(
         Rect::new(glyph_x, origin.y + g.y, glyph_w, g.h),

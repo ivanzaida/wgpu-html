@@ -103,6 +103,9 @@ pub enum PseudoElement {
   After,
   FirstLine,
   FirstLetter,
+  Placeholder,
+  Selection,
+  Marker,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -506,6 +509,9 @@ fn parse_pseudo_element_name(name: &str) -> Result<PseudoElement, String> {
     "after" => Ok(PseudoElement::After),
     "first-line" => Ok(PseudoElement::FirstLine),
     "first-letter" => Ok(PseudoElement::FirstLetter),
+    "placeholder" => Ok(PseudoElement::Placeholder),
+    "selection" | "-moz-selection" => Ok(PseudoElement::Selection),
+    "marker" => Ok(PseudoElement::Marker),
     _ => Err(format!("unknown pseudo-element `::{}`", name)),
   }
 }
