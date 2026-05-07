@@ -945,6 +945,7 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
   }
 
   tree.interaction.focus_path = new_path.clone();
+  tree.interaction.undo_stack.clear();
 
   // Initialize or clear the edit cursor for the new focus target.
   tree.interaction.edit_cursor = new_path.as_deref().and_then(|path| {
@@ -1357,6 +1358,19 @@ fn fire_keyboard_at(
 pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
   bubble_keyboard(tree, &target, ev::HtmlEventType::KEYDOWN, key, code, repeat);
+
+  // Undo / redo.
+  if tree.interaction.modifiers.ctrl {
+    let shift = tree.interaction.modifiers.shift;
+    if matches!(key, "z" | "Z") && !shift {
+      handle_undo(tree);
+      return true;
+    }
+    if matches!(key, "y" | "Y") || (matches!(key, "z" | "Z") && shift) {
+      handle_redo(tree);
+      return true;
+    }
+  }
 
   // Number / range ArrowUp/ArrowDown stepping.
   if matches!(key, "ArrowUp" | "ArrowDown") {
@@ -2392,7 +2406,7 @@ fn toggle_checkable(tree: &mut Tree, click_target: &[usize]) -> bool {
       Some(InputType::Checkbox) => {
         let was = inp.checked.unwrap_or(false);
         inp.checked = Some(!was);
-        tree.generation += 1;
+        tree.form_control_generation += 1;
         bubble_input(tree, click_target, None, ev::enums::InputType::InsertText);
         fire_change_event_at(tree, click_target);
         return true;
@@ -2402,7 +2416,7 @@ fn toggle_checkable(tree: &mut Tree, click_target: &[usize]) -> bool {
           return false;
         }
         inp.checked = Some(true);
-        tree.generation += 1;
+        tree.form_control_generation += 1;
         let radio_name = inp.name.clone();
         if click_target.len() >= 1 {
           let parent_path = &click_target[..click_target.len() - 1];
@@ -2469,7 +2483,12 @@ fn handle_numeric_step(tree: &mut Tree, key: &str) -> bool {
     format!("{new_val}")
   };
   inp.value = Some(formatted.into());
-  tree.generation += 1;
+  if is_range {
+    tree.form_control_generation += 1;
+  } else {
+    tree.generation += 1;
+    tree.dirty_paths.push(focus_path.clone());
+  }
 
   if is_number {
     let len = inp.value.as_deref().unwrap_or("").len();
@@ -2512,7 +2531,7 @@ pub fn set_range_value_by_fraction(tree: &mut Tree, path: &[usize], frac: f32) {
       format!("{stepped}")
     };
     inp.value = Some(formatted.into());
-    tree.generation += 1;
+    tree.form_control_generation += 1;
   }
   bubble_input(tree, path, None, ev::enums::InputType::InsertText);
   fire_change_event_at(tree, path);
@@ -2613,10 +2632,15 @@ pub fn cut_selection(tree: &mut Tree) -> Option<String> {
 
   let (new_value, new_cursor) = crate::text_edit::delete_selection(&old_value, &cursor);
   if new_value != old_value {
+    tree.interaction.undo_stack.push(crate::UndoEntry {
+      value: old_value,
+      cursor,
+    });
     if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
       write_value(node, new_value);
     }
     tree.generation += 1;
+    tree.dirty_paths.push(focus_path.clone());
     bubble_input(tree, &focus_path, None, ev::enums::InputType::DeleteByCut);
   }
   tree.interaction.edit_cursor = Some(new_cursor);
@@ -2681,12 +2705,17 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
   let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
 
   // Write back.
+  tree.interaction.undo_stack.push(crate::UndoEntry {
+    value: old_value,
+    cursor,
+  });
   if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
     write_value(node, new_value);
   }
   tree.interaction.edit_cursor = Some(new_cursor);
   tree.interaction.caret_blink_epoch = std::time::Instant::now();
   tree.generation += 1;
+  tree.dirty_paths.push(focus_path.clone());
 
   bubble_input(
     tree,
@@ -2695,6 +2724,86 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     ev::enums::InputType::InsertText,
   );
 
+  true
+}
+
+fn handle_undo(tree: &mut Tree) -> bool {
+  let Some(focus_path) = tree.interaction.focus_path.clone() else {
+    return false;
+  };
+  let Some(root) = tree.root.as_ref() else {
+    return false;
+  };
+  let Some(node) = root.at_path(&focus_path) else {
+    return false;
+  };
+  let Some((current_value, _, is_readonly)) = read_editable_value(node) else {
+    return false;
+  };
+  if is_readonly {
+    return false;
+  }
+  let current_cursor = tree
+    .interaction
+    .edit_cursor
+    .clone()
+    .unwrap_or_else(|| crate::EditCursor::collapsed(current_value.len()));
+
+  let Some(prev) = tree.interaction.undo_stack.undo(crate::UndoEntry {
+    value: current_value,
+    cursor: current_cursor,
+  }) else {
+    return false;
+  };
+
+  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
+    write_value(node, prev.value);
+  }
+  tree.interaction.edit_cursor = Some(prev.cursor);
+  tree.interaction.caret_blink_epoch = std::time::Instant::now();
+  tree.generation += 1;
+  tree.dirty_paths.push(focus_path.clone());
+  bubble_input(tree, &focus_path, None, ev::enums::InputType::HistoryUndo);
+  true
+}
+
+fn handle_redo(tree: &mut Tree) -> bool {
+  let Some(focus_path) = tree.interaction.focus_path.clone() else {
+    return false;
+  };
+  let Some(root) = tree.root.as_ref() else {
+    return false;
+  };
+  let Some(node) = root.at_path(&focus_path) else {
+    return false;
+  };
+  let Some((current_value, _, is_readonly)) = read_editable_value(node) else {
+    return false;
+  };
+  if is_readonly {
+    return false;
+  }
+  let current_cursor = tree
+    .interaction
+    .edit_cursor
+    .clone()
+    .unwrap_or_else(|| crate::EditCursor::collapsed(current_value.len()));
+
+  let Some(next) = tree.interaction.undo_stack.redo(crate::UndoEntry {
+    value: current_value,
+    cursor: current_cursor,
+  }) else {
+    return false;
+  };
+
+  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
+    write_value(node, next.value);
+  }
+  tree.interaction.edit_cursor = Some(next.cursor);
+  tree.interaction.caret_blink_epoch = std::time::Instant::now();
+  tree.generation += 1;
+  tree.dirty_paths.push(focus_path.clone());
+  bubble_input(tree, &focus_path, None, ev::enums::InputType::HistoryRedo);
   true
 }
 
@@ -2773,10 +2882,15 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
 
   if let Some((new_value, new_cursor)) = mutation {
     if new_value != old_value {
+      tree.interaction.undo_stack.push(crate::UndoEntry {
+        value: old_value,
+        cursor,
+      });
       if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
         write_value(node, new_value);
       }
       tree.generation += 1;
+      tree.dirty_paths.push(focus_path.clone());
 
       bubble_input(tree, &focus_path, None, input_type);
     }

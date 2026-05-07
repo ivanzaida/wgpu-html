@@ -52,7 +52,7 @@ impl WinitDriver {
   /// Wire a winit window to a tree.
   pub fn bind(window: Arc<Window>, tree: Tree) -> Self {
     let size = window.inner_size();
-    let driver = WgpuHtml { window };
+    let driver = WgpuHtml { window, clipboard: std::cell::RefCell::new(None) };
     let rt = Runtime::new(driver, size.width, size.height);
     Self { rt, tree }
   }
@@ -121,6 +121,7 @@ impl WinitDriver {
 
 pub struct WgpuHtml {
   pub(crate) window: Arc<Window>,
+  clipboard: std::cell::RefCell<Option<arboard::Clipboard>>,
 }
 
 impl Driver for WgpuHtml {
@@ -145,6 +146,18 @@ impl Driver for WgpuHtml {
 
   fn set_cursor(&self, cursor: Cursor) {
     self.window.set_cursor(css_cursor_to_winit(cursor));
+  }
+
+  fn set_clipboard_text(&self, text: &str) {
+    let mut cb = self.clipboard.borrow_mut();
+    let cb = cb.get_or_insert_with(|| arboard::Clipboard::new().expect("clipboard init"));
+    let _ = cb.set_text(text);
+  }
+
+  fn get_clipboard_text(&self) -> Option<String> {
+    let mut cb = self.clipboard.borrow_mut();
+    let cb = cb.get_or_insert_with(|| arboard::Clipboard::new().expect("clipboard init"));
+    cb.get_text().ok()
   }
 }
 

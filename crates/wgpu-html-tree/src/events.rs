@@ -238,6 +238,7 @@ pub struct InteractionState {
   /// Active range-slider drag: path to the `<input type="range">`
   /// being dragged plus its content rect for position calculation.
   pub range_drag: Option<RangeDrag>,
+  pub undo_stack: UndoStack,
 }
 
 #[derive(Debug, Clone)]
@@ -247,6 +248,47 @@ pub struct RangeDrag {
   pub content_w: f32,
   pub min: f32,
   pub max: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct UndoEntry {
+  pub value: String,
+  pub cursor: EditCursor,
+}
+
+const UNDO_LIMIT: usize = 100;
+
+#[derive(Debug, Clone, Default)]
+pub struct UndoStack {
+  undo: Vec<UndoEntry>,
+  redo: Vec<UndoEntry>,
+}
+
+impl UndoStack {
+  pub fn push(&mut self, entry: UndoEntry) {
+    if self.undo.len() >= UNDO_LIMIT {
+      self.undo.remove(0);
+    }
+    self.undo.push(entry);
+    self.redo.clear();
+  }
+
+  pub fn undo(&mut self, current: UndoEntry) -> Option<UndoEntry> {
+    let prev = self.undo.pop()?;
+    self.redo.push(current);
+    Some(prev)
+  }
+
+  pub fn redo(&mut self, current: UndoEntry) -> Option<UndoEntry> {
+    let next = self.redo.pop()?;
+    self.undo.push(current);
+    Some(next)
+  }
+
+  pub fn clear(&mut self) {
+    self.undo.clear();
+    self.redo.clear();
+  }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -278,6 +320,7 @@ impl Default for InteractionState {
       drag_active_source: None,
       drag_target_path: None,
       range_drag: None,
+      undo_stack: UndoStack::default(),
     }
   }
 }

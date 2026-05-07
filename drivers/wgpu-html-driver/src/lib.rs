@@ -464,6 +464,7 @@ impl<D: Driver> Runtime<D> {
       self.scroll_y,
       &mut self.pipeline_cache,
     );
+    tree.dirty_paths.clear();
 
     if let Some(layout) = layout {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
@@ -644,6 +645,7 @@ impl<D: Driver> Runtime<D> {
       self.scroll_y,
       &mut self.pipeline_cache,
     );
+    tree.dirty_paths.clear();
 
     if let Some(layout) = layout {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);

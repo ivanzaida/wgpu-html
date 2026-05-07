@@ -28,6 +28,7 @@ pub use dispatch::{
 pub use events::{
   EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,
   MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset, SelectionColors, TextCursor, TextSelection,
+  UndoEntry, UndoStack,
 };
 pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,
@@ -132,6 +133,15 @@ pub struct Tree {
   /// so that [`wgpu_html::PipelineAction::LayoutOnly`] can skip the
   /// full CSS cascade.
   pub cascade_generation: u64,
+  /// Bumped when only form control visual state changes (checkbox
+  /// checked, radio checked, range value, color value). These don't
+  /// affect geometry — the pipeline can patch LayoutBox fields
+  /// in-place and skip relayout.
+  pub form_control_generation: u64,
+  /// Node paths whose content changed since last layout. The
+  /// incremental layout pass uses these to skip unchanged subtrees.
+  /// Cleared by the pipeline after each frame.
+  pub dirty_paths: Vec<Vec<usize>>,
   /// Optional per-frame profiler. When `Some`, the cascade → layout
   /// → paint pipeline records each stage's wall-clock duration.
   /// Cleared at the start of every frame.
@@ -159,6 +169,8 @@ impl Default for Tree {
       hooks: Vec::new(),
       generation: 0,
       cascade_generation: 0,
+      form_control_generation: 0,
+      dirty_paths: Vec::new(),
       profiler: None,
       asset_root: None,
       custom_elements: CustomElementRegistry::new(),

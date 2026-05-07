@@ -9,4 +9,5 @@ mod layout_hit;
 mod layout_overflow;
 mod layout_placeholder;
 mod layout_pseudo;
+mod layout_incremental;
 mod layout_svg;

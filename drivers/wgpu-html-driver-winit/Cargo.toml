@@ -8,3 +8,4 @@ wgpu-html.workspace      = true
 wgpu-html-driver         = { path = "../wgpu-html-driver" }
 wgpu-html-tree.workspace = true
 winit.workspace          = true
+arboard.workspace        = true

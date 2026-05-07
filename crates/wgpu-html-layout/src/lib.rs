@@ -958,6 +958,186 @@ fn intersect_rects_for_hit(a: Rect, b: Rect) -> Rect {
 ///
 /// Use this after `cascade_incremental` returns `true` when all
 /// pseudo-class rules are known to be paint-only.
+pub fn patch_form_controls(layout: &mut LayoutBox, tree: &Tree) {
+  if let Some(root) = &tree.root {
+    patch_fc_recursive(layout, root);
+  }
+}
+
+fn patch_fc_recursive(b: &mut LayoutBox, node: &Node) {
+  b.form_control = form_control_info_from_element(&node.element);
+  for (child_box, child_node) in b.children.iter_mut().zip(node.children.iter()) {
+    patch_fc_recursive(child_box, child_node);
+  }
+}
+
+/// Incrementally update a cached LayoutBox tree, re-laying-out only
+/// dirty subtrees and shifting clean siblings. Falls back to full
+/// relayout when dirty_paths is empty or the root dimensions change.
+pub fn layout_incremental(
+  cascaded: &CascadedTree,
+  prev: &mut LayoutBox,
+  dirty_paths: &[Vec<usize>],
+  text_ctx: &mut TextContext,
+  image_cache: &mut ImageCache,
+  viewport_w: f32,
+  viewport_h: f32,
+  scale: f32,
+) -> bool {
+  let Some(root) = cascaded.root.as_ref() else {
+    return false;
+  };
+  let mut ctx = Ctx {
+    viewport_w,
+    viewport_h,
+    scale,
+    text: TextCtx { ctx: text_ctx },
+    images: image_cache,
+    profiler: None,
+  };
+  let path = Vec::new();
+  let dy = relayout_children(prev, root, dirty_paths, &path, viewport_w, viewport_h, &mut ctx);
+  if dy.abs() > 0.01 {
+    prev.content_rect.h += dy;
+    prev.border_rect.h += dy;
+    prev.margin_rect.h += dy;
+    prev.background_rect.h += dy;
+  }
+  dy.abs() > 0.01
+}
+
+fn path_is_dirty(dirty_paths: &[Vec<usize>], path: &[usize]) -> bool {
+  dirty_paths.iter().any(|dp| dp.as_slice() == path)
+}
+
+fn path_is_ancestor_of_dirty(dirty_paths: &[Vec<usize>], path: &[usize]) -> bool {
+  dirty_paths.iter().any(|dp| dp.len() > path.len() && dp.starts_with(path))
+}
+
+fn is_flex_or_grid(style: &Style) -> bool {
+  matches!(
+    style.display.as_ref(),
+    Some(Display::Flex | Display::InlineFlex | Display::Grid | Display::InlineGrid)
+  )
+}
+
+fn relayout_children(
+  parent_box: &mut LayoutBox,
+  parent_node: &CascadedNode,
+  dirty_paths: &[Vec<usize>],
+  current_path: &[usize],
+  container_w: f32,
+  container_h: f32,
+  ctx: &mut Ctx,
+) -> f32 {
+  let effective = effective_children(parent_node);
+  if effective.len() != parent_box.children.len() {
+    return 0.0;
+  }
+
+  let mut cursor_dy = 0.0_f32;
+
+  for (i, (child_box, child_node)) in parent_box
+    .children
+    .iter_mut()
+    .zip(effective.iter())
+    .enumerate()
+  {
+    let mut child_path = current_path.to_vec();
+    child_path.push(i);
+
+    if cursor_dy.abs() > 0.01 {
+      translate_box_y_in_place(child_box, cursor_dy);
+    }
+
+    let is_dirty = path_is_dirty(dirty_paths, &child_path);
+    let is_ancestor = path_is_ancestor_of_dirty(dirty_paths, &child_path);
+
+    if is_dirty {
+      let old_h = child_box.margin_rect.h;
+      let style = &child_node.style;
+      let child_position = style.position.clone().unwrap_or(Position::Static);
+      let containing_block = Rect::new(
+        parent_box.content_rect.x,
+        parent_box.content_rect.y,
+        container_w,
+        container_h,
+      );
+      if is_out_of_flow_position(child_position.clone()) {
+        *child_box = layout_out_of_flow_block(
+          child_node,
+          child_box.margin_rect.x,
+          child_box.margin_rect.y,
+          container_w,
+          container_h,
+          containing_block,
+          ctx,
+        );
+      } else {
+        *child_box = layout_block(
+          child_node,
+          child_box.margin_rect.x,
+          child_box.margin_rect.y,
+          container_w,
+          container_h,
+          containing_block,
+          BlockOverrides::default(),
+          ctx,
+        );
+      }
+      let new_h = child_box.margin_rect.h;
+      if !is_out_of_flow_position(child_position) {
+        cursor_dy += new_h - old_h;
+      }
+    } else if is_ancestor {
+      if is_flex_or_grid(&child_node.style) {
+        let old_h = child_box.margin_rect.h;
+        let containing_block = Rect::new(
+          parent_box.content_rect.x,
+          parent_box.content_rect.y,
+          container_w,
+          container_h,
+        );
+        *child_box = layout_block(
+          child_node,
+          child_box.margin_rect.x,
+          child_box.margin_rect.y,
+          container_w,
+          container_h,
+          containing_block,
+          BlockOverrides::default(),
+          ctx,
+        );
+        let new_h = child_box.margin_rect.h;
+        let child_position = child_node.style.position.clone().unwrap_or(wgpu_html_models::common::css_enums::Position::Static);
+        if !is_out_of_flow_position(child_position) {
+          cursor_dy += new_h - old_h;
+        }
+      } else {
+        let inner_w = child_box.content_rect.w;
+        let inner_h = child_box.content_rect.h;
+        let dy = relayout_children(child_box, child_node, dirty_paths, &child_path, inner_w, inner_h, ctx);
+        if dy.abs() > 0.01 {
+          let has_explicit_h = child_node.style.height.is_some();
+          if !has_explicit_h {
+            child_box.content_rect.h += dy;
+            child_box.border_rect.h += dy;
+            child_box.margin_rect.h += dy;
+            child_box.background_rect.h += dy;
+            let child_position = child_node.style.position.clone().unwrap_or(wgpu_html_models::common::css_enums::Position::Static);
+            if !is_out_of_flow_position(child_position) {
+              cursor_dy += dy;
+            }
+          }
+        }
+      }
+    }
+    // else: clean + not ancestor → skip (already shifted if needed)
+  }
+
+  cursor_dy
+}
+
 pub fn patch_layout_colors(layout: &mut LayoutBox, cascaded: &CascadedTree) {
   if let Some(root) = &cascaded.root {
     patch_node_colors(layout, root, color::BLACK);
@@ -1941,8 +2121,12 @@ fn vcenter_run_in_rect(run: &mut wgpu_html_text::ShapedRun, box_h: f32) {
 }
 
 fn form_control_info(node: &CascadedNode) -> Option<FormControlInfo> {
+  form_control_info_from_element(&node.element)
+}
+
+fn form_control_info_from_element(element: &Element) -> Option<FormControlInfo> {
   use wgpu_html_models::common::html_enums::InputType;
-  let inp = match &node.element {
+  let inp = match element {
     Element::Input(inp) => inp,
     _ => return None,
   };

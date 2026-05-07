@@ -190,6 +190,10 @@ pub enum PipelineAction {
   /// unchanged — the cascaded CSS tree is still valid.  Only
   /// re-layout and repaint; skip the full cascade.
   LayoutOnly,
+  /// Only form control visual state changed (checkbox checked, range
+  /// value, etc.). Patch `FormControlInfo` fields in the cached
+  /// LayoutBox in-place, then repaint. No cascade or layout needed.
+  PatchFormControls,
   /// Layout is unchanged; only repaint (scroll / selection / caret changed).
   RepaintOnly,
 }
@@ -203,6 +207,7 @@ pub struct PipelineCache {
   font_generation: u64,
   tree_generation: u64,
   cascade_generation: u64,
+  form_control_generation: u64,
   layout: Option<LayoutBox>,
   /// Cached cascade result for incremental re-cascade.
   cascaded: Option<wgpu_html_style::CascadedTree>,
@@ -228,6 +233,7 @@ impl PipelineCache {
       font_generation: u64::MAX, // force first frame to run
       tree_generation: u64::MAX,
       cascade_generation: u64::MAX,
+      form_control_generation: u64::MAX,
       layout: None,
       cascaded: None,
       paint_only_pseudo_rules: false,
@@ -275,9 +281,12 @@ pub fn classify_frame(
   {
     return PipelineAction::FullPipeline;
   }
+  if tree.generation == cache.tree_generation
+    && tree.form_control_generation != cache.form_control_generation
+  {
+    return PipelineAction::PatchFormControls;
+  }
   if tree.generation != cache.tree_generation {
-    // If only inline styles / text changed (same selectors)
-    // we can skip the CSS cascade and just re-layout.
     if tree.cascade_generation == cache.cascade_generation {
       return PipelineAction::LayoutOnly;
     }
@@ -348,6 +357,7 @@ pub fn paint_tree_cached<'c>(
       cache.scale = scale;
       cache.font_generation = tree.fonts.generation();
       cache.tree_generation = tree.generation;
+      cache.form_control_generation = tree.form_control_generation;
       cache.paint_only_pseudo_rules = wgpu_html_style::pseudo_rules_are_paint_only(tree);
     }
     PipelineAction::PartialCascade => {
@@ -392,16 +402,30 @@ pub fn paint_tree_cached<'c>(
         }
       }
       cache.snapshot = tree.interaction.cascade_snapshot();
+      cache.form_control_generation = tree.form_control_generation;
     }
     PipelineAction::LayoutOnly => {
-      // Re-use the cached cascade — only inline styles or text
-      // changed, so the cascaded CSS tree is still valid.
       let layout_t0 = Instant::now();
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-        if let Some(cascaded) = &cache.cascaded {
-          cache.layout =
-            wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+        let dirty = &tree.dirty_paths;
+        let did_incremental = if !dirty.is_empty() {
+          if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
+            wgpu_html_layout::layout_incremental(
+              cascaded, layout, &dirty, text_ctx, image_cache, viewport_w, viewport_h, scale,
+            );
+            true
+          } else {
+            false
+          }
+        } else {
+          false
+        };
+        if !did_incremental {
+          if let Some(cascaded) = &cache.cascaded {
+            cache.layout =
+              wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+          }
         }
       }
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
@@ -410,6 +434,13 @@ pub fn paint_tree_cached<'c>(
       cache.viewport = (viewport_w, viewport_h);
       cache.scale = scale;
       cache.tree_generation = tree.generation;
+      cache.form_control_generation = tree.form_control_generation;
+    }
+    PipelineAction::PatchFormControls => {
+      if let Some(layout) = &mut cache.layout {
+        wgpu_html_layout::patch_form_controls(layout, tree);
+      }
+      cache.form_control_generation = tree.form_control_generation;
     }
     PipelineAction::RepaintOnly => {}
   }
