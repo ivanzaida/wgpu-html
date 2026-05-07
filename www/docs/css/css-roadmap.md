@@ -54,15 +54,19 @@ The stylesheet parser at `stylesheet.rs:310` skips every `@`-prefixed block exce
 
 `::before` and `::after` are fully supported with `content` string values. The cascade computes pseudo-element styles on `CascadedNode.before`/`.after`, and layout injects synthetic children into both block and inline formatting contexts.
 
-| Pseudo-element | Parser | Cascade | Renderer |
-|---------------|--------|---------|----------|
-| `::before` | ✅ parsed | ✅ **matched + styled** | ✅ **rendered** (block + inline) |
-| `::after` | ✅ parsed | ✅ **matched + styled** | ✅ **rendered** (block + inline) |
-| `::first-line` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on first-line glyphs |
-| `::first-letter` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on first glyph |
-| `::placeholder` | ✅ parsed | ✅ **matched + styled** | ✅ **color override** on placeholder text |
-| `::selection` | ✅ parsed | ✅ **matched + styled** | ✅ **color + background** override on selected text |
-| `::marker` | ✅ parsed | ✅ **auto-generated** | ✅ **bullets + numbered** (disc/circle/square, decimal, alpha, roman) |
+| Pseudo-element | Parser | Cascade | Renderer | Notes |
+|---------------|--------|---------|----------|-------|
+| `::before` | ✅ | ✅ matched + styled | ✅ rendered (block + inline) | |
+| `::after` | ✅ | ✅ matched + styled | ✅ rendered (block + inline) | |
+| `::first-line` | ✅ | ✅ matched + styled | ✅ color override on first-line glyphs | |
+| `::first-letter` | ✅ | ✅ matched + styled | ✅ color override on first glyph | |
+| `::marker` | ✅ | ✅ auto-generated | ✅ bullets + numbers (disc/circle/square, decimal, alpha, roman) | |
+| `::placeholder` | ✅ | ✅ matched + styled | ✅ color override on placeholder text | |
+| `::selection` | ✅ | ✅ matched + styled | ✅ color + background override on selected text | |
+| `::backdrop` | ❌ | ❌ | ❌ | Requires top-layer / `<dialog>` fullscreen rendering |
+| `::cue` | ❌ | ❌ | ❌ | WebVTT subtitle styling; requires `<video>` subtitle support |
+| `::details-content` | ❌ | ❌ | ❌ | Requires `<details>`/`<summary>` open/close toggle |
+| `::file-selector-button` | ❌ | ❌ | ❌ | Requires `<input type="file">` native file-picker UI |
 
 ### Layout gaps
 
@@ -129,7 +133,7 @@ These properties are parsed into the `Style` struct or stored as raw strings, bu
 
 | Value | Parser | Resolution |
 |-------|--------|-----------|
-| `currentColor` | `CssColor::CurrentColor` | Returns `None` at resolve time (`color.rs:14`) — borders without explicit color are invisible |
+| ~~`currentColor`~~ | ~~`CssColor::CurrentColor`~~ | ✅ **Done** — resolves to inherited `color`; borders without explicit color use foreground |
 | `color-mix()` | `CssColor::Function(String)` | Returns `None` |
 | `lab()` / `lch()` / `oklab()` / `oklch()` | `CssColor::Function(String)` | Returns `None` |
 | `color()` function | `CssColor::Function(String)` | Returns `None` |
@@ -197,13 +201,13 @@ The shortest path to "full CSS producer-grade engine":
 
 | Priority | Task | Impact |
 |----------|------|--------|
-| ~~1~~ | ~~Port query engine selectors into cascade~~ | ✅ **Done** — cascade already delegates to query.rs's full CSS4 matching |
-| 2 | Implement `currentColor` resolution | Fixes invisible borders, text decorations, etc. |
-| ~~3~~ | ~~Build gradient rasterizer (linear + radial + conic)~~ | ✅ **Done** — `linear-gradient`, `radial-gradient`, `conic-gradient` + repeating variants |
+| ~~1~~ | ~~Port query engine selectors into cascade~~ | ✅ **Done** — full CSS4 selectors in cascade |
+| ~~2~~ | ~~Implement `currentColor` resolution~~ | ✅ **Done** — borders, backgrounds, pseudo-elements |
+| ~~3~~ | ~~Build gradient rasterizer~~ | ✅ **Done** — linear/radial/conic + repeating |
+| ~~7~~ | ~~Pseudo-element rendering~~ | ✅ **Done** — `::before`/`::after`/`::marker`/`::first-line`/`::first-letter`/`::placeholder`/`::selection` |
 | 4 | Implement `@keyframes` + animation engine | Motion design becomes possible |
 | 5 | Float layout | Required for text-wrap-around-images layouts |
 | 6 | Table layout algorithm | Required for data tables |
-| 7 | Pseudo-element rendering (`::before`/`::after`) | Generated content, clearfix, decorative elements |
 | 8 | `box-shadow` / `text-shadow` rendering | Visual depth |
 | 9 | Multi-column layout | Text-heavy page layouts |
 | 10 | Transforms (`transform`, `transform-origin`) | Animations, layout adjustments |
