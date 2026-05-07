@@ -44,15 +44,15 @@ use std::{
 
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use wgpu_html::{
-  PipelineCache, PipelineTimings, events as ev, interactivity,
-  layout::{Cursor, LayoutBox},
-  renderer::{DisplayList, FrameOutcome, GLYPH_ATLAS_SIZE, Rect, Renderer},
+  events as ev, interactivity, layout::{Cursor, LayoutBox}, renderer::{DisplayList, FrameOutcome, Rect, Renderer, GLYPH_ATLAS_SIZE},
   scroll::{
-    ElementScrollbarDrag, clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at,
-    scroll_y_from_thumb_top, scrollbar_geometry, translate_display_list_x, translate_display_list_y,
-    viewport_to_document,
+    clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at, translate_display_list_x
+    , translate_display_list_y, viewport_to_document,
+    ElementScrollbarDrag,
   },
-  select_all_text, selected_text,
+  select_all_text,
+  selected_text,
+  PipelineCache, PipelineTimings,
 };
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{MouseButton, Tree};
@@ -172,8 +172,9 @@ pub struct ProfilingOverlay {
   bar_gap: f32,
   margin: f32,
   fps: f32,
-  frame_times: [f64; 60],
-  frame_time_idx: usize,
+  frame_count: u64,
+  last_fps_time: Instant,
+  last_fps_count: u64,
   cascade_avg: f32,
   layout_avg: f32,
   paint_avg: f32,
@@ -185,13 +186,14 @@ impl ProfilingOverlay {
     Self {
       enabled: false,
       frame_budget_ms: 1000.0 / 60.0,
-      bar_width: 140.0,
-      bar_height: 5.0,
-      bar_gap: 1.0,
-      margin: 8.0,
+      bar_width: 210.0,
+      bar_height: 7.5,
+      bar_gap: 1.5,
+      margin: 12.0,
       fps: 0.0,
-      frame_times: [0.0; 60],
-      frame_time_idx: 0,
+      frame_count: 0,
+      last_fps_time: Instant::now(),
+      last_fps_count: 0,
       cascade_avg: 0.0,
       layout_avg: 0.0,
       paint_avg: 0.0,
@@ -201,13 +203,14 @@ impl ProfilingOverlay {
 
   const ALPHA: f32 = 0.1;
 
-  fn record(&mut self, timings: &PipelineTimings, frame_ms: f64) {
-    self.frame_times[self.frame_time_idx % 60] = frame_ms;
-    self.frame_time_idx = self.frame_time_idx.wrapping_add(1);
-    let count = (self.frame_time_idx.min(60)) as usize;
-    if count > 0 {
-      let avg_ms = self.frame_times[..count].iter().sum::<f64>() / count as f64;
-      self.fps = if avg_ms > 0.0 { (1000.0 / avg_ms) as f32 } else { 0.0 };
+  fn record(&mut self, timings: &PipelineTimings, _frame_ms: f64) {
+    self.frame_count += 1;
+    let elapsed = self.last_fps_time.elapsed();
+    if elapsed.as_millis() >= 500 {
+      let frames = self.frame_count - self.last_fps_count;
+      self.fps = frames as f32 / elapsed.as_secs_f32();
+      self.last_fps_time = Instant::now();
+      self.last_fps_count = self.frame_count;
     }
     let a = Self::ALPHA;
     self.cascade_avg = a * timings.cascade_ms as f32 + (1.0 - a) * self.cascade_avg;
@@ -228,11 +231,13 @@ impl ProfilingOverlay {
     )
   }
 
-  fn draw_bars(&self, list: &mut DisplayList, viewport_w: f32, viewport_h: f32) {
+  fn draw_bars(&self, list: &mut DisplayList, viewport_w: f32, _viewport_h: f32) {
     let panel_w = self.bar_width + self.margin * 2.0;
-    let panel_h = self.margin * 2.0 + (self.bar_height + self.bar_gap) * 4.0;
+    let bars_h = self.margin * 2.0 + (self.bar_height + self.bar_gap) * 4.0;
+    let text_h = 12.0 + 4.0 * 12.0 + 6.0;
+    let panel_h = bars_h + text_h;
     let x = viewport_w - panel_w - self.margin;
-    let y = viewport_h - panel_h - self.margin;
+    let y = self.margin;
 
     list.push_quad_rounded(
       Rect {
@@ -269,8 +274,27 @@ impl ProfilingOverlay {
         [1.5; 4],
       );
     }
-  }
 
+    // FPS number below bars using tiny quads as pixel digits.
+    let fps_y = y + bars_h + 2.0;
+    let fps_text = format!("FPS {:.0}", self.fps);
+    draw_pixel_string(list, x + self.margin, fps_y, &fps_text, [0.0, 1.0, 0.0, 0.9]);
+
+    // Stage labels + ms values
+    let labels = [
+      ("C", self.cascade_avg, [0.9, 0.3, 0.3, 0.9]),
+      ("L", self.layout_avg, [0.3, 0.5, 0.9, 0.9]),
+      ("P", self.paint_avg, [0.3, 0.9, 0.3, 0.9]),
+      ("R", self.render_avg, [0.9, 0.8, 0.2, 0.9]),
+    ];
+    let label_y = fps_y + 12.0;
+    for (i, (label, ms, color)) in labels.iter().enumerate() {
+      let ly = label_y + i as f32 * 12.0;
+      draw_pixel_string(list, x + self.margin, ly, label, *color);
+      let ms_text = format!("{:.1}", ms);
+      draw_pixel_string(list, x + self.margin + 15.0, ly, &ms_text, [0.8, 0.8, 0.8, 0.8]);
+    }
+  }
   /// Inject or update the profiling overlay `<div>` in the tree.
   fn sync_overlay(&mut self, tree: &mut Tree) {
     let id = "__wgpu_profiling";
@@ -467,6 +491,7 @@ impl<D: Driver> Runtime<D> {
     tree.dirty_paths.clear();
 
     if let Some(layout) = layout {
+      wgpu_html::update_edit_scroll(tree, layout);
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
       if let Some([r, g, b, a]) = layout.background {
         self.renderer.clear_color = wgpu::Color {
@@ -1072,5 +1097,58 @@ impl<D: Driver> Runtime<D> {
       count,
     });
     count
+  }
+}
+
+// ── Pixel-font overlay helpers ──────────────────────────────────────────────
+
+const PIXEL_SIZE: f32 = 2.5;
+const CHAR_W: f32 = 4.0 * PIXEL_SIZE;
+const CHAR_H: f32 = 5.0 * PIXEL_SIZE;
+const CHAR_GAP: f32 = 1.0 * PIXEL_SIZE;
+
+fn draw_pixel_string(list: &mut DisplayList, x: f32, y: f32, s: &str, color: [f32; 4]) {
+  let mut cx = x;
+  for ch in s.chars() {
+    draw_pixel_char(list, cx, y, ch, color);
+    cx += CHAR_W + CHAR_GAP;
+  }
+}
+
+fn draw_pixel_char(list: &mut DisplayList, x: f32, y: f32, ch: char, color: [f32; 4]) {
+  let bitmap: [u8; 5] = match ch {
+    '0' => [0b1111, 0b1001, 0b1001, 0b1001, 0b1111],
+    '1' => [0b0010, 0b0110, 0b0010, 0b0010, 0b0111],
+    '2' => [0b1111, 0b0001, 0b1111, 0b1000, 0b1111],
+    '3' => [0b1111, 0b0001, 0b0111, 0b0001, 0b1111],
+    '4' => [0b1001, 0b1001, 0b1111, 0b0001, 0b0001],
+    '5' => [0b1111, 0b1000, 0b1111, 0b0001, 0b1111],
+    '6' => [0b1111, 0b1000, 0b1111, 0b1001, 0b1111],
+    '7' => [0b1111, 0b0001, 0b0010, 0b0100, 0b0100],
+    '8' => [0b1111, 0b1001, 0b1111, 0b1001, 0b1111],
+    '9' => [0b1111, 0b1001, 0b1111, 0b0001, 0b1111],
+    '.' => [0b0000, 0b0000, 0b0000, 0b0000, 0b0100],
+    'C' => [0b1111, 0b1000, 0b1000, 0b1000, 0b1111],
+    'L' => [0b1000, 0b1000, 0b1000, 0b1000, 0b1111],
+    'P' => [0b1111, 0b1001, 0b1111, 0b1000, 0b1000],
+    'R' => [0b1111, 0b1001, 0b1111, 0b1010, 0b1001],
+    'F' => [0b1111, 0b1000, 0b1110, 0b1000, 0b1000],
+    'S' => [0b1111, 0b1000, 0b1111, 0b0001, 0b1111],
+    _ => [0b0000, 0b0000, 0b0000, 0b0000, 0b0000],
+  };
+  for (row, &bits) in bitmap.iter().enumerate() {
+    for col in 0..4 {
+      if bits & (1 << (3 - col)) != 0 {
+        list.push_quad(
+          Rect::new(
+            x + col as f32 * PIXEL_SIZE,
+            y + row as f32 * PIXEL_SIZE,
+            PIXEL_SIZE,
+            PIXEL_SIZE,
+          ),
+          color,
+        );
+      }
+    }
   }
 }

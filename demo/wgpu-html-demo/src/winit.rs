@@ -523,18 +523,11 @@ impl ApplicationHandler for DemoApp {
           }
         }
 
-        // Schedule next wake-up.
-        if self.driver.rt.image_cache.has_pending() {
-          event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100)));
-        } else if self.driver.rt.image_cache.has_animated() {
-          event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(50)));
-        } else if self.driver.tree.interaction.edit_cursor.is_some() {
-          let elapsed = self.driver.tree.interaction.caret_blink_epoch.elapsed().as_millis() as u64;
-          let next = 500u64.saturating_sub(elapsed % 500).max(16);
-          event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(next)));
-        } else {
-          event_loop.set_control_flow(ControlFlow::Wait);
-        }
+        // Always run at ~60 fps so the profiling overlay stays live
+        // and animations/caret blink stay smooth.
+        event_loop.set_control_flow(ControlFlow::WaitUntil(
+          Instant::now() + Duration::from_millis(16),
+        ));
       }
 
       // Keyboard is handled before dispatch to intercept F9/Esc/etc.
@@ -583,6 +576,8 @@ impl ApplicationHandler for DemoApp {
   }
 
   fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    self.driver.window().request_redraw();
+
     if let Some(devtools) = &mut self.devtools {
       devtools.poll(&self.driver.tree);
       let hover = devtools.hovered_path();
@@ -659,7 +654,7 @@ pub(crate) fn run(mut tree: Tree, doc_source: String, profiling_enabled: bool) -
   let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
 
   let mut driver = WinitDriver::bind(window, tree);
-  driver.rt.profiling.enabled = profiling_enabled;
+  driver.rt.profiling.enabled = true;
 
   let mut app = DemoApp::new(driver, profiling_enabled, devtools);
   event_loop.set_control_flow(ControlFlow::Wait);

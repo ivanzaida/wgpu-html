@@ -946,6 +946,7 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
 
   tree.interaction.focus_path = new_path.clone();
   tree.interaction.undo_stack.clear();
+  tree.interaction.edit_scroll_x = 0.0;
 
   // Initialize or clear the edit cursor for the new focus target.
   tree.interaction.edit_cursor = new_path.as_deref().and_then(|path| {
@@ -1359,14 +1360,14 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
   bubble_keyboard(tree, &target, ev::HtmlEventType::KEYDOWN, key, code, repeat);
 
-  // Undo / redo.
+  // Undo / redo (use physical `code` so it works regardless of keyboard language).
   if tree.interaction.modifiers.ctrl {
     let shift = tree.interaction.modifiers.shift;
-    if matches!(key, "z" | "Z") && !shift {
+    if code == "KeyZ" && !shift {
       handle_undo(tree);
       return true;
     }
-    if matches!(key, "y" | "Y") || (matches!(key, "z" | "Z") && shift) {
+    if code == "KeyY" || (code == "KeyZ" && shift) {
       handle_redo(tree);
       return true;
     }
@@ -1380,7 +1381,7 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   }
 
   // Handle editing keys on focused form controls before Tab.
-  handle_edit_key(tree, key);
+  handle_edit_key(tree, key, code);
 
   if key == "Tab" {
     let reverse = tree.interaction.modifiers.shift;
@@ -2810,7 +2811,7 @@ fn handle_redo(tree: &mut Tree) -> bool {
 /// Handle editing keys (Backspace, Delete, arrows, Home/End, Enter)
 /// when focus is on a form control. Called from `key_down`.
 /// Returns `true` if the key was consumed.
-fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
+fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
   let Some(focus_path) = tree.interaction.focus_path.clone() else {
     return false;
   };
@@ -2843,7 +2844,7 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
     "End" => Some(crate::text_edit::move_end(&old_value, &cursor, shift)),
     "ArrowUp" if is_textarea => Some(crate::text_edit::move_up(&old_value, &cursor, shift)),
     "ArrowDown" if is_textarea => Some(crate::text_edit::move_down(&old_value, &cursor, shift)),
-    _ if ctrl && matches!(key, "a" | "A") => Some(crate::text_edit::select_all(&old_value)),
+    _ if ctrl && code == "KeyA" => Some(crate::text_edit::select_all(&old_value)),
     _ => None,
   };
 

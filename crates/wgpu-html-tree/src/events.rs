@@ -209,6 +209,10 @@ pub struct InteractionState {
   /// Written by the text-edit dispatcher; read by layout (for scroll-
   /// into-view) and paint (for caret + selection highlight).
   pub edit_cursor: Option<EditCursor>,
+  /// Horizontal scroll offset (in pixels) for the focused single-line
+  /// input. Adjusted after each mutation to keep the caret visible
+  /// within the content rect.
+  pub edit_scroll_x: f32,
   /// Instant of last cursor movement or value edit. Paint uses this
   /// to animate caret blink (500 ms on, 500 ms off, restarting on
   /// every mutation so the caret stays visible while typing).
@@ -312,6 +316,7 @@ impl Default for InteractionState {
       buttons_down: 0,
       modifiers: Modifiers::default(),
       edit_cursor: None,
+      edit_scroll_x: 0.0,
       caret_blink_epoch: Instant::now(),
       focus_value_snapshot: None,
       last_click_time: Instant::now(),

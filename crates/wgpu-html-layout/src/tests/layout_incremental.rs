@@ -254,6 +254,84 @@ fn flex_container_height_change_shifts_following_block_sibling() {
   assert_trees_match(&inc, &full, "root");
 }
 
+// ── Column flex: recurse like block flow ───────────────────────────
+
+#[test]
+fn column_flex_dirty_child_only_relayouts_that_child() {
+  let html = r#"<body style="margin:0;">
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="height:50px;"></div>
+      <div style="height:50px;"></div>
+      <div style="height:50px;"></div>
+    </div>
+  </body>"#;
+  let (inc, full) = full_and_incremental(
+    html,
+    |tree| {
+      if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0, 0])) {
+        if let wgpu_html_tree::Element::Div(div) = &mut node.element {
+          div.style = Some("height:80px;".into());
+        }
+      }
+    },
+    &[vec![0, 0]],
+    800.0,
+    600.0,
+  );
+  assert_trees_match(&inc, &full, "root");
+}
+
+#[test]
+fn column_flex_nested_dirty_input() {
+  let html = r#"<body style="margin:0;">
+    <div style="display:flex; flex-direction:column; gap:5px;">
+      <div style="display:flex; flex-direction:column;">
+        <span>Label</span>
+        <input type="text" value="hello" style="display:block; height:30px;" />
+      </div>
+      <div style="height:40px;"></div>
+    </div>
+  </body>"#;
+  let (inc, full) = full_and_incremental(
+    html,
+    |tree| {
+      if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0, 0, 1])) {
+        if let wgpu_html_tree::Element::Input(inp) = &mut node.element {
+          inp.value = Some("hello world".into());
+        }
+      }
+    },
+    &[vec![0, 0, 1]],
+    800.0,
+    600.0,
+  );
+  assert_trees_match(&inc, &full, "root");
+}
+
+#[test]
+fn row_flex_dirty_child_fully_relayouts() {
+  let html = r#"<body style="margin:0;">
+    <div style="display:flex; flex-direction:row; gap:10px;">
+      <div style="width:100px; height:50px;"></div>
+      <div style="width:100px; height:50px;"></div>
+    </div>
+  </body>"#;
+  let (inc, full) = full_and_incremental(
+    html,
+    |tree| {
+      if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&[0, 0])) {
+        if let wgpu_html_tree::Element::Div(div) = &mut node.element {
+          div.style = Some("width:100px; height:80px;".into());
+        }
+      }
+    },
+    &[vec![0, 0]],
+    800.0,
+    600.0,
+  );
+  assert_trees_match(&inc, &full, "root");
+}
+
 // ── Grid container fallback ────────────────────────────────────────
 
 #[test]

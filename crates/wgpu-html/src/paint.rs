@@ -195,6 +195,8 @@ pub struct EditCaretInfo<'a> {
   pub selection_bytes: Option<(usize, usize)>,
   /// Whether the caret should be visible this frame (blink phase).
   pub caret_visible: bool,
+  /// Horizontal scroll offset for single-line inputs (pixels).
+  pub scroll_x: f32,
 }
 
 /// Compute the padding-box rect of a layout box. CSS-2.2 §11.1.1
@@ -372,6 +374,15 @@ fn paint_box_in_clip(
     let mut origin = b.content_rect;
     origin.x += paint_offset_x;
     origin.y += paint_offset_y;
+    // Apply horizontal scroll offset for focused single-line inputs.
+    let text_scroll_x = if b.text_unselectable {
+      edit_caret
+        .filter(|c| path.as_slice() == c.focus_path)
+        .map(|c| c.scroll_x)
+        .unwrap_or(0.0)
+    } else {
+      0.0
+    };
     // Form control text (placeholders + typed values) is excluded
     // from document-level drag-to-select, matching browser behavior.
     let selected_range = if b.text_unselectable || b.user_select == UserSelect::None {
@@ -421,7 +432,7 @@ fn paint_box_in_clip(
     let box_right = origin.x + origin.w;
 
     for (idx, g) in run.glyphs.iter().enumerate() {
-      let mut glyph_x = origin.x + g.x;
+      let mut glyph_x = origin.x + g.x - text_scroll_x;
       let mut glyph_w = g.w;
       let mut uv_min = g.uv_min;
       let mut uv_max = g.uv_max;
@@ -487,18 +498,22 @@ fn paint_box_in_clip(
           let start_g = byte_offset_to_glyph_index(run, sel_start);
           let end_g = byte_offset_to_glyph_index(run, sel_end);
           if start_g < end_g {
-            paint_selection_background(
+            let mut sel_origin = origin;
+            sel_origin.x -= text_scroll_x;
+            paint_selection_background_clipped(
               run,
-              origin,
+              sel_origin,
               start_g,
               end_g,
               apply_opacity(selection_colors.background, opacity),
+              box_left,
+              box_right,
               out,
             );
           }
         }
       }
-      // Caret: thin vertical bar at cursor byte offset.
+      // Caret: thin vertical bar at cursor byte offset, clamped to content box.
       if caret.caret_visible && path.as_slice() == caret.focus_path {
         let caret_glyph_idx = byte_offset_to_glyph_index(run, caret.cursor_byte);
         let caret_x = if caret_glyph_idx == 0 {
@@ -509,18 +524,21 @@ fn paint_box_in_clip(
         } else {
           run.width
         };
-        let (caret_y, caret_h) = run
-          .lines
-          .iter()
-          .find(|l| caret_glyph_idx >= l.glyph_range.0 && caret_glyph_idx <= l.glyph_range.1)
-          .map(|l| (l.top, l.height))
-          .or_else(|| run.lines.last().map(|l| (l.top, l.height)))
-          .unwrap_or((0.0, run.height.max(16.0)));
-        let caret_color = apply_opacity(color, opacity);
-        out.push_quad(
-          Rect::new(origin.x + caret_x, origin.y + caret_y, 1.5, caret_h),
-          caret_color,
-        );
+        let caret_screen_x = origin.x + caret_x - text_scroll_x;
+        if caret_screen_x >= box_left && caret_screen_x <= box_right {
+          let (caret_y, caret_h) = run
+            .lines
+            .iter()
+            .find(|l| caret_glyph_idx >= l.glyph_range.0 && caret_glyph_idx <= l.glyph_range.1)
+            .map(|l| (l.top, l.height))
+            .or_else(|| run.lines.last().map(|l| (l.top, l.height)))
+            .unwrap_or((0.0, run.height.max(16.0)));
+          let caret_color = apply_opacity(color, opacity);
+          out.push_quad(
+            Rect::new(caret_screen_x, origin.y + caret_y, 1.5, caret_h),
+            caret_color,
+          );
+        }
       }
     }
   }
@@ -793,6 +811,57 @@ fn selection_range_for_path(
   let from_glyph = run.char_to_glyph_index(from_char);
   let to_glyph = run.char_to_glyph_index(to_char);
   (from_glyph < to_glyph).then_some((from_glyph, to_glyph))
+}
+
+fn paint_selection_background_clipped(
+  run: &wgpu_html_text::ShapedRun,
+  origin: wgpu_html_layout::Rect,
+  start: usize,
+  end: usize,
+  color: wgpu_html_renderer::Color,
+  clip_left: f32,
+  clip_right: f32,
+  out: &mut DisplayList,
+) {
+  if run.glyphs.is_empty() || start >= end || start >= run.glyphs.len() {
+    return;
+  }
+  let end = end.min(run.glyphs.len());
+  for line in &run.lines {
+    let a = start.max(line.glyph_range.0);
+    let b = end.min(line.glyph_range.1);
+    if a >= b {
+      continue;
+    }
+    let mut x0 = f32::INFINITY;
+    let mut x1 = -f32::INFINITY;
+    for g in &run.glyphs[a..b] {
+      x0 = x0.min(g.x);
+      x1 = x1.max(g.x + g.w);
+    }
+    if x1 <= x0 {
+      continue;
+    }
+    let abs_x0 = (origin.x + x0).max(clip_left);
+    let abs_x1 = (origin.x + x1).min(clip_right);
+    if abs_x1 > abs_x0 {
+      let y = origin.y + line.top;
+      out.push_quad(Rect::new(abs_x0, y, abs_x1 - abs_x0, line.height), color);
+    }
+  }
+  if run.lines.is_empty() {
+    let mut x0 = f32::INFINITY;
+    let mut x1 = -f32::INFINITY;
+    for g in &run.glyphs[start..end] {
+      x0 = x0.min(g.x);
+      x1 = x1.max(g.x + g.w);
+    }
+    let abs_x0 = (origin.x + x0).max(clip_left);
+    let abs_x1 = (origin.x + x1).min(clip_right);
+    if abs_x1 > abs_x0 {
+      out.push_quad(Rect::new(abs_x0, origin.y, abs_x1 - abs_x0, run.height.max(1.0)), color);
+    }
+  }
 }
 
 fn paint_selection_background(
@@ -1403,7 +1472,7 @@ fn paint_edge(
 /// Convert a byte offset in a value string to a glyph index in the
 /// shaped run. Uses the run's `byte_boundaries` to map byte positions
 /// to glyph positions.
-fn byte_offset_to_glyph_index(run: &wgpu_html_text::ShapedRun, byte_offset: usize) -> usize {
+pub fn byte_offset_to_glyph_index(run: &wgpu_html_text::ShapedRun, byte_offset: usize) -> usize {
   if run.byte_boundaries.is_empty() {
     return 0;
   }

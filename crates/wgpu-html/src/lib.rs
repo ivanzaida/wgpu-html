@@ -154,6 +154,7 @@ pub fn paint_tree_returning_layout_profiled(
           cursor_byte: ec.cursor,
           selection_bytes: sel,
           caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+          scroll_x: tree.interaction.edit_scroll_x,
         })
       });
       paint::paint_layout_full(
@@ -261,7 +262,7 @@ impl PipelineCache {
 pub fn classify_frame(
   tree: &Tree,
   cache: &PipelineCache,
-  image_cache: &wgpu_html_layout::ImageCache,
+  image_cache: &mut wgpu_html_layout::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -269,10 +270,7 @@ pub fn classify_frame(
   if cache.layout.is_none() || cache.cascaded.is_none() {
     return PipelineAction::FullPipeline;
   }
-  // Async images still loading or animated images advancing —
-  // must re-layout so newly-decoded images / next animation
-  // frames appear.
-  if image_cache.has_pending() || image_cache.has_animated() {
+  if image_cache.has_animated() {
     return PipelineAction::FullPipeline;
   }
   if (cache.viewport.0 - viewport_w).abs() > 0.5
@@ -357,6 +355,7 @@ pub fn paint_tree_cached<'c>(
       cache.scale = scale;
       cache.font_generation = tree.fonts.generation();
       cache.tree_generation = tree.generation;
+      cache.cascade_generation = tree.cascade_generation;
       cache.form_control_generation = tree.form_control_generation;
       cache.paint_only_pseudo_rules = wgpu_html_style::pseudo_rules_are_paint_only(tree);
     }
@@ -405,10 +404,23 @@ pub fn paint_tree_cached<'c>(
       cache.form_control_generation = tree.form_control_generation;
     }
     PipelineAction::LayoutOnly => {
+      // Patch Element data on dirty nodes in the cached cascade so
+      // layout sees fresh input values / text content without a
+      // full re-cascade (which is expensive).
+      let dirty = &tree.dirty_paths;
+      if !dirty.is_empty() {
+        if let (Some(cascaded), Some(root)) = (&mut cache.cascaded, &tree.root) {
+          if let Some(cascaded_root) = &mut cascaded.root {
+            for dp in dirty {
+              patch_cascaded_element(cascaded_root, root, dp);
+            }
+          }
+        }
+      }
+
       let layout_t0 = Instant::now();
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-        let dirty = &tree.dirty_paths;
         let did_incremental = if !dirty.is_empty() {
           if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
             wgpu_html_layout::layout_incremental(
@@ -422,6 +434,11 @@ pub fn paint_tree_cached<'c>(
           false
         };
         if !did_incremental {
+          let cascade_t0 = Instant::now();
+          let media = media_context(viewport_w, viewport_h, scale);
+          let cascaded = wgpu_html_style::cascade_with_media(tree, &media);
+          cache.cascaded = Some(cascaded);
+          timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
           if let Some(cascaded) = &cache.cascaded {
             cache.layout =
               wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
@@ -464,6 +481,7 @@ pub fn paint_tree_cached<'c>(
           cursor_byte: ec.cursor,
           selection_bytes: sel,
           caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+          scroll_x: tree.interaction.edit_scroll_x,
         })
       });
       paint::paint_layout_full(
@@ -505,6 +523,59 @@ pub fn layout_at_path<'a>(root: &'a LayoutBox, path: &[usize]) -> Option<&'a Lay
     cur = cur.children.get(i)?;
   }
   Some(cur)
+}
+
+/// Update `tree.interaction.edit_scroll_x` so the caret stays visible
+/// within the focused input's content rect. Call after layout and
+/// before paint each frame.
+pub fn update_edit_scroll(tree: &mut Tree, layout: &layout::LayoutBox) {
+  let Some(ec) = &tree.interaction.edit_cursor else {
+    return;
+  };
+  let Some(fp) = tree.interaction.focus_path.as_deref() else {
+    return;
+  };
+  let Some(lb) = layout_at_path(layout, fp) else {
+    return;
+  };
+  let Some(run) = &lb.text_run else {
+    return;
+  };
+  let caret_glyph = paint::byte_offset_to_glyph_index(run, ec.cursor);
+  let caret_x = if caret_glyph == 0 {
+    0.0
+  } else if caret_glyph <= run.glyphs.len() {
+    let g = &run.glyphs[caret_glyph - 1];
+    g.x + g.w
+  } else {
+    run.width
+  };
+  let view_w = lb.content_rect.w;
+  let scroll = &mut tree.interaction.edit_scroll_x;
+  if caret_x - *scroll > view_w {
+    *scroll = caret_x - view_w;
+  }
+  if caret_x < *scroll {
+    *scroll = caret_x;
+  }
+  *scroll = scroll.max(0.0);
+}
+
+/// Patch the Element data at `path` in the cached CascadedTree from
+/// the live Tree, so layout sees fresh values without a full re-cascade.
+fn patch_cascaded_element(
+  cascaded: &mut wgpu_html_style::CascadedNode,
+  tree_node: &wgpu_html_tree::Node,
+  path: &[usize],
+) {
+  if path.is_empty() {
+    cascaded.element = tree_node.element.clone();
+    return;
+  }
+  let idx = path[0];
+  if let (Some(cc), Some(tc)) = (cascaded.children.get_mut(idx), tree_node.children.get(idx)) {
+    patch_cascaded_element(cc, tc, &path[1..]);
+  }
 }
 
 /// What can go wrong when capturing a screenshot of a single node

@@ -1014,11 +1014,20 @@ fn path_is_ancestor_of_dirty(dirty_paths: &[Vec<usize>], path: &[usize]) -> bool
   dirty_paths.iter().any(|dp| dp.len() > path.len() && dp.starts_with(path))
 }
 
-fn is_flex_or_grid(style: &Style) -> bool {
-  matches!(
-    style.display.as_ref(),
-    Some(Display::Flex | Display::InlineFlex | Display::Grid | Display::InlineGrid)
-  )
+fn needs_full_relayout(style: &Style) -> bool {
+  use wgpu_html_models::common::css_enums::FlexDirection;
+  match style.display.as_ref() {
+    Some(Display::Grid | Display::InlineGrid) => true,
+    Some(Display::Flex | Display::InlineFlex) => {
+      // Column flex stacks vertically like block flow — safe to
+      // recurse. Row flex (default) has cross-item width dependencies.
+      !matches!(
+        style.flex_direction,
+        Some(FlexDirection::Column | FlexDirection::ColumnReverse)
+      )
+    }
+    _ => false,
+  }
 }
 
 fn relayout_children(
@@ -1090,7 +1099,7 @@ fn relayout_children(
         cursor_dy += new_h - old_h;
       }
     } else if is_ancestor {
-      if is_flex_or_grid(&child_node.style) {
+      if needs_full_relayout(&child_node.style) {
         let old_h = child_box.margin_rect.h;
         let containing_block = Rect::new(
           parent_box.content_rect.x,
@@ -1795,11 +1804,12 @@ fn layout_block(
   // browser default `::placeholder` styling.
   // Value takes priority: if the field has a non-empty value, shape
   // that instead of the placeholder.
-  let (value_run, value_color) = compute_value_run(node, content_rect, ctx);
+  let pad_v = padding.vertical();
+  let (value_run, value_color) = compute_value_run(node, content_rect, pad_v, ctx);
   let (placeholder_run, placeholder_color) = if value_run.is_some() {
     (value_run, value_color)
   } else {
-    compute_placeholder_run(node, content_rect, ctx)
+    compute_placeholder_run(node, content_rect, pad_v, ctx)
   };
 
   let fc = form_control_info(node);
@@ -1851,6 +1861,7 @@ fn layout_block(
 fn compute_value_run(
   node: &CascadedNode,
   content_rect: Rect,
+  padding_vertical: f32,
   ctx: &mut Ctx,
 ) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
   use wgpu_html_models::common::html_enums::InputType;
@@ -1919,26 +1930,11 @@ fn compute_value_run(
     }
   }
 
-  // Single-line inputs: horizontal clip + vertical centering
-  // (same logic as compute_placeholder_run).
+  // Single-line inputs: vertical centering. Glyphs are kept in full
+  // (not truncated) — the paint pass clips to the content rect, and
+  // a per-input scroll offset keeps the caret visible.
   if !wraps_multiline {
     if let Some(run) = run.as_mut() {
-      let max_x = content_rect.w;
-      if max_x > 0.0 {
-        let cutoff = run
-          .glyphs
-          .iter()
-          .position(|g| g.x + g.w > max_x)
-          .unwrap_or(run.glyphs.len());
-        if cutoff < run.glyphs.len() {
-          run.glyphs.truncate(cutoff);
-          for line in run.lines.iter_mut() {
-            let (start, end) = line.glyph_range;
-            line.glyph_range = (start, end.min(cutoff).max(start));
-          }
-          run.width = run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
-        }
-      }
       vcenter_run_in_rect(run, content_rect.h);
     }
   }
@@ -1964,6 +1960,7 @@ fn compute_value_run(
 fn compute_placeholder_run(
   node: &CascadedNode,
   content_rect: Rect,
+  padding_vertical: f32,
   ctx: &mut Ctx,
 ) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
   use wgpu_html_models::common::html_enums::InputType;
@@ -2047,8 +2044,8 @@ fn compute_placeholder_run(
           run.width = run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
         }
       }
-      // 2. Vertical centering — centre the ink bounding box, not the
-      //    line-height box which includes leading.
+      // 2. Vertical centering — centre within the padding box so text
+      //    appears centered in the full input, not just the content area.
       vcenter_run_in_rect(run, content_rect.h);
     }
   }
@@ -3246,11 +3243,12 @@ fn layout_atomic_inline_subtree(
 
   // For form controls (`<input>`, `<textarea>`), attach the value
   // text or the placeholder attribute as the box's text run.
-  let (value_run, value_color) = compute_value_run(node, content_rect, ctx);
+  let pad_v = padding.vertical();
+  let (value_run, value_color) = compute_value_run(node, content_rect, pad_v, ctx);
   let (placeholder_run, placeholder_color) = if value_run.is_some() {
     (value_run, value_color)
   } else {
-    compute_placeholder_run(node, content_rect, ctx)
+    compute_placeholder_run(node, content_rect, pad_v, ctx)
   };
 
   let fc = form_control_info(node);

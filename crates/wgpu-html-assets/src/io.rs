@@ -180,8 +180,35 @@ impl<F: Fetcher + 'static> AssetIo<F> {
     self.load_file(url)
   }
 
-  pub fn has_pending(&self) -> bool {
+  pub fn has_pending(&mut self) -> bool {
+    self.drain_completed();
     self.cache.values().any(|e| matches!(e.status, EntryStatus::Pending))
+  }
+
+  fn drain_completed(&mut self) {
+    let Ok(mut map) = self.results.lock() else {
+      return;
+    };
+    let finished: Vec<(String, Option<FetchResponse>)> = map.drain().collect();
+    drop(map);
+    let now = Instant::now();
+    for (url, resp) in finished {
+      if let Some(entry) = self.cache.get_mut(&url) {
+        if matches!(entry.status, EntryStatus::Pending) {
+          match resp {
+            Some(r) => {
+              entry.status = EntryStatus::Ready(r.bytes.into());
+              entry.max_age = r.max_age;
+              entry.fetched_at = Some(now);
+            }
+            None => {
+              entry.status = EntryStatus::Failed;
+            }
+          }
+          self.generation += 1;
+        }
+      }
+    }
   }
 
   pub fn has_animated(&self) -> bool {
