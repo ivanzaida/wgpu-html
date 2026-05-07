@@ -2103,10 +2103,8 @@ fn vcenter_run_in_rect(run: &mut wgpu_html_text::ShapedRun, box_h: f32) {
   if run.glyphs.is_empty() {
     return;
   }
-  let min_y = run.glyphs.iter().map(|g| g.y).fold(f32::MAX, f32::min);
-  let max_y = run.glyphs.iter().map(|g| g.y + g.h).fold(0.0f32, f32::max);
-  let ink_h = max_y - min_y;
-  let dy = (box_h - ink_h) * 0.5 - min_y;
+  let line_h = run.height;
+  let dy = (box_h - line_h) * 0.5;
   if dy.abs() > 0.01 {
     for g in run.glyphs.iter_mut() {
       g.y += dy;
