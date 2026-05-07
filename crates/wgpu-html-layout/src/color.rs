@@ -34,7 +34,7 @@ pub fn resolve_color(c: &CssColor) -> Option<Color> {
 }
 
 /// `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa` → sRGB-encoded RGBA in 0..1.
-fn parse_hex(s: &str) -> Option<[f32; 4]> {
+pub(crate) fn parse_hex(s: &str) -> Option<[f32; 4]> {
   let s = s.strip_prefix('#').unwrap_or(s);
   let to_u8 = |hi: u8, lo: u8| -> Option<u8> {
     let h = (hi as char).to_digit(16)?;

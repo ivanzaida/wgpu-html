@@ -58,6 +58,7 @@ fn text_box(text: &str, x: f32) -> LayoutBox {
     background_image: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 
@@ -90,6 +91,7 @@ fn layout_at_path_walks_children() {
     background_image: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   };
   let mut leaf_b = leaf_a.clone();
   leaf_b.border_rect = wgpu_html_layout::Rect::new(50.0, 0.0, 50.0, 20.0);
@@ -184,6 +186,7 @@ fn text_box_with_spaces(text: &str, x: f32) -> LayoutBox {
     background_image: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 
@@ -265,6 +268,7 @@ fn select_all_spans_first_to_last_text_box() {
     background_image: None,
     children: vec![text_box("Hello", 0.0), text_box("World", 0.0)],
     is_fixed: false,
+    form_control: None,
   };
   let mut tree = Tree::new(wgpu_html_tree::Node::new("root"));
   assert!(select_all_text(&mut tree, &root));
@@ -304,6 +308,7 @@ fn selected_text_uses_newlines_between_different_parents_and_not_within_same_par
     background_image: None,
     children: vec![text_box("Hello ", 0.0), text_box("world", 48.0)],
     is_fixed: false,
+    form_control: None,
   };
   let root = LayoutBox {
     margin_rect: wgpu_html_layout::Rect::new(0.0, 0.0, 300.0, 60.0),
@@ -332,6 +337,7 @@ fn selected_text_uses_newlines_between_different_parents_and_not_within_same_par
     background_image: None,
     children: vec![inline_parent, text_box("Second", 0.0)],
     is_fixed: false,
+    form_control: None,
   };
   let mut tree = Tree::new(wgpu_html_tree::Node::new("root"));
   tree.interaction.selection = Some(TextSelection {

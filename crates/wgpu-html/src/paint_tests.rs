@@ -74,6 +74,7 @@ fn synthetic_text_layout() -> LayoutBox {
     background_image: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 
@@ -403,6 +404,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     cursor: Cursor::Auto,
     z_index: None,
     is_fixed: false,
+    form_control: None,
   };
   let h2_rect = LR::new(0.0, 100.0, 200.0, 24.0);
   let h2 = LayoutBox {
@@ -453,6 +455,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     cursor: Cursor::Auto,
     z_index: None,
     is_fixed: false,
+    form_control: None,
   };
   let body_rect = LR::new(0.0, 0.0, 800.0, 200.0);
   let body = LayoutBox {
@@ -482,6 +485,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     cursor: Cursor::Auto,
     z_index: None,
     is_fixed: false,
+    form_control: None,
   };
   let mut list = DisplayList::new();
   paint_layout(&body, &mut list);
@@ -1379,5 +1383,6 @@ fn simple_body_with_glyphs() -> LayoutBox {
     background_image: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }

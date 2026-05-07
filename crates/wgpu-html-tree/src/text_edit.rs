@@ -34,6 +34,52 @@ fn next_char(s: &str, pos: usize) -> usize {
   i
 }
 
+/// Byte offset of the start of the previous word boundary.
+fn prev_word(s: &str, pos: usize) -> usize {
+  let pos = pos.min(s.len());
+  if pos == 0 {
+    return 0;
+  }
+  let bytes = s.as_bytes();
+  let mut i = pos;
+  // Skip whitespace/punctuation backward
+  while i > 0 && s.is_char_boundary(i) {
+    let prev = prev_char(s, i);
+    if bytes[prev].is_ascii_alphanumeric() || bytes[prev] == b'_' {
+      break;
+    }
+    i = prev;
+  }
+  // Skip word chars backward
+  while i > 0 {
+    let prev = prev_char(s, i);
+    if !(bytes[prev].is_ascii_alphanumeric() || bytes[prev] == b'_') {
+      break;
+    }
+    i = prev;
+  }
+  i
+}
+
+/// Byte offset past the end of the next word boundary.
+fn next_word(s: &str, pos: usize) -> usize {
+  let pos = pos.min(s.len());
+  if pos >= s.len() {
+    return s.len();
+  }
+  let bytes = s.as_bytes();
+  let mut i = pos;
+  // Skip word chars forward
+  while i < s.len() && s.is_char_boundary(i) && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+    i = next_char(s, i);
+  }
+  // Skip whitespace/punctuation forward
+  while i < s.len() && s.is_char_boundary(i) && !(bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+    i = next_char(s, i);
+  }
+  i
+}
+
 // ── Insertions ───────────────────────────────────────────────────────────────
 
 /// Insert `text` at the cursor, replacing any selection.
@@ -176,6 +222,76 @@ pub fn select_all(value: &str) -> EditCursor {
     cursor: value.len(),
     selection_anchor: Some(0),
   }
+}
+
+// ── Word movement ───────────────────────────────────────────────────────────
+
+/// Move cursor left by one word (Ctrl+Left).
+pub fn move_word_left(value: &str, cursor: &EditCursor, extend_selection: bool) -> EditCursor {
+  if !extend_selection && cursor.has_selection() {
+    let (start, _) = cursor.selection_range();
+    return EditCursor::collapsed(start);
+  }
+  let pos = cursor.cursor.min(value.len());
+  let new_pos = prev_word(value, pos);
+  if extend_selection {
+    EditCursor {
+      cursor: new_pos,
+      selection_anchor: Some(cursor.selection_anchor.unwrap_or(pos)),
+    }
+  } else {
+    EditCursor::collapsed(new_pos)
+  }
+}
+
+/// Move cursor right by one word (Ctrl+Right).
+pub fn move_word_right(value: &str, cursor: &EditCursor, extend_selection: bool) -> EditCursor {
+  if !extend_selection && cursor.has_selection() {
+    let (_, end) = cursor.selection_range();
+    return EditCursor::collapsed(end);
+  }
+  let pos = cursor.cursor.min(value.len());
+  let new_pos = next_word(value, pos);
+  if extend_selection {
+    EditCursor {
+      cursor: new_pos,
+      selection_anchor: Some(cursor.selection_anchor.unwrap_or(pos)),
+    }
+  } else {
+    EditCursor::collapsed(new_pos)
+  }
+}
+
+/// Delete one word backward (Ctrl+Backspace).
+pub fn delete_word_backward(value: &str, cursor: &EditCursor) -> (String, EditCursor) {
+  if cursor.has_selection() {
+    return delete_selection(value, cursor);
+  }
+  let pos = cursor.cursor.min(value.len());
+  if pos == 0 {
+    return (value.to_string(), cursor.clone());
+  }
+  let word_start = prev_word(value, pos);
+  let mut result = String::with_capacity(value.len() - (pos - word_start));
+  result.push_str(&value[..word_start]);
+  result.push_str(&value[pos..]);
+  (result, EditCursor::collapsed(word_start))
+}
+
+/// Delete one word forward (Ctrl+Delete).
+pub fn delete_word_forward(value: &str, cursor: &EditCursor) -> (String, EditCursor) {
+  if cursor.has_selection() {
+    return delete_selection(value, cursor);
+  }
+  let pos = cursor.cursor.min(value.len());
+  if pos >= value.len() {
+    return (value.to_string(), cursor.clone());
+  }
+  let word_end = next_word(value, pos);
+  let mut result = String::with_capacity(value.len() - (word_end - pos));
+  result.push_str(&value[..pos]);
+  result.push_str(&value[word_end..]);
+  (result, EditCursor::collapsed(pos))
 }
 
 // ── Multi-line (textarea) ────────────────────────────────────────────────────

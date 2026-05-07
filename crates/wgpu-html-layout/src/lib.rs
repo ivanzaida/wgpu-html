@@ -513,6 +513,21 @@ pub struct LayoutBox {
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
   pub is_fixed: bool,
+  pub form_control: Option<FormControlInfo>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FormControlKind {
+  Checkbox { checked: bool },
+  Radio { checked: bool },
+  Range { value: f32, min: f32, max: f32 },
+  Color { r: f32, g: f32, b: f32, a: f32 },
+  File,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FormControlInfo {
+  pub kind: FormControlKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1607,6 +1622,9 @@ fn layout_block(
     compute_placeholder_run(node, content_rect, ctx)
   };
 
+  let fc = form_control_info(node);
+  let text_color = placeholder_color.or_else(|| if fc.is_some() { Some(fg) } else { None });
+
   LayoutBox {
     margin_rect,
     border_rect,
@@ -1620,7 +1638,7 @@ fn layout_block(
     border_radius,
     kind: BoxKind::Block,
     text_run: placeholder_run,
-    text_color: placeholder_color,
+    text_color,
     text_unselectable: true,
     text_decorations: Vec::new(),
     overflow: effective_overflow(style),
@@ -1638,6 +1656,7 @@ fn layout_block(
     selection_fg: None,
     children,
     is_fixed: false,
+    form_control: fc,
   }
 }
 
@@ -1658,7 +1677,17 @@ fn compute_value_run(
 
   let (value, is_password, wraps_multiline) = match &node.element {
     Element::Input(inp) => {
-      if matches!(inp.r#type, Some(InputType::Hidden)) {
+      if matches!(
+        inp.r#type,
+        Some(
+          InputType::Hidden
+            | InputType::Checkbox
+            | InputType::Radio
+            | InputType::Range
+            | InputType::Color
+            | InputType::File
+        )
+      ) {
         return (None, None);
       }
       let val = inp.value.as_deref().unwrap_or("");
@@ -1730,15 +1759,7 @@ fn compute_value_run(
           run.width = run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
         }
       }
-      let dy = ((content_rect.h - run.height) * 0.5).max(0.0);
-      if dy > 0.0 {
-        for g in run.glyphs.iter_mut() {
-          g.y += dy;
-        }
-        for line in run.lines.iter_mut() {
-          line.top += dy;
-        }
-      }
+      vcenter_run_in_rect(run, content_rect.h);
     }
   }
 
@@ -1778,8 +1799,17 @@ fn compute_placeholder_run(
       if inp.value.as_deref().is_some_and(|v| !v.is_empty()) {
         return (None, None);
       }
-      // Hidden inputs don't render at all.
-      if matches!(inp.r#type, Some(InputType::Hidden)) {
+      if matches!(
+        inp.r#type,
+        Some(
+          InputType::Hidden
+            | InputType::Checkbox
+            | InputType::Radio
+            | InputType::Range
+            | InputType::Color
+            | InputType::File
+        )
+      ) {
         return (None, None);
       }
       (inp.placeholder.as_deref(), false)
@@ -1837,16 +1867,9 @@ fn compute_placeholder_run(
           run.width = run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
         }
       }
-      // 2. Vertical centering.
-      let dy = ((content_rect.h - run.height) * 0.5).max(0.0);
-      if dy > 0.0 {
-        for g in run.glyphs.iter_mut() {
-          g.y += dy;
-        }
-        for line in run.lines.iter_mut() {
-          line.top += dy;
-        }
-      }
+      // 2. Vertical centering — centre the ink bounding box, not the
+      //    line-height box which includes leading.
+      vcenter_run_in_rect(run, content_rect.h);
     }
   }
 
@@ -1897,6 +1920,67 @@ pub(crate) fn form_control_default_line_height(node: &CascadedNode) -> bool {
     Element::Textarea(_) | Element::Select(_) | Element::Button(_) => true,
     _ => false,
   }
+}
+
+fn vcenter_run_in_rect(run: &mut wgpu_html_text::ShapedRun, box_h: f32) {
+  if run.glyphs.is_empty() {
+    return;
+  }
+  let min_y = run.glyphs.iter().map(|g| g.y).fold(f32::MAX, f32::min);
+  let max_y = run.glyphs.iter().map(|g| g.y + g.h).fold(0.0f32, f32::max);
+  let ink_h = max_y - min_y;
+  let dy = (box_h - ink_h) * 0.5 - min_y;
+  if dy.abs() > 0.01 {
+    for g in run.glyphs.iter_mut() {
+      g.y += dy;
+    }
+    for line in run.lines.iter_mut() {
+      line.top += dy;
+    }
+  }
+}
+
+fn form_control_info(node: &CascadedNode) -> Option<FormControlInfo> {
+  use wgpu_html_models::common::html_enums::InputType;
+  let inp = match &node.element {
+    Element::Input(inp) => inp,
+    _ => return None,
+  };
+  let kind = match inp.r#type {
+    Some(InputType::Checkbox) => FormControlKind::Checkbox {
+      checked: inp.checked.unwrap_or(false),
+    },
+    Some(InputType::Radio) => FormControlKind::Radio {
+      checked: inp.checked.unwrap_or(false),
+    },
+    Some(InputType::Range) => {
+      let min: f32 = inp.min.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+      let max: f32 = inp.max.as_deref().and_then(|s| s.parse().ok()).unwrap_or(100.0);
+      let value: f32 = inp
+        .value
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or((min + max) / 2.0);
+      FormControlKind::Range {
+        value: value.clamp(min, max),
+        min,
+        max,
+      }
+    }
+    Some(InputType::Color) => {
+      let hex = inp.value.as_deref().unwrap_or("#000000");
+      let srgb = color::parse_hex(hex).unwrap_or([0.0, 0.0, 0.0, 1.0]);
+      FormControlKind::Color {
+        r: color::srgb_to_linear(srgb[0]),
+        g: color::srgb_to_linear(srgb[1]),
+        b: color::srgb_to_linear(srgb[2]),
+        a: srgb[3],
+      }
+    }
+    Some(InputType::File) => FormControlKind::File,
+    _ => return None,
+  };
+  Some(FormControlInfo { kind })
 }
 
 fn resolved_opacity(style: &Style) -> f32 {
@@ -2424,6 +2508,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 
@@ -2465,7 +2550,7 @@ fn make_text_leaf(
   // the bottom or right edge of any glyph.
   let content_h = run.as_ref().map_or(h, |r| {
     let max_g = r.glyphs.iter().map(|g| g.y + g.h).fold(0.0f32, f32::max);
-    (h.max(max_g) + 1.0).ceil()
+    h.max(max_g).ceil()
   });
   let r = Rect::new(origin_x, origin_y, box_w, h);
   let content_r = Rect::new(origin_x, origin_y, box_w, content_h);
@@ -2500,6 +2585,7 @@ fn make_text_leaf(
     selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   };
   (box_, w, h, ascent)
 }
@@ -2827,6 +2913,7 @@ fn layout_inline_subtree(
     selection_fg: None,
     children: final_children,
     is_fixed: false,
+    form_control: None,
   };
   InlineLayout {
     box_,
@@ -2982,6 +3069,9 @@ fn layout_atomic_inline_subtree(
     compute_placeholder_run(node, content_rect, ctx)
   };
 
+  let fc = form_control_info(node);
+  let text_color = placeholder_color.or_else(|| if fc.is_some() { Some(fg) } else { None });
+
   InlineLayout {
     box_: LayoutBox {
       margin_rect,
@@ -2996,7 +3086,7 @@ fn layout_atomic_inline_subtree(
       border_radius,
       kind: BoxKind::Block,
       text_run: placeholder_run,
-      text_color: placeholder_color,
+      text_color,
       text_unselectable: true,
       text_decorations: Vec::new(),
       overflow: OverflowAxes::visible(),
@@ -3014,6 +3104,7 @@ fn layout_atomic_inline_subtree(
     selection_fg: None,
       children,
       is_fixed: false,
+      form_control: fc,
     },
     width: margin_rect.w,
     ascent: inline_ascent,
@@ -3537,6 +3628,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 
@@ -3766,6 +3858,7 @@ fn layout_inline_paragraph(
     selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   };
   boxes.push(text_box);
 

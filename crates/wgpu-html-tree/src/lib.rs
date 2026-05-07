@@ -6,7 +6,7 @@
 //!
 //! Models stay pure data. Composition lives here.
 
-use std::{collections::HashMap, ops::Range, time::Duration};
+use std::{collections::HashMap, ops::Range, sync::Arc, time::Duration};
 
 use wgpu_html_models::{self as m, ArcStr};
 
@@ -21,13 +21,13 @@ pub mod text_edit;
 pub mod tree_hook;
 
 pub use dispatch::{
-  blur, clipboard_event, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave, dispatch_pointer_move, focus,
-  focus_next, key_down, key_up, resize_event, scroll_event, select_event, selectionchange_event, text_input,
-  wheel_event,
+  blur, clipboard_event, cut_selection, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave,
+  dispatch_pointer_move, focus, focus_next, key_down, key_up, resize_event, scroll_event, select_event,
+  selectionchange_event, set_range_value_by_fraction, text_input, wheel_event,
 };
 pub use events::{
   EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,
-  MouseButton, MouseCallback, MouseEvent, ScrollOffset, SelectionColors, TextCursor, TextSelection,
+  MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset, SelectionColors, TextCursor, TextSelection,
 };
 pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,
@@ -40,6 +40,43 @@ pub use tree_hook::{
   TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase, TreeLifecycleStage,
   TreeRenderEvent, TreeRenderViewport,
 };
+
+/// Registry mapping custom element tag names to factory functions.
+///
+/// When `Tree::resolve_custom_elements()` is called (or the pipeline runs),
+/// each `<my-tag>` node whose tag name is registered here is replaced by the
+/// factory's output. The factory receives the original node (attributes,
+/// children, event handlers) and returns a replacement subtree.
+#[derive(Clone, Default)]
+pub struct CustomElementRegistry {
+  factories: HashMap<ArcStr, Arc<dyn Fn(&Node) -> Node + Send + Sync>>,
+}
+
+impl std::fmt::Debug for CustomElementRegistry {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("CustomElementRegistry")
+      .field("entries", &self.factories.len())
+      .finish()
+  }
+}
+
+impl CustomElementRegistry {
+  pub fn new() -> Self {
+    Self { factories: HashMap::new() }
+  }
+
+  pub fn register(&mut self, tag: impl Into<ArcStr>, factory: impl Fn(&Node) -> Node + Send + Sync + 'static) {
+    self.factories.insert(tag.into(), Arc::new(factory));
+  }
+
+  pub fn get(&self, tag: &str) -> Option<&Arc<dyn Fn(&Node) -> Node + Send + Sync>> {
+    self.factories.get(tag)
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.factories.is_empty()
+  }
+}
 
 #[derive(Debug, Clone)]
 pub struct Tree {
@@ -103,6 +140,10 @@ pub struct Tree {
   /// stylesheets, fonts). When set, `<img src="logo.png">` resolves
   /// to `{asset_root}/logo.png`. Set via [`Tree::set_asset_root`].
   pub asset_root: Option<std::path::PathBuf>,
+  /// Registry of custom element factories. When a factory is registered
+  /// for a tag name, `resolve_custom_elements()` replaces matching
+  /// `<tag-name>` nodes with the factory's output.
+  pub custom_elements: CustomElementRegistry,
 }
 
 impl Default for Tree {
@@ -120,6 +161,7 @@ impl Default for Tree {
       cascade_generation: 0,
       profiler: None,
       asset_root: None,
+      custom_elements: CustomElementRegistry::new(),
     };
     tree.register_system_fonts("sans-serif");
     tree
@@ -224,6 +266,45 @@ impl Tree {
       self.cascade_generation += 1;
     }
     removed
+  }
+
+  /// Register a factory function for a custom element tag name.
+  ///
+  /// When `resolve_custom_elements()` runs (called automatically by
+  /// the rendering pipeline), every `<tag-name>` node in the tree is
+  /// replaced by the factory's output. The factory receives the
+  /// original node — including its attributes, children, and event
+  /// handlers — and returns a replacement subtree.
+  ///
+  /// ```ignore
+  /// tree.register_custom_element("my-card", |node| {
+  ///     let mut wrapper = Node::new(Div::default());
+  ///     wrapper.children = node.children.clone();
+  ///     wrapper
+  /// });
+  /// ```
+  pub fn register_custom_element(
+    &mut self,
+    tag: impl Into<ArcStr>,
+    factory: impl Fn(&Node) -> Node + Send + Sync + 'static,
+  ) {
+    self.custom_elements.register(tag, factory);
+    self.generation += 1;
+  }
+
+  /// Walk the tree and replace custom element nodes whose tag names
+  /// match a registered factory. Each matching node is passed to its
+  /// factory and replaced with the returned subtree.
+  ///
+  /// This is a single pass — factory output is not re-scanned for
+  /// further custom elements.
+  pub fn resolve_custom_elements(&mut self) {
+    if self.custom_elements.is_empty() {
+      return;
+    }
+    if let Some(root) = &mut self.root {
+      resolve_node(root, &self.custom_elements);
+    }
   }
 
   /// Serialize the tree to an HTML string. Linked stylesheets are
@@ -1759,6 +1840,18 @@ fn write_map_attrs(buf: &mut String, element: &Element, prefix: &str) {
 }
 
 // ── Path-collection helpers for find_elements_by_* ─────────────
+
+fn resolve_node(node: &mut Node, registry: &CustomElementRegistry) {
+  for child in &mut node.children {
+    if let Element::CustomElement(ref ce) = child.element {
+      if let Some(factory) = registry.get(&ce.tag_name) {
+        *child = factory(child);
+        continue;
+      }
+    }
+    resolve_node(child, registry);
+  }
+}
 
 fn collect_class_name_paths(node: &Node, class_name: &str, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
   if node

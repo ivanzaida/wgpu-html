@@ -444,7 +444,45 @@ input[type="hidden"] {
 
 input[type="checkbox"],
 input[type="radio"] {
+  width: 13px;
+  height: 13px;
   box-sizing: border-box;
+  padding: 0;
+  margin-top: 3px;
+  margin-bottom: 3px;
+  margin-left: 4px;
+  margin-right: 3px;
+  border: 1px solid;
+}
+
+input[type="radio"] {
+  border-radius: 50%;
+}
+
+input[type="range"] {
+  width: 129px;
+  height: 16px;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 2px;
+  border: none;
+  background-color: transparent;
+}
+
+input[type="color"] {
+  width: 44px;
+  height: 23px;
+  box-sizing: border-box;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  padding-left: 2px;
+  padding-right: 2px;
+  border: 1px solid;
+}
+
+input[type="file"] {
+  background-color: transparent;
+  border: none;
   padding: 0;
 }
 

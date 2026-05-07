@@ -94,14 +94,18 @@ let byte_offset = run.byte_boundaries[glyph_idx];
 | `search` | Text input |
 | `tel` | Text input |
 | `url` | Text input |
-| `number` | Text input with numeric keyboard hint |
-| `date`, `datetime-local`, `month`, `week`, `time` | Text input |
+| `number` | Text input with ArrowUp/ArrowDown stepping (`min`/`max`/`step` enforced) |
+| `date`, `datetime-local`, `month`, `week`, `time` | Text input (no picker UI) |
+| `checkbox` | 13x13 toggle with checkmark; click/Space/Enter toggles; fires `input`/`change` |
+| `radio` | 13x13 circle with dot; mutual exclusion within `name` group |
+| `range` | Slider with track + thumb; mouse drag + ArrowUp/ArrowDown; respects `min`/`max`/`step` |
+| `color` | Displays parsed hex value as filled swatch (default `#000000`) |
 | `button`, `submit`, `reset` | Rendered as buttons, clickable |
 | Other types | Fall back to `text` behavior |
 
 ## Known Gaps
 
-- **No checkbox/radio toggle**: These render as text inputs.
 - **No `<select>` dropdown**: The element renders but has no popup menu.
 - **No form submission**: Submit buttons trigger `on_click` but don't send data.
-- **No input validation** (pattern, required, min/max): These attributes are parsed but not enforced.
+- **No input validation** (pattern, required, min/max for text types): These attributes are parsed but not enforced.
+- **No undo/redo** (Ctrl+Z / Ctrl+Y): No undo stack.

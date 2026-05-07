@@ -70,8 +70,13 @@ fn synthetic_text_layout() -> LayoutBox {
     z_index: None,
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 

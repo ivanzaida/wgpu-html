@@ -22,7 +22,9 @@ const sidebars = {
       items: [
         'html/overview',
         'html/element-index',
+        'html/input-types',
         'html/elements',
+        'html/custom-elements',
         'html/parsing',
         'html/dom-api',
       ],
@@ -112,6 +114,18 @@ const sidebars = {
         'component-framework/ctx',
         'component-framework/store',
         'component-framework/rendering',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Engine Internals',
+      items: [
+        'internals/index',
+        'internals/rendering-pipeline',
+        'internals/css-cascade',
+        'internals/layout-engine',
+        'internals/selector-engine',
+        'internals/event-system',
       ],
     },
     {

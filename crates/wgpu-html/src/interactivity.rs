@@ -20,8 +20,8 @@
 //! [`focus`], [`blur`], [`focus_next`], [`key_down`], [`key_up`],
 //! [`pointer_leave`].
 
-use wgpu_html_layout::{Cursor, LayoutBox};
-use wgpu_html_tree::{MouseButton, Tree};
+use wgpu_html_layout::{Cursor, FormControlKind, LayoutBox};
+use wgpu_html_tree::{MouseButton, RangeDrag, Tree};
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `wgpu_html_tree::dispatch`.
 pub use wgpu_html_tree::{
@@ -35,6 +35,16 @@ pub use wgpu_html_tree::{
 /// Modifier state is read from `tree.interaction.modifiers`;
 /// keep it in sync with [`Tree::set_modifier`].
 pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> bool {
+  // Range slider drag: update value from pointer position.
+  if let Some(ref rd) = tree.interaction.range_drag.clone() {
+    let frac = if rd.content_w > 0.0 {
+      ((pos.0 - rd.content_x) / rd.content_w).clamp(0.0, 1.0)
+    } else {
+      0.0
+    };
+    wgpu_html_tree::set_range_value_by_fraction(tree, &rd.path, frac);
+  }
+
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
   let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   tree.dispatch_pointer_move(target.as_deref(), pos, text_cursor)
@@ -44,6 +54,16 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
 /// for the hovered element. The host can use this to set the OS
 /// pointer icon.
 pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> (bool, Cursor) {
+  // Range slider drag: update value from pointer position.
+  if let Some(ref rd) = tree.interaction.range_drag.clone() {
+    let frac = if rd.content_w > 0.0 {
+      ((pos.0 - rd.content_x) / rd.content_w).clamp(0.0, 1.0)
+    } else {
+      0.0
+    };
+    wgpu_html_tree::set_range_value_by_fraction(tree, &rd.path, frac);
+  }
+
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
   let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   let css_cursor = target
@@ -51,7 +71,7 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
     .map(|path| layout.cursor_at_path(path))
     .unwrap_or(Cursor::Auto);
   let changed = tree.dispatch_pointer_move(target.as_deref(), pos, text_cursor);
-  (changed, css_cursor)
+  (changed || tree.interaction.range_drag.is_some(), css_cursor)
 }
 
 /// Primary-button (or any-button) press at `pos`. Records the
@@ -119,6 +139,30 @@ pub fn mouse_down_with_click_count(
         crate::select_line_at_cursor(tree, layout, cursor);
       } else if click_count == 2 {
         crate::select_word_at_cursor(tree, layout, cursor);
+      }
+    }
+
+    // Range slider: start drag and set initial value from click position.
+    if let Some(target_path) = &target {
+      if let Some(lb) = crate::layout_at_path(layout, target_path) {
+        if let Some(ref fc) = lb.form_control {
+          if let FormControlKind::Range { min, max, .. } = fc.kind {
+            let cr = lb.content_rect;
+            let frac = if cr.w > 0.0 {
+              ((pos.0 - cr.x) / cr.w).clamp(0.0, 1.0)
+            } else {
+              0.0
+            };
+            wgpu_html_tree::set_range_value_by_fraction(tree, target_path, frac);
+            tree.interaction.range_drag = Some(RangeDrag {
+              path: target_path.clone(),
+              content_x: cr.x,
+              content_w: cr.w,
+              min,
+              max,
+            });
+          }
+        }
       }
     }
   }
@@ -211,6 +255,9 @@ fn edit_token_kind(ch: char) -> EditTokenKind {
 /// `Primary` and the release path shares its root with the press
 /// path, synthesises a click and fires `on_click` bubbling.
 pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool {
+  if button == MouseButton::Primary {
+    tree.interaction.range_drag = None;
+  }
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
   let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)

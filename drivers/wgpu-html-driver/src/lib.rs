@@ -866,8 +866,10 @@ impl<D: Driver> Runtime<D> {
       if ctrl && !repeat {
         match code {
           "KeyA" => {
-            if let Some(layout) = self.last_layout.as_ref() {
-              select_all_text(tree, layout);
+            if tree.interaction.edit_cursor.is_none() {
+              if let Some(layout) = self.last_layout.as_ref() {
+                select_all_text(tree, layout);
+              }
             }
             tree.key_down(key, code, repeat);
             return;
@@ -875,6 +877,18 @@ impl<D: Driver> Runtime<D> {
           "KeyC" => {
             tree.clipboard_event("copy");
             if let Some(layout) = self.last_layout.as_ref() {
+              if let Some(text) = selected_text(tree, layout) {
+                self.driver.set_clipboard_text(&text);
+              }
+            }
+            tree.key_down(key, code, repeat);
+            return;
+          }
+          "KeyX" => {
+            tree.clipboard_event("cut");
+            if let Some(cut_text) = wgpu_html_tree::cut_selection(tree) {
+              self.driver.set_clipboard_text(&cut_text);
+            } else if let Some(layout) = self.last_layout.as_ref() {
               if let Some(text) = selected_text(tree, layout) {
                 self.driver.set_clipboard_text(&text);
               }

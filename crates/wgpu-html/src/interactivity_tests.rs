@@ -87,6 +87,7 @@ fn synthetic_text_layout() -> LayoutBox {
     background_image: None,
     children: Vec::new(),
     is_fixed: false,
+    form_control: None,
   }
 }
 

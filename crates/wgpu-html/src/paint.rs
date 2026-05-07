@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use wgpu_html_layout::{LayoutBox, Resize, UserSelect};
+use wgpu_html_layout::{FormControlInfo, FormControlKind, LayoutBox, Resize, UserSelect};
 use wgpu_html_models::common::css_enums::Overflow;
 use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
@@ -57,6 +57,10 @@ pub fn paint_tree_with_text(
   if let Some(root) =
     wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale)
   {
+    list.canvas_color = root
+      .background
+      .or_else(|| root.children.first().and_then(|body| body.background));
+
     let mut clip_stack: Vec<ClipFrame> = Vec::new();
     let mut path = Vec::new();
     paint_box_in_clip(
@@ -104,6 +108,10 @@ pub fn paint_layout_with_selection(
   selection_colors: SelectionColors,
   viewport_scroll_y: f32,
 ) {
+  list.canvas_color = root
+    .background
+    .or_else(|| root.children.iter().find_map(|child| child.background));
+
   let mut clip_stack: Vec<ClipFrame> = Vec::new();
   let mut path = Vec::new();
   let scroll_offsets = BTreeMap::new();
@@ -154,6 +162,10 @@ pub fn paint_layout_full(
   viewport_scroll_y: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
+  list.canvas_color = root
+    .background
+    .or_else(|| root.children.iter().find_map(|child| child.background));
+
   let mut clip_stack: Vec<ClipFrame> = Vec::new();
   let mut path = Vec::new();
   paint_box_in_clip(
@@ -513,6 +525,10 @@ fn paint_box_in_clip(
     }
   }
 
+  if let Some(ref fc) = b.form_control {
+    paint_form_control(fc, b, out, paint_offset_x, paint_offset_y, opacity);
+  }
+
   // Non-visible overflow clips children to the box's padding-box
   // rect on the resolved axis. When both axes clip, rounded
   // overflow uses the rounded inner-padding edge if the box carries
@@ -628,6 +644,114 @@ fn paint_resize_handle(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32
       Rect::new(lx.max(x), ly.max(y), line_len.min(handle_size), thickness),
       color,
     );
+  }
+}
+
+fn paint_form_control(
+  fc: &FormControlInfo,
+  b: &LayoutBox,
+  out: &mut DisplayList,
+  paint_offset_x: f32,
+  paint_offset_y: f32,
+  opacity: f32,
+) {
+  let cr = b.content_rect;
+  let cx = cr.x + paint_offset_x;
+  let cy = cr.y + paint_offset_y;
+  let cw = cr.w;
+  let ch = cr.h;
+
+  let accent = apply_opacity([0.2, 0.45, 0.85, 1.0], opacity);
+  let white = apply_opacity([1.0, 1.0, 1.0, 1.0], opacity);
+
+  match &fc.kind {
+    FormControlKind::Checkbox { checked } => {
+      let br = b.border_rect;
+      let bx = br.x + paint_offset_x;
+      let by = br.y + paint_offset_y;
+      let bw = br.w;
+      let bh = br.h;
+      if *checked {
+        out.push_quad(Rect::new(bx, by, bw, bh), accent);
+        let t = (cw * 0.15).max(1.5);
+        let sx = cx + cw * 0.15;
+        let sy = cy + ch * 0.50;
+        let sw = cw * 0.25;
+        let sh = ch * 0.25;
+        let steps = (sw / t).ceil().max(2.0) as usize;
+        for i in 0..steps {
+          let frac = i as f32 / (steps - 1).max(1) as f32;
+          out.push_quad(Rect::new(sx + sw * frac, sy + sh * frac, t, t), white);
+        }
+        let lx = sx + sw;
+        let ly = sy + sh;
+        let lw = cw * 0.48;
+        let lh = ch * 0.55;
+        let steps = (lw / t).ceil().max(2.0) as usize;
+        for i in 0..steps {
+          let frac = i as f32 / (steps - 1).max(1) as f32;
+          out.push_quad(Rect::new(lx + lw * frac, ly - lh * frac, t, t), white);
+        }
+      }
+    }
+    FormControlKind::Radio { checked } => {
+      let br = b.border_rect;
+      let bx = br.x + paint_offset_x;
+      let by = br.y + paint_offset_y;
+      let bw = br.w;
+      let bh = br.h;
+      let outer_r = bw.min(bh) / 2.0;
+      if *checked {
+        out.push_quad_rounded(Rect::new(bx, by, bw, bh), accent, [outer_r; 4]);
+        let dot_r = (cw.min(ch) * 0.28).max(1.0);
+        let dot_x = cx + (cw - dot_r * 2.0) / 2.0;
+        let dot_y = cy + (ch - dot_r * 2.0) / 2.0;
+        out.push_quad_rounded(Rect::new(dot_x, dot_y, dot_r * 2.0, dot_r * 2.0), white, [dot_r; 4]);
+      }
+    }
+    FormControlKind::Range { value, min, max } => {
+      let range = (max - min).max(f32::EPSILON);
+      let frac = ((value - min) / range).clamp(0.0, 1.0);
+
+      // Track: thin horizontal rounded rect
+      let track_h = 4.0_f32;
+      let track_y = cy + (ch - track_h) / 2.0;
+      let track_color = apply_opacity([0.5, 0.5, 0.5, 0.4], opacity);
+      let track_r = track_h / 2.0;
+      out.push_quad_rounded(
+        Rect::new(cx, track_y, cw, track_h),
+        track_color,
+        [track_r; 4],
+      );
+
+      // Filled portion (left of thumb)
+      let accent = apply_opacity([0.2, 0.45, 0.85, 1.0], opacity);
+      let fill_w = cw * frac;
+      if fill_w > 0.5 {
+        out.push_quad_rounded(
+          Rect::new(cx, track_y, fill_w, track_h),
+          accent,
+          [track_r; 4],
+        );
+      }
+
+      // Thumb: circular
+      let thumb_r = 6.0_f32;
+      let thumb_x = cx + frac * (cw - thumb_r * 2.0);
+      let thumb_y = cy + (ch - thumb_r * 2.0) / 2.0;
+      out.push_quad_rounded(
+        Rect::new(thumb_x, thumb_y, thumb_r * 2.0, thumb_r * 2.0),
+        accent,
+        [thumb_r; 4],
+      );
+    }
+    FormControlKind::Color { r, g, b: bl, a } => {
+      let color = apply_opacity([*r, *g, *bl, *a], opacity);
+      if cw > 0.0 && ch > 0.0 {
+        out.push_quad(Rect::new(cx, cy, cw, ch), color);
+      }
+    }
+    FormControlKind::File => {}
   }
 }
 

@@ -235,6 +235,18 @@ pub struct InteractionState {
   /// Current drag target path — the element under the pointer
   /// during an active drag. Used to fire `dragenter` / `dragleave`.
   pub drag_target_path: Option<Vec<usize>>,
+  /// Active range-slider drag: path to the `<input type="range">`
+  /// being dragged plus its content rect for position calculation.
+  pub range_drag: Option<RangeDrag>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RangeDrag {
+  pub path: Vec<usize>,
+  pub content_x: f32,
+  pub content_w: f32,
+  pub min: f32,
+  pub max: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -265,6 +277,7 @@ impl Default for InteractionState {
       drag_pending: None,
       drag_active_source: None,
       drag_target_path: None,
+      range_drag: None,
     }
   }
 }

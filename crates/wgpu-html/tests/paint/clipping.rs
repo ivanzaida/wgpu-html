@@ -72,10 +72,15 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     user_select: wgpu_html_models::common::UserSelect::Auto,
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     cursor: wgpu_html_models::common::Cursor::Auto,
     z_index: None,
     is_fixed: false,
+    form_control: None,
   };
   let h2_rect = LR::new(0.0, 100.0, 200.0, 24.0);
   let h2 = LayoutBox {
@@ -122,10 +127,15 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     user_select: wgpu_html_models::common::UserSelect::Auto,
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: Vec::new(),
     cursor: wgpu_html_models::common::Cursor::Auto,
     z_index: None,
     is_fixed: false,
+    form_control: None,
   };
   let body_rect = LR::new(0.0, 0.0, 800.0, 200.0);
   let body = LayoutBox {
@@ -151,10 +161,15 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     user_select: wgpu_html_models::common::UserSelect::Auto,
     image: None,
     background_image: None,
+    first_line_color: None,
+    first_letter_color: None,
+    selection_bg: None,
+    selection_fg: None,
     children: vec![textarea, h2],
     cursor: wgpu_html_models::common::Cursor::Auto,
     z_index: None,
     is_fixed: false,
+    form_control: None,
   };
   let mut list = DisplayList::new();
   paint_layout(&body, &mut list);

@@ -1358,6 +1358,13 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   let target = tree.interaction.focus_path.clone().unwrap_or_else(Vec::new);
   bubble_keyboard(tree, &target, ev::HtmlEventType::KEYDOWN, key, code, repeat);
 
+  // Number / range ArrowUp/ArrowDown stepping.
+  if matches!(key, "ArrowUp" | "ArrowDown") {
+    if handle_numeric_step(tree, key) {
+      return true;
+    }
+  }
+
   // Handle editing keys on focused form controls before Tab.
   handle_edit_key(tree, key);
 
@@ -2427,6 +2434,90 @@ fn toggle_checkable(tree: &mut Tree, click_target: &[usize]) -> bool {
   false
 }
 
+/// Handle ArrowUp/ArrowDown on number and range inputs.
+fn handle_numeric_step(tree: &mut Tree, key: &str) -> bool {
+  use wgpu_html_models::common::html_enums::InputType;
+  let Some(focus_path) = tree.interaction.focus_path.clone() else {
+    return false;
+  };
+  let Some(root) = tree.root.as_mut() else {
+    return false;
+  };
+  let Some(node) = root.at_path_mut(&focus_path) else {
+    return false;
+  };
+  let Element::Input(inp) = &mut node.element else {
+    return false;
+  };
+  let is_number = matches!(inp.r#type, Some(InputType::Number));
+  let is_range = matches!(inp.r#type, Some(InputType::Range));
+  if !is_number && !is_range {
+    return false;
+  }
+
+  let min: f64 = inp.min.as_deref().and_then(|s| s.parse().ok()).unwrap_or(if is_range { 0.0 } else { f64::NEG_INFINITY });
+  let max: f64 = inp.max.as_deref().and_then(|s| s.parse().ok()).unwrap_or(if is_range { 100.0 } else { f64::INFINITY });
+  let step: f64 = inp.step.as_deref().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+  let current: f64 = inp.value.as_deref().and_then(|s| s.parse().ok()).unwrap_or(if is_range { (min + max) / 2.0 } else { 0.0 });
+
+  let delta = if key == "ArrowUp" { step } else { -step };
+  let new_val = (current + delta).clamp(min, max);
+
+  let formatted = if new_val.fract() == 0.0 && new_val.abs() < i64::MAX as f64 {
+    format!("{}", new_val as i64)
+  } else {
+    format!("{new_val}")
+  };
+  inp.value = Some(formatted.into());
+  tree.generation += 1;
+
+  if is_number {
+    let len = inp.value.as_deref().unwrap_or("").len();
+    tree.interaction.edit_cursor = Some(crate::EditCursor::collapsed(len));
+    tree.interaction.caret_blink_epoch = std::time::Instant::now();
+  }
+
+  bubble_input(tree, &focus_path, None, ev::enums::InputType::InsertText);
+  fire_change_event_at(tree, &focus_path);
+  true
+}
+
+/// Update a `<input type="range">` value to a fraction `[0, 1]` of its range.
+/// When `fire_events` is false, only the value and generation are updated
+/// (used during drag for performance — events fire on release).
+pub fn set_range_value_by_fraction(tree: &mut Tree, path: &[usize], frac: f32) {
+  use wgpu_html_models::common::html_enums::InputType;
+  let Some(root) = tree.root.as_mut() else {
+    return;
+  };
+  let Some(node) = root.at_path_mut(path) else {
+    return;
+  };
+  if let Element::Input(inp) = &mut node.element {
+    if !matches!(inp.r#type, Some(InputType::Range)) {
+      return;
+    }
+    let min: f64 = inp.min.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+    let max: f64 = inp.max.as_deref().and_then(|s| s.parse().ok()).unwrap_or(100.0);
+    let step: f64 = inp.step.as_deref().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+    let raw = min + (max - min) * frac.clamp(0.0, 1.0) as f64;
+    let stepped = if step > 0.0 {
+      (((raw - min) / step).round() * step + min).clamp(min, max)
+    } else {
+      raw.clamp(min, max)
+    };
+    let formatted = if stepped.fract() == 0.0 {
+      format!("{}", stepped as i64)
+    } else {
+      format!("{stepped}")
+    };
+    inp.value = Some(formatted.into());
+    tree.generation += 1;
+  }
+  bubble_input(tree, path, None, ev::enums::InputType::InsertText);
+  fire_change_event_at(tree, path);
+}
+
 /// Fire a `change` event on the element at `path` (bubbling).
 fn fire_change_event_at(tree: &mut Tree, path: &[usize]) {
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
@@ -2500,6 +2591,37 @@ fn write_value(node: &mut Node, value: String) {
     Element::Textarea(ta) => ta.value = Some(value.into()),
     _ => {}
   }
+}
+
+/// Delete the selected text range in the focused form control,
+/// returning the removed text. Used by Ctrl+X (cut).
+pub fn cut_selection(tree: &mut Tree) -> Option<String> {
+  let focus_path = tree.interaction.focus_path.clone()?;
+  let cursor = tree.interaction.edit_cursor.clone()?;
+  if cursor.selection_anchor.is_none() {
+    return None;
+  }
+  let node = tree.root.as_ref()?.at_path(&focus_path)?;
+  let (old_value, _, is_readonly) = read_editable_value(node)?;
+  if is_readonly {
+    return None;
+  }
+
+  let sel_start = cursor.cursor.min(cursor.selection_anchor.unwrap_or(cursor.cursor));
+  let sel_end = cursor.cursor.max(cursor.selection_anchor.unwrap_or(cursor.cursor));
+  let cut_text = old_value[sel_start..sel_end].to_string();
+
+  let (new_value, new_cursor) = crate::text_edit::delete_selection(&old_value, &cursor);
+  if new_value != old_value {
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
+      write_value(node, new_value);
+    }
+    tree.generation += 1;
+    bubble_input(tree, &focus_path, None, ev::enums::InputType::DeleteByCut);
+  }
+  tree.interaction.edit_cursor = Some(new_cursor);
+  tree.interaction.caret_blink_epoch = std::time::Instant::now();
+  Some(cut_text)
 }
 
 fn form_control_state(tree: &Tree, path: &[usize]) -> (Option<String>, Option<bool>) {
@@ -2604,6 +2726,8 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
 
   // Navigation keys (always allowed, even on readonly).
   let nav_cursor = match key {
+    "ArrowLeft" if ctrl => Some(crate::text_edit::move_word_left(&old_value, &cursor, shift)),
+    "ArrowRight" if ctrl => Some(crate::text_edit::move_word_right(&old_value, &cursor, shift)),
     "ArrowLeft" => Some(crate::text_edit::move_left(&old_value, &cursor, shift)),
     "ArrowRight" => Some(crate::text_edit::move_right(&old_value, &cursor, shift)),
     "Home" => Some(crate::text_edit::move_home(&old_value, &cursor, shift)),
@@ -2627,17 +2751,21 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
   }
 
   let input_type = match key {
+    "Backspace" if ctrl => ev::enums::InputType::DeleteWordBackward,
     "Backspace" => ev::enums::InputType::DeleteContentBackward,
+    "Delete" if ctrl => ev::enums::InputType::DeleteWordForward,
     "Delete" => ev::enums::InputType::DeleteContentForward,
     "Enter" => ev::enums::InputType::InsertLineBreak,
     _ => return false,
   };
-  if bubble_beforeinput(tree, &focus_path, None, input_type) {
+  if bubble_beforeinput(tree, &focus_path, None, input_type.clone()) {
     return true; // cancelled
   }
 
   let mutation: Option<(String, crate::EditCursor)> = match key {
+    "Backspace" if ctrl => Some(crate::text_edit::delete_word_backward(&old_value, &cursor)),
     "Backspace" => Some(crate::text_edit::delete_backward(&old_value, &cursor)),
+    "Delete" if ctrl => Some(crate::text_edit::delete_word_forward(&old_value, &cursor)),
     "Delete" => Some(crate::text_edit::delete_forward(&old_value, &cursor)),
     "Enter" if is_textarea => Some(crate::text_edit::insert_line_break(&old_value, &cursor)),
     _ => None,
@@ -2650,12 +2778,6 @@ fn handle_edit_key(tree: &mut Tree, key: &str) -> bool {
       }
       tree.generation += 1;
 
-      let input_type = match key {
-        "Backspace" => ev::enums::InputType::DeleteContentBackward,
-        "Delete" => ev::enums::InputType::DeleteContentForward,
-        "Enter" => ev::enums::InputType::InsertLineBreak,
-        _ => ev::enums::InputType::InsertText,
-      };
       bubble_input(tree, &focus_path, None, input_type);
     }
     tree.interaction.edit_cursor = Some(new_cursor);
