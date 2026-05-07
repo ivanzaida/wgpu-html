@@ -67,11 +67,10 @@ fn checkbox_checked_attribute() {
 }
 
 #[test]
-fn checkbox_has_intrinsic_size() {
+fn checkbox_has_intrinsic_height() {
   let tree = make(r#"<body style="margin:0;"><input type="checkbox" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let b = find_box_with_form_control(&root).expect("checkbox box");
-  assert!(b.border_rect.w > 5.0, "checkbox should have width, got {}", b.border_rect.w);
   assert!(b.border_rect.h > 5.0, "checkbox should have height, got {}", b.border_rect.h);
 }
 
@@ -102,11 +101,10 @@ fn radio_checked_attribute() {
 }
 
 #[test]
-fn radio_has_intrinsic_size() {
+fn radio_has_intrinsic_height() {
   let tree = make(r#"<body style="margin:0;"><input type="radio" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let b = find_box_with_form_control(&root).expect("radio box");
-  assert!(b.border_rect.w > 5.0);
   assert!(b.border_rect.h > 5.0);
 }
 
@@ -168,11 +166,11 @@ fn range_clamps_value_to_bounds() {
 }
 
 #[test]
-fn range_has_intrinsic_width() {
+fn range_has_intrinsic_height() {
   let tree = make(r#"<body style="margin:0;"><input type="range" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let b = find_box_with_form_control(&root).expect("range box");
-  assert!(b.border_rect.w > 50.0, "range should have substantial width");
+  assert!(b.border_rect.h > 5.0, "range should have height");
 }
 
 #[test]

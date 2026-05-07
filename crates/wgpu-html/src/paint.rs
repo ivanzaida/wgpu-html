@@ -287,9 +287,19 @@ fn paint_box_in_clip(
   let (rh, rv) = corner_radii(b);
   let rounded = has_any_radius(&rh) || has_any_radius(&rv);
 
+  // Form controls with custom paint (checkbox, radio, range) suppress
+  // CSS background and border — they draw their own visuals, matching
+  // browser appearance:auto behavior.
+  let suppress_box_paint = b.form_control.as_ref().is_some_and(|fc| {
+    matches!(
+      fc.kind,
+      FormControlKind::Checkbox { .. } | FormControlKind::Radio { .. } | FormControlKind::Range { .. }
+    )
+  });
+
   // Background paints into the rectangle picked by `background-clip`
   // (border-box by default; padding-box / content-box also supported).
-  if let Some(color) = b.background {
+  if let Some(color) = b.background.filter(|_| !suppress_box_paint) {
     let color = apply_opacity(color, opacity);
     let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
     if bg.w > 0.0 && bg.h > 0.0 {
@@ -338,15 +348,15 @@ fn paint_box_in_clip(
   // the whole ring as a single stroked quad — no GPU rasterisation
   // seams between edges, works for both sharp and rounded corners.
   // Mixed colours / styles still fall back to per-side quads.
-  if let Some(color) = uniform_border_color(b) {
+  if let Some(color) = uniform_border_color(b).filter(|_| !suppress_box_paint) {
     let color = apply_opacity(color, opacity);
     let stroke = [b.border.top, b.border.right, b.border.bottom, b.border.left];
     if stroke.iter().any(|s| *s > 0.0) {
       out.push_quad_stroke_ellipse(rect, color, rh, rv, stroke);
     }
-  } else if rounded {
+  } else if !suppress_box_paint && rounded {
     paint_rounded_per_side_borders(b, rect, rh, rv, opacity, out);
-  } else {
+  } else if !suppress_box_paint {
     paint_border_edges(b, out, paint_offset_x, paint_offset_y, opacity);
   }
 
@@ -681,21 +691,20 @@ fn paint_form_control(
 
   let accent = apply_opacity([0.2, 0.45, 0.85, 1.0], opacity);
   let white = apply_opacity([1.0, 1.0, 1.0, 1.0], opacity);
+  let border_color = apply_opacity([0.6, 0.6, 0.6, 1.0], opacity);
 
   match &fc.kind {
     FormControlKind::Checkbox { checked } => {
-      let br = b.border_rect;
-      let bx = br.x + paint_offset_x;
-      let by = br.y + paint_offset_y;
-      let bw = br.w;
-      let bh = br.h;
+      let size = 13.0_f32;
+      let bx = cx + (cw - size) / 2.0;
+      let by = cy + (ch - size) / 2.0;
       if *checked {
-        out.push_quad(Rect::new(bx, by, bw, bh), accent);
-        let t = (cw * 0.15).max(1.5);
-        let sx = cx + cw * 0.15;
-        let sy = cy + ch * 0.50;
-        let sw = cw * 0.25;
-        let sh = ch * 0.25;
+        out.push_quad(Rect::new(bx, by, size, size), accent);
+        let t = (size * 0.15).max(1.5);
+        let sx = bx + size * 0.15;
+        let sy = by + size * 0.50;
+        let sw = size * 0.25;
+        let sh = size * 0.25;
         let steps = (sw / t).ceil().max(2.0) as usize;
         for i in 0..steps {
           let frac = i as f32 / (steps - 1).max(1) as f32;
@@ -703,28 +712,40 @@ fn paint_form_control(
         }
         let lx = sx + sw;
         let ly = sy + sh;
-        let lw = cw * 0.48;
-        let lh = ch * 0.55;
+        let lw = size * 0.48;
+        let lh = size * 0.55;
         let steps = (lw / t).ceil().max(2.0) as usize;
         for i in 0..steps {
           let frac = i as f32 / (steps - 1).max(1) as f32;
           out.push_quad(Rect::new(lx + lw * frac, ly - lh * frac, t, t), white);
         }
+      } else {
+        out.push_quad_stroke_ellipse(
+          Rect::new(bx, by, size, size),
+          border_color,
+          [0.0; 4], [0.0; 4],
+          [1.0; 4],
+        );
       }
     }
     FormControlKind::Radio { checked } => {
-      let br = b.border_rect;
-      let bx = br.x + paint_offset_x;
-      let by = br.y + paint_offset_y;
-      let bw = br.w;
-      let bh = br.h;
-      let outer_r = bw.min(bh) / 2.0;
+      let size = 13.0_f32;
+      let bx = cx + (cw - size) / 2.0;
+      let by = cy + (ch - size) / 2.0;
+      let r = size / 2.0;
       if *checked {
-        out.push_quad_rounded(Rect::new(bx, by, bw, bh), accent, [outer_r; 4]);
-        let dot_r = (cw.min(ch) * 0.28).max(1.0);
-        let dot_x = cx + (cw - dot_r * 2.0) / 2.0;
-        let dot_y = cy + (ch - dot_r * 2.0) / 2.0;
+        out.push_quad_rounded(Rect::new(bx, by, size, size), accent, [r; 4]);
+        let dot_r = (size * 0.28).max(1.0);
+        let dot_x = bx + (size - dot_r * 2.0) / 2.0;
+        let dot_y = by + (size - dot_r * 2.0) / 2.0;
         out.push_quad_rounded(Rect::new(dot_x, dot_y, dot_r * 2.0, dot_r * 2.0), white, [dot_r; 4]);
+      } else {
+        out.push_quad_stroke_ellipse(
+          Rect::new(bx, by, size, size),
+          border_color,
+          [r; 4], [r; 4],
+          [1.0; 4],
+        );
       }
     }
     FormControlKind::Range { value, min, max } => {
