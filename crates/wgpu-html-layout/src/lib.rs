@@ -1806,12 +1806,12 @@ fn layout_block(
   // browser default `::placeholder` styling.
   // Value takes priority: if the field has a non-empty value, shape
   // that instead of the placeholder.
-  let pad_v = padding.vertical();
-  let (value_run, value_color) = compute_value_run(node, content_rect, pad_v, ctx);
+
+  let (value_run, value_color) = compute_value_run(node, content_rect, ctx);
   let (placeholder_run, placeholder_color) = if value_run.is_some() {
     (value_run, value_color)
   } else {
-    compute_placeholder_run(node, content_rect, pad_v, ctx)
+    compute_placeholder_run(node, content_rect, ctx)
   };
 
   let fc = form_control_info(node);
@@ -1863,7 +1863,6 @@ fn layout_block(
 fn compute_value_run(
   node: &CascadedNode,
   content_rect: Rect,
-  padding_vertical: f32,
   ctx: &mut Ctx,
 ) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
   use wgpu_html_models::common::html_enums::InputType;
@@ -1978,7 +1977,6 @@ fn compute_value_run(
 fn compute_placeholder_run(
   node: &CascadedNode,
   content_rect: Rect,
-  padding_vertical: f32,
   ctx: &mut Ctx,
 ) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
   use wgpu_html_models::common::html_enums::InputType;
@@ -3265,12 +3263,12 @@ fn layout_atomic_inline_subtree(
 
   // For form controls (`<input>`, `<textarea>`), attach the value
   // text or the placeholder attribute as the box's text run.
-  let pad_v = padding.vertical();
-  let (value_run, value_color) = compute_value_run(node, content_rect, pad_v, ctx);
+
+  let (value_run, value_color) = compute_value_run(node, content_rect, ctx);
   let (placeholder_run, placeholder_color) = if value_run.is_some() {
     (value_run, value_color)
   } else {
-    compute_placeholder_run(node, content_rect, pad_v, ctx)
+    compute_placeholder_run(node, content_rect, ctx)
   };
 
   let fc = form_control_info(node);
