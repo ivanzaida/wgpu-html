@@ -21,7 +21,8 @@ pub use css_parser::{
 pub use style_props::{apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords};
 // Re-export query-engine types through the stylesheet module.
 pub use stylesheet::{
-  AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, SelectorList,
+  AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, PseudoElement,
+  SelectorList,
 };
 pub use stylesheet::{
   MediaFeature, MediaQuery, MediaQueryList, MediaType, Rule, Stylesheet, parse_media_query_list, parse_stylesheet,

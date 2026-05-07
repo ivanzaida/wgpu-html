@@ -1125,6 +1125,24 @@ impl CompoundSelector {
     true
   }
 
+  /// Match ignoring the pseudo-element field. Used by the cascade to
+  /// check whether a `::before`/`::after` rule's subject compound
+  /// matches the originating element.
+  pub fn matches_in_tree_as_pseudo_origin(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
+    let Some(node) = node_at_path(root, path) else {
+      return false;
+    };
+    if !self.matches_basic(&node.element) {
+      return false;
+    }
+    for pc in &self.pseudo_classes {
+      if !match_pseudo_class(pc, root, path, node, ctx) {
+        return false;
+      }
+    }
+    true
+  }
+
   /// CSS specificity of this compound (ignoring ancestors/combinators).
   /// Format: `(id_count << 16) | (class_count << 8) | tag_count`.
   pub fn specificity(&self) -> u32 {
@@ -1883,6 +1901,93 @@ impl ComplexSelector {
       return false;
     }
     if !self.compounds[n - 1].matches_in_tree(root, path, ctx) {
+      return false;
+    }
+    if n == 1 {
+      return true;
+    }
+
+    let mut current: Vec<usize> = path.to_vec();
+    for k in (0..n - 1).rev() {
+      let comb = self.combinators[k];
+      let prev = &self.compounds[k];
+      match comb {
+        Combinator::Descendant => {
+          let mut found = false;
+          while !current.is_empty() {
+            current.pop();
+            if prev.matches_in_tree(root, &current, ctx) {
+              found = true;
+              break;
+            }
+          }
+          if !found {
+            return false;
+          }
+        }
+        Combinator::Child => {
+          if current.is_empty() {
+            return false;
+          }
+          current.pop();
+          if !prev.matches_in_tree(root, &current, ctx) {
+            return false;
+          }
+        }
+        Combinator::NextSibling => {
+          let Some(idx) = current.last().copied() else {
+            return false;
+          };
+          let parent_path = current[..current.len() - 1].to_vec();
+          let Some(parent) = node_at_path(root, &parent_path) else {
+            return false;
+          };
+          let Some(sib) = previous_element_sibling(parent, idx) else {
+            return false;
+          };
+          current.truncate(current.len() - 1);
+          current.push(sib);
+          if !prev.matches_in_tree(root, &current, ctx) {
+            return false;
+          }
+        }
+        Combinator::SubsequentSibling => {
+          let Some(idx) = current.last().copied() else {
+            return false;
+          };
+          let parent_path = current[..current.len() - 1].to_vec();
+          let Some(parent) = node_at_path(root, &parent_path) else {
+            return false;
+          };
+          let mut found = None;
+          let mut j = idx;
+          while let Some(prev_j) = previous_element_sibling(parent, j) {
+            let mut test_path = parent_path.clone();
+            test_path.push(prev_j);
+            if prev.matches_in_tree(root, &test_path, ctx) {
+              found = Some(prev_j);
+              break;
+            }
+            j = prev_j;
+          }
+          let Some(sib) = found else { return false };
+          *current.last_mut().unwrap() = sib;
+        }
+      }
+    }
+    true
+  }
+
+  /// Match this selector as a pseudo-element rule against the
+  /// originating element at `path`. The subject compound's
+  /// `pseudo_element` field is ignored; the caller has already
+  /// filtered by pseudo-element type.
+  pub fn matches_pseudo_in_tree(&self, root: &Node, path: &[usize], ctx: &MatchContext) -> bool {
+    let n = self.compounds.len();
+    if n == 0 {
+      return false;
+    }
+    if !self.compounds[n - 1].matches_in_tree_as_pseudo_origin(root, path, ctx) {
       return false;
     }
     if n == 1 {

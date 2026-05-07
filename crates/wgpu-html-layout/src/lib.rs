@@ -20,7 +20,7 @@ use wgpu_html_models::{
     WhiteSpace,
   },
 };
-use wgpu_html_style::{CascadedNode, CascadedTree};
+use wgpu_html_style::{CascadedNode, CascadedTree, PseudoElementStyle};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
 use wgpu_html_tree::{Element, Node, ScrollOffset, TextCursor, Tree};
 
@@ -1424,9 +1424,10 @@ fn layout_block(
           let (kids, _w_used, h_used) = layout_inline_block_children(node, content_x, content_y_top, inner_width, ctx);
           (kids, h_used)
         } else {
-          let mut children = Vec::with_capacity(node.children.len());
+          let effective = effective_children(node);
+          let mut children = Vec::with_capacity(effective.len());
           let mut cursor = 0.0_f32;
-          for child in &node.children {
+          for child in &effective {
             let child_position = child.style.position.clone().unwrap_or(Position::Static);
             let mut child_box = if is_out_of_flow_position(child_position.clone()) {
               layout_out_of_flow_block(
@@ -2556,12 +2557,58 @@ fn is_inline_level(node: &CascadedNode) -> bool {
   )
 }
 
+fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
+  CascadedNode {
+    element: Element::Span(wgpu_html_models::Span::default()),
+    style: pe.style.clone(),
+    children: vec![CascadedNode {
+      element: Element::Text(pe.content_text.clone()),
+      style: Style::default(),
+      children: vec![],
+      before: None,
+      after: None,
+    }],
+    before: None,
+    after: None,
+  }
+}
+
+fn effective_children(node: &CascadedNode) -> Vec<std::borrow::Cow<'_, CascadedNode>> {
+  use std::borrow::Cow;
+  let mut out = Vec::with_capacity(node.children.len() + 2);
+  if let Some(ref pe) = node.before {
+    out.push(Cow::Owned(make_pseudo_node(pe)));
+  }
+  for child in &node.children {
+    out.push(Cow::Borrowed(child));
+  }
+  if let Some(ref pe) = node.after {
+    out.push(Cow::Owned(make_pseudo_node(pe)));
+  }
+  out
+}
+
+fn has_pseudo_elements(node: &CascadedNode) -> bool {
+  node.before.is_some() || node.after.is_some()
+}
+
 /// True when every child of `node` is an inline-level box, so the
 /// whole block becomes one inline formatting context. Empty parents
 /// stay in block-flow (with zero content) — they have nothing to
 /// flow.
 fn all_children_inline_level(node: &CascadedNode) -> bool {
-  !node.children.is_empty() && node.children.iter().all(is_inline_level)
+  let has_real = !node.children.is_empty();
+  let has_pseudo = has_pseudo_elements(node);
+  if !has_real && !has_pseudo {
+    return false;
+  }
+  let real_inline = node.children.iter().all(is_inline_level);
+  let pseudo_inline = node.before.as_ref().map_or(true, |pe| {
+    pe.style.display.map_or(true, |d| matches!(d, Display::Inline | Display::InlineBlock))
+  }) && node.after.as_ref().map_or(true, |pe| {
+    pe.style.display.map_or(true, |d| matches!(d, Display::Inline | Display::InlineBlock))
+  });
+  real_inline && pseudo_inline
 }
 
 /// Result of laying out one inline-level subtree at a temporary
@@ -2985,7 +3032,7 @@ fn layout_inline_block_children(
 
   // Single-text-leaf fast path: cosmic-text's word-boundary wrap
   // gives the right answer for plain paragraphs.
-  if node.children.len() == 1 {
+  if node.children.len() == 1 && !has_pseudo_elements(node) {
     if let Element::Text(s) = &node.children[0].element {
       let child_style = &node.children[0].style;
       let (box_, w, h, _ascent) = make_text_leaf(s, child_style, origin_x, origin_y, Some(container_w), true, ctx);
@@ -3362,8 +3409,16 @@ fn collect_paragraph_spans(
   }
 
   let leaf_start = plan.spans.len() as u32;
+  if let Some(ref pe) = node.before {
+    let pseudo = make_pseudo_node(pe);
+    collect_paragraph_spans(&pseudo, plan, ctx, collapse, opacity);
+  }
   for child in &node.children {
     collect_paragraph_spans(child, plan, ctx, collapse, opacity);
+  }
+  if let Some(ref pe) = node.after {
+    let pseudo = make_pseudo_node(pe);
+    collect_paragraph_spans(&pseudo, plan, ctx, collapse, opacity);
   }
   let leaf_end = plan.spans.len() as u32;
   if leaf_end > leaf_start {
@@ -3434,8 +3489,16 @@ fn layout_inline_paragraph(
   //    bounds we'll need after shaping).
   let mut plan = ParagraphPlan::default();
   let mut collapse = ParagraphCollapseState::default();
+  if let Some(ref pe) = node.before {
+    let pseudo = make_pseudo_node(pe);
+    collect_paragraph_spans(&pseudo, &mut plan, ctx, &mut collapse, 1.0);
+  }
   for child in &node.children {
     collect_paragraph_spans(child, &mut plan, ctx, &mut collapse, 1.0);
+  }
+  if let Some(ref pe) = node.after {
+    let pseudo = make_pseudo_node(pe);
+    collect_paragraph_spans(&pseudo, &mut plan, ctx, &mut collapse, 1.0);
   }
   if plan.spans.is_empty() {
     return (Vec::new(), 0.0, 0.0);

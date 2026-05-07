@@ -529,6 +529,7 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "cursor" => style.cursor = parse_cursor(value),
     "pointer-events" => style.pointer_events = parse_pointer_events(value),
     "user-select" => style.user_select = parse_user_select(value),
+    "content" => style.content = parse_css_content(value),
     "box-shadow" => style.box_shadow = Some(ArcStr::from(value)),
     "box-sizing" => style.box_sizing = parse_box_sizing(value),
     _ if shorthand_members(property).is_some() => apply_generic_shorthand(style, property, value),
@@ -3120,4 +3121,19 @@ fn parse_user_select(value: &str) -> Option<UserSelect> {
 
 fn parse_box_sizing(value: &str) -> Option<BoxSizing> {
   value.parse().ok()
+}
+
+fn parse_css_content(value: &str) -> Option<CssContent> {
+  let v = value.trim();
+  if v.eq_ignore_ascii_case("none") {
+    return Some(CssContent::None);
+  }
+  if v.eq_ignore_ascii_case("normal") {
+    return Some(CssContent::Normal);
+  }
+  if (v.starts_with('"') && v.ends_with('"')) || (v.starts_with('\'') && v.ends_with('\'')) {
+    let inner = &v[1..v.len() - 1];
+    return Some(CssContent::String(ArcStr::from(inner)));
+  }
+  None
 }

@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use crate::ArcStr;
 
 use crate::common::css_enums::{
-  AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssImage,
-  CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine, GridTrackSize,
+  AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssContent,
+  CssImage, CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine, GridTrackSize,
   JustifyContent, JustifyItems, JustifySelf, Overflow, PointerEvents, Position, Resize, ScrollbarColor, ScrollbarWidth,
   TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
 };
@@ -214,6 +214,7 @@ pub struct Style {
   pub pointer_events: Option<PointerEvents>,
   // css property: user-select
   pub user_select: Option<UserSelect>,
+  pub content: Option<CssContent>,
   // css property: box-shadow
   pub box_shadow: Option<ArcStr>,
   // css property: box-sizing

@@ -5,14 +5,15 @@
 //! (` `, `>`, `+`, `~`), attribute operators, logical pseudo-classes
 //! (`:is`, `:where`, `:not`, `:has`), structural pseudo-classes
 //! (`:nth-child`, …), and state pseudo-classes (`:disabled`, …).
-//! Pseudo-elements (`::before`) still drop the rule because the
-//! engine has no generated-content rendering.
+//! Pseudo-elements (`::before`, `::after`) are supported with
+//! `content` string values.
 
 use std::collections::HashMap;
 
 use wgpu_html_models::{ArcStr, Style};
 pub use wgpu_html_tree::query::{
-  AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, SelectorList,
+  AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, PseudoElement,
+  SelectorList,
 };
 
 use crate::css_parser::{CssWideKeyword, parse_inline_style_decls};

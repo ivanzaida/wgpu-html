@@ -63,7 +63,7 @@ title: Implementation Status
 | Form submission (Enter in input, submit button) | ✅ Done |
 | `<select>` dropdown | ❌ Not done |
 | `:focus-visible` in cascade | ❌ Not done (no keyboard-vs-pointer focus tracking) |
-| Pseudo-elements | ❌ Not done |
+| Pseudo-elements (`::before`, `::after`) | ✅ Done (content string values, block + inline rendering) |
 | calc() / min() / max() / clamp() | ✅ Done (full AST + evaluation) |
 | var() / custom properties (`--foo`) | ✅ Done (parsed, inherited, recursive substitution, cycle detection) |
 | `<link>` stylesheet loading | ❌ Not done |

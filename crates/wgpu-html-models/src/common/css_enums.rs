@@ -70,6 +70,13 @@ pub enum CssColor {
   Function(ArcStr),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CssContent {
+  None,
+  Normal,
+  String(ArcStr),
+}
+
 #[derive(Debug, Clone)]
 pub enum CssImage {
   Url(ArcStr),

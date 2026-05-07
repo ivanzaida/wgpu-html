@@ -120,6 +120,7 @@ pub fn merge(lhs: &mut Style, rhs: &Style) {
   merge_field!(lhs, rhs, cursor);
   merge_field!(lhs, rhs, pointer_events);
   merge_field!(lhs, rhs, user_select);
+  merge_field!(lhs, rhs, content);
   merge_field!(lhs, rhs, box_shadow);
   merge_field!(lhs, rhs, box_sizing);
   for (prop, value) in &rhs.deferred_longhands {

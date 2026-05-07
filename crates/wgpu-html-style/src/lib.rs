@@ -21,7 +21,8 @@ use wgpu_html_models as m;
 use wgpu_html_models::{ArcStr, Style};
 use wgpu_html_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
-  MediaQuery, MediaQueryList, MediaType, PseudoClass, Rule, Stylesheet, parse_inline_style_decls, parse_stylesheet,
+  MediaQuery, MediaQueryList, MediaType, PseudoClass, PseudoElement, Rule, Stylesheet, parse_inline_style_decls,
+  parse_stylesheet,
 };
 use wgpu_html_tree::{Element, InteractionState, Node, Tree};
 
@@ -114,10 +115,18 @@ pub struct CascadedTree {
 }
 
 #[derive(Debug, Clone)]
+pub struct PseudoElementStyle {
+  pub style: Style,
+  pub content_text: ArcStr,
+}
+
+#[derive(Debug, Clone)]
 pub struct CascadedNode {
   pub element: Element,
   pub style: Style,
   pub children: Vec<CascadedNode>,
+  pub before: Option<PseudoElementStyle>,
+  pub after: Option<PseudoElementStyle>,
 }
 
 impl CascadedNode {
@@ -702,6 +711,12 @@ fn re_cascade_dirty(
     if !style.var_properties.is_empty() || style.custom_properties.values().any(|v| v.contains("var(")) {
       wgpu_html_parser::resolve_var_references(&mut style);
     }
+    cached.before = compute_pseudo_element_style(
+      PseudoElement::Before, &node.element, &style, sheets, root, path, interaction,
+    );
+    cached.after = compute_pseudo_element_style(
+      PseudoElement::After, &node.element, &style, sheets, root, path, interaction,
+    );
     cached.style = style;
   }
 
@@ -860,6 +875,107 @@ fn append_stylesheet_source(out: &mut String, css: &str, media: Option<&str>) {
   out.push('\n');
 }
 
+fn compute_pseudo_element_style(
+  pe: PseudoElement,
+  element: &Element,
+  element_style: &Style,
+  sheets: &[&PreparedStylesheet],
+  root: &Node,
+  path: &[usize],
+  interaction: &InteractionState,
+) -> Option<PseudoElementStyle> {
+  use wgpu_html_models::common::css_enums::CssContent;
+
+  if matches!(element, Element::Text(_)) {
+    return None;
+  }
+
+  let qctx = QueryMatchContext {
+    interaction: Some(interaction),
+  };
+  let tag = element_tag(element);
+  let id = element_id(element);
+  let class_attr = element_class(element);
+
+  let mut matched: Vec<(u32, &Rule)> = Vec::new();
+  for sheet in sheets {
+    let mut selector_entries = Vec::new();
+    let mut push = |entries: &[SelectorRuleRef]| {
+      for e in entries {
+        if !selector_entries.iter().any(|s: &SelectorRuleRef| s.rule_idx == e.rule_idx && s.selector_idx == e.selector_idx)
+        {
+          selector_entries.push(*e);
+        }
+      }
+    };
+    if let Some(id) = id {
+      if let Some(e) = sheet.index.by_id.get(id) {
+        push(e);
+      }
+    }
+    if let Some(ca) = class_attr {
+      for c in ca.split_ascii_whitespace() {
+        if let Some(e) = sheet.index.by_class.get(c) {
+          push(e);
+        }
+      }
+    }
+    if let Some(tag) = tag {
+      if let Some(e) = sheet.index.by_tag.get(tag) {
+        push(e);
+      }
+    }
+    push(&sheet.index.universal);
+
+    for entry in selector_entries {
+      let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else { continue };
+      let Some(selector) = rule.selectors.selectors.get(entry.selector_idx) else { continue };
+      let subj = selector.subject();
+      if subj.pseudo_element != Some(pe) {
+        continue;
+      }
+      if !selector.matches_pseudo_in_tree(root, path, &qctx) {
+        continue;
+      }
+      let spec = selector.specificity();
+      if !matched.iter().any(|(_, r)| std::ptr::eq(*r, rule)) {
+        matched.push((spec, rule));
+      }
+    }
+  }
+
+  if matched.is_empty() {
+    return None;
+  }
+
+  matched.sort_by_key(|(spec, _)| *spec);
+
+  let mut style = Style::default();
+  for (_, rule) in &matched {
+    merge(&mut style, &rule.declarations);
+  }
+  for (_, rule) in &matched {
+    merge(&mut style, &rule.important);
+  }
+
+  // Pseudo-elements inherit from the originating element.
+  inherit_into(&mut style, element_style, &HashMap::new());
+
+  let content = style.content.as_ref()?;
+  let text = match content {
+    CssContent::String(s) if !s.is_empty() => s.clone(),
+    CssContent::String(_) => ArcStr::from(""),
+    CssContent::None | CssContent::Normal => return None,
+  };
+
+  // Default display for pseudo-elements is inline.
+  if style.display.is_none() {
+    style.display = Some(wgpu_html_models::common::css_enums::Display::Inline);
+  }
+
+  Some(PseudoElementStyle { style, content_text: text })
+}
+
 /// Recursive cascade. `ancestors[0]` is the immediate parent element
 /// (with its `MatchContext`), deeper indices going further up — used
 /// by the selector matcher so descendant-combinator rules
@@ -959,10 +1075,19 @@ fn cascade_node(
       cn
     })
     .collect();
+  let before = compute_pseudo_element_style(
+    PseudoElement::Before, &node.element, &style, sheets, root, path, interaction,
+  );
+  let after = compute_pseudo_element_style(
+    PseudoElement::After, &node.element, &style, sheets, root, path, interaction,
+  );
+
   CascadedNode {
     element: node.element.clone(),
     style,
     children,
+    before,
+    after,
   }
 }
 
@@ -1543,6 +1668,7 @@ fn style_has_values(style: &Style) -> bool {
     cursor,
     pointer_events,
     user_select,
+    content,
     box_shadow,
     box_sizing,
   ) || !style.deferred_longhands.is_empty()

@@ -52,15 +52,15 @@ The stylesheet parser at `stylesheet.rs:310` skips every `@`-prefixed block exce
 
 ### Pseudo-elements
 
-`::before` and `::after` are parsed by the query engine but always return no matches (`query.rs:1103` rejects any compound with a pseudo-element). The stylesheet parser drops rules containing them. Zero rendering infrastructure exists for generated content.
+`::before` and `::after` are fully supported with `content` string values. The cascade computes pseudo-element styles on `CascadedNode.before`/`.after`, and layout injects synthetic children into both block and inline formatting contexts.
 
-| Pseudo-element | Parser | Query match | Renderer |
-|---------------|--------|-------------|----------|
-| `::before` | ✅ parsed | ❌ false | ❌ none |
-| `::after` | ✅ parsed | ❌ false | ❌ none |
-| `::first-line` | ✅ parsed | ❌ false | ❌ none |
-| `::first-letter` | ✅ parsed | ❌ false | ❌ none |
-| `::placeholder` | ❌ not parsed | ❌ none | ❌ none |
+| Pseudo-element | Parser | Cascade | Renderer |
+|---------------|--------|---------|----------|
+| `::before` | ✅ parsed | ✅ **matched + styled** | ✅ **rendered** (block + inline) |
+| `::after` | ✅ parsed | ✅ **matched + styled** | ✅ **rendered** (block + inline) |
+| `::first-line` | ✅ parsed | ❌ not matched | ❌ none |
+| `::first-letter` | ✅ parsed | ❌ not matched | ❌ none |
+| `::placeholder` | ❌ not parsed | ❌ none | ❌ none (placeholder text uses HTML attribute instead) |
 | `::selection` | ❌ not parsed | ❌ none | ❌ none |
 | `::marker` | ❌ not parsed | ❌ none | ❌ none |
 

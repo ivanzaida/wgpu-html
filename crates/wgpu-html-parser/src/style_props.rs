@@ -359,6 +359,7 @@ style_props! {
     border_bottom_right_radius_v => "border-bottom-right-radius-v";
     border_bottom_left_radius_v => "border-bottom-left-radius-v";
     box_shadow => "box-shadow";
+    content => "content";
 
     // Typography (inherited block) -----------------------------------
     color => "color" ,inherited;
