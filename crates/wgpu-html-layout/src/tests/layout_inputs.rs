@@ -458,8 +458,18 @@ fn range_has_zero_border_width() {
 
 #[test]
 fn range_in_flex_column_matches_sibling_width() {
+  // Reproduce the exact form.html structure: author CSS overrides input
   let tree = make(
     r#"<body style="margin:0;">
+      <style>
+        input {
+          background: #1c1c20;
+          color: #ddd;
+          border: 1px solid #333;
+          border-radius: 4px;
+          padding: 8px 10px;
+        }
+      </style>
       <div style="display:flex; flex-direction:column; width:300px;">
         <span>Range</span>
         <input type="range" />
@@ -467,20 +477,22 @@ fn range_in_flex_column_matches_sibling_width() {
     </body>"#,
   );
   let root = layout(&tree, 800.0, 600.0).unwrap();
-  let container = &root.children[0];
-  let span = &container.children[0];
   let range = find_box_with_form_control(&root).expect("range box");
 
+  // Walk up to find the flex container (the div wrapping the range)
+  fn find_parent_of_fc(b: &LayoutBox) -> Option<&LayoutBox> {
+    for c in &b.children {
+      if c.form_control.is_some() { return Some(b); }
+      if let Some(p) = find_parent_of_fc(c) { return Some(p); }
+    }
+    None
+  }
+  let container = find_parent_of_fc(&root).expect("flex container");
+
   eprintln!("container content: x={} w={}", container.content_rect.x, container.content_rect.w);
-  eprintln!("span border:      x={} w={}", span.border_rect.x, span.border_rect.w);
   eprintln!("range border:     x={} w={}", range.border_rect.x, range.border_rect.w);
   eprintln!("range content:    x={} w={}", range.content_rect.x, range.content_rect.w);
-  eprintln!("range margin:     l={} r={}", range.margin_rect.x - container.content_rect.x,
-    (container.content_rect.x + container.content_rect.w) - (range.margin_rect.x + range.margin_rect.w));
-  eprintln!("range border:     l={} r={} t={} b={}", range.border.left, range.border.right, range.border.top, range.border.bottom);
-  eprintln!("range margin_rect: x={} w={}", range.margin_rect.x, range.margin_rect.w);
-  eprintln!("range border_rect: x={} w={}", range.border_rect.x, range.border_rect.w);
-  eprintln!("gap: margin_w - border_w = {}", range.margin_rect.w - range.border_rect.w);
+  eprintln!("range border insets: l={} r={} t={} b={}", range.border.left, range.border.right, range.border.top, range.border.bottom);
   eprintln!("range padding:    l={} r={}",
     range.content_rect.x - range.border_rect.x - range.border.left,
     (range.border_rect.x + range.border_rect.w) - (range.content_rect.x + range.content_rect.w) - range.border.right);

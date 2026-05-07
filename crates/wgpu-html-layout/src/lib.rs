@@ -1467,8 +1467,15 @@ fn layout_block(
   let style = &node.style;
 
   let mut margin = resolve_insets_margin(style, container_w, ctx);
-  let border = resolve_border_widths(style, container_w, ctx);
-  let padding = resolve_insets_padding(style, container_w, ctx);
+  let mut border = resolve_border_widths(style, container_w, ctx);
+  let mut padding = resolve_insets_padding(style, container_w, ctx);
+
+  // Native-appearance form controls (checkbox, radio, range) suppress
+  // author CSS border/padding — they draw their own visuals.
+  if has_native_appearance(node) {
+    border = Insets::zero();
+    padding = Insets::zero();
+  }
 
   let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
 
@@ -2109,6 +2116,17 @@ pub(crate) fn form_control_default_line_height(node: &CascadedNode) -> bool {
     Element::Button(_) => node.children.is_empty(),
     _ => false,
   }
+}
+
+pub(crate) fn has_native_appearance(node: &CascadedNode) -> bool {
+  use wgpu_html_models::common::html_enums::InputType;
+  matches!(
+    &node.element,
+    Element::Input(inp) if matches!(
+      inp.r#type,
+      Some(InputType::Checkbox | InputType::Radio | InputType::Range)
+    )
+  )
 }
 
 fn vcenter_run_in_rect(run: &mut wgpu_html_text::ShapedRun, box_h: f32) {
@@ -3118,8 +3136,12 @@ fn layout_atomic_inline_subtree(
 ) -> InlineLayout {
   let style = &node.style;
   let margin = resolve_insets_margin(style, container_w, ctx);
-  let border = resolve_border_widths(style, container_w, ctx);
-  let padding = resolve_insets_padding(style, container_w, ctx);
+  let mut border = resolve_border_widths(style, container_w, ctx);
+  let mut padding = resolve_insets_padding(style, container_w, ctx);
+  if has_native_appearance(node) {
+    border = Insets::zero();
+    padding = Insets::zero();
+  }
   let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
 
   let specified_w = length::resolve(style.width.as_ref(), container_w, ctx).map(|specified| match box_sizing {

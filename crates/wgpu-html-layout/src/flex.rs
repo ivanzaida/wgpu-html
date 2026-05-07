@@ -689,7 +689,11 @@ fn build_item<'a>(
   let auto_bottom = is_auto_margin(&style.margin_bottom, &style.margin);
   let auto_left = is_auto_margin(&style.margin_left, &style.margin);
 
+  let native = crate::has_native_appearance(node);
   let mut bw = |width: Option<&CssLength>, bstyle: &Option<wgpu_html_models::common::css_enums::BorderStyle>| -> f32 {
+    if native {
+      return 0.0;
+    }
     if matches!(bstyle, Some(wgpu_html_models::common::css_enums::BorderStyle::None | wgpu_html_models::common::css_enums::BorderStyle::Hidden)) {
       return 0.0;
     }
@@ -700,10 +704,16 @@ fn build_item<'a>(
   let border_bottom = bw(style.border_bottom_width.as_ref(), &style.border_bottom_style);
   let border_left = bw(style.border_left_width.as_ref(), &style.border_left_style);
 
-  let pad_top = side_pad(&style.padding_top, &style.padding, parent_inner_main, ctx);
-  let pad_right = side_pad(&style.padding_right, &style.padding, parent_inner_main, ctx);
-  let pad_bottom = side_pad(&style.padding_bottom, &style.padding, parent_inner_main, ctx);
-  let pad_left = side_pad(&style.padding_left, &style.padding, parent_inner_main, ctx);
+  let (pad_top, pad_right, pad_bottom, pad_left) = if native {
+    (0.0, 0.0, 0.0, 0.0)
+  } else {
+    (
+      side_pad(&style.padding_top, &style.padding, parent_inner_main, ctx),
+      side_pad(&style.padding_right, &style.padding, parent_inner_main, ctx),
+      side_pad(&style.padding_bottom, &style.padding, parent_inner_main, ctx),
+      side_pad(&style.padding_left, &style.padding, parent_inner_main, ctx),
+    )
+  };
 
   let frame_h = border_left + border_right + pad_left + pad_right;
   let frame_v = border_top + border_bottom + pad_top + pad_bottom;
