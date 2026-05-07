@@ -395,3 +395,75 @@ fn radio_has_text_color_for_dot_rendering() {
   let b = find_box_with_form_control(&root).expect("radio box");
   assert!(b.text_color.is_some());
 }
+
+// ── Content rect must fit inside parent ─────────────────────────────
+
+#[test]
+fn range_content_rect_fits_inside_parent() {
+  let tree = make(
+    r#"<body style="margin:0;">
+      <div style="width:200px;">
+        <input type="range" />
+      </div>
+    </body>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let container = &root.children[0];
+  let range = find_box_with_form_control(&root).expect("range box");
+  let parent_left = container.content_rect.x;
+  let parent_right = parent_left + container.content_rect.w;
+  assert!(
+    range.content_rect.x >= parent_left - 0.5,
+    "range content left ({}) should be >= parent left ({})",
+    range.content_rect.x, parent_left,
+  );
+  assert!(
+    range.content_rect.x + range.content_rect.w <= parent_right + 0.5,
+    "range content right ({}) should be <= parent right ({})",
+    range.content_rect.x + range.content_rect.w, parent_right,
+  );
+}
+
+#[test]
+fn checkbox_content_rect_fits_inside_parent() {
+  let tree = make(
+    r#"<body style="margin:0;">
+      <div style="width:200px;">
+        <input type="checkbox" />
+      </div>
+    </body>"#,
+  );
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let container = &root.children[0];
+  let cb = find_box_with_form_control(&root).expect("checkbox box");
+  let parent_right = container.content_rect.x + container.content_rect.w;
+  assert!(
+    cb.content_rect.x + cb.content_rect.w <= parent_right + 0.5,
+    "checkbox content right ({}) should be <= parent right ({})",
+    cb.content_rect.x + cb.content_rect.w, parent_right,
+  );
+}
+
+#[test]
+fn range_has_zero_border_width() {
+  let tree = make(r#"<body style="margin:0;"><input type="range" /></body>"#);
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let b = find_box_with_form_control(&root).expect("range box");
+  assert!(
+    b.border.left < 0.01 && b.border.right < 0.01,
+    "range should have zero border, got left={} right={}",
+    b.border.left, b.border.right,
+  );
+}
+
+#[test]
+fn checkbox_has_zero_border_width() {
+  let tree = make(r#"<body style="margin:0;"><input type="checkbox" /></body>"#);
+  let root = layout(&tree, 800.0, 600.0).unwrap();
+  let b = find_box_with_form_control(&root).expect("checkbox box");
+  assert!(
+    b.border.left < 0.01 && b.border.right < 0.01,
+    "checkbox should have zero border, got left={} right={}",
+    b.border.left, b.border.right,
+  );
+}

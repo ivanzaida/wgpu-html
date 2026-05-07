@@ -356,6 +356,42 @@ fn ua_form_font_initial_resets_inherited_text_styles() {
   assert!(matches!(input.text_align, Some(TextAlign::Start)));
 }
 
+#[test]
+fn cascade_range_input_overrides_generic_input_styles() {
+  use wgpu_html_models::common::html_enums::InputType;
+  let tree = wgpu_html_parser::parse(r#"<input type="range" />"#);
+  let cascaded = cascade(&tree);
+  let style = find_style(cascaded.root.as_ref().unwrap(), &|el| {
+    matches!(el, Element::Input(inp) if matches!(inp.r#type, Some(InputType::Range)))
+  })
+  .expect("should find range input");
+
+  eprintln!("range padding_left: {:?}", style.padding_left);
+  eprintln!("range padding_right: {:?}", style.padding_right);
+  eprintln!("range border_left_width: {:?}", style.border_left_width);
+  eprintln!("range border_right_width: {:?}", style.border_right_width);
+  eprintln!("range border_left_style: {:?}", style.border_left_style);
+  eprintln!("range background_color: {:?}", style.background_color);
+
+  // Range should have no padding (overriding input's padding: 1px 2px)
+  assert!(
+    style.padding_left.is_none()
+      || matches!(&style.padding_left, Some(CssLength::Px(v)) if *v == 0.0)
+      || matches!(&style.padding_left, Some(CssLength::Zero)),
+    "range padding_left should be 0, got {:?}",
+    style.padding_left
+  );
+
+  // Range should have no border (overriding input's border: 2px inset)
+  assert!(
+    style.border_left_width.is_none()
+      || matches!(&style.border_left_width, Some(CssLength::Px(v)) if *v == 0.0)
+      || matches!(&style.border_left_width, Some(CssLength::Zero)),
+    "range border_left_width should be 0/none, got {:?}",
+    style.border_left_width
+  );
+}
+
 // ── Advanced selector tests ───────────────────────────────────────────────
 // These verify that the cascade delegates to query.rs's full CSS4 matching.
 

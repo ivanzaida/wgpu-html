@@ -1467,12 +1467,7 @@ fn layout_block(
   let style = &node.style;
 
   let mut margin = resolve_insets_margin(style, container_w, ctx);
-  let border = Insets {
-    top: length::resolve(style.border_top_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-    right: length::resolve(style.border_right_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-    bottom: length::resolve(style.border_bottom_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-    left: length::resolve(style.border_left_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-  };
+  let border = resolve_border_widths(style, container_w, ctx);
   let padding = resolve_insets_padding(style, container_w, ctx);
 
   let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
@@ -2258,12 +2253,7 @@ fn positioned_overrides(
 ) -> BlockOverrides {
   let style = &node.style;
   let margin = resolve_insets_margin(style, cb_w, ctx);
-  let border = Insets {
-    top: length::resolve(style.border_top_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
-    right: length::resolve(style.border_right_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
-    bottom: length::resolve(style.border_bottom_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
-    left: length::resolve(style.border_left_width.as_ref(), cb_w, ctx).unwrap_or(0.0),
-  };
+  let border = resolve_border_widths(style, cb_w, ctx);
   let padding = resolve_insets_padding(style, cb_w, ctx);
   let width = if style.width.is_none() {
     match left.zip(right) {
@@ -3128,12 +3118,7 @@ fn layout_atomic_inline_subtree(
 ) -> InlineLayout {
   let style = &node.style;
   let margin = resolve_insets_margin(style, container_w, ctx);
-  let border = Insets {
-    top: length::resolve(style.border_top_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-    right: length::resolve(style.border_right_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-    bottom: length::resolve(style.border_bottom_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-    left: length::resolve(style.border_left_width.as_ref(), container_w, ctx).unwrap_or(0.0),
-  };
+  let border = resolve_border_widths(style, container_w, ctx);
   let padding = resolve_insets_padding(style, container_w, ctx);
   let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
 
@@ -4269,6 +4254,22 @@ fn resolve_insets_margin(style: &Style, container_w: f32, ctx: &mut Ctx) -> Inse
     right: side(&style.margin_right, &style.margin, container_w, ctx),
     bottom: side(&style.margin_bottom, &style.margin, container_w, ctx),
     left: side(&style.margin_left, &style.margin, container_w, ctx),
+  }
+}
+
+fn resolve_border_widths(style: &Style, container_w: f32, ctx: &mut Ctx) -> Insets {
+  use wgpu_html_models::common::css_enums::BorderStyle;
+  let w = |width: &Option<CssLength>, bstyle: &Option<BorderStyle>| -> f32 {
+    if matches!(bstyle, Some(BorderStyle::None | BorderStyle::Hidden)) {
+      return 0.0;
+    }
+    length::resolve(width.as_ref(), container_w, ctx).unwrap_or(0.0)
+  };
+  Insets {
+    top: w(&style.border_top_width, &style.border_top_style),
+    right: w(&style.border_right_width, &style.border_right_style),
+    bottom: w(&style.border_bottom_width, &style.border_bottom_style),
+    left: w(&style.border_left_width, &style.border_left_style),
   }
 }
 
