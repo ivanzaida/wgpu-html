@@ -85,6 +85,20 @@ fn subscribe(&self, sender: &MsgSender<Msg>, subs: &mut Subscriptions) {
 }
 ```
 
+## Context
+
+Provide values at a point in the tree that any descendant can consume — no prop-drilling:
+
+```rust
+// Parent
+ctx.provide_context(Theme { dark: true, accent: "#3b82f6".into() });
+
+// Any descendant
+let theme = ctx.use_context::<Theme>().unwrap();
+```
+
+Type-keyed via `TypeId` — compile-time safe, no string keys. Context is an injection mechanism; for reactive cross-tree state, provide an `Observable` via context.
+
 ## Three-Path Render Model
 
 Per mounted component, the runtime selects one of three paths:
@@ -93,7 +107,7 @@ Per mounted component, the runtime selects one of three paths:
 2. **Patch path**: Skip `view()`, clone the skeleton node, re-substitute only dirty children.
 3. **Full render**: Call `view()`, reconcile children, cache output for future patches.
 
-The DOM is patched in-place (not replaced wholesale), preserving form control values and interaction state.
+The DOM is patched in-place (not replaced wholesale), preserving form control values and interaction state. Context values are propagated through the tree during rendering — merged from inherited (parent) and provided (this component) at each level.
 
 ## Entry Points
 
@@ -109,6 +123,7 @@ mount.process(&mut tree);
 
 - [Component Trait](./component-trait) — lifecycle, hooks, styles
 - [El Builder DSL](./el-dsl) — element constructors, children, callbacks
-- [Ctx Callback Factory](./ctx) — message senders, child embedding
+- [Ctx Callback Factory](./ctx) — message senders, child embedding, background tasks
+- [Context](./context) — tree-scoped dependency injection
 - [Observable — Reactive State](./store) — shared state, subscriptions
 - [Rendering Model](./rendering) — three-path render, DOM patching

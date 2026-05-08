@@ -365,6 +365,7 @@ style_props! {
 
     // Typography (inherited block) -----------------------------------
     color => "color" ,inherited;
+    accent_color => "accent-color" ,inherited;
     font_family => "font-family" ,inherited;
     font_size => "font-size" ,inherited;
     font_weight => "font-weight" ,inherited;

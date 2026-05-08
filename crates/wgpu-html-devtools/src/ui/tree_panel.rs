@@ -82,7 +82,7 @@ impl Component for TreePanel {
         .display(Display::Flex)
         .user_select("none")
         .prop("flex-direction", "column")
-        .width(px(560))
+        .width(pct(44))
         .height(pct(100))
         .background_color(Theme::BG_PRIMARY)
         .border_right(format!("1px solid {}", Theme::BORDER))
@@ -286,7 +286,6 @@ impl TreePanel {
     row(parts, pad_left, selected, ctx)
       .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
-
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

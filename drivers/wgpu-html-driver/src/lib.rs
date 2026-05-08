@@ -1090,7 +1090,6 @@ impl<D: Driver> Runtime<D> {
 
 const PIXEL_SIZE: f32 = 2.5;
 const CHAR_W: f32 = 4.0 * PIXEL_SIZE;
-const CHAR_H: f32 = 5.0 * PIXEL_SIZE;
 const CHAR_GAP: f32 = 1.0 * PIXEL_SIZE;
 
 fn draw_pixel_string(list: &mut DisplayList, x: f32, y: f32, s: &str, color: [f32; 4]) {

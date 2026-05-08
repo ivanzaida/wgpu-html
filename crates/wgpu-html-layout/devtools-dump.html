@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html><head>
+<style>
+.styles-panel {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    height: 100%;
+    background-color: #202124;
+    font-family: monospace;
+    font-size: 11px;
+    overflow-y: auto;
+}
+
+.styles-tabs {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0px 12px;
+    gap: 16px;
+    background-color: #292A2D;
+    border-bottom: 1px solid #3C4043;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.styles-tab {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0px 4px;
+    color: #9AA0A6;
+    font-weight: 500;
+}
+
+.styles-tab.styles-active {
+    color: #E8EAED;
+    font-weight: 600;
+    border-bottom: 2px solid #8AB4F8;
+}
+
+.styles-content {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.styles-rule {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-bottom: 1px solid #3C4043;
+}
+
+.styles-rule-hdr {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding: 0px 12px;
+    gap: 6px;
+    width: 100%;
+}
+
+.styles-rule-end {
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0px 12px;
+}
+
+.styles-decl {
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding-left: 28px;
+    padding-right: 12px;
+    white-space: nowrap;
+}
+
+.styles-sel {
+    color: #D2E3FC;
+    font-weight: 500;
+}
+
+.styles-brace {
+    color: #9AA0A6;
+}
+
+.styles-prop {
+    color: #9AA0A6;
+}
+
+.styles-val {
+    color: #FF8BCB;
+}
+
+.styles-unit {
+    color: #FDD663;
+}
+
+.styles-punct {
+    color: #9AA0A6;
+}
+
+.styles-file {
+    color: #8AB4F8;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 10px;
+}
+
+.styles-ua-file {
+    color: #5F6368;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 10px;
+    font-style: italic;
+}
+
+.styles-spacer {
+    flex-grow: 1;
+}
+
+.styles-chevron {
+    width: 11px;
+    height: 11px;
+    font-size: 11px;
+    color: #9AA0A6;
+    line-height: 11px;
+}
+
+.styles-empty {
+    color: #5F6368;
+    padding: 12px;
+    font-family: Inter, system-ui, sans-serif;
+}
+
+
+</style>
+
+<style>
+.toolbar-bar {
+    display: flex;
+    align-items: center;
+    height: 30px;
+    width: 100%;
+    padding: 0px 8px;
+    gap: 8px;
+    background-color: #292A2D;
+    border-bottom: 1px solid #3C4043;
+    box-sizing: border-box;
+    user-select: none;
+    font-size: 11px;
+}
+
+.toolbar-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    color: #8AB4F8;
+    line-height: 14px;
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 16px;
+    background-color: #5F6368;
+}
+
+.toolbar-filter {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    width: 200px;
+    padding: 0px 8px;
+    gap: 6px;
+    background-color: #35363A;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+
+.toolbar-filter-icon {
+    width: 12px;
+    height: 12px;
+    font-size: 12px;
+    color: #5F6368;
+    line-height: 12px;
+}
+
+.toolbar-filter-input {
+    flex-grow: 1;
+    height: 100%;
+    border: none;
+    background-color: transparent;
+    color: #E8EAED;
+    font-size: 11px;
+    outline: none;
+    padding: 0px;
+}
+
+
+</style>
+
+<style>
+.devtools-root {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background-color: #202124;
+    color: #E8EAED;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 12px;
+}
+
+.devtools-body {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.devtools-breadcrumb {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding: 0px 12px;
+    gap: 4px;
+    background-color: #292A2D;
+    border-top: 1px solid #3C4043;
+    font-size: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.devtools-crumb {
+    color: #5F6368;
+}
+
+.devtools-crumb.devtools-active {
+    color: #8AB4F8;
+    font-weight: 600;
+}
+
+.devtools-crumb-sep {
+    width: 10px;
+    height: 10px;
+    font-size: 10px;
+    color: #5F6368;
+    line-height: 10px;
+}
+
+
+</style>
+
+<style>
+.tree-panel {
+    display: flex;
+    user-select: none;
+    flex-direction: column;
+    width: 44%;
+    height: 100%;
+    background-color: #202124;
+    border-right: 1px solid #3C4043;
+    padding: 8px 0px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.tree-rows {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding-right: 12px;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.tree-row:hover {
+    background-color: #3C4043;
+}
+
+.tree-row.tree-selected {
+    background-color: #073655;
+}
+
+.tree-row.tree-selected:hover {
+    background-color: #0A4166;
+}
+
+.tree-chevron {
+    width: 12px;
+    height: 12px;
+    font-size: 12px;
+    color: #9AA0A6;
+    cursor: pointer;
+    line-height: 12px;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.tree-chevron.tree-selected {
+    color: #E8EAED;
+}
+
+.tree-spacer {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.tree-tag {
+    color: #5DB0D7;
+}
+
+.tree-punct {
+    color: #9AA0A6;
+}
+
+.tree-equals {
+    color: #9AA0A6;
+}
+
+.tree-attr-name {
+    color: #9AA0A6;
+    margin-left: 4px;
+}
+
+.tree-attr-val {
+    color: #F28B82;
+}
+
+.tree-text-content {
+    color: #9AA0A6;
+}
+
+.tree-doctype {
+    color: #5F6368;
+}
+
+
+</style>
+
+<style>
+body { margin:0; padding: 0; }
+</style>
+</head><body><div class="devtools-root"><div class="toolbar-bar"><span class="toolbar-icon" style="font-family: lucide"></span><div class="toolbar-divider"></div><div class="toolbar-filter"><span class="toolbar-filter-icon" style="font-family: lucide"></span><input class="toolbar-filter-input" value placeholder="Filter"></div></div><div class="devtools-body"><div class="tree-panel"><div class="tree-rows"><div class="tree-row" style="padding-left: 12px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">body</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 28px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">form</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 320px;
+    padding: 16px;
+    border: 1px solid #d6d6d6;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+  "</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Button</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"button"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"button"</span><span class="tree-attr-name"> value</span><span class="tree-equals">=</span><span class="tree-attr-val">"Button"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Checkbox</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"checkbox"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"checkbox"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Color</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"color"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"color"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Date</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"date"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"date"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Datetime Local</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"datetime-local"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"datetime-local"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Email</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"email"</span><span class="tree-attr-name"> placeholder</span><span class="tree-equals">=</span><span class="tree-attr-val">"email@example.com"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"email"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">File</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"file"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"file"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Hidden</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"hidden"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"hidden"</span><span class="tree-attr-name"> value</span><span class="tree-equals">=</span><span class="tree-attr-val">"hidden-value"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Image</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> alt</span><span class="tree-equals">=</span><span class="tree-attr-val">"Submit"</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"image"</span><span class="tree-attr-name"> src</span><span class="tree-equals">=</span><span class="tree-attr-val">"submit.png"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"image"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Month</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"month"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"month"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Number</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"number"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"number"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Password</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"password"</span><span class="tree-attr-name"> placeholder</span><span class="tree-equals">=</span><span class="tree-attr-val">"Password"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"password"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Radio</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"radio"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"radio"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Range</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"range"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"range"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Reset</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"reset"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"reset"</span><span class="tree-attr-name"> value</span><span class="tree-equals">=</span><span class="tree-attr-val">"Reset"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Search</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"search"</span><span class="tree-attr-name"> placeholder</span><span class="tree-equals">=</span><span class="tree-attr-val">"Search"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"search"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Submit</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"submit"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"submit"</span><span class="tree-attr-name"> value</span><span class="tree-equals">=</span><span class="tree-attr-val">"Submit"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Telephone</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"tel"</span><span class="tree-attr-name"> placeholder</span><span class="tree-equals">=</span><span class="tree-attr-val">"+380..."</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"tel"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Text</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"text"</span><span class="tree-attr-name"> placeholder</span><span class="tree-equals">=</span><span class="tree-attr-val">"Text"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"text"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Time</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"time"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"time"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">URL</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"url"</span><span class="tree-attr-name"> placeholder</span><span class="tree-equals">=</span><span class="tree-attr-val">"https://example.com"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"url"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><span class="tree-chevron" style="font-family: lucide"></span><span class="tree-punct">&lt;</span><span class="tree-tag">label</span><span class="tree-attr-name"> style</span><span class="tree-equals">=</span><span class="tree-attr-val">"display: flex; flex-direction: column; gap: 4px"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span><span class="tree-text-content">Week</span><span class="tree-punct">&lt;/</span><span class="tree-tag">span</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 60px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">input</span><span class="tree-attr-name"> name</span><span class="tree-equals">=</span><span class="tree-attr-val">"week"</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"week"</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">label</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 44px"><div class="tree-spacer"></div><span class="tree-punct">&lt;</span><span class="tree-tag">button</span><span class="tree-attr-name"> type</span><span class="tree-equals">=</span><span class="tree-attr-val">"submit"</span><span class="tree-punct">&gt;</span><span class="tree-text-content">
+        Submit button
+    </span><span class="tree-punct">&lt;/</span><span class="tree-tag">button</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 28px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">form</span><span class="tree-punct">&gt;</span></div><div class="tree-row" style="padding-left: 12px"><div class="tree-spacer"></div><span class="tree-punct">&lt;/</span><span class="tree-tag">body</span><span class="tree-punct">&gt;</span></div></div></div><div class="styles-panel"><div class="styles-tabs"><span class="styles-tab styles-active">Styles</span><span class="styles-tab">Computed</span><span class="styles-tab">Layout</span></div><div class="styles-content"><span class="styles-empty">No element selected</span></div></div></div><div class="devtools__breadcrumb"></div></div></body></html>

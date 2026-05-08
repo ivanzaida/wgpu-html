@@ -112,6 +112,7 @@ const sidebars = {
         'component-framework/component-trait',
         'component-framework/el-dsl',
         'component-framework/ctx',
+        'component-framework/context',
         'component-framework/store',
         'component-framework/rendering',
       ],

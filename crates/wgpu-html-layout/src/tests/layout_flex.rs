@@ -1207,3 +1207,76 @@ fn flex_row_gap_spaces_children_correctly() {
     "gap between child 1 and 2 should be 20px, got {gap_12}"
   );
 }
+
+#[test]
+fn checkbox_stays_inside_parent_card() {
+  let html = include_str!("../../../../demo/wgpu-html-demo/html/styled-inputs.html");
+  let root = layout_with_fonts(html, 1920.0, 1080.0);
+  // Find all cards (children of .columns flex row)
+  // Structure: html > body > div.columns > div.card * 5
+  fn find_columns(b: &LayoutBox) -> Option<&LayoutBox> {
+    if b.children.len() == 5 { return Some(b); }
+    for c in &b.children { if let Some(f) = find_columns(c) { return Some(f); } }
+    None
+  }
+  let columns = find_columns(&root).expect("should find columns with 5 cards");
+  for (i, card) in columns.children.iter().enumerate() {
+    let card_left = card.border_rect.x;
+    let card_right = card_left + card.border_rect.w;
+    // Walk all descendants — every form control should be within the card bounds
+    fn check_bounds(b: &LayoutBox, card_left: f32, card_right: f32, card_idx: usize) {
+      if b.form_control.is_some() {
+        let ctrl_left = b.border_rect.x;
+        let ctrl_right = ctrl_left + b.border_rect.w;
+        assert!(
+          ctrl_left >= card_left - 1.0 && ctrl_right <= card_right + 1.0,
+          "card[{card_idx}] ({card_left:.0}..{card_right:.0}): form control at {ctrl_left:.0}..{ctrl_right:.0} overflows"
+        );
+      }
+      for c in &b.children { check_bounds(c, card_left, card_right, card_idx); }
+    }
+    check_bounds(card, card_left, card_right, i);
+  }
+  // Dump first card's form controls
+  let card0 = &columns.children[0];
+  fn dump_controls(b: &LayoutBox, depth: usize) {
+    if b.form_control.is_some() {
+      let indent = "  ".repeat(depth);
+      eprintln!("{indent}control: x={:.1} y={:.1} w={:.1} h={:.1} kind={:?}",
+        b.border_rect.x, b.border_rect.y, b.border_rect.w, b.border_rect.h, b.form_control);
+    }
+    for c in &b.children { dump_controls(c, depth + 1); }
+  }
+  dump_controls(card0, 0);
+}
+
+#[test]
+fn flex_row_percentage_width_plus_flex_grow() {
+  let dump_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("devtools-dump.html");
+  let Ok(html) = std::fs::read_to_string(&dump_path) else {
+    eprintln!("skipping: devtools-dump.html not found");
+    return;
+  };
+
+  let mut parsed = wgpu_html_parser::parse(&html);
+  parsed.wrap_body = false;
+  parsed.register_system_fonts("sans-serif");
+  let cascaded = wgpu_html_style::cascade(&parsed);
+  let mut text_ctx = wgpu_html_text::TextContext::new(64);
+  text_ctx.sync_fonts(&parsed.fonts);
+  let mut image_cache = AssetIo::new(wgpu_html_assets::blocking::BlockingFetcher::new());
+  let root = layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 1280.0, 800.0, 1.0).unwrap();
+
+  fn dump(b: &LayoutBox, depth: usize) {
+    let indent = "  ".repeat(depth);
+    let has_text = b.text_run.is_some();
+    if depth <= 5 || b.border_rect.w > 100.0 {
+      eprintln!("{indent}w={:.0} h={:.0} x={:.0} children={} text={}",
+        b.border_rect.w, b.border_rect.h, b.border_rect.x, b.children.len(), has_text);
+    }
+    if depth <= 5 {
+      for c in &b.children { dump(c, depth + 1); }
+    }
+  }
+  dump(&root, 0);
+}

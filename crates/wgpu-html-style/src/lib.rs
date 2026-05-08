@@ -1552,6 +1552,7 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<ArcStr, Cs
     }
   inherit!(
     (color, "color"),
+    (accent_color, "accent-color"),
     (font_family, "font-family"),
     (font_size, "font-size"),
     (font_weight, "font-weight"),

@@ -509,6 +509,9 @@ pub struct LayoutBox {
   pub first_letter_color: Option<Color>,
   pub selection_bg: Option<Color>,
   pub selection_fg: Option<Color>,
+  /// Resolved CSS `accent-color`. Used by form-control paint to tint
+  /// checked checkboxes, radio buttons, and range slider thumbs/fills.
+  pub accent_color: Option<Color>,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -1014,17 +1017,24 @@ fn path_is_ancestor_of_dirty(dirty_paths: &[Vec<usize>], path: &[usize]) -> bool
   dirty_paths.iter().any(|dp| dp.len() > path.len() && dp.starts_with(path))
 }
 
-fn needs_full_relayout(style: &Style) -> bool {
+fn needs_full_relayout(node: &CascadedNode) -> bool {
   use wgpu_html_models::common::css_enums::FlexDirection;
+  let style = &node.style;
   match style.display.as_ref() {
     Some(Display::Grid | Display::InlineGrid) => true,
     Some(Display::Flex | Display::InlineFlex) => {
-      // Column flex stacks vertically like block flow — safe to
-      // recurse. Row flex (default) has cross-item width dependencies.
-      !matches!(
+      if matches!(
         style.flex_direction,
         Some(FlexDirection::Column | FlexDirection::ColumnReverse)
-      )
+      ) {
+        return false;
+      }
+      // Flex-row has cross-item width dependencies. However, when
+      // every direct child has an explicit CSS width, content
+      // changes inside one child cannot affect sibling sizing —
+      // safe to recurse into the dirty child only.
+      let children = effective_children(node);
+      !children.iter().all(|c| c.style.width.is_some())
     }
     _ => false,
   }
@@ -1099,7 +1109,7 @@ fn relayout_children(
         cursor_dy += new_h - old_h;
       }
     } else if is_ancestor {
-      if needs_full_relayout(&child_node.style) {
+      if needs_full_relayout(child_node) {
         let old_h = child_box.margin_rect.h;
         let containing_block = Rect::new(
           parent_box.content_rect.x,
@@ -1164,9 +1174,11 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Co
   b.pointer_events = resolved_pointer_events(style);
   b.user_select = resolved_user_select(style);
 
-  if b.text_color.is_some() || matches!(b.kind, BoxKind::Text) {
+  if b.text_color.is_some() || matches!(b.kind, BoxKind::Text) || b.form_control.is_some() {
     b.text_color = Some(fg);
   }
+
+  b.accent_color = style.accent_color.as_ref().and_then(|c| resolve_with_current(c, fg));
 
   let resolve_border = |c: &CssColor| resolve_with_current(c, fg);
   b.border_colors = BorderColors {
@@ -1505,6 +1517,8 @@ fn layout_block(
             w * ctx.scale
           } else if let Some(ref id) = img_data {
             id.width as f32 * ctx.scale
+          } else if has_native_appearance(node) {
+            14.0 * ctx.scale
           } else {
             (container_w - frame_w).max(0.0)
           }
@@ -1574,7 +1588,8 @@ fn layout_block(
       let css_h = length::resolve(style_height, container_h, ctx);
       let effective_h = css_h
         .or_else(|| html_img_height.map(|h| h * ctx.scale))
-        .or_else(|| img_data.as_ref().map(|id| id.height as f32 * ctx.scale));
+        .or_else(|| img_data.as_ref().map(|id| id.height as f32 * ctx.scale))
+        .or_else(|| if has_native_appearance(node) { Some(14.0 * ctx.scale) } else { None });
       effective_h.map(|specified| {
         let raw = match box_sizing {
           BoxSizing::ContentBox => specified,
@@ -1735,6 +1750,7 @@ fn layout_block(
 
   let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
   let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let accent_color = style.accent_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
   let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
     top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
@@ -1846,6 +1862,7 @@ fn layout_block(
     first_letter_color: None,
     selection_bg: None,
     selection_fg: None,
+    accent_color,
     children,
     is_fixed: false,
     form_control: fc,
@@ -2708,6 +2725,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     first_letter_color: None,
     selection_bg: None,
     selection_fg: None,
+    accent_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -2785,6 +2803,7 @@ fn make_text_leaf(
     first_letter_color: None,
     selection_bg: None,
     selection_fg: None,
+    accent_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3113,6 +3132,7 @@ fn layout_inline_subtree(
     first_letter_color: None,
     selection_bg: None,
     selection_fg: None,
+    accent_color: None,
     children: final_children,
     is_fixed: false,
     form_control: None,
@@ -3207,6 +3227,7 @@ fn layout_atomic_inline_subtree(
 
   let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
   let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let accent_color = style.accent_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
   let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
     top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
@@ -3304,6 +3325,7 @@ fn layout_atomic_inline_subtree(
       first_letter_color: None,
       selection_bg: None,
       selection_fg: None,
+      accent_color,
       children,
       is_fixed: false,
       form_control: fc,
@@ -3828,6 +3850,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     first_letter_color: None,
     selection_bg: None,
     selection_fg: None,
+    accent_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -4058,6 +4081,7 @@ fn layout_inline_paragraph(
     first_letter_color: None,
     selection_bg: None,
     selection_fg: None,
+    accent_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

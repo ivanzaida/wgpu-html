@@ -219,7 +219,7 @@ pub fn body_handles_scroll(layout: &LayoutBox) -> bool {
 
 /// Max scroll for the body element when it handles scrolling.
 /// Walks through root → body and computes scrollable content height.
-pub fn body_max_scroll(layout: &LayoutBox, viewport_h: f32) -> f32 {
+pub fn body_max_scroll(layout: &LayoutBox, _viewport_h: f32) -> f32 {
   use crate::models::common::css_enums::Overflow;
   for child in &layout.children {
     if matches!(child.overflow.y, Overflow::Scroll | Overflow::Auto) {

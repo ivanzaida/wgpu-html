@@ -10,7 +10,7 @@ use wgpu_html_tree::{Node, Tree};
 
 use crate::core::{
   component::{Component, ShouldRender},
-  ctx::{ChildSlot, Ctx, MsgSender, ScopedClassCache},
+  ctx::{ChildSlot, ContextMap, Ctx, MsgSender, ScopedClassCache},
   observable::Subscriptions,
 };
 
@@ -20,8 +20,9 @@ pub(crate) trait AnyComponent {
   /// Process one message.  Returns whether the view should be rebuilt.
   fn update_any(&mut self, msg: Box<dyn Any>) -> ShouldRender;
 
-  /// Render the component and return the node tree + child slots.
-  fn render(&self) -> (Node, Vec<ChildSlot>);
+  /// Render the component and return the node tree, child slots, and
+  /// any context values provided during this render.
+  fn render(&self, inherited_context: &ContextMap) -> (Node, Vec<ChildSlot>, ContextMap);
 
   /// Notify that props changed.
   fn props_changed_any(&mut self, new_props: &dyn Any) -> ShouldRender;
@@ -96,11 +97,12 @@ where
     }
   }
 
-  fn render(&self) -> (Node, Vec<ChildSlot>) {
-    let ctx = Ctx::new(self.sender.clone(), self.cached_scope, self.scoped_cache.clone());
+  fn render(&self, inherited_context: &ContextMap) -> (Node, Vec<ChildSlot>, ContextMap) {
+    let ctx = Ctx::new(self.sender.clone(), self.cached_scope, self.scoped_cache.clone(), inherited_context.clone());
     let el = self.component.view(&self.props, &ctx);
     let children = ctx.children.into_inner();
-    (el.into_node(), children)
+    let provided = ctx.provided_context.into_inner();
+    (el.into_node(), children, provided)
   }
 
   fn scope_prefix(&self) -> &'static str {
@@ -190,6 +192,9 @@ pub(crate) struct MountedComponent {
   pub(crate) subtree_dirty: bool,
   /// The DOM placeholder id in the parent's node tree (empty for root).
   pub(crate) marker_id: String,
+  /// Merged context (inherited from parent + provided by this component)
+  /// that children will inherit.
+  pub(crate) child_context: ContextMap,
 }
 
 // ── Runtime ─────────────────────────────────────────────────────────────────
@@ -232,6 +237,7 @@ impl Runtime {
         needs_render: true,
         subtree_dirty: true,
         marker_id: String::new(),
+        child_context: HashMap::new(),
       },
       wake,
       registered_styles: std::collections::HashSet::new(),
@@ -248,7 +254,8 @@ impl Runtime {
 
   /// Perform the initial render of the entire component tree.
   pub fn initial_render(&mut self) -> Node {
-    let node = Self::render_component(&mut self.root, &self.wake);
+    let empty = HashMap::new();
+    let node = Self::render_component(&mut self.root, &self.wake, &empty);
     self.root.state.mounted();
     node
   }
@@ -259,13 +266,14 @@ impl Runtime {
   /// Returns `true` if any subtree was re-rendered.
   pub fn process(&mut self, tree: &mut Tree) -> bool {
     let mut ever_changed = false;
+    let empty = HashMap::new();
     loop {
       let changed = Self::process_component(&mut self.root, &self.wake);
       if !changed {
         break;
       }
       ever_changed = true;
-      let node = Self::render_component(&mut self.root, &self.wake);
+      let node = Self::render_component(&mut self.root, &self.wake, &empty);
       Self::register_styles(tree, &self.root);
       self.apply_node(tree, node);
     }
@@ -275,7 +283,8 @@ impl Runtime {
   /// Force a full re-render of every component in the tree.
   pub fn force_render(&mut self, tree: &mut Tree) {
     Self::mark_all_dirty(&mut self.root);
-    let node = Self::render_component(&mut self.root, &self.wake);
+    let empty = HashMap::new();
+    let node = Self::render_component(&mut self.root, &self.wake, &empty);
     Self::register_styles(tree, &self.root);
     self.apply_node(tree, node);
   }
@@ -399,7 +408,7 @@ impl Runtime {
   ///
   /// 3. **Full render** (`needs_render`, or first render): Call `view()`, reconcile the child set (add/remove/update),
   ///    store the raw output as `skeleton_node`, substitute children, cache the resolved result as `last_node`.
-  fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>) -> Node {
+  fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>, inherited_context: &ContextMap) -> Node {
     // ── Path 1: clean fast-path ─────────────────────────────────────
     if !mounted.needs_render && !mounted.subtree_dirty {
       if let Some(cached) = &mounted.last_node {
@@ -416,8 +425,9 @@ impl Runtime {
 
         // Re-substitute every child.  Dirty children re-render; clean
         // children hit path 1 and return their last_node cheaply.
+        // Context is unchanged (parent didn't re-render), reuse stored child_context.
         for child in mounted.children.values_mut() {
-          let child_node = Self::render_component(child, wake);
+          let child_node = Self::render_component(child, wake, &mounted.child_context);
           replace_placeholder(&mut resolved, &child.marker_id, child_node);
         }
 
@@ -432,7 +442,12 @@ impl Runtime {
     // ── Path 3: full render ──────────────────────────────────────────
     let was_dirty = mounted.needs_render;
     let is_first_render = mounted.skeleton_node.is_none();
-    let (skeleton, child_slots) = mounted.state.render();
+    let (skeleton, child_slots, provided_context) = mounted.state.render(inherited_context);
+
+    // Merge inherited + provided context for children.
+    let mut child_context = inherited_context.clone();
+    child_context.extend(provided_context);
+    mounted.child_context = child_context;
     // Resolved starts as a clone of the skeleton; children are then
     // substituted in.  The original skeleton is kept intact for future
     // patch-path passes.
@@ -462,6 +477,7 @@ impl Runtime {
           needs_render: true,
           subtree_dirty: true,
           marker_id: slot.marker_id.clone(),
+          child_context: HashMap::new(),
         };
         child.state.mounted();
         child
@@ -469,7 +485,7 @@ impl Runtime {
 
       child.marker_id = slot.marker_id.clone();
 
-      let child_node = Self::render_component(&mut child, wake);
+      let child_node = Self::render_component(&mut child, wake, &mounted.child_context);
       replace_placeholder(&mut resolved, &slot.marker_id, child_node);
 
       new_children.insert(key, child);

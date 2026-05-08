@@ -1,0 +1,276 @@
+<style>
+    body {
+        margin: 0;
+        padding: 32px;
+        background: #0e0e10;
+        color: #ddd;
+        font-family: sans-serif;
+        font-size: 14px;
+    }
+
+    h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .columns {
+        display: flex;
+        gap: 32px;
+    }
+
+    .card {
+        padding: 16px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: 220px;
+    }
+
+    label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    /* ── Default: no accent-color ── */
+
+    .default input[type="text"] {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+
+    /* ── Purple ── */
+
+    .purple input[type="checkbox"],
+    .purple input[type="radio"] {
+        accent-color: #7c3aed;
+        border-color: #7c3aed;
+    }
+
+    .purple input[type="range"] {
+        accent-color: #7c3aed;
+        background-color: rgba(124, 58, 237, 0.15);
+    }
+
+    .purple input[type="text"] {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #7c3aed;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+
+    /* ── Green ── */
+
+    .green input[type="checkbox"],
+    .green input[type="radio"] {
+        accent-color: #16a34a;
+        border-color: #16a34a;
+    }
+
+    .green input[type="range"] {
+        accent-color: #16a34a;
+        background-color: rgba(22, 163, 74, 0.15);
+    }
+
+    .green input[type="text"] {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #16a34a;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+
+    /* ── Rose ── */
+
+    .rose input[type="checkbox"],
+    .rose input[type="radio"] {
+        accent-color: #e11d48;
+        border-color: #e11d48;
+    }
+
+    .rose input[type="range"] {
+        accent-color: #e11d48;
+        background-color: rgba(225, 29, 72, 0.15);
+    }
+
+    .rose input[type="text"] {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #e11d48;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+
+    /* ── Amber ── */
+
+    .amber input[type="checkbox"],
+    .amber input[type="radio"] {
+        accent-color: #d97706;
+        border-color: #d97706;
+    }
+
+    .amber input[type="range"] {
+        accent-color: #d97706;
+        background-color: rgba(217, 119, 6, 0.15);
+    }
+
+    .amber input[type="text"] {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #d97706;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+</style>
+
+<div class="columns">
+
+    <!-- Default -->
+    <div class="card default">
+        <h2>Default</h2>
+        <label>
+            <span>Checkbox</span>
+            <div class="row">
+                <input type="checkbox"/>
+                <input type="checkbox" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Radio</span>
+            <div class="row">
+                <input name="r1" type="radio"/>
+                <input name="r1" type="radio" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Range</span>
+            <input type="range" value="40"/>
+        </label>
+        <label>
+            <span>Text</span>
+            <input type="text" placeholder="Default"/>
+        </label>
+    </div>
+
+    <!-- Purple -->
+    <div class="card purple">
+        <h2>Purple</h2>
+        <label>
+            <span>Checkbox</span>
+            <div class="row">
+                <input type="checkbox"/>
+                <input type="checkbox" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Radio</span>
+            <div class="row">
+                <input name="r2" type="radio"/>
+                <input name="r2" type="radio" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Range</span>
+            <input type="range" value="60"/>
+        </label>
+        <label>
+            <span>Text</span>
+            <input type="text" placeholder="Purple"/>
+        </label>
+    </div>
+
+    <!-- Green -->
+    <div class="card green">
+        <h2>Green</h2>
+        <label>
+            <span>Checkbox</span>
+            <div class="row">
+                <input type="checkbox"/>
+                <input type="checkbox" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Radio</span>
+            <div class="row">
+                <input name="r3" type="radio"/>
+                <input name="r3" type="radio" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Range</span>
+            <input type="range" value="70"/>
+        </label>
+        <label>
+            <span>Text</span>
+            <input type="text" placeholder="Green"/>
+        </label>
+    </div>
+
+    <!-- Rose -->
+    <div class="card rose">
+        <h2>Rose</h2>
+        <label>
+            <span>Checkbox</span>
+            <div class="row">
+                <input type="checkbox"/>
+                <input type="checkbox" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Radio</span>
+            <div class="row">
+                <input name="r4" type="radio"/>
+                <input name="r4" type="radio" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Range</span>
+            <input type="range" value="30"/>
+        </label>
+        <label>
+            <span>Text</span>
+            <input type="text" placeholder="Rose"/>
+        </label>
+    </div>
+
+    <!-- Amber -->
+    <div class="card amber">
+        <h2>Amber</h2>
+        <label>
+            <span>Checkbox</span>
+            <div class="row">
+                <input type="checkbox"/>
+                <input type="checkbox" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Radio</span>
+            <div class="row">
+                <input name="r5" type="radio"/>
+                <input name="r5" type="radio" checked/>
+            </div>
+        </label>
+        <label>
+            <span>Range</span>
+            <input type="range" value="80"/>
+        </label>
+        <label>
+            <span>Text</span>
+            <input type="text" placeholder="Amber"/>
+        </label>
+    </div>
+
+</div>

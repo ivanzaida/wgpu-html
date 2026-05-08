@@ -8,4 +8,3 @@ mod lucide_icon;
 
 pub use shell::{DevtoolsComponent, DevtoolsProps};
 pub use store::DevtoolsStore;
-pub use top_bar::{Toolbar, ToolbarProps};

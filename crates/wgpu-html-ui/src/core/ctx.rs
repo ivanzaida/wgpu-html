@@ -12,6 +12,10 @@ use wgpu_html_tree::{EventCallback, HtmlEvent, MouseCallback, MouseEvent, Node};
 
 use crate::el::El;
 
+// ── Context ────────────────────────────────────────────────────────────────
+
+pub(crate) type ContextMap = HashMap<TypeId, Arc<dyn Any + Send + Sync>>;
+
 // ── MsgSender ───────────────────────────────────────────────────────────────
 
 /// Thread-safe message queue.
@@ -83,16 +87,20 @@ pub struct Ctx<Msg: 'static> {
   pub(crate) child_counter: Cell<usize>,
   pub(crate) scope_prefix: &'static str,
   pub(crate) scoped_cache: ScopedClassCache,
+  pub(crate) inherited_context: ContextMap,
+  pub(crate) provided_context: RefCell<ContextMap>,
 }
 
 impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
-  pub(crate) fn new(sender: MsgSender<Msg>, scope_prefix: &'static str, scoped_cache: ScopedClassCache) -> Self {
+  pub(crate) fn new(sender: MsgSender<Msg>, scope_prefix: &'static str, scoped_cache: ScopedClassCache, inherited_context: ContextMap) -> Self {
     Self {
       sender,
       children: RefCell::new(Vec::new()),
       child_counter: Cell::new(0),
       scope_prefix,
       scoped_cache,
+      inherited_context,
+      provided_context: RefCell::new(HashMap::new()),
     }
   }
 
@@ -115,6 +123,26 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
     };
     cache.borrow_mut().insert(class, result.clone());
     result
+  }
+
+  // ── Context ──────────────────────────────────────────────────────────
+
+  /// Provide a context value that descendants can access via
+  /// [`use_context`](Ctx::use_context).  Overwrites any previous value
+  /// of the same type at this level.
+  pub fn provide_context<T: Send + Sync + 'static>(&self, value: T) {
+    self.provided_context.borrow_mut().insert(TypeId::of::<T>(), Arc::new(value));
+  }
+
+  /// Look up a context value provided by an ancestor (or this component).
+  /// Returns `None` if no ancestor provided a value of type `T`.
+  pub fn use_context<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+    let type_id = TypeId::of::<T>();
+    self.provided_context.borrow()
+      .get(&type_id)
+      .cloned()
+      .or_else(|| self.inherited_context.get(&type_id).cloned())
+      .and_then(|v| v.downcast::<T>().ok())
   }
 
   // ── Callback factories ──────────────────────────────────────────────

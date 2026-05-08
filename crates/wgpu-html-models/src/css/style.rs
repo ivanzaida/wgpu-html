@@ -46,6 +46,7 @@ pub struct Style {
   // css property: padding-left
   pub padding_left: Option<CssLength>,
   pub color: Option<CssColor>,
+  pub accent_color: Option<CssColor>,
   pub background: Option<ArcStr>,
   // css property: background-color
   pub background_color: Option<CssColor>,

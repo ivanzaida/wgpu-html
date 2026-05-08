@@ -25,6 +25,7 @@ mod position_overlay;
 mod resize;
 mod scroll_test;
 mod scrollbar_test;
+mod styled_inputs;
 mod svg_test;
 mod text_selection;
 mod text_shrink;
@@ -57,6 +58,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "resize" => Some(resize::build()),
     "scroll_test" => Some(scroll_test::build()),
     "scrollbar_test" => Some(scrollbar_test::build()),
+    "styled_inputs" => Some(styled_inputs::build()),
     "svg_test" => Some(svg_test::build()),
     "text_selection" => Some(text_selection::build()),
     "text_shrink" => Some(text_shrink::build()),
@@ -92,6 +94,7 @@ pub fn list_examples() -> Vec<&'static str> {
     "resize",
     "scroll_test",
     "scrollbar_test",
+    "styled_inputs",
     "svg_test",
     "text_selection",
     "text_shrink",

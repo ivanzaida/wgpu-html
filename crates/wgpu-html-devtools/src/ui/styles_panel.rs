@@ -7,7 +7,6 @@ use wgpu_html_ui::{
   Component, Ctx, El, ShouldRender,
 };
 
-use super::lucide_icon::lucide;
 use super::store::DevtoolsStore;
 use super::theme::Theme;
 
@@ -38,7 +37,7 @@ impl Component for StylesPanel {
       style::rule(".panel")
         .display(Display::Flex)
         .prop("flex-direction", "column")
-        .width(pct(100))
+        .flex_grow(1.0)
         .height(pct(100))
         .background_color(Theme::BG_PRIMARY)
         .font_family("monospace")
@@ -133,7 +132,7 @@ impl Component for StylesPanel {
         .padding(px(12))
         .font_family("Inter, system-ui, sans-serif"),
     ])
-    .scoped("styles")
+      .scoped("styles")
   }
 
   fn view(&self, props: &StylesPanelProps, ctx: &Ctx<StylesPanelMsg>) -> El {
@@ -199,7 +198,6 @@ fn build_rule_block(
 
   // Header: chevron + selector + { + spacer + source
   let mut hdr_parts: Vec<El> = vec![
-    lucide("\u{E06D}").class(ctx.scoped("chevron")),
     el::span().class(ctx.scoped("sel")).text(selector),
     el::span().class(ctx.scoped("brace")).text(" {"),
   ];
@@ -259,7 +257,7 @@ fn collect_computed(style: &Style) -> Vec<(String, String)> {
   macro_rules! prop {
     ($name:literal, $field:expr) => {
       if let Some(v) = &$field {
-        out.push(($name.to_string(), format!("{:?}", v)));
+        out.push(($name.to_string(), format!("{}", v)));
       }
     };
   }

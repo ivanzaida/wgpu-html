@@ -18,6 +18,7 @@ struct MountedComponent {
     needs_render: bool,
     subtree_dirty: bool,
     subscriptions: Subscriptions,  // auto-cancelled on destroy
+    child_context: ContextMap,     // inherited + provided context for children
 }
 ```
 
@@ -38,18 +39,21 @@ The component itself is unchanged but a descendant is dirty:
 1. Skip the parent's `view()` entirely.
 2. Clone `skeleton_node` (contains placeholder divs, not full child subtrees — cheap).
 3. Re-substitute children: dirty ones re-render recursively, clean ones return their `last_node`.
-4. Cache the result as the new `last_node`.
+4. Reuse the stored `child_context` (context is unchanged since the parent didn't re-render).
+5. Cache the result as the new `last_node`.
 
 ### 3. Full Render
 
 **Condition**: `needs_render` (or first render)
 
 1. Call `view(props, ctx)` to produce a new `El` tree.
-2. Reconcile child slots by `(key, TypeId)`:
+2. Merge inherited context (from parent) with any values provided via `ctx.provide_context()` during this `view()` call. Store the result as `child_context`.
+3. Reconcile child slots by `(key, TypeId)`:
    - Matched children: call `props_changed()`, optionally re-render.
    - New children: `create()` → `view()` → `mounted()` → `subscribe()`.
    - Removed children: `destroyed()` (subscriptions auto-cancelled first).
-3. Cache `skeleton_node` and `last_node`.
+4. Render children, passing `child_context` as their inherited context.
+5. Cache `skeleton_node` and `last_node`.
 
 ## DOM Patching
 

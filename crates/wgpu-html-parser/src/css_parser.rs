@@ -381,6 +381,7 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "padding-bottom" => style.padding_bottom = parse_css_length(value),
     "padding-left" => style.padding_left = parse_css_length(value),
     "color" => style.color = parse_css_color(value),
+    "accent-color" => style.accent_color = parse_css_color(value),
     "background" => apply_background_shorthand(value, style),
     "background-color" => style.background_color = parse_css_color(value),
     "background-image" => style.background_image = parse_css_image(value),

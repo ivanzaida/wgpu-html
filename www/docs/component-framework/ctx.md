@@ -87,3 +87,66 @@ el::div().children(rows)
 ```
 
 Keyed children survive reordering and insertion without unmounting. Identity is `(key, TypeId)`.
+
+## Background Tasks
+
+`ctx.spawn()` runs a closure on a background OS thread. When it returns a message, that message is enqueued via `MsgSender`:
+
+```rust
+fn view(&self, _props: &Props, ctx: &Ctx<Msg>) -> El {
+    el::button()
+        .text("Load file")
+        .on_click_cb(ctx.on_click(Msg::StartLoad))
+}
+
+fn update(&mut self, msg: Msg, _: &Props) -> ShouldRender {
+    match msg {
+        Msg::StartLoad => {
+            // spawn is available via the sender
+            // typically triggered from update, not view
+            ShouldRender::No
+        }
+        Msg::Loaded(data) => {
+            self.data = data;
+            ShouldRender::Yes
+        }
+    }
+}
+```
+
+Inline in `view()` (when a flag triggers a one-shot load):
+
+```rust
+if self.should_load {
+    ctx.spawn(|| {
+        let data = std::fs::read_to_string("data.txt").unwrap_or_default();
+        Msg::Loaded(data)
+    });
+}
+```
+
+## Child-to-Parent Communication
+
+Pass a callback in props:
+
+```rust
+#[derive(Clone)]
+struct CounterProps {
+    label: String,
+    on_change: Arc<dyn Fn(i32) + Send + Sync>,
+}
+
+// In Counter::update:
+(props.on_change)(self.count);
+
+// In the parent's view:
+let sender = ctx.sender();
+ctx.child::<Counter>(CounterProps {
+    label: "Score".into(),
+    on_change: Arc::new(move |val| sender.send(AppMsg::ScoreChanged(val))),
+})
+```
+
+## Context
+
+`ctx.provide_context()` and `ctx.use_context()` allow passing data to descendants without prop-drilling. See [Context](./context) for full documentation.

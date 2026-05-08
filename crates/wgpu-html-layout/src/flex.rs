@@ -807,12 +807,20 @@ fn build_item<'a>(
     }
   } else {
     // auto min-size: depends on overflow behavior.
+    // CSS spec: if one overflow axis is non-visible and the other is
+    // unset, the unset one computes to `auto`. So we check both axes
+    // + the shorthand.
     let main_overflow = (if is_row {
       style.overflow_x.as_ref()
     } else {
       style.overflow_y.as_ref()
     })
-    .or(style.overflow.as_ref());
+    .or(style.overflow.as_ref())
+    .or(if is_row {
+      style.overflow_y.as_ref()
+    } else {
+      style.overflow_x.as_ref()
+    });
     if matches!(
       main_overflow,
       Some(Overflow::Hidden | Overflow::Clip | Overflow::Scroll | Overflow::Auto)
