@@ -492,7 +492,7 @@ fn paint_box_in_clip(
         base_color
       };
       out.push_glyph(
-        Rect::new(glyph_x, origin.y + g.y, glyph_w, g.h),
+        Rect::new(glyph_x.round(), (origin.y + g.y).round(), glyph_w, g.h),
         apply_opacity(glyph_color, opacity),
         uv_min,
         uv_max,

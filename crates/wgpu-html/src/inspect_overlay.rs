@@ -171,7 +171,7 @@ fn paint_tooltip(
     if let Some(run) = run {
       for g in &run.glyphs {
         list.push_glyph(
-          Rect::new(cursor_x + g.x, text_y + g.y, g.w, g.h),
+          Rect::new((cursor_x + g.x).round(), (text_y + g.y).round(), g.w, g.h),
           g.color,
           g.uv_min,
           g.uv_max,

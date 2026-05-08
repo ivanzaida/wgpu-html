@@ -111,11 +111,8 @@ impl GlyphPipeline {
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
       label: Some("glyph atlas sampler"),
-      // DEBUG: Nearest filtering to test if bilinear + fractional
-      // positions is causing blur. Switch back to Linear once
-      // pixel-snapping is confirmed as the fix.
-      mag_filter: wgpu::FilterMode::Nearest,
-      min_filter: wgpu::FilterMode::Nearest,
+      mag_filter: wgpu::FilterMode::Linear,
+      min_filter: wgpu::FilterMode::Linear,
       mipmap_filter: wgpu::MipmapFilterMode::Nearest,
       address_mode_u: wgpu::AddressMode::ClampToEdge,
       address_mode_v: wgpu::AddressMode::ClampToEdge,
