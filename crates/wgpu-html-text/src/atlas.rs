@@ -114,7 +114,19 @@ impl Atlas {
     }
     let rect = self.allocate(w, h)?;
     self.write_pixels(rect, src);
-    self.dirty.push(rect);
+    // Expand dirty rect to include the dilated gutter so the GPU
+    // texture receives the edge-pixel copies that prevent bilinear
+    // filtering from blending with stale zeros.
+    let dx = if rect.x > 0 { 1u32 } else { 0 };
+    let dy = if rect.y > 0 { 1u32 } else { 0 };
+    let dr = if rect.x + rect.w < self.width { 1u32 } else { 0 };
+    let db = if rect.y + rect.h < self.height { 1u32 } else { 0 };
+    self.dirty.push(AtlasRect {
+      x: rect.x - dx,
+      y: rect.y - dy,
+      w: rect.w + dx + dr,
+      h: rect.h + dy + db,
+    });
     Some(AtlasEntry { rect })
   }
 
