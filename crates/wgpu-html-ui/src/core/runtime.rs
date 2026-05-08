@@ -10,7 +10,8 @@ use wgpu_html_tree::{Node, Tree};
 
 use crate::core::{
   component::{Component, ShouldRender},
-  ctx::{ChildSlot, Ctx, MsgSender},
+  ctx::{ChildSlot, Ctx, MsgSender, ScopedClassCache},
+  observable::Subscriptions,
 };
 
 // ── Type-erased component interface ─────────────────────────────────────────
@@ -58,6 +59,8 @@ pub(crate) struct ComponentState<C: Component> {
   props: C::Props,
   sender: MsgSender<C::Msg>,
   cached_scope: &'static str,
+  subscriptions: Subscriptions,
+  scoped_cache: ScopedClassCache,
 }
 
 impl<C: Component> ComponentState<C>
@@ -68,13 +71,14 @@ where
   pub(crate) fn new(props: &C::Props, wake: Arc<dyn Fn() + Send + Sync>) -> Self {
     let sender = MsgSender::new(wake);
     let component = C::create(props);
-    let sheet_scope = C::styles().scope();
-    let cached_scope = if sheet_scope.is_empty() { C::scope() } else { sheet_scope };
+    let cached_scope = C::styles().scope();
     Self {
       component,
       props: props.clone(),
       sender,
       cached_scope,
+      subscriptions: Subscriptions::new(),
+      scoped_cache: ScopedClassCache::default(),
     }
   }
 }
@@ -93,7 +97,7 @@ where
   }
 
   fn render(&self) -> (Node, Vec<ChildSlot>) {
-    let ctx = Ctx::new(self.sender.clone(), self.cached_scope);
+    let ctx = Ctx::new(self.sender.clone(), self.cached_scope, self.scoped_cache.clone());
     let el = self.component.view(&self.props, &ctx);
     let children = ctx.children.into_inner();
     (el.into_node(), children)
@@ -146,9 +150,12 @@ where
 
   fn mounted(&mut self) {
     self.component.mounted(self.sender.clone());
+    self.subscriptions.clear();
+    self.component.subscribe(&self.sender, &mut self.subscriptions);
   }
 
   fn destroyed(&mut self) {
+    self.subscriptions.clear();
     self.component.destroyed();
   }
 
@@ -259,6 +266,7 @@ impl Runtime {
       }
       ever_changed = true;
       let node = Self::render_component(&mut self.root, &self.wake);
+      Self::register_styles(tree, &self.root);
       self.apply_node(tree, node);
     }
     ever_changed
@@ -266,46 +274,53 @@ impl Runtime {
 
   /// Force a full re-render of every component in the tree.
   pub fn force_render(&mut self, tree: &mut Tree) {
-    Self::register_styles(tree, &self.root);
     Self::mark_all_dirty(&mut self.root);
     let node = Self::render_component(&mut self.root, &self.wake);
+    Self::register_styles(tree, &self.root);
     self.apply_node(tree, node);
   }
 
-  /// Write the component output into the tree and bump the generation.
+  /// Write the component output into the tree, patching in-place
+  /// when possible to preserve form control state and layout rects.
   fn apply_node(&self, tree: &mut Tree, node: Node) {
-    // Compute selector fingerprint of the new node *before* we
-    // throw away the old root.  If the fingerprint is unchanged,
-    // only inline styles / text changed, so the cascade can be
-    // skipped on the next frame (PipelineAction::LayoutOnly).
-    let old_fp = tree.root.as_ref().map(|r| wgpu_html_tree::node_selector_fingerprint(r));
-    let new_fp = wgpu_html_tree::node_selector_fingerprint(&node);
-
     if self.direct_root {
-      tree.root = Some(node);
-    } else {
-      Self::replace_component_node(tree, node);
-    }
-    tree.generation += 1;
-    if Some(new_fp) != old_fp {
-      tree.cascade_generation += 1;
-    }
-  }
-
-  /// Replace the component's node inside the tree structure.
-  /// Used by the [`App`] harness where `html > body` already exists.
-  fn replace_component_node(tree: &mut Tree, node: Node) {
-    if let Some(root) = &mut tree.root {
+      if let Some(existing) = &mut tree.root {
+        let wrapped = if tree.wrap_body {
+          wgpu_html_tree::wrap_in_document(node)
+        } else {
+          node
+        };
+        let result = wgpu_html_tree::patch_node(existing, wrapped);
+        tree.generation += 1;
+        if result.selector_changed {
+          tree.cascade_generation += 1;
+        }
+      } else {
+        tree.set_root(node);
+      }
+    } else if let Some(root) = &mut tree.root {
       if let Some(body) = root.children.first_mut() {
         if body.children.is_empty() {
           body.children.push(node);
+          tree.generation += 1;
+          tree.cascade_generation += 1;
         } else {
-          body.children[0] = node;
+          let result = wgpu_html_tree::patch_node(&mut body.children[0], node);
+          tree.generation += 1;
+          if result.selector_changed {
+            tree.cascade_generation += 1;
+          }
         }
-        return;
+      } else {
+        tree.root = Some(node);
+        tree.generation += 1;
+        tree.cascade_generation += 1;
       }
+    } else {
+      tree.root = Some(node);
+      tree.generation += 1;
+      tree.cascade_generation += 1;
     }
-    tree.root = Some(node);
   }
 
   /// Walk the mounted tree and register any pending component styles.

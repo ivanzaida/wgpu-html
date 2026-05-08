@@ -14,11 +14,11 @@
 use std::collections::BTreeMap;
 
 use wgpu_html_models::{
-  Style,
   common::css_enums::{
     BorderStyle, BoxSizing, CssColor, CssImage, CssLength, Display, Overflow, Position, ScrollbarColor, ScrollbarWidth,
     WhiteSpace,
   },
+  Style,
 };
 use wgpu_html_style::{CascadedNode, CascadedTree, PseudoElementStyle};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
@@ -31,11 +31,11 @@ mod grid;
 mod length;
 mod svg;
 
-pub use wgpu_html_assets::{AssetIo, Fetcher, ImageData, ImageFrame, current_frame};
+pub use wgpu_html_assets::{current_frame, AssetIo, Fetcher, ImageData, ImageFrame};
 
 pub type ImageCache = AssetIo<wgpu_html_assets::blocking::BlockingFetcher>;
 
-pub use color::{Color, resolve_color, resolve_with_current};
+pub use color::{resolve_color, resolve_with_current, Color};
 pub use wgpu_html_models::common::css_enums::{Cursor, PointerEvents, Resize, UserSelect};
 
 // ---------------------------------------------------------------------------
@@ -3300,10 +3300,10 @@ fn layout_atomic_inline_subtree(
       z_index: resolved_z_index(style),
       image: None,
       background_image: None,
-    first_line_color: None,
-    first_letter_color: None,
-    selection_bg: None,
-    selection_fg: None,
+      first_line_color: None,
+      first_letter_color: None,
+      selection_bg: None,
+      selection_fg: None,
       children,
       is_fixed: false,
       form_control: fc,
@@ -3515,11 +3515,11 @@ fn layout_inline_mixed_children(
       && !current.items.is_empty()
       && matches!(&child.element, Element::Text(_))
       && cl
-        .box_
-        .text_run
-        .as_ref()
-        .map(|run| run.lines.len() > 1)
-        .unwrap_or(false);
+      .box_
+      .text_run
+      .as_ref()
+      .map(|run| run.lines.len() > 1)
+      .unwrap_or(false);
     if wrapped_under_remainder {
       let mut kept_head_on_line = false;
       if let Element::Text(raw) = &child.element {

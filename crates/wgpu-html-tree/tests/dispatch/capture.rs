@@ -287,7 +287,7 @@ fn submit_event_capture_phase_root_first() {
 }
 
 #[test]
-fn dedicated_slots_receive_mousedown_in_capture_to_bubble_order() {
+fn dedicated_slots_receive_mousedown_at_target_and_bubble_only() {
   let mut tree = capture_test_tree();
   let log = Arc::new(Mutex::new(Vec::new()));
   install_mousedown_path_loggers(&mut tree, log.clone());
@@ -297,7 +297,32 @@ fn dedicated_slots_receive_mousedown_in_capture_to_bubble_order() {
   let events = log.lock().unwrap().clone();
   assert_eq!(
     events,
-    vec![0, 1, 2, 1, 0],
-    "dedicated mouse callbacks should fire capture→target→bubble"
+    vec![2, 1, 0],
+    "dedicated mouse callbacks fire at target + bubble only (not capture)"
+  );
+}
+
+#[test]
+fn on_click_on_ancestor_fires_once_when_child_is_target() {
+  let span = Node::new(m::Span::default());
+  let mut outer = Node::new(m::Div::default());
+  outer.children.push(span);
+  let mut tree = Tree::new(outer);
+
+  let count = Arc::new(Mutex::new(0u32));
+  let c = count.clone();
+  if let Some(node) = tree.root.as_mut() {
+    node.on_click.push(Arc::new(move |_| {
+      *c.lock().unwrap() += 1;
+    }));
+  }
+
+  tree.dispatch_mouse_down(Some(&[0]), (5.0, 5.0), MouseButton::Primary, None);
+  tree.dispatch_mouse_up(Some(&[0]), (5.0, 5.0), MouseButton::Primary, None);
+
+  assert_eq!(
+    *count.lock().unwrap(),
+    1,
+    "on_click should fire exactly once via bubble, not also in capture"
   );
 }

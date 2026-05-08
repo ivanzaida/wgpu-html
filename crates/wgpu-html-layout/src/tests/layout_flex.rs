@@ -1176,3 +1176,34 @@ fn img_html_attrs_respected_after_image_loads() {
   assert_eq!(img.content_rect.w, 64.0);
   assert_eq!(img.content_rect.h, 64.0);
 }
+
+// --------------------------------------------------------------------------
+// Gap included in intrinsic width
+// --------------------------------------------------------------------------
+
+#[test]
+fn flex_row_gap_spaces_children_correctly() {
+  let html = r#"<div style="display: flex; gap: 20px; width: 200px;"><div style="width: 40px; height: 40px;"></div><div style="width: 40px; height: 40px;"></div><div style="width: 40px; height: 40px;"></div></div>"#;
+  let cascaded = super::helpers::make(html);
+  let root = layout(&cascaded, 800.0, 600.0).unwrap();
+  fn find_flex(b: &LayoutBox) -> Option<&LayoutBox> {
+    if b.children.len() == 3 && b.children[0].content_rect.w > 0.0 {
+      return Some(b);
+    }
+    b.children.iter().find_map(find_flex)
+  }
+  let flex = find_flex(&root).expect("should find flex container with 3 children");
+  let c0 = &flex.children[0];
+  let c1 = &flex.children[1];
+  let c2 = &flex.children[2];
+  let gap_01 = c1.content_rect.x - (c0.content_rect.x + c0.content_rect.w);
+  let gap_12 = c2.content_rect.x - (c1.content_rect.x + c1.content_rect.w);
+  assert!(
+    (gap_01 - 20.0).abs() < 1.0,
+    "gap between child 0 and 1 should be 20px, got {gap_01}"
+  );
+  assert!(
+    (gap_12 - 20.0).abs() < 1.0,
+    "gap between child 1 and 2 should be 20px, got {gap_12}"
+  );
+}

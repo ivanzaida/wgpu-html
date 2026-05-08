@@ -929,7 +929,7 @@ fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Opti
   }
   let mut sum_main = 0.0_f32;
   let mut max_main = 0.0_f32;
-  let mut found = false;
+  let mut count = 0u32;
   for child in &node.children {
     if matches!(child.style.display, Some(Display::None)) {
       continue;
@@ -937,12 +937,19 @@ fn text_intrinsic_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) -> Opti
     if let Some(v) = child_intrinsic_outer_main(child, is_row, ctx) {
       sum_main += v;
       max_main = max_main.max(v);
-      found = true;
+      count += 1;
     }
   }
-  if found {
+  if count > 0 {
+    let gap_prop = if is_row {
+      node.style.column_gap.as_ref().or(node.style.gap.as_ref())
+    } else {
+      node.style.row_gap.as_ref().or(node.style.gap.as_ref())
+    };
+    let gap = length::resolve(gap_prop, 0.0, ctx).unwrap_or(0.0);
+    let total_gap = gap * (count as f32 - 1.0).max(0.0);
     return Some(if is_row && children_flow_inline(node) {
-      sum_main
+      sum_main + total_gap
     } else {
       max_main
     });

@@ -456,14 +456,12 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
 }
 
 pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
-  // UA defaults sit before author rules, so on a specificity tie
-  // the author rule wins on source order.
   let author = collect_prepared_stylesheet_cached(tree);
-  let stylesheets = [ua_prepared_stylesheet(), author.as_ref()];
+  let sheets = collect_sheets(tree.use_ua_stylesheet, &author);
   let interaction = &tree.interaction;
   let mut path: Vec<usize> = Vec::new();
   let mut decl_cache: HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)> = HashMap::new();
-  let cascade_ctx = CascadeContext::new(&stylesheets);
+  let cascade_ctx = CascadeContext::new(&sheets);
   let Some(root) = tree.root.as_ref() else {
     return CascadedTree { root: None };
   };
@@ -471,7 +469,7 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
     root: Some(cascade_node(
       root,
       root, // node = root for the root element
-      &stylesheets,
+      &sheets,
       None,
       &[],
       &mut path,
@@ -497,7 +495,7 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
 /// re-layout on interaction state changes.
 pub fn pseudo_rules_are_paint_only(tree: &Tree) -> bool {
   let author = collect_prepared_stylesheet_cached(tree);
-  let sheets: [&PreparedStylesheet; 2] = [ua_prepared_stylesheet(), author.as_ref()];
+  let sheets = collect_sheets(tree.use_ua_stylesheet, &author);
   sheets
     .iter()
     .all(|s| s.pseudo_usage.all_pseudo_rules_paint_only || !s.pseudo_usage.has_any())
@@ -525,7 +523,7 @@ pub fn cascade_incremental_with_media(
   }
 
   let author = collect_prepared_stylesheet_cached(tree);
-  let sheets: [&PreparedStylesheet; 2] = [ua_prepared_stylesheet(), author.as_ref()];
+  let sheets = collect_sheets(tree.use_ua_stylesheet, &author);
 
   // Check which pseudo-classes changed AND have rules.
   let hover_changed = old_snapshot.hover_path != new_snapshot.hover_path;
@@ -805,6 +803,14 @@ fn collect_prepared_stylesheet_cached(tree: &Tree) -> Arc<PreparedStylesheet> {
 fn ua_prepared_stylesheet() -> &'static PreparedStylesheet {
   static UA: OnceLock<PreparedStylesheet> = OnceLock::new();
   UA.get_or_init(|| PreparedStylesheet::from_sheet(Arc::new(ua::ua_stylesheet().clone())))
+}
+
+fn collect_sheets<'a>(use_ua: bool, author: &'a PreparedStylesheet) -> Vec<&'a PreparedStylesheet> {
+  if use_ua {
+    vec![ua_prepared_stylesheet(), author]
+  } else {
+    vec![author]
+  }
 }
 
 fn collect_stylesheet_source(tree: &Tree) -> String {

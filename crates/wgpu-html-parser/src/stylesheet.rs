@@ -190,6 +190,17 @@ fn parse_rules(input: &str, media_stack: &mut Vec<MediaQueryList>, rules: &mut V
     if cursor >= input.len() {
       break;
     }
+
+    if strip_ascii_word_prefix(&input[cursor..], "@charset").is_some()
+      || strip_ascii_word_prefix(&input[cursor..], "@import").is_some()
+    {
+      if let Some(semi) = input[cursor..].find(';') {
+        cursor += semi + 1;
+        continue;
+      }
+      break;
+    }
+
     let Some(open_rel) = input[cursor..].find('{') else {
       break;
     };
@@ -348,6 +359,46 @@ pub fn parse_selector(s: &str) -> ComplexSelector {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Parse a `@import` directive body (the text between `@import` and `;`).
+/// Returns `(url, optional_media_query)`.
+///
+/// Accepted forms:
+/// - `@import "url";`
+/// - `@import 'url';`
+/// - `@import url("url");`
+/// - `@import url('url');`
+/// - `@import url(url);`
+/// - Any of the above followed by a media query: `@import "url" screen;`
+pub fn parse_import_directive(after_import: &str) -> Option<(&str, Option<&str>)> {
+  let s = after_import.trim();
+  let (url, rest) = if let Some(inner) = s.strip_prefix("url(") {
+    let inner = inner.trim_start();
+    if let Some(inner) = inner.strip_prefix('"') {
+      let end = inner.find('"')?;
+      let rest = inner[end + 1..].trim_start().strip_prefix(')')?.trim();
+      (&inner[..end], rest)
+    } else if let Some(inner) = inner.strip_prefix('\'') {
+      let end = inner.find('\'')?;
+      let rest = inner[end + 1..].trim_start().strip_prefix(')')?.trim();
+      (&inner[..end], rest)
+    } else {
+      let end = inner.find(')')?;
+      (inner[..end].trim(), inner[end + 1..].trim())
+    }
+  } else if let Some(inner) = s.strip_prefix('"') {
+    let end = inner.find('"')?;
+    (&inner[..end], inner[end + 1..].trim())
+  } else if let Some(inner) = s.strip_prefix('\'') {
+    let end = inner.find('\'')?;
+    (&inner[..end], inner[end + 1..].trim())
+  } else {
+    return None;
+  };
+
+  let media = if rest.is_empty() { None } else { Some(rest) };
+  Some((url, media))
+}
 
 /// Strip C-style block comments. The CSS spec only allows `/* */`.
 fn strip_comments(s: &str) -> String {

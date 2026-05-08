@@ -9,7 +9,7 @@ wgpu-html implements a full CSS property parsing and cascade pipeline designed t
 ## Parsing Pipeline
 
 1. **Tokenization** — inline `<style>` blocks and linked stylesheets are collected into a single CSS string.
-2. **Stylesheet parsing** — the CSS string is split into `selectors { declarations }` rule blocks. `/* comments */` are stripped during this phase. `@media` queries wrapping rule blocks are parsed, but other at-rules (`@import`, `@keyframes`, `@font-face`) are not supported.
+2. **Stylesheet parsing** — the CSS string is split into `selectors { declarations }` rule blocks. `/* comments */` are stripped during this phase. `@media` queries wrapping rule blocks are parsed. `@charset` declarations are recognized and skipped (Rust strings are always UTF-8). `@import` directives are resolved by inlining the referenced CSS from `linked_stylesheets` (with media query wrapping and cycle detection). Other at-rules (`@keyframes`, `@font-face`) are not supported.
 3. **Selector parsing** — each comma-separated selector is decomposed into tag, `#id`, `.class` compounds with descendant combinators (`A B`).
 4. **Declaration parsing** — each `property: value;` declaration is parsed into a typed Rust enum or struct field. `!important` is recognised and flagged.
 5. **Cascade resolution** — the `wgpu-html-style` crate walks the DOM tree and for each element computes the final `Style` struct by:
@@ -89,16 +89,21 @@ When interaction state changes, an incremental re-cascade runs: only the affecte
 
 ## Differences from Full CSS Browser Support
 
-- **No at-rules** except `@media` — no `@import`, `@keyframes`, `@font-face`, `@supports`, `@page`
-- **Selectors** — only tag, `#id`, `.class`, universal `*`, descendant combinator, and comma-list in cascade matching. Child (`>`), sibling (`+`/`~`), and attribute selectors work in the `query_selector` API but not in stylesheet cascade matching.
-- **Pseudo-classes** — only `:hover`, `:active`, `:focus` in cascade matching. The query engine supports many more.
-- **No pseudo-elements** (`::before`, `::after`, `::placeholder`, etc.)
-- **No `@media` nested conditions** — simple `min-width`/`max-width`/`height`/`orientation` queries only
-- **`currentColor`** resolves to `None` (no foreground-color fallback for borders)
-- **Gradients** parsed as opaque function strings, not rendered
-- **`box-shadow`**, `transform`, `transition`, `animation` stored as raw strings but not consumed by layout or paint
-- **`z-index`** parsed but not consumed in paint ordering
-- **No `float`** property
-- **Table display** parsed but falls through to block layout
+### Fully working
 
-See the [Implementation Status](../status) page for full details.
+- **Full CSS Level 4 selectors** in cascade — all combinators (`>`, `+`, `~`), `:is()`, `:where()`, `:not()`, `:has()`, `:nth-child(An+B of S)`, 30+ pseudo-classes, attribute selectors with case-insensitive flag
+- **Pseudo-elements** — `::before`, `::after`, `::first-line`, `::first-letter`, `::placeholder`, `::selection`, `::marker`
+- **`@media`** queries — `width`/`height`/`orientation` with `min`/`max` and `not`
+- **CSS gradients** — `linear-gradient()`, `radial-gradient()`, `conic-gradient()` + repeating variants
+- **`currentColor`** — resolves to the element's computed `color` value
+- **Canvas background** — root/body background propagates to fill the viewport per CSS 2.2 section 14.2
+
+### Not yet implemented
+
+- **At-rules** — `@charset` is recognized and skipped (UTF-8 only); `@import` is fully supported; no `@keyframes`, `@font-face`, `@supports`, `@layer`, `@container`, `@scope`
+- **Animations & transitions** — `animation-*` and `transition-*` properties parsed but no animation engine
+- **`box-shadow`**, `transform`, `transition`, `animation` — stored as raw strings, not consumed by layout or paint
+- **`float`** property — not parsed
+- **Table layout** — `display: table` variants parsed but fall through to block layout
+- **Multi-column** — `column-count`/`column-width` parsed as deferred longhands, never consumed
+- **`z-index`** — parsed and used for sibling sort order, but no independent cross-branch stacking contexts

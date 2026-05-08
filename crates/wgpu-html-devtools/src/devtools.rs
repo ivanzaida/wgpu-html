@@ -12,7 +12,7 @@ use std::sync::{
   Arc,
 };
 
-use crate::ui::{DevtoolsComponent, DevtoolsProps, SharedHostTree, SharedHoverPath, SharedPendingPick, SharedPickMode};
+use crate::ui::{DevtoolsComponent, DevtoolsProps, DevtoolsStore};
 use wgpu_html_events::HtmlEvent;
 use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
@@ -42,17 +42,15 @@ static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
 pub struct Devtools {
   tree: Tree,
   mount: Mount<DevtoolsComponent>,
+  store: DevtoolsStore,
 
   last_inspected_gen: Option<u64>,
+  last_selected_path: Option<Vec<usize>>,
   needs_redraw: bool,
 
   enabled: bool,
   toggle_requested: Arc<AtomicBool>,
   dump_html_requested: Arc<AtomicBool>,
-  shared_hover: SharedHoverPath,
-  shared_pick_mode: SharedPickMode,
-  shared_pending_pick: SharedPendingPick,
-  shared_host_tree: SharedHostTree,
 }
 
 impl Devtools {
@@ -61,20 +59,14 @@ impl Devtools {
     let mut tree = Tree::default();
     let lucide = FontFace::regular("lucide", Arc::from(LUCIDE_FONT));
     tree.register_font(lucide);
-
+    tree.register_linked_stylesheet("devtools.css", "body { margin:0; padding: 0; }");
     if enable_profiler {
       tree.profiler = Some(Profiler::tagged("devtools"));
     }
 
-    let shared_hover: SharedHoverPath = Arc::new(std::sync::Mutex::new(None));
-    let shared_pick_mode: SharedPickMode = Arc::new(AtomicBool::new(false));
-    let shared_pending_pick: SharedPendingPick = Arc::new(std::sync::Mutex::new(None));
-    let shared_host_tree: SharedHostTree = Arc::new(std::sync::RwLock::new(None));
+    let store = DevtoolsStore::new();
     let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps {
-      shared_hover: shared_hover.clone(),
-      shared_pick_mode: shared_pick_mode.clone(),
-      shared_pending_pick: shared_pending_pick.clone(),
-      host_tree: shared_host_tree.clone(),
+      store: store.clone(),
     });
 
     let dump_html_requested = Arc::new(AtomicBool::new(false));
@@ -85,15 +77,13 @@ impl Devtools {
     Self {
       tree,
       mount,
+      store,
       last_inspected_gen: None,
+      last_selected_path: None,
       needs_redraw: true,
       enabled: false,
       toggle_requested: Arc::new(AtomicBool::new(false)),
       dump_html_requested,
-      shared_hover,
-      shared_pick_mode,
-      shared_pending_pick,
-      shared_host_tree,
     }
   }
 
@@ -159,10 +149,11 @@ impl Devtools {
       }
     }
 
-    // Update the shared host tree reference.
-    {
-      let mut ht = self.shared_host_tree.write().unwrap();
-      *ht = Some(host_tree.clone());
+    // Update the store's host tree + cached cascade when it changes.
+    let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
+    if dom_changed {
+      self.last_inspected_gen = Some(host_tree.generation);
+      self.store.update_host_tree(host_tree);
     }
 
     // Process pending component messages.
@@ -170,10 +161,10 @@ impl Devtools {
       self.needs_redraw = true;
     }
 
-    // Re-render if the host tree changed.
-    let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
-    if dom_changed {
-      self.last_inspected_gen = Some(host_tree.generation);
+    // Re-render if the selection or host tree changed.
+    let current_sel = self.store.selected_path.get();
+    if current_sel != self.last_selected_path || dom_changed {
+      self.last_selected_path = current_sel;
       self.mount.force_render(&mut self.tree);
       self.needs_redraw = true;
     }
@@ -212,27 +203,21 @@ impl Devtools {
   }
 
   pub fn hovered_path(&self) -> Option<Vec<usize>> {
-    self.shared_hover.lock().ok()?.clone()
+    self.store.hover_path.get()
   }
 
   pub fn is_pick_mode(&self) -> bool {
-    self.shared_pick_mode.load(Ordering::Relaxed)
+    self.store.pick_mode.load(Ordering::Relaxed)
   }
 
   pub fn pick_element(&mut self, path: Vec<usize>) {
-    if let Ok(mut pending) = self.shared_pending_pick.lock() {
-      *pending = Some(path);
-    }
-    if let Ok(mut hover) = self.shared_hover.lock() {
-      *hover = None;
-    }
+    self.store.pending_pick.set(Some(path));
+    self.store.hover_path.set(None);
     self.needs_redraw = true;
   }
 
   pub fn set_hover_path(&mut self, path: Option<Vec<usize>>) {
-    if let Ok(mut hover) = self.shared_hover.lock() {
-      *hover = path;
-    }
+    self.store.hover_path.set(path);
   }
 }
 

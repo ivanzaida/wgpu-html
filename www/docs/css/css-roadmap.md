@@ -36,19 +36,29 @@ The cascade delegates to `query.rs`'s full `ComplexSelector::matches_in_tree()` 
 
 ### At-rules
 
-The stylesheet parser at `stylesheet.rs:310` skips every `@`-prefixed block except `@media`.
+The stylesheet parser skips every `@`-prefixed block except `@media`, `@charset`, and `@import`.
 
 | At-rule | Status |
 |---------|--------|
+| `@charset` | ✅ parsed and skipped (Rust strings are always UTF-8) |
 | `@media` | ✅ fully implemented (width/height/orientation, min/max, `not`) |
-| `@keyframes` | ❌ not parsed — no animation engine |
+| `@import` | ✅ fully supported — inlines CSS from `linked_stylesheets`, media queries, cycle detection, auto-load via `resolve_css_imports()` |
 | `@font-face` | ❌ not parsed — no font-face loading pipeline |
-| `@import` | ❌ not parsed — no CSS import resolution |
-| `@supports` | ❌ not parsed |
+| `@keyframes` | ❌ not parsed — no animation engine |
+| `@supports` | ❌ not parsed — no feature-query evaluation |
 | `@layer` | ❌ not parsed — no cascade-layer awareness |
-| `@scope` | ❌ not parsed |
-| `@page` | ❌ not parsed |
-| `@charset` | ❌ not parsed (assumes UTF-8) |
+| `@scope` | ❌ not parsed — no scoped styling |
+| `@container` | ❌ not parsed — no container-query evaluation |
+| `@page` | ❌ not parsed — no paged media support |
+| `@font-feature-values` | ❌ not parsed — no OpenType feature value aliasing |
+| `@counter-style` | ❌ not parsed — no custom counter styles |
+| `@property` | ❌ not parsed — no registered custom property types |
+| `@namespace` | ❌ not parsed — no XML namespace support |
+| `@color-profile` | ❌ not parsed — no ICC color profile support |
+| `@font-palette-values` | ❌ not parsed — no font palette customization |
+| `@starting-style` | ❌ not parsed — no entry animations |
+| `@position-try` | ❌ not parsed — no anchor positioning fallbacks |
+| `@view-transition` | ❌ not parsed — no view transition API |
 
 ### Pseudo-elements
 

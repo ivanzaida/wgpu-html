@@ -259,3 +259,96 @@ fn declarations_with_unknown_props_still_parse_known_ones() {
   let sheet = parse_stylesheet(".x { frobnicate: 7; color: red; nonsense: foo; }");
   assert!(sheet.rules[0].declarations.color.is_some());
 }
+
+// --------------------------------------------------------------------------
+// @charset
+// --------------------------------------------------------------------------
+
+#[test]
+fn charset_at_rule_is_skipped() {
+  let sheet = parse_stylesheet(r#"@charset "UTF-8"; body { color: red; }"#);
+  assert_eq!(sheet.rules.len(), 1);
+  assert!(sheet.rules[0].declarations.color.is_some());
+}
+
+#[test]
+fn charset_before_rules_does_not_eat_following_rules() {
+  let sheet = parse_stylesheet(
+    r#"@charset "UTF-8";
+    .a { color: red; }
+    .b { color: blue; }"#,
+  );
+  assert_eq!(sheet.rules.len(), 2);
+}
+
+// --------------------------------------------------------------------------
+// @import (skipped by parser — resolved at source-collection level)
+// --------------------------------------------------------------------------
+
+#[test]
+fn import_at_rule_is_skipped_by_parser() {
+  let sheet = parse_stylesheet(r#"@import "reset.css"; body { color: red; }"#);
+  assert_eq!(sheet.rules.len(), 1);
+}
+
+#[test]
+fn import_url_form_is_skipped() {
+  let sheet = parse_stylesheet(r#"@import url("theme.css"); .x { color: blue; }"#);
+  assert_eq!(sheet.rules.len(), 1);
+}
+
+#[test]
+fn import_with_media_query_is_skipped() {
+  let sheet = parse_stylesheet(r#"@import "print.css" print; body { margin: 0; }"#);
+  assert_eq!(sheet.rules.len(), 1);
+}
+
+#[test]
+fn multiple_imports_then_rules() {
+  let sheet = parse_stylesheet(
+    r#"@import "a.css";
+    @import url("b.css");
+    .x { color: red; }
+    .y { color: blue; }"#,
+  );
+  assert_eq!(sheet.rules.len(), 2);
+}
+
+// --------------------------------------------------------------------------
+// parse_import_directive
+// --------------------------------------------------------------------------
+
+#[test]
+fn parse_import_directive_double_quoted_url() {
+  use wgpu_html_parser::parse_import_directive;
+  let result = parse_import_directive(r#""reset.css""#);
+  assert_eq!(result, Some(("reset.css", None)));
+}
+
+#[test]
+fn parse_import_directive_single_quoted_url() {
+  use wgpu_html_parser::parse_import_directive;
+  let result = parse_import_directive("'theme.css'");
+  assert_eq!(result, Some(("theme.css", None)));
+}
+
+#[test]
+fn parse_import_directive_url_function() {
+  use wgpu_html_parser::parse_import_directive;
+  let result = parse_import_directive(r#"url("base.css")"#);
+  assert_eq!(result, Some(("base.css", None)));
+}
+
+#[test]
+fn parse_import_directive_with_media_query() {
+  use wgpu_html_parser::parse_import_directive;
+  let result = parse_import_directive(r#""print.css" print"#);
+  assert_eq!(result, Some(("print.css", Some("print"))));
+}
+
+#[test]
+fn parse_import_directive_url_unquoted() {
+  use wgpu_html_parser::parse_import_directive;
+  let result = parse_import_directive("url(plain.css)");
+  assert_eq!(result, Some(("plain.css", None)));
+}

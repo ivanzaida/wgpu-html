@@ -440,33 +440,19 @@ impl<D: Driver> Runtime<D> {
     let (w, h) = self.driver.inner_size();
     let scale = tree.effective_dpi_scale(self.driver.scale_factor() as f32);
 
-    // Resize debounce: during interactive resize, feed the *stale*
-    // viewport to paint_tree_cached so classify_frame returns
-    // RepaintOnly instead of FullPipeline.  Once the cooldown
-    // expires we invalidate and run the real pipeline with the
-    // current size.
-    //
-    // We fire a redraw request while the deadline is active so the
-    // frame pump doesn't stall — otherwise no event would trigger
-    // the render that picks up the final size after the user
-    // releases the resize handle.
-    let (paint_w, paint_h) = if let Some(deadline) = self.resize_deadline {
+    // Resize debounce: keep requesting redraws while the deadline is
+    // active so the frame pump doesn't stall after the user releases
+    // the resize handle.  Always paint at the actual window size so
+    // the display list coordinates match the GPU surface — using
+    // stale cached dimensions produces a blank canvas.
+    if let Some(deadline) = self.resize_deadline {
       if Instant::now() < deadline {
         self.driver.request_redraw();
-        let (cw, ch) = self.pipeline_cache.viewport();
-        if cw > 0.0 && ch > 0.0 {
-          (cw, ch)
-        } else {
-          (w as f32, h as f32)
-        }
       } else {
-        self.pipeline_cache.invalidate();
         self.resize_deadline = None;
-        (w as f32, h as f32)
       }
-    } else {
-      (w as f32, h as f32)
-    };
+    }
+    let (paint_w, paint_h) = (w as f32, h as f32);
 
     // Reserve space for the viewport scrollbar so content doesn't
     // overlap. Uses previous frame's state; if it changes we

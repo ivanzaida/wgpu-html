@@ -213,8 +213,10 @@ fn fire_mouse_slot(
   if tree.emit_mouse_event(&mut ev).is_stop() {
     return true;
   }
-  for cb in &mouse_cbs {
-    cb(&ev);
+  if phase != ev::EventPhase::CapturingPhase {
+    for cb in &mouse_cbs {
+      cb(&ev);
+    }
   }
 
   let mut html_ev = make_mouse_html_event(

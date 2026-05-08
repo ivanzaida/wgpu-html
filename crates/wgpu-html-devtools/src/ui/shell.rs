@@ -1,34 +1,19 @@
-//! Root devtools component.
+use wgpu_html_models::common::{Display, Overflow};
+use wgpu_html_ui::{el, el::El, style, Component, Ctx, ShouldRender};
 
-use std::sync::{
-  atomic::AtomicBool,
-  Arc, Mutex, RwLock,
-};
-use wgpu_html_tree::Tree;
-use wgpu_html_ui::{el, el::El, Component, Ctx, ShouldRender};
-
-// ── Shared state ───────────────────────────────────────────────────────────
-
-pub type SharedHoverPath = Arc<Mutex<Option<Vec<usize>>>>;
-pub type SharedPickMode = Arc<AtomicBool>;
-pub type SharedPendingPick = Arc<Mutex<Option<Vec<usize>>>>;
-pub type SharedHostTree = Arc<RwLock<Option<Tree>>>;
-
-// ── Props / Msg ────────────────────────────────────────────────────────────
+use super::store::DevtoolsStore;
+use super::styles_panel::{StylesPanel, StylesPanelProps};
+use super::top_bar::{Toolbar, ToolbarProps};
+use super::tree_panel::{TreePanel, TreePanelProps};
+use super::theme::Theme;
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct DevtoolsProps {
-  pub shared_hover: SharedHoverPath,
-  pub shared_pick_mode: SharedPickMode,
-  pub shared_pending_pick: SharedPendingPick,
-  pub host_tree: SharedHostTree,
+  pub store: DevtoolsStore,
 }
 
 #[derive(Clone)]
 pub enum DevtoolsMsg {}
-
-// ── Component ──────────────────────────────────────────────────────────────
 
 pub struct DevtoolsComponent;
 
@@ -44,13 +29,63 @@ impl Component for DevtoolsComponent {
     match msg {}
   }
 
-  fn view(&self, _props: &DevtoolsProps, _ctx: &Ctx<DevtoolsMsg>) -> El {
-    el::html().children([
-      el::head().child(el::link().configure(|l: &mut wgpu_html_models::Link| {
-        l.rel = Some("stylesheet".into());
-        l.href = Some("devtools.css".into());
-      })),
-      el::body(),
+  fn styles() -> style::Stylesheet {
+    use wgpu_html_models::common::{AlignItems, FontWeight, WhiteSpace};
+    style::sheet([
+      style::rule(".root")
+        .display(Display::Flex)
+        .prop("flex-direction", "column")
+        .width(style::pct(100))
+        .height(style::pct(100))
+        .background_color(Theme::BG_PRIMARY)
+        .color(Theme::TEXT_PRIMARY)
+        .font_family("Inter, system-ui, sans-serif")
+        .font_size(style::px(12)),
+      style::rule(".body")
+        .display(Display::Flex)
+        .flex_grow(1.0)
+        .overflow(Overflow::Hidden),
+      style::rule(".breadcrumb")
+        .display(Display::Flex)
+        .align_items(AlignItems::Center)
+        .height(style::px(22))
+        .padding_vh(style::px(0), style::px(12))
+        .gap(style::px(4))
+        .background_color(Theme::BG_SECONDARY)
+        .border_top(format!("1px solid {}", Theme::BORDER))
+        .font_size(style::px(10))
+        .white_space(WhiteSpace::Nowrap)
+        .flex_shrink(0.0),
+      style::rule(".crumb")
+        .color(Theme::TEXT_MUTED),
+      style::rule(".crumb.active")
+        .color(Theme::ACCENT_BLUE)
+        .font_weight(FontWeight::Weight(600)),
+      style::rule(".crumb-sep")
+        .width(style::px(10))
+        .height(style::px(10))
+        .font_size(style::px(10))
+        .color(Theme::TEXT_MUTED)
+        .prop("line-height", "10px"),
+    ]).scoped("devtools")
+  }
+
+  fn view(&self, props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>) -> El {
+    let selected = props.store.selected_path.get();
+    let host = props.store.host_tree.get();
+    let breadcrumb = super::tree_panel::build_breadcrumb(&selected, host.as_ref(), "devtools");
+
+    el::div().class(ctx.scoped("root")).children([
+      ctx.child::<Toolbar>(ToolbarProps),
+      el::div().class(ctx.scoped("body")).children([
+        ctx.child::<TreePanel>(TreePanelProps {
+          store: props.store.clone(),
+        }),
+        ctx.child::<StylesPanel>(StylesPanelProps {
+          store: props.store.clone(),
+        }),
+      ]),
+      breadcrumb,
     ])
   }
 }

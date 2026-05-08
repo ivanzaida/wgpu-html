@@ -38,6 +38,32 @@ impl PipelineTimings {
   }
 }
 
+/// Load any `@import`-referenced CSS files via the asset system and
+/// register them as linked stylesheets on the tree. Returns `true` if
+/// any new imports were resolved (the caller should re-cascade).
+///
+/// Call this before `paint_tree_cached` / `cascade` each frame.
+pub fn resolve_css_imports(tree: &mut Tree, assets: &mut wgpu_html_layout::ImageCache) -> bool {
+  use wgpu_html_assets::AssetStatus;
+  let urls = wgpu_html_style::collect_import_urls(tree);
+  if urls.is_empty() {
+    return false;
+  }
+  let mut resolved_any = false;
+  for url in urls {
+    match assets.load_file(&url) {
+      AssetStatus::Ready(bytes) => {
+        if let Ok(css_text) = std::str::from_utf8(&bytes) {
+          tree.register_linked_stylesheet(url, css_text.to_owned());
+          resolved_any = true;
+        }
+      }
+      AssetStatus::Pending | AssetStatus::Failed => {}
+    }
+  }
+  resolved_any
+}
+
 /// Cascade + lay out `tree` against `text_ctx` and return the
 /// resulting `LayoutBox` without painting. Hosts that need the layout
 /// for hit-testing (e.g. dispatching pointer events between frames)

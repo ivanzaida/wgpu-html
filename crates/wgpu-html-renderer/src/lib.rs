@@ -52,7 +52,7 @@ impl Renderer {
     W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
   {
     let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
-    idesc.backends = wgpu::Backends::PRIMARY;
+    idesc.backends = wgpu::Backends::DX12;
     let instance = wgpu::Instance::new(idesc);
 
     let surface = instance.create_surface(window).expect("failed to create surface");
@@ -103,8 +103,8 @@ impl Renderer {
       format,
       width: width.max(1),
       height: height.max(1),
-      present_mode: wgpu::PresentMode::AutoVsync,
-      alpha_mode: caps.alpha_modes[0],
+      present_mode: wgpu::PresentMode::Fifo,
+      alpha_mode: wgpu::CompositeAlphaMode::Opaque,
       view_formats: extra_view_formats,
       desired_maximum_frame_latency: 2,
     };
@@ -436,6 +436,15 @@ impl Renderer {
       format: Some(self.glyph_view_format),
       ..Default::default()
     });
+
+    if let Some([r, g, b, a]) = list.canvas_color {
+      self.clear_color = wgpu::Color {
+        r: r as f64,
+        g: g as f64,
+        b: b as f64,
+        a: a as f64,
+      };
+    }
 
     let config = self.surface_config.as_ref().unwrap();
     let viewport = [config.width as f32, config.height as f32];

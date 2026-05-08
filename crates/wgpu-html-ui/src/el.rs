@@ -133,7 +133,7 @@ macro_rules! with_all_variants {
         Form, Label, Input, Textarea, Button, Select, OptionElement, Optgroup,
         Fieldset, Legend, Datalist, Output, Progress, Meter,
         Details, Summary, Dialog, Template, Slot, Del, Ins, Bdi, Bdo, Wbr,
-        Data, Ruby, Rt, Rp
+        Data, Ruby, Rt, Rp, CustomElement
     }
   };
 }
@@ -258,13 +258,13 @@ pub type EventCallback = Arc<dyn Fn(&HtmlEvent) + Send + Sync>;
 
 impl El {
   /// Two-way bind an input/textarea value.
-  pub fn bind(self, value: Observable<String>) -> Self {
+  pub fn bind(self, value: Observable<ArcStr>) -> Self {
     self.bind_value(value)
   }
 
   /// Two-way bind an input/textarea value.
-  pub fn bind_value(mut self, value: Observable<String>) -> Self {
-    let current: ArcStr = ArcStr::from(value.get());
+  pub fn bind_value(mut self, value: Observable<ArcStr>) -> Self {
+    let current: ArcStr = value.get();
     match &mut self.node.element {
       Element::Input(input) => input.value = Some(current),
       Element::Textarea(textarea) => textarea.value = Some(current),
@@ -273,7 +273,7 @@ impl El {
     self.on_input(move |ev| {
       if let HtmlEvent::Input(input) = ev {
         if let Some(next) = &input.value {
-          value.set(next.clone());
+          value.set(ArcStr::from(next.as_str()));
         }
       }
     })
@@ -1393,6 +1393,16 @@ el_constructors! {
     rp       => m::Rp
 }
 
+/// Create a custom element with the given tag name.
+///
+/// The tag name should contain a hyphen (e.g. `"my-component"`).
+#[inline]
+pub fn custom(tag_name: impl Into<ArcStr>) -> El {
+  El {
+    node: Node::new(m::CustomElement::new(tag_name)),
+  }
+}
+
 /// Create a text node.
 #[inline]
 pub fn text(t: impl Into<ArcStr>) -> El {
@@ -1468,7 +1478,7 @@ mod tests {
       cb(&ev);
     }
 
-    assert_eq!(value.get(), "next");
+    assert_eq!(&*value.get(), "next");
   }
 
   #[test]

@@ -588,7 +588,7 @@ impl ApplicationHandler for DemoApp {
         if self.devtools_driver.is_none() {
           let attrs = Window::default_attributes()
             .with_title("DevTools")
-            .with_inner_size(winit::dpi::PhysicalSize::new(1280u32, 720u32));
+            .with_inner_size(winit::dpi::PhysicalSize::new(1280u32, 800u32));
           let win = Arc::new(event_loop.create_window(attrs).expect("devtools window"));
           devtools.tree_mut().register_system_fonts("sans-serif");
           self.devtools_driver = Some(WinitDriver::bind(win, Tree::default()));

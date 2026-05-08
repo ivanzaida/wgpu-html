@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #ffffff;
+        }
+
+        .cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        /* These target the resolved output, not the custom elements themselves */
+        .card {
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 20px;
+            width: 280px;
+        }
+
+        .card:hover {
+            border-color: #4a4a8a;
+        }
+
+        .card h2 {
+            font-size: 18px;
+            margin: 0 0 8px 0;
+            color: #ffffff;
+        }
+
+        .card p {
+            font-size: 14px;
+            margin: 0;
+            color: #aaa;
+            line-height: 1.5;
+        }
+
+        .card .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 12px;
+        }
+
+        .badge.status-active {
+            background: #1a4a2e;
+            color: #4ade80;
+        }
+
+        .badge.status-pending {
+            background: #4a3a1a;
+            color: #facc15;
+        }
+
+        .badge.status-archived {
+            background: #3a1a1a;
+            color: #f87171;
+        }
+
+        .alert-box {
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 24px;
+            font-size: 14px;
+        }
+
+        .alert-info {
+            background: #1a2a4a;
+            border-left: 4px solid #60a5fa;
+        }
+
+        .alert-warning {
+            background: #4a3a1a;
+            border-left: 4px solid #facc15;
+        }
+
+        .alert-error {
+            background: #4a1a1a;
+            border-left: 4px solid #f87171;
+        }
+    </style>
+    <script>
+        customElements.define('app-card', class extends HTMLElement {
+            connectedCallback() {
+                const title = this.getAttribute('title') || 'Untitled';
+                const status = this.getAttribute('status') || 'active';
+                const children = this.innerHTML;
+
+                this.innerHTML = `
+          <div class="card">
+            <h2>${title}</h2>
+            ${children}
+            <span class="badge status-${status}">${status}</span>
+          </div>`;
+            }
+        });
+
+        customElements.define('app-alert', class extends HTMLElement {
+            connectedCallback() {
+                const level = this.getAttribute('level') || 'info';
+                const children = this.innerHTML;
+
+                this.innerHTML = `
+          <div class="alert-box alert-${level}">
+            ${children}
+          </div>`;
+            }
+        });
+    </script>
+</head>
+<body>
+<h1>Custom Element Factories</h1>
+
+<div class="cards">
+    <app-card status="active" title="Dashboard">
+        <p>Real-time analytics and monitoring for your application.</p>
+    </app-card>
+
+    <app-card status="pending" title="Settings">
+        <p>Configure your account preferences and notifications.</p>
+    </app-card>
+
+    <app-card status="archived" title="Archive">
+        <p>View and restore previously archived projects.</p>
+    </app-card>
+</div>
+
+<app-alert level="info">
+    Custom elements are resolved by registered factory functions.
+    The &lt;app-card&gt; and &lt;app-alert&gt; tags above are replaced
+    at tree resolution time.
+</app-alert>
+
+<app-alert level="warning">
+    Factory output is standard DOM. CSS selectors target the resolved
+    elements, not the original custom element tags.
+</app-alert>
+</body>
+</html>

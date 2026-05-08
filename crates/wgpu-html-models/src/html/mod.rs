@@ -309,3 +309,6 @@ pub use rt::Rt;
 
 pub mod rp;
 pub use rp::Rp;
+
+pub mod custom_element;
+pub use custom_element::CustomElement;

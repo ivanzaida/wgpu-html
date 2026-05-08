@@ -35,14 +35,7 @@ impl Component for TextInput {
       )
   }
 
-  fn scope() -> &'static str {
-    "text-input"
-  }
-
-  fn styles() -> Stylesheet
-  where
-    Self: Sized,
-  {
+  fn styles() -> Stylesheet {
     style::sheet([
       style::rule(".wrapper")
         .width(style::px(240))
@@ -63,6 +56,6 @@ impl Component for TextInput {
         .display(Display::Flex)
         .align_items(AlignItems::Center)
         .justify_content(SpaceBetween),
-    ])
+    ]).scoped("text-input")
   }
 }

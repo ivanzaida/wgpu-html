@@ -2,6 +2,7 @@ use wgpu_html_tree::Tree;
 
 mod bg_image;
 mod click_demo;
+mod custom_elements;
 mod css_vars;
 mod devtools_demo;
 mod devtools_test;
@@ -33,6 +34,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
   match name {
     "bg_image" => Some(bg_image::build()),
     "click_demo" => Some(click_demo::build()),
+    "custom_elements" => Some(custom_elements::build()),
     "css_vars" => Some(css_vars::build()),
     "devtools_demo" => Some(devtools_demo::build()),
     "devtools_test" => Some(devtools_test::build()),
@@ -67,6 +69,7 @@ pub fn list_examples() -> Vec<&'static str> {
   vec![
     "bg_image",
     "click_demo",
+    "custom_elements",
     "css_vars",
     "devtools_demo",
     "devtools_test",

@@ -1,148 +1,149 @@
 ---
-title: Store — Reactive Shared State
+title: Observable — Reactive Shared State
 ---
 
-# Store — Reactive Shared State
+# Observable — Reactive Shared State
 
-`Store<T>` wraps a value of type `T` behind `Arc<Mutex<T>>` with a listener list. Any number of components can share a clone of the same store. When the value is mutated, all subscribers are notified.
+`Observable<T>` wraps a value behind `Arc<Mutex<T>>` with a subscriber list. Any number of components can share clones of the same observable. Mutations notify all subscribers synchronously.
 
-## Types
-
-```rust
-pub struct Store<T> {
-    inner: StoreInner<T>,
-    // Arc<Mutex<T>> value + Mutex<Vec<Box<dyn Fn(&T)>>
-}
-```
-
-`Store<T>` is cheap to clone — all clones share the same underlying value via `Arc`.
-
-## Creating a Store
+## Creating
 
 ```rust
-use wgpu_html_ui::Store;
+use wgpu_html_ui::Observable;
 
-#[derive(Clone)]
-struct Theme { primary: String, background: String }
+// From a value
+let theme = Observable::new("dark");
 
-static THEME_STORE: Store<Theme> = Store::new(Theme {
-    primary: "#4a90d9".into(),
-    background: "#ffffff".into(),
-});
+// Default (requires T: Default)
+let count: Observable<i32> = Observable::default();
 ```
 
-Or use `once_cell` / `LazyLock` for lazy initialization:
-
-```rust
-use std::sync::LazyLock;
-static THEME_STORE: LazyLock<Store<Theme>> = LazyLock::new(|| {
-    Store::new(Theme::default())
-});
-```
+`Observable<T>` is cheap to clone — all clones share the same inner value via `Arc`.
 
 Requirements: `T: Send + Sync + 'static`.
 
 ## Reading
 
 ```rust
-let theme = THEME_STORE.get();  // Returns a clone of T
+let current = theme.get();  // clones T out of the mutex
 ```
 
-`get()` requires `T: Clone`. It locks the mutex, clones the value, and unlocks.
+For `ArcStr`-backed observables (`Observable<ArcStr>`), `get()` is a refcount bump — no deep copy.
 
 ## Writing
 
 ```rust
-// Replace the entire value
-THEME_STORE.set(Theme {
-    primary: "#ff0000".into(),
-    background: "#1a1a1a".into(),
-});
+// Replace
+theme.set("light");
 
-// Mutate in-place
-THEME_STORE.update(|theme| {
-    theme.primary = "#ff0000".into();
-});
+// Mutate in place
+counter.update(|n| *n += 1);
 ```
 
-Both `set()` and `update()` notify all subscriber callbacks synchronously on the calling thread. Notifications happen outside the lock.
+Both `set()` and `update()` notify all subscribers synchronously after releasing the lock.
 
 ## Subscribing from a Component
 
-Subscribe inside `Component::mounted()`:
+Use the `subscribe()` lifecycle hook. Subscriptions added to `subs` are automatically cancelled when the component is destroyed:
 
 ```rust
-fn mounted(&mut self, sender: MsgSender<Msg>) {
-    THEME_STORE.subscribe(&sender, |theme: &Theme| {
-        Msg::ThemeChanged(theme.clone())
-    });
+fn subscribe(&self, sender: &MsgSender<Msg>, subs: &mut Subscriptions) {
+    subs.add(self.theme.subscribe_msg(sender, |v| Msg::ThemeChanged(v.clone())));
 }
 ```
 
-`subscribe()` registers a callback that maps `&T` to a message and sends it via `MsgSender`. The subscription is active for the component's lifetime.
+`subscribe_msg` maps `&T` to a message and sends it via `MsgSender`, which wakes the component runtime to process the update.
 
-## Raw Listeners
+### Raw subscriptions
+
+For non-component code:
 
 ```rust
-THEME_STORE.on_change(|theme: &Theme| {
-    println!("Theme changed to: {:?}", theme.primary);
+let sub = theme.subscribe(|value| {
+    println!("Theme changed: {}", value);
 });
+// sub is a Subscription — dropping it unsubscribes.
 ```
 
-`on_change()` registers a raw callback without a `MsgSender`. This is useful for non-component code.
+`Subscription` is `#[must_use]` — the compiler warns if you forget to store it.
 
-## Subscription Limitations
+## Subscription Bag
 
-- Subscriptions are never automatically removed. If a component is destroyed while a store it subscribed to still lives, the `MsgSender` clone keeps its queue alive. Messages sent to the orphaned queue are silently discarded on the next `process()` cycle.
-- This is a minor memory overhead, not a crash. A future version will add `SubscriptionHandle` with automatic cleanup on drop.
+`Subscriptions` is a type-erased bag that holds any `Subscription<T>`. Used by the runtime to manage component subscriptions, but can also be used standalone:
+
+```rust
+use wgpu_html_ui::Subscriptions;
+
+let mut subs = Subscriptions::new();
+subs.add(theme.subscribe(|v| println!("{}", v)));
+subs.add(count.subscribe(|v| println!("{}", v)));
+
+// Drop the bag to cancel all subscriptions
+subs.clear();
+```
+
+## Two-Way Form Binding
+
+`Observable<ArcStr>` integrates with form controls via `El::bind()`:
+
+```rust
+let name = Observable::new(ArcStr::from(""));
+
+el::input()
+    .bind(name.clone())       // user input → observable
+    .placeholder("Your name")
+```
+
+`bind()` sets the initial value from the observable and updates it on every `input` event. The DOM node's value is preserved across re-renders via in-place patching.
 
 ## Complete Example
 
 ```rust
-use wgpu_html_ui::{Component, Ctx, ShouldRender, Store, el};
+use wgpu_html_ui::{Component, Ctx, El, MsgSender, Observable, ShouldRender, Subscriptions, el};
+use wgpu_html_models::ArcStr;
 
-static THEME: Store<String> = Store::new("light".into());
+struct ThemeToggle {
+    theme: Observable<ArcStr>,
+    current: ArcStr,
+}
 
-struct MyComponent { current_theme: String }
+#[derive(Clone)]
+struct Props { theme: Observable<ArcStr> }
 
-enum Msg { ToggleTheme, ThemeChanged(String) }
+#[derive(Clone)]
+enum Msg { Toggle, Changed(ArcStr) }
 
-impl Component for MyComponent {
-    type Props = ();
+impl Component for ThemeToggle {
+    type Props = Props;
     type Msg = Msg;
-    type Env = ();
 
-    fn create(_: &()) -> Self {
-        Self { current_theme: THEME.get() }
+    fn create(props: &Props) -> Self {
+        Self { theme: props.theme.clone(), current: props.theme.get() }
     }
 
-    fn mounted(&mut self, sender: MsgSender<Msg>) {
-        THEME.subscribe(&sender, |theme| Msg::ThemeChanged(theme.clone()));
-    }
-
-    fn update(&mut self, msg: Msg, _: &()) -> ShouldRender {
+    fn update(&mut self, msg: Msg, _: &Props) -> ShouldRender {
         match msg {
-            Msg::ToggleTheme => {
-                let new = if self.current_theme == "light" { "dark" } else { "light" };
-                THEME.set(new.into());
-                ShouldRender::No  // Subscribe will trigger the re-render
+            Msg::Toggle => {
+                let next = if &*self.current == "light" { "dark" } else { "light" };
+                self.theme.set(ArcStr::from(next));
+                ShouldRender::No  // subscription handles the re-render
             }
-            Msg::ThemeChanged(theme) => {
-                self.current_theme = theme;
+            Msg::Changed(v) => {
+                self.current = v;
                 ShouldRender::Yes
             }
         }
     }
 
-    fn view(&self, _: &(), ctx: &Ctx<Msg>, _: &()) -> El {
-        el::div()
-            .class(&format!("app-{}", self.current_theme))
-            .children([
-                el::p().text(&format!("Current theme: {}", self.current_theme)),
-                el::button()
-                    .text("Toggle")
-                    .on_click_cb(ctx.on_click(Msg::ToggleTheme)),
-            ])
+    fn view(&self, _: &Props, ctx: &Ctx<Msg>) -> El {
+        el::div().children([
+            el::span().text(&format!("Theme: {}", self.current)),
+            el::button().text("Toggle").on_click_cb(ctx.on_click(Msg::Toggle)),
+        ])
+    }
+
+    fn subscribe(&self, sender: &MsgSender<Msg>, subs: &mut Subscriptions) {
+        subs.add(self.theme.subscribe_msg(sender, |v| Msg::Changed(v.clone())));
     }
 }
 ```

@@ -28,6 +28,10 @@ pub fn paint_layout_with_selection(
 );
 ```
 
+## Canvas Background
+
+Per CSS 2.2 section 14.2, the root element's background (or the body's, if the root has none) fills the entire viewport. During `paint_layout_full()`, the root's background color is extracted and stored in `DisplayList.canvas_color`. The renderer uses this as the wgpu surface clear color, so `body { background: #1a1a2e }` fills the entire window -- not just the body's content box.
+
 ## Background Painting
 
 For each box with a non-None `background`:

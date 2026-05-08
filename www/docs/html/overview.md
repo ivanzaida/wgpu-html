@@ -33,7 +33,7 @@ let tree = parse(r#"
 wgpu-html is a **renderer**, not a browser. It optimizes for GPU-accelerated rendering over pristine HTML5 spec compliance:
 
 - **No HTML5 insertion-mode state machine** — No `<table>` foster-parenting, no `</br>`→`<br>` quirk, no scripting insertion modes.
-- **Unknown tags are dropped** with their entire subtree. Only the ~100 recognized element types survive.
+- **Unknown tags without a hyphen are dropped** with their entire subtree. [Custom elements](/docs/html/custom-elements) (tags containing a hyphen, e.g. `<my-card>`) are preserved and participate fully in the DOM, cascade, and layout.
 - **Comments and DOCTYPE are tokenized but discarded** at tree-building time.
 - **Whitespace-only text between tags is dropped** — only meaningful text content is preserved.
 - **No `<![CDATA[]]>`**, no foreign content inner nodes (SVG/MathML tokenized but not parsed inline).

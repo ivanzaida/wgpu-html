@@ -14,6 +14,7 @@ mod dispatch;
 mod events;
 mod focus;
 mod fonts;
+mod patch;
 mod profiler;
 pub mod query;
 mod system_fonts;
@@ -34,6 +35,7 @@ pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
+pub use patch::{PatchResult, patch_node};
 pub use profiler::{ProfileEntry, Profiler};
 pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
 pub use system_fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
@@ -154,6 +156,16 @@ pub struct Tree {
   /// for a tag name, `resolve_custom_elements()` replaces matching
   /// `<tag-name>` nodes with the factory's output.
   pub custom_elements: CustomElementRegistry,
+  /// When `true` (default), setting `tree.root` wraps the node in
+  /// `<html><head/><body>{node}</body></html>` if it isn't already
+  /// an `<html>` element. This gives every tree a proper document
+  /// structure so stylesheets, devtools, and serialization work
+  /// consistently.
+  pub wrap_body: bool,
+  /// When `true` (default), the cascade prepends the built-in UA
+  /// stylesheet (browser defaults for `<body>`, headings, lists, form
+  /// controls, etc.) before author rules.
+  pub use_ua_stylesheet: bool,
 }
 
 impl Default for Tree {
@@ -174,6 +186,8 @@ impl Default for Tree {
       profiler: None,
       asset_root: None,
       custom_elements: CustomElementRegistry::new(),
+      wrap_body: true,
+      use_ua_stylesheet: true,
     };
     tree.register_system_fonts("sans-serif");
     tree
@@ -185,6 +199,32 @@ impl Tree {
     let mut tree = Self::default();
     tree.root = Some(root);
     tree
+  }
+
+  /// Set whether `tree.root` assignments wrap the node in
+  /// `<html><head/><body>…</body></html>`. Default is `true`.
+  pub fn with_body(&mut self, wrap: bool) -> &mut Self {
+    self.wrap_body = wrap;
+    self
+  }
+
+  /// Set whether the UA stylesheet is prepended before author rules
+  /// during cascade. Default is `true`.
+  pub fn with_ua_stylesheet(&mut self, use_ua: bool) -> &mut Self {
+    self.use_ua_stylesheet = use_ua;
+    self
+  }
+
+  /// Set the root node. When `wrap_body` is true and the node isn't
+  /// already `<html>`, wraps it in `<html><head/><body>{node}</body></html>`.
+  pub fn set_root(&mut self, node: Node) {
+    if self.wrap_body {
+      self.root = Some(wrap_in_document(node));
+    } else {
+      self.root = Some(node);
+    }
+    self.generation += 1;
+    self.cascade_generation += 1;
   }
 
   /// Override this tree's CSS-pixel to physical-pixel scale.
@@ -1308,6 +1348,16 @@ macro_rules! all_element_variants {
 }
 
 impl Element {
+  pub fn same_tag(&self, other: &Element) -> bool {
+    if std::mem::discriminant(self) != std::mem::discriminant(other) {
+      return false;
+    }
+    match (self, other) {
+      (Element::CustomElement(a), Element::CustomElement(b)) => a.tag_name == b.tag_name,
+      _ => true,
+    }
+  }
+
   /// `id` HTML attribute on this element, if set. `Text` has no
   /// attributes and returns `None`.
   pub fn id(&self) -> Option<&str> {
@@ -1937,6 +1987,23 @@ fn collect_tag_name_nodes<'a>(node: &'a Node, tag_name: &str, out: &mut Vec<&'a 
 /// id, class, and child structure — everything but inline styles
 /// and text content.
 ///
+/// Wrap a node in `<html><head/><body>{node}</body></html>` if it
+/// isn't already an `<html>` element.
+pub fn wrap_in_document(node: Node) -> Node {
+  if node.element.tag_name() == "html" {
+    return node;
+  }
+  let body = if node.element.tag_name() == "body" {
+    node
+  } else {
+    Node::new(m::Body::default()).with_children(vec![node])
+  };
+  Node::new(m::Html::default()).with_children(vec![
+    Node::new(m::Head::default()),
+    body,
+  ])
+}
+
 /// Two trees with the same fingerprint produce identical cascade
 /// results, so [`wgpu_html::PipelineAction::LayoutOnly`] can skip
 /// re-cascading.

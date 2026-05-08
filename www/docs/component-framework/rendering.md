@@ -4,21 +4,20 @@ title: Component Rendering Model
 
 # Component Rendering Model
 
-The runtime (`wgpu-html-ui::core::runtime`) manages mounted components and selects one of three render paths per frame to minimize work.
+The runtime manages mounted components and selects one of three render paths per frame to minimize work.
 
 ## MountedComponent
 
-Each mounted component is tracked as a `MountedComponent`:
+Each mounted component is tracked as:
 
 ```rust
 struct MountedComponent {
-    state: Box<dyn AnyComponent>,     // Type-erased Component
-    last_node: Option<Node>,           // Full output from last view()
-    skeleton_node: Option<Node>,       // Skeleton with placeholder children
-    key: String,
+    state: Box<dyn AnyComponent>,
+    last_node: Option<Node>,       // full output from last view()
+    skeleton_node: Option<Node>,   // skeleton with placeholder children
     needs_render: bool,
     subtree_dirty: bool,
-    // ...
+    subscriptions: Subscriptions,  // auto-cancelled on destroy
 }
 ```
 
@@ -28,34 +27,46 @@ struct MountedComponent {
 
 **Condition**: `!needs_render && !subtree_dirty`
 
-**Work**: Nothing. The component's cached `last_node` is used as-is.
-
-This is the common case when a component has no pending messages, props haven't changed, and no descendant needs rendering. Zero allocation, zero DOM manipulation.
+Returns the cached `last_node` directly. No `view()` call, no allocation, zero work. This is the common steady-state path.
 
 ### 2. Patch Path
 
-**Condition**: `needs_render && skeleton_node.is_some() && !props_changed`
+**Condition**: `!needs_render && subtree_dirty`
 
-**Work**:
-1. Skip the parent's `view()`.
-2. Clone `skeleton_node` (the DOM structure without children).
-3. Only re-substitute children whose `needs_render` is true.
-4. Update `last_node` with the patched version.
+The component itself is unchanged but a descendant is dirty:
 
-This avoids expensive `view()` calls for the parent when only a single child changed. The parent's element structure is reused, and only dirty children are re-inserted.
+1. Skip the parent's `view()` entirely.
+2. Clone `skeleton_node` (contains placeholder divs, not full child subtrees — cheap).
+3. Re-substitute children: dirty ones re-render recursively, clean ones return their `last_node`.
+4. Cache the result as the new `last_node`.
 
 ### 3. Full Render
 
-**Condition**: `needs_render && (props_changed || no skeleton)`
+**Condition**: `needs_render` (or first render)
 
-**Work**:
-1. Call `view(props, ctx, env)` to produce a new `El` tree.
-2. Reconcile child slots — match new children against existing mounted components by key.
-3. For matched children: call `props_changed()` and optionally `update()` + `view()`.
-4. For new children: call `create()`, `mounted()`, then `view()`.
-5. For removed children: call `destroyed()`.
-6. Build the output `Node` tree from the `El` tree and child components.
-7. Cache `last_node` and `skeleton_node` for future patch paths.
+1. Call `view(props, ctx)` to produce a new `El` tree.
+2. Reconcile child slots by `(key, TypeId)`:
+   - Matched children: call `props_changed()`, optionally re-render.
+   - New children: `create()` → `view()` → `mounted()` → `subscribe()`.
+   - Removed children: `destroyed()` (subscriptions auto-cancelled first).
+3. Cache `skeleton_node` and `last_node`.
+
+## DOM Patching
+
+When `apply_node` writes the component output into the `Tree`, it uses **in-place patching** (`patch_node`) instead of wholesale replacement. This preserves:
+
+- **Form control values**: Input/textarea values typed by the user are kept when the component's stale cached node doesn't explicitly set a new value.
+- **Layout rects**: `Node.rect` from the previous layout pass is preserved on same-tag nodes.
+- **Interaction state**: `focus_path`, `hover_path`, `scroll_offsets` remain valid because nodes are updated in-place, not swapped.
+
+The patch algorithm walks old and new trees in parallel:
+
+- **Same tag**: Update attributes, replace event handlers, recurse into children.
+- **Different tag**: Replace the node wholesale.
+- **Children added**: Appended.
+- **Children removed**: Truncated.
+
+Event handlers are always replaced — components create fresh closures each render capturing current state.
 
 ## Keyed Children
 
@@ -63,47 +74,30 @@ Child identity is `(String, TypeId)`:
 
 ```rust
 // Auto-generated key (positional)
-ctx.child::<MyComp>(props)         → key = "__pos_{n}"
+ctx.child::<MyComp>(props)                     // key = "__pos_0"
 
 // User-specified key (stable across reordering)
-ctx.keyed_child::<MyComp>("item-1", props)  → key = "item-1"
+ctx.keyed_child::<MyComp>("item-1", props)     // key = "item-1"
 ```
 
-Keyed children survive:
-- Reordering: the runtime matches by key, not position.
-- Insertion: new keys create new components; existing keys keep their state.
-- Removal: keys not present in the new view are destroyed.
-
-Without keys, positional children are rebuilt on reorder (destroy + create).
+Keyed children survive reordering, insertion, and removal. Without keys, positional children are rebuilt on reorder.
 
 ## Message Processing
 
-```rust
-impl MsgSender<M> {
-    pub fn send(&self, msg: M) {
-        self.queue.lock().unwrap().push(msg);
-        (self.wake)();  // triggers re-render loop
-    }
-}
+```
+callback fires → MsgSender::send(msg) → wake() → request_redraw()
+    → Runtime::process()
+    → drain messages → Component::update() → ShouldRender
+    → if dirty → render_component() (path 1/2/3)
+    → patch_node() into Tree → tree.generation += 1
+    → pipeline detects change → cascade → layout → paint
 ```
 
-`MsgSender::send()` enqueues a message and calls `wake()`, which the host maps to `request_redraw()`. The runtime's `process()` method drains all pending messages until the queue stabilizes:
+Messages are batched — multiple messages arriving before the next frame produce a single re-render.
 
-```rust
-while let Some(msg) = next_message() {
-    component.update(msg, props)?;
-    if component.needs_render() {
-        component.render();
-    }
-}
-```
+## Scoped Class Caching
 
-## Per-Component Caching
-
-- **last_node**: The complete `Node` tree from the previous `view()`. Used directly on the clean fast-path.
-- **skeleton_node**: The `Node` structure from `view()` with all child component slots replaced by markers. Used for the patch path — the parent's structure is reused, only dirty children are substituted.
-
-Both are invalidated on `props_changed` or when `view()` returns a structurally different tree.
+`ctx.scoped("class")` returns `ArcStr`. Results are cached in a per-component `HashMap<&'static str, ArcStr>` that persists across renders. After the first frame, repeated calls are a hash lookup + refcount bump — zero allocation.
 
 ## Performance Characteristics
 
@@ -111,6 +105,4 @@ Both are invalidated on `props_changed` or when `view()` returns a structurally 
 |---|---|---|---|
 | Clean fast-path | 0 | 0 | 0 |
 | Patch | 0 (parent) | Only dirty children | Minimal |
-| Full render | 1 | All children | Full rebuild |
-
-For a typical interactive app (hovering, typing, clicking), most frames hit the clean fast-path or patch path. Full renders only happen on prop changes, initial mount, or structural DOM mutations.
+| Full render | 1 | All children | Full subtree |

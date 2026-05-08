@@ -44,10 +44,6 @@ impl Component for Counter {
     wgpu_html_ui::ShouldRender::Yes
   }
 
-  fn scope() -> &'static str {
-    "counter"
-  }
-
   fn styles() -> Stylesheet {
     style::sheet([
       style::rule(".root")
@@ -86,7 +82,7 @@ impl Component for Counter {
         .background_color("var(--bg-hover)")
         .cursor(Cursor::Pointer),
       style::rule("button.wide").width(px(64)),
-    ])
+    ]).scoped("counter")
   }
 
   fn view(&self, _props: &CounterProps, ctx: &wgpu_html_ui::Ctx<CounterMsg>) -> wgpu_html_ui::El {

@@ -1,13 +1,13 @@
 //! Shared reactive state.
 
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 
 use crate::core::ctx::MsgSender;
 
 type Listener<T> = Arc<dyn Fn(&T) + Send + Sync>;
 
 struct ObservableInner<T> {
-  value: Mutex<T>,
+  value: RwLock<T>,
   next_listener_id: Mutex<usize>,
   listeners: Mutex<Vec<(usize, Listener<T>)>>,
 }
@@ -21,6 +21,16 @@ pub struct Observable<T> {
   inner: Arc<ObservableInner<T>>,
 }
 
+impl<T: Send + Sync + 'static> Default for Observable<T>
+where
+  T: Default,
+{
+  fn default() -> Self {
+    Self::new(T::default())
+  }
+}
+
+
 impl<T> Clone for Observable<T> {
   fn clone(&self) -> Self {
     Self {
@@ -29,10 +39,37 @@ impl<T> Clone for Observable<T> {
   }
 }
 
-/// Subscription token. Dropping it removes the listener.
+#[must_use = "subscriptions are cancelled when dropped — store in a field or Subscriptions bag"]
 pub struct Subscription<T> {
   id: usize,
   inner: Weak<ObservableInner<T>>,
+}
+
+/// Type-erased collection of subscriptions. Dropping the bag cancels
+/// all contained subscriptions. Used by the component runtime to
+/// auto-clean subscriptions when a component is destroyed.
+pub struct Subscriptions {
+  entries: Vec<Box<dyn std::any::Any>>,
+}
+
+impl Subscriptions {
+  pub fn new() -> Self {
+    Self { entries: Vec::new() }
+  }
+
+  pub fn add<T: 'static>(&mut self, sub: Subscription<T>) {
+    self.entries.push(Box::new(sub));
+  }
+
+  pub fn clear(&mut self) {
+    self.entries.clear();
+  }
+}
+
+impl Default for Subscriptions {
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 impl<T> Drop for Subscription<T> {
@@ -48,25 +85,25 @@ impl<T: Send + Sync + 'static> Observable<T> {
   pub fn new(value: impl Into<T>) -> Self {
     Self {
       inner: Arc::new(ObservableInner {
-        value: Mutex::new(value.into()),
+        value: RwLock::new(value.into()),
         next_listener_id: Mutex::new(0),
         listeners: Mutex::new(Vec::new()),
       }),
     }
   }
 
-  /// Read the current value.
+  /// Read the current value (shared read lock — no contention).
   pub fn get(&self) -> T
   where
     T: Clone,
   {
-    self.inner.value.lock().unwrap().clone()
+    self.inner.value.read().unwrap().clone()
   }
 
   /// Replace the value and notify subscribers.
   pub fn set(&self, value: impl Into<T>) {
     {
-      *self.inner.value.lock().unwrap() = value.into();
+      *self.inner.value.write().unwrap() = value.into();
     }
     self.notify();
   }
@@ -74,7 +111,7 @@ impl<T: Send + Sync + 'static> Observable<T> {
   /// Mutate the value in place and notify subscribers.
   pub fn update(&self, f: impl FnOnce(&mut T)) {
     {
-      f(&mut self.inner.value.lock().unwrap());
+      f(&mut self.inner.value.write().unwrap());
     }
     self.notify();
   }
@@ -106,7 +143,7 @@ impl<T: Send + Sync + 'static> Observable<T> {
 
   fn notify(&self) {
     let listeners = self.inner.listeners.lock().unwrap().clone();
-    let value = self.inner.value.lock().unwrap();
+    let value = self.inner.value.read().unwrap();
     for (_, cb) in listeners {
       cb(&value);
     }

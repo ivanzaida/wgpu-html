@@ -19,9 +19,13 @@ impl Theme {
 
   pub const ACCENT_BLUE: &'static str = "#8AB4F8";
 
+  pub const TAG_BRACKET: &'static str = "#9AA0A6";
   pub const TAG_COLOR: &'static str = "#5DB0D7";
   pub const ATTR_NAME: &'static str = "#9AA0A6";
+  pub const ATTR_EQUALS: &'static str = "#9AA0A6";
   pub const ATTR_VALUE: &'static str = "#F28B82";
+  pub const TEXT_CONTENT: &'static str = "#9AA0A6";
+  pub const COMMENT: &'static str = "#5F6368";
 
   pub const SELECTOR: &'static str = "#D2E3FC";
   pub const PROPERTY: &'static str = "#9AA0A6";

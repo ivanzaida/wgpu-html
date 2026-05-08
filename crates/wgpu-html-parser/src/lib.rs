@@ -25,7 +25,8 @@ pub use stylesheet::{
   SelectorList,
 };
 pub use stylesheet::{
-  MediaFeature, MediaQuery, MediaQueryList, MediaType, Rule, Stylesheet, parse_media_query_list, parse_stylesheet,
+  MediaFeature, MediaQuery, MediaQueryList, MediaType, Rule, Stylesheet, parse_import_directive,
+  parse_media_query_list, parse_stylesheet,
 };
 pub use tokenizer::Token;
 use wgpu_html_tree::Tree;

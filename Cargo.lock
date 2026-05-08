@@ -6362,6 +6362,7 @@ dependencies = [
 name = "wgpu-html"
 version = "0.1.0"
 dependencies = [
+ "wgpu-html-assets",
  "wgpu-html-events",
  "wgpu-html-layout",
  "wgpu-html-models",
@@ -6419,6 +6420,7 @@ dependencies = [
  "wgpu-html-driver",
  "wgpu-html-events",
  "wgpu-html-models",
+ "wgpu-html-style",
  "wgpu-html-tree",
  "wgpu-html-ui",
 ]
@@ -6463,6 +6465,7 @@ dependencies = [
 name = "wgpu-html-driver-winit"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "wgpu-html",
  "wgpu-html-driver",
  "wgpu-html-tree",

@@ -179,6 +179,10 @@ pub struct DisplayList {
   pub glyphs: Vec<GlyphQuad>,
   pub clips: Vec<ClipRange>,
   pub commands: Vec<DisplayCommand>,
+  /// CSS canvas background color propagated from the root/body element
+  /// per CSS 2.2 section 14.2. The renderer uses this as the clear color so the
+  /// body background fills the entire viewport.
+  pub canvas_color: Option<[f32; 4]>,
 }
 
 impl Default for DisplayList {
@@ -200,6 +204,7 @@ impl Default for DisplayList {
         glyph_range: (0, 0),
       }],
       commands: Vec::new(),
+      canvas_color: None,
     }
   }
 }

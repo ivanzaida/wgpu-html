@@ -29,11 +29,18 @@ title: Component Framework (wgpu-html-ui)
 pub trait Component: 'static {
     type Props: Clone + 'static;
     type Msg: Clone + Send + Sync + 'static;
-    type Env: 'static;
 
     fn create(props: &Self::Props) -> Self;
     fn update(&mut self, msg: Self::Msg, props: &Self::Props) -> ShouldRender;
-    fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>, env: &Self::Env) -> El;
+    fn view(&self, props: &Self::Props, ctx: &Ctx<Self::Msg>) -> El;
+
+    // Optional hooks:
+    fn props_changed(&mut self, old: &Self::Props, new: &Self::Props) -> ShouldRender { Yes }
+    fn mounted(&mut self, sender: MsgSender<Self::Msg>) {}
+    fn subscribe(&self, sender: &MsgSender<Self::Msg>, subs: &mut Subscriptions) {}
+    fn updated(&mut self, props: &Self::Props) {}
+    fn destroyed(&mut self) {}
+    fn styles() -> Stylesheet { Stylesheet::empty() }
 }
 ```
 
@@ -50,26 +57,32 @@ el::div().id("app").class("container").children([
 
 ## Ctx Callback Factory
 
-`Ctx<Msg>` creates callbacks that send messages to the component's update loop:
+`Ctx<Msg>` is passed to `view()`:
 
 ```rust
 el::button().on_click_cb(ctx.on_click(Msg::Increment));
-el::input().on_event_cb(ctx.event_callback(|ev| Some(Msg::Input(ev.data.clone()))));
+
+// Scoped class names (cached across renders — zero alloc after first frame)
+el::div().class(ctx.scoped("card"))  // → "mycomp-card"
 ```
 
-## Store — Reactive Shared State
+## Observable — Reactive Shared State
 
 ```rust
-let theme_store: Store<Theme> = Store::new(Theme::default());
+use wgpu_html_ui::Observable;
 
-// Read
-let t = theme_store.get();
+let theme = Observable::new("dark");
 
 // Write (notifies all subscribers)
-theme_store.set(Theme::dark());
+theme.set("light");
 
-// Subscribe from a component
-theme_store.subscribe(&sender, |theme| Msg::ThemeChanged(theme.clone()));
+// Read (cheap ArcStr clone)
+let current = theme.get();
+
+// Subscribe from a component (auto-cleaned on destroy)
+fn subscribe(&self, sender: &MsgSender<Msg>, subs: &mut Subscriptions) {
+    subs.add(self.theme.subscribe_msg(sender, |v| Msg::ThemeChanged(v.clone())));
+}
 ```
 
 ## Three-Path Render Model
@@ -80,18 +93,16 @@ Per mounted component, the runtime selects one of three paths:
 2. **Patch path**: Skip `view()`, clone the skeleton node, re-substitute only dirty children.
 3. **Full render**: Call `view()`, reconcile children, cache output for future patches.
 
+The DOM is patched in-place (not replaced wholesale), preserving form control values and interaction state.
+
 ## Entry Points
 
 ```rust
-// Mount a root component into a Tree
-use wgpu_html_ui::App;
-
-let app = App::new::<MyRootComponent>(props);
-app.mount(&mut tree);  // runs create() → view() → build tree
-
-// Programmatic mount
+// Standalone mount (e.g. devtools, secondary windows)
 use wgpu_html_ui::Mount;
-Mount::new::<MyComponent>(props).at("#my-element", &mut tree);
+let mount = Mount::<MyComponent>::new(props);
+mount.render(&mut tree);
+mount.process(&mut tree);
 ```
 
 ## Sub-Pages
@@ -99,5 +110,5 @@ Mount::new::<MyComponent>(props).at("#my-element", &mut tree);
 - [Component Trait](./component-trait) — lifecycle, hooks, styles
 - [El Builder DSL](./el-dsl) — element constructors, children, callbacks
 - [Ctx Callback Factory](./ctx) — message senders, child embedding
-- [Store — Reactive State](./store) — shared state, subscriptions
-- [Rendering Model](./rendering) — three-path render, keyed children
+- [Observable — Reactive State](./store) — shared state, subscriptions
+- [Rendering Model](./rendering) — three-path render, DOM patching

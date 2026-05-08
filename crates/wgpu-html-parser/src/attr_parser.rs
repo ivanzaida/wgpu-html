@@ -950,8 +950,27 @@ pub fn parse_element(tag: &str, attrs: &[(ArcStr, ArcStr)]) -> Option<Element> {
       set_global!(el, attrs);
       Element::Rp(el)
     }
+    _ if tag.contains('-') => {
+      let mut el = html::CustomElement::new(tag);
+      set_global!(el, attrs);
+      for (n, v) in attrs {
+        if !is_global_attr(n) {
+          el.custom_attrs.insert(n.clone(), v.clone());
+        }
+      }
+      Element::CustomElement(el)
+    }
     _ => return None,
   })
+}
+
+fn is_global_attr(name: &str) -> bool {
+  matches!(
+    &*name,
+    "id" | "class" | "style" | "title" | "lang" | "dir" | "hidden" | "tabindex" | "accesskey" | "contenteditable"
+      | "draggable" | "spellcheck" | "translate" | "role"
+  ) || name.starts_with("data-")
+    || name.starts_with("aria-")
 }
 
 // ---------------------------------------------------------------------------

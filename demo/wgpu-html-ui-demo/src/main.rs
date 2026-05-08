@@ -35,10 +35,6 @@ impl Component for DemoApp {
   type Props = DemoProps;
   type Msg = DemoMsg;
 
-  fn scope() -> &'static str {
-    "app"
-  }
-
   fn styles() -> style::Stylesheet {
     style::sheet([
       style::rule(".root")
@@ -56,7 +52,7 @@ impl Component for DemoApp {
         .margin_bottom(px(40))
         .white_space(WhiteSpace::Nowrap),
       style::rule(".counters").display(Display::Flex).gap(px(24)),
-    ])
+    ]).scoped("app")
   }
 
   fn create(_props: &DemoProps) -> Self {
@@ -151,7 +147,7 @@ impl ApplicationHandler for UiDemoApp {
       if self.devtools_driver.is_none() {
         let attrs = Window::default_attributes()
           .with_title("DevTools")
-          .with_inner_size(winit::dpi::PhysicalSize::new(1280u32, 720u32));
+          .with_inner_size(winit::dpi::LogicalSize::new(1280u32, 800u32));
         let win = Arc::new(event_loop.create_window(attrs).expect("devtools window"));
         self.devtools.tree_mut().register_system_fonts("sans-serif");
         self.devtools_driver = Some(WinitDriver::bind(win, Tree::default()));

@@ -365,6 +365,7 @@ tree.get_element_by_id("user").map(|input| {
 
 ## See Also
 
-- [Element Index](./element-index) — Full table of all 98 supported elements
+- [Element Index](./element-index) — Full table of all supported elements
+- [Custom Elements](./custom-elements) — Using custom HTML elements (`<my-card>`, `<app-header>`, etc.)
 - [DOM API](./dom-api) — Query and traversal API documentation
 - [HTML Overview](./overview) — How HTML and CSS interact

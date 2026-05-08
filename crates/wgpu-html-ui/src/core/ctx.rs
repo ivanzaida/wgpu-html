@@ -3,10 +3,11 @@
 use std::{
   any::{Any, TypeId},
   cell::{Cell, RefCell},
+  collections::HashMap,
   sync::{Arc, Mutex},
 };
 
-use wgpu_html_models as m;
+use wgpu_html_models::{self as m, ArcStr};
 use wgpu_html_tree::{EventCallback, HtmlEvent, MouseCallback, MouseEvent, Node};
 
 use crate::el::El;
@@ -71,20 +72,27 @@ pub(crate) struct ChildSlot {
 /// Created by the runtime and passed to [`Component::view`].  Provides
 /// methods to create event handlers that send messages, and to embed
 /// child components.
+/// Shared cache for scoped class names. Persists across renders so
+/// repeated `ctx.scoped("foo")` calls return the same `ArcStr`
+/// without allocating.
+pub type ScopedClassCache = Arc<RefCell<HashMap<&'static str, ArcStr>>>;
+
 pub struct Ctx<Msg: 'static> {
   pub(crate) sender: MsgSender<Msg>,
   pub(crate) children: RefCell<Vec<ChildSlot>>,
   pub(crate) child_counter: Cell<usize>,
   pub(crate) scope_prefix: &'static str,
+  pub(crate) scoped_cache: ScopedClassCache,
 }
 
 impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
-  pub(crate) fn new(sender: MsgSender<Msg>, scope_prefix: &'static str) -> Self {
+  pub(crate) fn new(sender: MsgSender<Msg>, scope_prefix: &'static str, scoped_cache: ScopedClassCache) -> Self {
     Self {
       sender,
       children: RefCell::new(Vec::new()),
       child_counter: Cell::new(0),
       scope_prefix,
+      scoped_cache,
     }
   }
 
@@ -94,13 +102,19 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   }
 
   /// Build a scoped class name: `"{prefix}-{class}"`.
-  /// If the component has no scope, returns the class unchanged.
-  pub fn scoped(&self, class: &str) -> String {
-    if self.scope_prefix.is_empty() {
-      class.to_string()
-    } else {
-      format!("{}-{}", self.scope_prefix, class)
+  /// Cached across renders — second call with the same class is free.
+  pub fn scoped(&self, class: &'static str) -> ArcStr {
+    let cache = &self.scoped_cache;
+    if let Some(cached) = cache.borrow().get(class) {
+      return cached.clone();
     }
+    let result = if self.scope_prefix.is_empty() {
+      ArcStr::from(class)
+    } else {
+      ArcStr::from(format!("{}-{}", self.scope_prefix, class).as_str())
+    };
+    cache.borrow_mut().insert(class, result.clone());
+    result
   }
 
   // ── Callback factories ──────────────────────────────────────────────
