@@ -111,11 +111,11 @@ impl GlyphPipeline {
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
       label: Some("glyph atlas sampler"),
-      // Bilinear filtering for smooth glyph edges; atlas packing
-      // pads entries with a 1px gutter, and UV coords are inset by
-      // 0.5px to avoid sampling the gutter.
-      mag_filter: wgpu::FilterMode::Linear,
-      min_filter: wgpu::FilterMode::Linear,
+      // DEBUG: Nearest filtering to test if bilinear + fractional
+      // positions is causing blur. Switch back to Linear once
+      // pixel-snapping is confirmed as the fix.
+      mag_filter: wgpu::FilterMode::Nearest,
+      min_filter: wgpu::FilterMode::Nearest,
       mipmap_filter: wgpu::MipmapFilterMode::Nearest,
       address_mode_u: wgpu::AddressMode::ClampToEdge,
       address_mode_v: wgpu::AddressMode::ClampToEdge,
