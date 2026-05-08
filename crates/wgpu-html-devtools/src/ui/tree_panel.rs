@@ -45,7 +45,7 @@ impl Component for TreePanel {
 
   fn create(props: &TreePanelProps) -> Self {
     let mut expanded = HashSet::new();
-    if let Some(tree) = &props.store.host_tree.get() {
+    if let Some(tree) = props.store.host_tree() {
       if let Some(root) = &tree.root {
         auto_expand(root, &[], 0, 4, &mut expanded);
       }
@@ -142,10 +142,8 @@ impl Component for TreePanel {
   }
 
   fn view(&self, props: &TreePanelProps, ctx: &Ctx<TreePanelMsg>) -> El {
-    let host = props.store.host_tree.get();
-
     let mut rows: Vec<El> = Vec::new();
-    if let Some(tree) = &host {
+    if let Some(tree) = props.store.host_tree() {
       if let Some(root) = &tree.root {
         self.build_rows(root, &[], 0, &mut rows, ctx);
       }

@@ -45,6 +45,7 @@ pub struct Devtools {
   store: DevtoolsStore,
 
   last_inspected_gen: Option<u64>,
+  last_cascade_gen: Option<u64>,
   last_selected_path: Option<Vec<usize>>,
   needs_redraw: bool,
 
@@ -79,6 +80,7 @@ impl Devtools {
       mount,
       store,
       last_inspected_gen: None,
+      last_cascade_gen: None,
       last_selected_path: None,
       needs_redraw: true,
       enabled: false,
@@ -149,11 +151,19 @@ impl Devtools {
       }
     }
 
-    // Update the store's host tree + cached cascade when it changes.
+    // Bind the live host tree for the duration of this poll window.
+    // Components read it via store.host_tree() — no clone needed.
+    self.store.bind_host_tree(host_tree);
+
+    // Only re-cascade when tree structure or stylesheets changed.
+    let cascade_changed = self.last_cascade_gen != Some(host_tree.cascade_generation);
     let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
     if dom_changed {
       self.last_inspected_gen = Some(host_tree.generation);
-      self.store.update_host_tree(host_tree);
+    }
+    if cascade_changed {
+      self.last_cascade_gen = Some(host_tree.cascade_generation);
+      self.store.update_cascade(host_tree);
     }
 
     // Process pending component messages.
@@ -161,13 +171,15 @@ impl Devtools {
       self.needs_redraw = true;
     }
 
-    // Re-render if the selection or host tree changed.
+    // Re-render if the selection or tree structure changed.
     let current_sel = self.store.selected_path.get();
-    if current_sel != self.last_selected_path || dom_changed {
+    if current_sel != self.last_selected_path || cascade_changed {
       self.last_selected_path = current_sel;
       self.mount.force_render(&mut self.tree);
       self.needs_redraw = true;
     }
+
+    self.store.unbind_host_tree();
   }
 
   /// Called by the host after rendering a frame.

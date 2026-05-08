@@ -72,8 +72,7 @@ impl Component for DevtoolsComponent {
 
   fn view(&self, props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>) -> El {
     let selected = props.store.selected_path.get();
-    let host = props.store.host_tree.get();
-    let breadcrumb = super::tree_panel::build_breadcrumb(&selected, host.as_ref(), "devtools");
+    let breadcrumb = super::tree_panel::build_breadcrumb(&selected, props.store.host_tree(), "devtools");
 
     el::div().class(ctx.scoped("root")).children([
       ctx.child::<Toolbar>(ToolbarProps),
