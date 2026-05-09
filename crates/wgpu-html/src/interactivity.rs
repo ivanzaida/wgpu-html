@@ -100,10 +100,26 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
 
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
   let text_cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
-  let css_cursor = target
+  let mut css_cursor = target
     .as_deref()
     .map(|path| layout.cursor_at_path(path))
     .unwrap_or(Cursor::Auto);
+
+  if let Some(path) = target.as_deref() {
+    if let Some(lb) = crate::layout_at_path(layout, path) {
+      if let Some(ref fc) = lb.form_control {
+        if matches!(fc.kind, FormControlKind::Date { .. } | FormControlKind::DatetimeLocal { .. }) {
+          let cr = lb.content_rect;
+          let icon_sz = (cr.h * 0.6).min(14.0);
+          let icon_x = cr.x + cr.w - icon_sz - 4.0;
+          if pos.0 >= icon_x {
+            css_cursor = Cursor::Pointer;
+          }
+        }
+      }
+    }
+  }
+
   let changed = tree.dispatch_pointer_move(target.as_deref(), pos, text_cursor);
   (changed || tree.interaction.range_drag.is_some(), css_cursor)
 }
