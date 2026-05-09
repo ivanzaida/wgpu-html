@@ -173,7 +173,7 @@ pub(crate) fn srgb_to_linear(c: f32) -> f32 {
   }
 }
 
-pub(crate) fn linear_to_srgb(c: f32) -> f32 {
+pub fn linear_to_srgb(c: f32) -> f32 {
   if c <= 0.0031308 {
     c * 12.92
   } else {

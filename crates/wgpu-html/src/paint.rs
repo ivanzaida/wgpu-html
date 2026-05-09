@@ -839,9 +839,27 @@ fn paint_form_control(
       );
     }
     FormControlKind::Color { r, g, b: bl, a } => {
-      let color = apply_opacity([*r, *g, *bl, *a], opacity);
       if cw > 0.0 && ch > 0.0 {
-        out.push_quad(Rect::new(cx, cy, cw, ch), color);
+        let inset = 3.0_f32;
+        let r_corner = 3.0_f32;
+        let bg = apply_opacity(FC_BG, opacity);
+        out.push_quad_rounded(Rect::new(cx, cy, cw, ch), bg, [r_corner; 4]);
+        out.push_quad_stroke_ellipse(
+          Rect::new(cx, cy, cw, ch),
+          border_color,
+          [r_corner; 4], [r_corner; 4],
+          [1.0; 4],
+        );
+        let iw = (cw - inset * 2.0).max(0.0);
+        let ih = (ch - inset * 2.0).max(0.0);
+        if iw > 0.0 && ih > 0.0 {
+          let color = apply_opacity([*r, *g, *bl, *a], opacity);
+          out.push_quad_rounded(
+            Rect::new(cx + inset, cy + inset, iw, ih),
+            color,
+            [1.5; 4],
+          );
+        }
       }
     }
     FormControlKind::File => {}

@@ -24,7 +24,7 @@ use wgpu_html_style::{CascadedNode, CascadedTree, PseudoElementStyle};
 use wgpu_html_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun, TextContext};
 use wgpu_html_tree::{Element, Node, ScrollOffset, TextCursor, Tree};
 
-mod color;
+pub mod color;
 mod flex;
 mod gradient;
 mod grid;

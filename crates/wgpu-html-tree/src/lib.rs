@@ -24,12 +24,12 @@ pub mod tree_hook;
 pub use dispatch::{
   blur, clipboard_event, cut_selection, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave,
   dispatch_pointer_move, focus, focus_next, key_down, key_up, resize_event, scroll_event, select_event,
-  selectionchange_event, set_range_value_by_fraction, text_input, wheel_event,
+  selectionchange_event, set_color_value, set_range_value_by_fraction, text_input, wheel_event,
 };
 pub use events::{
-  EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers,
-  MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset, SelectionColors, TextCursor, TextSelection,
-  UndoEntry, UndoStack,
+  ColorPickerDragTarget, ColorPickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,
+  InteractionState, Modifier, Modifiers, MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset,
+  SelectionColors, TextCursor, TextSelection, UndoEntry, UndoStack,
 };
 pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,

@@ -537,6 +537,19 @@ impl<D: Driver> Runtime<D> {
       }
     }
 
+    if let Some(ref layout) = self.last_layout {
+      wgpu_html::color_picker_overlay::paint_color_picker_overlay(
+        &mut list,
+        layout,
+        tree,
+        &mut self.text_ctx,
+        self.scroll_y,
+        scale,
+        content_w,
+        paint_h,
+      );
+    }
+
     translate_display_list_x(&mut list, -self.scroll_x);
     translate_display_list_y(&mut list, -self.scroll_y);
 

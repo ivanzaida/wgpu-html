@@ -2554,6 +2554,32 @@ fn fire_change_event_at(tree: &mut Tree, path: &[usize]) {
   );
 }
 
+/// Update a `<input type="color">` value from sRGB 0..255 + alpha 0..1.
+pub fn set_color_value(tree: &mut Tree, path: &[usize], r: u8, g: u8, b: u8, a: f32) {
+  use wgpu_html_models::common::html_enums::InputType;
+  let Some(root) = tree.root.as_mut() else {
+    return;
+  };
+  let Some(node) = root.at_path_mut(path) else {
+    return;
+  };
+  if let Element::Input(inp) = &mut node.element {
+    if !matches!(inp.r#type, Some(InputType::Color)) {
+      return;
+    }
+    let a_byte = (a.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+    let hex = if a_byte == 255 {
+      format!("#{r:02x}{g:02x}{b:02x}")
+    } else {
+      format!("#{r:02x}{g:02x}{b:02x}{a_byte:02x}")
+    };
+    inp.value = Some(hex.into());
+    tree.form_control_generation += 1;
+  }
+  bubble_input(tree, path, None, ev::enums::InputType::InsertText);
+  fire_change_event_at(tree, path);
+}
+
 // ── Text editing ─────────────────────────────────────────────────────────────
 
 /// Collect RAWTEXT children of a textarea into a single string.

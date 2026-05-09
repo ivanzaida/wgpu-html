@@ -21,7 +21,9 @@
 //! [`pointer_leave`].
 
 use wgpu_html_layout::{Cursor, FormControlKind, LayoutBox};
-use wgpu_html_tree::{MouseButton, RangeDrag, Tree};
+use wgpu_html_tree::{ColorPickerDragTarget, ColorPickerState, MouseButton, RangeDrag, Tree};
+
+use crate::color_picker_overlay;
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `wgpu_html_tree::dispatch`.
 pub use wgpu_html_tree::{
@@ -35,6 +37,13 @@ pub use wgpu_html_tree::{
 /// Modifier state is read from `tree.interaction.modifiers`;
 /// keep it in sync with [`Tree::set_modifier`].
 pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> bool {
+  // Color picker drag.
+  if let Some(ref cp) = tree.interaction.color_picker.clone() {
+    if let Some(drag) = cp.drag {
+      return update_color_picker_drag(tree, pos, drag, 0.0);
+    }
+  }
+
   // Range slider drag: update value from pointer position.
   if let Some(ref rd) = tree.interaction.range_drag.clone() {
     let frac = if rd.content_w > 0.0 {
@@ -54,6 +63,14 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
 /// for the hovered element. The host can use this to set the OS
 /// pointer icon.
 pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> (bool, Cursor) {
+  // Color picker drag.
+  if let Some(ref cp) = tree.interaction.color_picker.clone() {
+    if let Some(drag) = cp.drag {
+      let changed = update_color_picker_drag(tree, pos, drag, 0.0);
+      return (changed, Cursor::Default);
+    }
+  }
+
   // Range slider drag: update value from pointer position.
   if let Some(ref rd) = tree.interaction.range_drag.clone() {
     let frac = if rd.content_w > 0.0 {
@@ -93,6 +110,55 @@ pub fn mouse_down_with_click_count(
   button: MouseButton,
   click_count: u8,
 ) -> bool {
+  // Color picker: intercept clicks when open.
+  if button == MouseButton::Primary {
+    if let Some(ref cp) = tree.interaction.color_picker.clone() {
+      if let Some(hit) = color_picker_overlay::hit_test_color_picker(cp, pos, 0.0) {
+        match hit {
+          color_picker_overlay::ColorPickerHit::Canvas(s, v) => {
+            if let Some(cp) = &mut tree.interaction.color_picker {
+              cp.saturation = s;
+              cp.value = v;
+              cp.drag = Some(ColorPickerDragTarget::Canvas);
+              let path = cp.path.clone();
+              let (r, g, b) = color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
+              let a = cp.alpha;
+              wgpu_html_tree::set_color_value(tree, &path, r, g, b, a);
+            }
+            return true;
+          }
+          color_picker_overlay::ColorPickerHit::HueBar(frac) => {
+            if let Some(cp) = &mut tree.interaction.color_picker {
+              cp.hue = frac * 360.0;
+              cp.drag = Some(ColorPickerDragTarget::HueBar);
+              let path = cp.path.clone();
+              let (r, g, b) = color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
+              let a = cp.alpha;
+              wgpu_html_tree::set_color_value(tree, &path, r, g, b, a);
+            }
+            return true;
+          }
+          color_picker_overlay::ColorPickerHit::AlphaBar(frac) => {
+            if let Some(cp) = &mut tree.interaction.color_picker {
+              cp.alpha = frac;
+              cp.drag = Some(ColorPickerDragTarget::AlphaBar);
+              let path = cp.path.clone();
+              let (r, g, b) = color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
+              let a = cp.alpha;
+              wgpu_html_tree::set_color_value(tree, &path, r, g, b, a);
+            }
+            return true;
+          }
+          color_picker_overlay::ColorPickerHit::Background => {
+            return true;
+          }
+        }
+      } else {
+        tree.interaction.color_picker = None;
+      }
+    }
+  }
+
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
   let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   let result = tree.dispatch_mouse_down(target.as_deref(), pos, button, cursor.clone());
@@ -143,24 +209,61 @@ pub fn mouse_down_with_click_count(
     }
 
     // Range slider: start drag and set initial value from click position.
+    // Color input: open picker popup on click.
     if let Some(target_path) = &target {
       if let Some(lb) = crate::layout_at_path(layout, target_path) {
         if let Some(ref fc) = lb.form_control {
-          if let FormControlKind::Range { min, max, .. } = fc.kind {
-            let cr = lb.content_rect;
-            let frac = if cr.w > 0.0 {
-              ((pos.0 - cr.x) / cr.w).clamp(0.0, 1.0)
-            } else {
-              0.0
-            };
-            wgpu_html_tree::set_range_value_by_fraction(tree, target_path, frac);
-            tree.interaction.range_drag = Some(RangeDrag {
-              path: target_path.clone(),
-              content_x: cr.x,
-              content_w: cr.w,
-              min,
-              max,
-            });
+          match fc.kind {
+            FormControlKind::Range { min, max, .. } => {
+              let cr = lb.content_rect;
+              let frac = if cr.w > 0.0 {
+                ((pos.0 - cr.x) / cr.w).clamp(0.0, 1.0)
+              } else {
+                0.0
+              };
+              wgpu_html_tree::set_range_value_by_fraction(tree, target_path, frac);
+              tree.interaction.range_drag = Some(RangeDrag {
+                path: target_path.clone(),
+                content_x: cr.x,
+                content_w: cr.w,
+                min,
+                max,
+              });
+            }
+            FormControlKind::Color { r, g, b, a } => {
+              let already_open = tree.interaction.color_picker.as_ref()
+                .is_some_and(|cp| cp.path == *target_path);
+              if already_open {
+                tree.interaction.color_picker = None;
+              } else {
+                let (sr, sg, sb) = (
+                  wgpu_html_layout::color::linear_to_srgb(r),
+                  wgpu_html_layout::color::linear_to_srgb(g),
+                  wgpu_html_layout::color::linear_to_srgb(b),
+                );
+                let (h, s, v) = color_picker_overlay::srgb_to_hsv(sr, sg, sb);
+                let br = lb.border_rect;
+                let mut cp = ColorPickerState {
+                  path: target_path.clone(),
+                  hue: h,
+                  saturation: s,
+                  value: v,
+                  alpha: a,
+                  drag: None,
+                  popup_rect: [0.0; 4],
+                  canvas_rect: [0.0; 4],
+                  hue_rect: [0.0; 4],
+                  alpha_rect: [0.0; 4],
+                };
+                let vw = layout.border_rect.w;
+                let vh = layout.border_rect.h;
+                color_picker_overlay::compute_popup_rects(
+                  &mut cp, br.x, br.y, br.h, 1.0, vw, vh,
+                );
+                tree.interaction.color_picker = Some(cp);
+              }
+            }
+            _ => {}
           }
         }
       }
@@ -257,8 +360,43 @@ fn edit_token_kind(ch: char) -> EditTokenKind {
 pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool {
   if button == MouseButton::Primary {
     tree.interaction.range_drag = None;
+    if let Some(cp) = &mut tree.interaction.color_picker {
+      cp.drag = None;
+    }
   }
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
   let cursor = layout.hit_text_cursor_scrolled(pos, &tree.interaction.scroll_offsets);
   tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)
+}
+
+fn update_color_picker_drag(tree: &mut Tree, pos: (f32, f32), drag: ColorPickerDragTarget, scroll_y: f32) -> bool {
+  let cp = match &mut tree.interaction.color_picker {
+    Some(cp) => cp,
+    None => return false,
+  };
+  match drag {
+    ColorPickerDragTarget::Canvas => {
+      let cx = cp.canvas_rect[0];
+      let cy = cp.canvas_rect[1] - scroll_y;
+      let cw = cp.canvas_rect[2];
+      let ch = cp.canvas_rect[3];
+      cp.saturation = ((pos.0 - cx) / cw).clamp(0.0, 1.0);
+      cp.value = (1.0 - (pos.1 - cy) / ch).clamp(0.0, 1.0);
+    }
+    ColorPickerDragTarget::HueBar => {
+      let hx = cp.hue_rect[0];
+      let hw = cp.hue_rect[2];
+      cp.hue = ((pos.0 - hx) / hw).clamp(0.0, 1.0) * 360.0;
+    }
+    ColorPickerDragTarget::AlphaBar => {
+      let ax = cp.alpha_rect[0];
+      let aw = cp.alpha_rect[2];
+      cp.alpha = ((pos.0 - ax) / aw).clamp(0.0, 1.0);
+    }
+  }
+  let path = cp.path.clone();
+  let (r, g, b) = color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
+  let a = cp.alpha;
+  wgpu_html_tree::set_color_value(tree, &path, r, g, b, a);
+  true
 }

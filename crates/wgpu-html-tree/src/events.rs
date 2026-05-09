@@ -242,6 +242,8 @@ pub struct InteractionState {
   /// Active range-slider drag: path to the `<input type="range">`
   /// being dragged plus its content rect for position calculation.
   pub range_drag: Option<RangeDrag>,
+  /// Active color picker popup state, if any.
+  pub color_picker: Option<ColorPickerState>,
   pub undo_stack: UndoStack,
 }
 
@@ -252,6 +254,27 @@ pub struct RangeDrag {
   pub content_w: f32,
   pub min: f32,
   pub max: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorPickerDragTarget {
+  Canvas,
+  HueBar,
+  AlphaBar,
+}
+
+#[derive(Debug, Clone)]
+pub struct ColorPickerState {
+  pub path: Vec<usize>,
+  pub hue: f32,
+  pub saturation: f32,
+  pub value: f32,
+  pub alpha: f32,
+  pub drag: Option<ColorPickerDragTarget>,
+  pub popup_rect: [f32; 4],
+  pub canvas_rect: [f32; 4],
+  pub hue_rect: [f32; 4],
+  pub alpha_rect: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -325,6 +348,7 @@ impl Default for InteractionState {
       drag_active_source: None,
       drag_target_path: None,
       range_drag: None,
+      color_picker: None,
       undo_stack: UndoStack::default(),
     }
   }
