@@ -969,6 +969,8 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
               | InputType::Image
               | InputType::Color
               | InputType::Range
+              | InputType::Date
+              | InputType::DatetimeLocal
           )
         ) {
           return None;
@@ -2380,6 +2382,8 @@ fn enter_in_form_input(tree: &Tree) -> Option<(Vec<usize>, Vec<usize>)> {
             | InputType::Image
             | InputType::Color
             | InputType::Range
+            | InputType::Date
+            | InputType::DatetimeLocal
             | InputType::Button
             | InputType::Submit
             | InputType::Reset
@@ -2580,6 +2584,22 @@ pub fn set_color_value(tree: &mut Tree, path: &[usize], r: u8, g: u8, b: u8, a: 
   fire_change_event_at(tree, path);
 }
 
+/// Update a `<input type="date">` or `<input type="datetime-local">` value.
+pub fn set_date_value(tree: &mut Tree, path: &[usize], value: &str) {
+  use wgpu_html_models::common::html_enums::InputType;
+  let Some(root) = tree.root.as_mut() else { return };
+  let Some(node) = root.at_path_mut(path) else { return };
+  if let Element::Input(inp) = &mut node.element {
+    if !matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal)) {
+      return;
+    }
+    inp.value = Some(value.into());
+    tree.form_control_generation += 1;
+  }
+  bubble_input(tree, path, None, ev::enums::InputType::InsertText);
+  fire_change_event_at(tree, path);
+}
+
 // ── Text editing ─────────────────────────────────────────────────────────────
 
 /// Collect RAWTEXT children of a textarea into a single string.
@@ -2615,6 +2635,8 @@ fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
             | InputType::Image
             | InputType::Color
             | InputType::Range
+            | InputType::Date
+            | InputType::DatetimeLocal
         )
       ) {
         return None;

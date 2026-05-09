@@ -21,9 +21,10 @@
 //! [`pointer_leave`].
 
 use wgpu_html_layout::{Cursor, FormControlKind, LayoutBox};
-use wgpu_html_tree::{ColorPickerDragTarget, ColorPickerState, MouseButton, RangeDrag, Tree};
+use wgpu_html_tree::{ColorPickerDragTarget, ColorPickerState, DatePickerState, MouseButton, RangeDrag, Tree};
 
 use crate::color_picker_overlay;
+use crate::date_picker_overlay;
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `wgpu_html_tree::dispatch`.
 pub use wgpu_html_tree::{
@@ -169,6 +170,72 @@ pub fn mouse_down_with_click_count(
         tree.interaction.color_picker = None;
       }
     }
+
+    // Date picker: intercept clicks when open.
+    if let Some(ref dp) = tree.interaction.date_picker.clone() {
+      if let Some(hit) = date_picker_overlay::hit_test(dp, pos) {
+        match hit {
+          date_picker_overlay::DatePickerHit::PrevMonth => {
+            if let Some(dp) = &mut tree.interaction.date_picker {
+              let (y, m) = wgpu_html_tree::date::prev_month(dp.view_year, dp.view_month);
+              dp.view_year = y;
+              dp.view_month = m;
+            }
+            return true;
+          }
+          date_picker_overlay::DatePickerHit::NextMonth => {
+            if let Some(dp) = &mut tree.interaction.date_picker {
+              let (y, m) = wgpu_html_tree::date::next_month(dp.view_year, dp.view_month);
+              dp.view_year = y;
+              dp.view_month = m;
+            }
+            return true;
+          }
+          date_picker_overlay::DatePickerHit::DayCell(row, col) => {
+            let first_dow = tree.locale.first_day_of_week();
+            let (y, m, d) = date_picker_overlay::resolve_day_cell(dp, row, col, first_dow);
+            if let Some(dp) = &mut tree.interaction.date_picker {
+              dp.year = y;
+              dp.month = m;
+              dp.day = d;
+              dp.view_year = y;
+              dp.view_month = m;
+              let path = dp.path.clone();
+              let val = if dp.has_time {
+                wgpu_html_tree::date::format_datetime_local(y, m, d, dp.hour, dp.minute)
+              } else {
+                wgpu_html_tree::date::format_date(y, m, d)
+              };
+              wgpu_html_tree::set_date_value(tree, &path, &val);
+            }
+            return true;
+          }
+          date_picker_overlay::DatePickerHit::HourField => {
+            if let Some(dp) = &mut tree.interaction.date_picker {
+              dp.hour = (dp.hour + 1) % 24;
+              let path = dp.path.clone();
+              let val = wgpu_html_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              wgpu_html_tree::set_date_value(tree, &path, &val);
+            }
+            return true;
+          }
+          date_picker_overlay::DatePickerHit::MinuteField => {
+            if let Some(dp) = &mut tree.interaction.date_picker {
+              dp.minute = (dp.minute + 1) % 60;
+              let path = dp.path.clone();
+              let val = wgpu_html_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              wgpu_html_tree::set_date_value(tree, &path, &val);
+            }
+            return true;
+          }
+          date_picker_overlay::DatePickerHit::Background => {
+            return true;
+          }
+        }
+      } else {
+        tree.interaction.date_picker = None;
+      }
+    }
   }
 
   let target = layout.hit_path_scrolled(pos, &tree.interaction.scroll_offsets);
@@ -283,6 +350,41 @@ pub fn mouse_down_with_click_count(
                   &mut cp, br.x, br.y, br.h, 1.0, vw, vh,
                 );
                 tree.interaction.color_picker = Some(cp);
+              }
+            }
+            FormControlKind::Date { year, month, day } | FormControlKind::DatetimeLocal { year, month, day, .. } => {
+              let already_open = tree.interaction.date_picker.as_ref()
+                .is_some_and(|dp| dp.path == *target_path);
+              if already_open {
+                tree.interaction.date_picker = None;
+              } else {
+                let has_time = matches!(fc.kind, FormControlKind::DatetimeLocal { .. });
+                let (hour, minute) = if let FormControlKind::DatetimeLocal { hour, minute, .. } = fc.kind {
+                  (hour, minute)
+                } else {
+                  (0, 0)
+                };
+                let today = date_picker_overlay::today_ymd_pub();
+                let (vy, vm) = if month >= 1 && month <= 12 { (year, month) } else { (today.0, today.1) };
+                let br = lb.border_rect;
+                let mut dp = DatePickerState {
+                  path: target_path.clone(),
+                  year, month, day,
+                  hour, minute,
+                  has_time,
+                  view_year: vy, view_month: vm,
+                  popup_rect: [0.0; 4],
+                  header_rect: [0.0; 4],
+                  prev_btn_rect: [0.0; 4],
+                  next_btn_rect: [0.0; 4],
+                  grid_rect: [0.0; 4],
+                  hour_rect: [0.0; 4],
+                  minute_rect: [0.0; 4],
+                };
+                let vw = layout.border_rect.w;
+                let vh = layout.border_rect.h;
+                date_picker_overlay::compute_popup_rects(&mut dp, br.x, br.y, br.h, vw, vh);
+                tree.interaction.date_picker = Some(dp);
               }
             }
             _ => {}

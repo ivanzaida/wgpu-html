@@ -548,6 +548,12 @@ impl<D: Driver> Runtime<D> {
         content_w,
         paint_h,
       );
+      wgpu_html::date_picker_overlay::paint_date_picker_overlay(
+        &mut list,
+        layout,
+        tree,
+        &mut self.text_ctx,
+      );
     }
 
     translate_display_list_x(&mut list, -self.scroll_x);

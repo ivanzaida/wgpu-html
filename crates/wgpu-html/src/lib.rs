@@ -15,6 +15,7 @@ pub use wgpu_html_text as text;
 pub use wgpu_html_tree as tree;
 
 pub mod color_picker_overlay;
+pub mod date_picker_overlay;
 pub mod inspect_overlay;
 pub mod interactivity;
 pub mod paint;

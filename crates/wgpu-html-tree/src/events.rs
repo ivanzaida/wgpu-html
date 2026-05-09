@@ -244,6 +244,8 @@ pub struct InteractionState {
   pub range_drag: Option<RangeDrag>,
   /// Active color picker popup state, if any.
   pub color_picker: Option<ColorPickerState>,
+  /// Active date picker popup state, if any.
+  pub date_picker: Option<DatePickerState>,
   pub undo_stack: UndoStack,
 }
 
@@ -291,6 +293,26 @@ pub struct ColorPickerState {
   pub field_text: String,
   pub field_cursor: EditCursor,
   pub field_blink_epoch: Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct DatePickerState {
+  pub path: Vec<usize>,
+  pub year: i32,
+  pub month: u8,
+  pub day: u8,
+  pub hour: u8,
+  pub minute: u8,
+  pub has_time: bool,
+  pub view_year: i32,
+  pub view_month: u8,
+  pub popup_rect: [f32; 4],
+  pub header_rect: [f32; 4],
+  pub prev_btn_rect: [f32; 4],
+  pub next_btn_rect: [f32; 4],
+  pub grid_rect: [f32; 4],
+  pub hour_rect: [f32; 4],
+  pub minute_rect: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -365,6 +387,7 @@ impl Default for InteractionState {
       drag_target_path: None,
       range_drag: None,
       color_picker: None,
+      date_picker: None,
       undo_stack: UndoStack::default(),
     }
   }

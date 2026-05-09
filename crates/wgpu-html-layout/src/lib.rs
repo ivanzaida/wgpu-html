@@ -527,6 +527,8 @@ pub enum FormControlKind {
   Radio { checked: bool },
   Range { value: f32, min: f32, max: f32 },
   Color { r: f32, g: f32, b: f32, a: f32 },
+  Date { year: i32, month: u8, day: u8 },
+  DatetimeLocal { year: i32, month: u8, day: u8, hour: u8, minute: u8 },
   File,
 }
 
@@ -1933,6 +1935,8 @@ fn compute_value_run(
             | InputType::Radio
             | InputType::Range
             | InputType::Color
+            | InputType::Date
+            | InputType::DatetimeLocal
             | InputType::File
         )
       ) {
@@ -2056,6 +2060,8 @@ fn compute_placeholder_run(
             | InputType::Radio
             | InputType::Range
             | InputType::Color
+            | InputType::Date
+            | InputType::DatetimeLocal
             | InputType::File
         )
       ) {
@@ -2239,6 +2245,16 @@ fn form_control_info_from_element(element: &Element) -> Option<FormControlInfo> 
         b: color::srgb_to_linear(srgb[2]),
         a: srgb[3],
       }
+    }
+    Some(InputType::Date) => {
+      let val = inp.value.as_deref().unwrap_or("");
+      let (y, m, d) = wgpu_html_tree::date::parse_date(val).unwrap_or((0, 0, 0));
+      FormControlKind::Date { year: y, month: m, day: d }
+    }
+    Some(InputType::DatetimeLocal) => {
+      let val = inp.value.as_deref().unwrap_or("");
+      let (y, m, d, hour, minute) = wgpu_html_tree::date::parse_datetime_local(val).unwrap_or((0, 0, 0, 0, 0));
+      FormControlKind::DatetimeLocal { year: y, month: m, day: d, hour, minute }
     }
     Some(InputType::File) => FormControlKind::File,
     _ => return None,

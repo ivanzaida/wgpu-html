@@ -466,6 +466,13 @@ input[type="color"] {
   padding: 4px;
 }
 
+input[type="date"],
+input[type="datetime-local"] {
+  width: 160px;
+  height: 28px;
+  padding: 2px 4px;
+}
+
 input[type="file"] {
   background-color: transparent;
   border: none;

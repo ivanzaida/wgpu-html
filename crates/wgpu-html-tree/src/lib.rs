@@ -10,6 +10,7 @@ use std::{collections::HashMap, ops::Range, sync::Arc, time::Duration};
 
 use wgpu_html_models::{self as m, ArcStr};
 
+pub mod date;
 mod dispatch;
 mod events;
 mod focus;
@@ -25,10 +26,10 @@ pub mod tree_hook;
 pub use dispatch::{
   blur, clipboard_event, cut_selection, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave,
   dispatch_pointer_move, focus, focus_next, key_down, key_up, resize_event, scroll_event, select_event,
-  selectionchange_event, set_color_value, set_range_value_by_fraction, text_input, wheel_event,
+  selectionchange_event, set_color_value, set_date_value, set_range_value_by_fraction, text_input, wheel_event,
 };
 pub use events::{
-  ColorPickerDragTarget, ColorPickerField, ColorPickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,
+  ColorPickerDragTarget, ColorPickerField, ColorPickerState, DatePickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,
   InteractionState, Modifier, Modifiers, MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset,
   SelectionColors, TextCursor, TextSelection, UndoEntry, UndoStack,
 };
