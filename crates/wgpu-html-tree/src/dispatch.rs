@@ -1429,7 +1429,9 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   }
 
   // Handle editing keys on focused form controls before Tab.
-  handle_edit_key(tree, key, code);
+  if handle_edit_key(tree, key, code) {
+    return true;
+  }
 
   if key == "Tab" {
     let reverse = tree.interaction.modifiers.shift;
@@ -2932,7 +2934,13 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
   let Some(node) = root.at_path(&focus_path) else {
     return false;
   };
-  let Some((old_value, is_textarea, is_readonly)) = read_editable_value(node) else {
+  let is_date_display = tree.interaction.date_display_value.is_some();
+  let Some((old_value, is_textarea, is_readonly)) = (if is_date_display {
+    let dv = tree.interaction.date_display_value.as_ref().unwrap().clone();
+    Some((dv, false, false))
+  } else {
+    read_editable_value(node)
+  }) else {
     return false;
   };
 
@@ -2944,6 +2952,33 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
 
   let shift = tree.interaction.modifiers.shift;
   let ctrl = tree.interaction.modifiers.ctrl;
+
+  // Date inputs: segment-aware navigation.
+  if is_date_display {
+    let pattern = tree.locale.date_pattern();
+    let segs = crate::date::parse_pattern_segments(pattern);
+    let pos = cursor.cursor.min(old_value.len());
+    let nav_cursor = match key {
+      "ArrowLeft" => Some(crate::EditCursor::collapsed(crate::date::cursor_left(&segs, pos))),
+      "ArrowRight" => Some(crate::EditCursor::collapsed(crate::date::cursor_right(&segs, pos, old_value.len()))),
+      "Tab" if shift => {
+        let (start, end) = crate::date::prev_segment(&segs, pos);
+        Some(crate::EditCursor { cursor: end, selection_anchor: Some(start) })
+      }
+      "Tab" => {
+        let (start, end) = crate::date::next_segment(&segs, pos);
+        Some(crate::EditCursor { cursor: end, selection_anchor: Some(start) })
+      }
+      "Home" => Some(crate::EditCursor::collapsed(0)),
+      "End" => Some(crate::EditCursor::collapsed(old_value.len())),
+      _ => None,
+    };
+    if let Some(new_cursor) = nav_cursor {
+      tree.interaction.edit_cursor = Some(new_cursor);
+      tree.interaction.caret_blink_epoch = std::time::Instant::now();
+      return true;
+    }
+  }
 
   // Navigation keys (always allowed, even on readonly).
   let nav_cursor = match key {

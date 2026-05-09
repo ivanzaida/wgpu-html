@@ -127,6 +127,127 @@ pub fn parse_formatted_date(text: &str, pattern: &str) -> Option<(i32, u8, u8)> 
   Some((y, m, d))
 }
 
+/// Find the index of the editable segment containing `byte_pos`.
+/// Returns `None` if `byte_pos` is on a separator.
+pub fn segment_at(segments: &[DateSegment], byte_pos: usize) -> Option<usize> {
+  for (i, seg) in segments.iter().enumerate() {
+    if seg.kind == DateSegmentKind::Separator { continue; }
+    if byte_pos >= seg.byte_start && byte_pos < seg.byte_start + seg.byte_len {
+      return Some(i);
+    }
+  }
+  None
+}
+
+/// Return the editable segment indices (excluding separators) in order.
+pub fn editable_segment_indices(segments: &[DateSegment]) -> Vec<usize> {
+  segments.iter().enumerate()
+    .filter(|(_, s)| s.kind != DateSegmentKind::Separator)
+    .map(|(i, _)| i)
+    .collect()
+}
+
+/// Move cursor left, skipping over separators.
+/// Returns the new byte position.
+pub fn cursor_left(segments: &[DateSegment], byte_pos: usize) -> usize {
+  if byte_pos == 0 { return 0; }
+  let new_pos = byte_pos - 1;
+  for seg in segments {
+    if seg.kind == DateSegmentKind::Separator
+      && new_pos >= seg.byte_start
+      && new_pos < seg.byte_start + seg.byte_len
+    {
+      return seg.byte_start.saturating_sub(1);
+    }
+  }
+  new_pos
+}
+
+/// Move cursor right, skipping over separators.
+/// `text_len` is the total length of the formatted string.
+pub fn cursor_right(segments: &[DateSegment], byte_pos: usize, text_len: usize) -> usize {
+  let new_pos = byte_pos + 1;
+  if new_pos >= text_len { return text_len; }
+  for seg in segments {
+    if seg.kind == DateSegmentKind::Separator
+      && new_pos >= seg.byte_start
+      && new_pos < seg.byte_start + seg.byte_len
+    {
+      return seg.byte_start + seg.byte_len;
+    }
+  }
+  new_pos
+}
+
+/// Jump to the next editable segment. Returns (byte_start, byte_end) of the
+/// next segment, or the current one if already at the last.
+pub fn next_segment(segments: &[DateSegment], byte_pos: usize) -> (usize, usize) {
+  let editable = editable_segment_indices(segments);
+  let cur = editable.iter().position(|&i| {
+    let s = &segments[i];
+    byte_pos >= s.byte_start && byte_pos < s.byte_start + s.byte_len
+  });
+  let next_idx = match cur {
+    Some(c) if c + 1 < editable.len() => editable[c + 1],
+    _ if !editable.is_empty() => *editable.last().unwrap(),
+    _ => return (0, 0),
+  };
+  let s = &segments[next_idx];
+  (s.byte_start, s.byte_start + s.byte_len)
+}
+
+/// Jump to the previous editable segment.
+pub fn prev_segment(segments: &[DateSegment], byte_pos: usize) -> (usize, usize) {
+  let editable = editable_segment_indices(segments);
+  let cur = editable.iter().position(|&i| {
+    let s = &segments[i];
+    byte_pos >= s.byte_start && byte_pos < s.byte_start + s.byte_len
+  });
+  let prev_idx = match cur {
+    Some(c) if c > 0 => editable[c - 1],
+    _ if !editable.is_empty() => editable[0],
+    _ => return (0, 0),
+  };
+  let s = &segments[prev_idx];
+  (s.byte_start, s.byte_start + s.byte_len)
+}
+
+/// Clamp a byte position to the nearest editable position.
+/// If on a separator, snap to the start of the next editable segment
+/// (or end of previous if at the end).
+pub fn clamp_to_editable(segments: &[DateSegment], byte_pos: usize) -> usize {
+  for seg in segments {
+    if seg.kind != DateSegmentKind::Separator
+      && byte_pos >= seg.byte_start
+      && byte_pos < seg.byte_start + seg.byte_len
+    {
+      return byte_pos;
+    }
+  }
+  // On a separator — find nearest editable segment after this position.
+  for seg in segments {
+    if seg.kind != DateSegmentKind::Separator && seg.byte_start >= byte_pos {
+      return seg.byte_start;
+    }
+  }
+  // Past all segments — snap to end of last editable.
+  for seg in segments.iter().rev() {
+    if seg.kind != DateSegmentKind::Separator {
+      return seg.byte_start + seg.byte_len;
+    }
+  }
+  0
+}
+
+/// Check if a byte position is on a separator.
+pub fn is_separator(segments: &[DateSegment], byte_pos: usize) -> bool {
+  segments.iter().any(|s| {
+    s.kind == DateSegmentKind::Separator
+      && byte_pos >= s.byte_start
+      && byte_pos < s.byte_start + s.byte_len
+  })
+}
+
 pub fn prev_month(y: i32, m: u8) -> (i32, u8) {
   if m <= 1 { (y - 1, 12) } else { (y, m - 1) }
 }
@@ -168,5 +289,172 @@ mod tests {
     assert_eq!(parse_date("2025-05-09"), Some((2025, 5, 9)));
     assert_eq!(parse_date("bad"), None);
     assert_eq!(parse_datetime_local("2025-05-09T14:30"), Some((2025, 5, 9, 14, 30)));
+  }
+
+  // ── Segment parsing ──
+
+  #[test]
+  fn segments_mdy() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert_eq!(segs.len(), 5);
+    assert_eq!(segs[0].kind, DateSegmentKind::Month);
+    assert_eq!((segs[0].byte_start, segs[0].byte_len), (0, 2));
+    assert_eq!(segs[1].kind, DateSegmentKind::Separator);
+    assert_eq!((segs[1].byte_start, segs[1].byte_len), (2, 1));
+    assert_eq!(segs[2].kind, DateSegmentKind::Day);
+    assert_eq!((segs[2].byte_start, segs[2].byte_len), (3, 2));
+    assert_eq!(segs[3].kind, DateSegmentKind::Separator);
+    assert_eq!(segs[4].kind, DateSegmentKind::Year);
+    assert_eq!((segs[4].byte_start, segs[4].byte_len), (6, 4));
+  }
+
+  #[test]
+  fn segments_dmy_dot() {
+    let segs = parse_pattern_segments("dd.mm.yyyy");
+    assert_eq!(segs[0].kind, DateSegmentKind::Day);
+    assert_eq!(segs[2].kind, DateSegmentKind::Month);
+    assert_eq!(segs[4].kind, DateSegmentKind::Year);
+  }
+
+  #[test]
+  fn segments_ymd() {
+    let segs = parse_pattern_segments("yyyy-mm-dd");
+    assert_eq!(segs[0].kind, DateSegmentKind::Year);
+    assert_eq!(segs[2].kind, DateSegmentKind::Month);
+    assert_eq!(segs[4].kind, DateSegmentKind::Day);
+  }
+
+  // ── Segment navigation ──
+
+  #[test]
+  fn segment_at_mdy() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // "05/09/2025"
+    assert_eq!(segment_at(&segs, 0), Some(0)); // 'm' of month
+    assert_eq!(segment_at(&segs, 1), Some(0)); // second 'm'
+    assert_eq!(segment_at(&segs, 2), None);    // '/' separator
+    assert_eq!(segment_at(&segs, 3), Some(2)); // 'd' of day
+    assert_eq!(segment_at(&segs, 6), Some(4)); // 'y' of year
+  }
+
+  #[test]
+  fn editable_indices() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert_eq!(editable_segment_indices(&segs), vec![0, 2, 4]);
+  }
+
+  // ── Cursor movement ──
+
+  #[test]
+  fn cursor_left_skips_separator() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // pos=3 (start of day), left → skip '/' at 2 → land at 1 (end of month)
+    assert_eq!(cursor_left(&segs, 3), 1);
+    // pos=6 (start of year), left → skip '/' at 5 → land at 4 (end of day)
+    assert_eq!(cursor_left(&segs, 6), 4);
+    // pos=1 (inside month), left → 0 (still in month, no skip)
+    assert_eq!(cursor_left(&segs, 1), 0);
+  }
+
+  #[test]
+  fn cursor_right_skips_separator() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // pos=1 → right → 2, which is separator → jump to 3 (start of day)
+    assert_eq!(cursor_right(&segs, 1, 10), 3);
+  }
+
+  #[test]
+  fn cursor_right_at_end() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert_eq!(cursor_right(&segs, 9, 10), 10);
+    assert_eq!(cursor_right(&segs, 10, 10), 10);
+  }
+
+  #[test]
+  fn cursor_left_at_start() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert_eq!(cursor_left(&segs, 0), 0);
+  }
+
+  // ── Tab navigation ──
+
+  #[test]
+  fn next_segment_mdy() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // From month (pos 0) → day segment
+    assert_eq!(next_segment(&segs, 0), (3, 5));
+    assert_eq!(next_segment(&segs, 1), (3, 5));
+    // From day → year
+    assert_eq!(next_segment(&segs, 3), (6, 10));
+    // From year → stays at year (last segment)
+    assert_eq!(next_segment(&segs, 7), (6, 10));
+  }
+
+  #[test]
+  fn prev_segment_mdy() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // From year → day
+    assert_eq!(prev_segment(&segs, 7), (3, 5));
+    // From day → month
+    assert_eq!(prev_segment(&segs, 3), (0, 2));
+    // From month → stays at month (first segment)
+    assert_eq!(prev_segment(&segs, 0), (0, 2));
+  }
+
+  // ── Clamp to editable ──
+
+  #[test]
+  fn clamp_separator_to_next() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert_eq!(clamp_to_editable(&segs, 2), 3); // '/' → start of day
+    assert_eq!(clamp_to_editable(&segs, 5), 6); // '/' → start of year
+  }
+
+  #[test]
+  fn clamp_editable_unchanged() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert_eq!(clamp_to_editable(&segs, 0), 0);
+    assert_eq!(clamp_to_editable(&segs, 1), 1);
+    assert_eq!(clamp_to_editable(&segs, 3), 3);
+    assert_eq!(clamp_to_editable(&segs, 8), 8);
+  }
+
+  // ── is_separator ──
+
+  #[test]
+  fn separator_detection() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert!(is_separator(&segs, 2));
+    assert!(is_separator(&segs, 5));
+    assert!(!is_separator(&segs, 0));
+    assert!(!is_separator(&segs, 3));
+    assert!(!is_separator(&segs, 9));
+  }
+
+  // ── Formatted parse roundtrip ──
+
+  #[test]
+  fn format_and_parse_roundtrip_mdy() {
+    use crate::locale::format_date_pattern;
+    let pattern = "mm/dd/yyyy";
+    let formatted = format_date_pattern(pattern, 2025, 5, 9);
+    assert_eq!(formatted, "05/09/2025");
+    assert_eq!(parse_formatted_date(&formatted, pattern), Some((2025, 5, 9)));
+  }
+
+  #[test]
+  fn format_and_parse_roundtrip_dmy_dot() {
+    use crate::locale::format_date_pattern;
+    let pattern = "dd.mm.yyyy";
+    let formatted = format_date_pattern(pattern, 2025, 12, 31);
+    assert_eq!(formatted, "31.12.2025");
+    assert_eq!(parse_formatted_date(&formatted, pattern), Some((2025, 12, 31)));
+  }
+
+  #[test]
+  fn parse_formatted_invalid() {
+    assert_eq!(parse_formatted_date("13/09/2025", "mm/dd/yyyy"), None); // month 13
+    assert_eq!(parse_formatted_date("02/30/2025", "mm/dd/yyyy"), None); // feb 30
+    assert_eq!(parse_formatted_date("xx/09/2025", "mm/dd/yyyy"), None); // non-numeric
   }
 }
