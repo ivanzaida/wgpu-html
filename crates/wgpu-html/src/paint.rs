@@ -864,12 +864,26 @@ fn paint_form_control(
     }
     FormControlKind::Date { .. } | FormControlKind::DatetimeLocal { .. } => {
       if cw > 0.0 && ch > 0.0 {
-        let icon_sz = (ch * 0.5).min(12.0);
-        let ix = cx + cw - icon_sz - 4.0;
-        let iy = cy + (ch - icon_sz) / 2.0;
-        let icon_c = apply_opacity([0.5, 0.5, 0.5, 1.0], opacity);
-        out.push_quad(Rect::new(ix, iy, icon_sz, icon_sz * 0.15), icon_c);
-        out.push_quad(Rect::new(ix, iy + icon_sz * 0.25, icon_sz, icon_sz * 0.75), icon_c);
+        let s = (ch * 0.6).min(14.0);
+        let ix = cx + cw - s - 4.0;
+        let iy = cy + (ch - s) / 2.0;
+        let c = apply_opacity([0.5, 0.5, 0.5, 1.0], opacity);
+        let t = (s * 0.08).max(1.0);
+        let r = s * 0.12;
+        let ring_w = (s * 0.1).max(1.5);
+        let ring_h = s * 0.22;
+        let ring_y = iy - ring_h * 0.4;
+        let header_h = s * 0.3;
+        // body outline
+        out.push_quad_stroke(Rect::new(ix, iy, s, s), c, [r; 4], [t; 4]);
+        // header bar
+        out.push_quad(Rect::new(ix + t, iy + t, s - t * 2.0, header_h - t), c);
+        // two binding rings
+        let r1x = ix + s * 0.28 - ring_w * 0.5;
+        let r2x = ix + s * 0.72 - ring_w * 0.5;
+        let rr = ring_w * 0.5;
+        out.push_quad_rounded(Rect::new(r1x, ring_y, ring_w, ring_h), c, [rr; 4]);
+        out.push_quad_rounded(Rect::new(r2x, ring_y, ring_w, ring_h), c, [rr; 4]);
       }
     }
     FormControlKind::File => {}
