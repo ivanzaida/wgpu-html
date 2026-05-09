@@ -387,6 +387,12 @@ pub fn mouse_down_with_click_count(
               }
             }
             FormControlKind::Date { year, month, day } | FormControlKind::DatetimeLocal { year, month, day, .. } => {
+              let cr = lb.content_rect;
+              let icon_sz = (cr.h * 0.6).min(14.0);
+              let icon_x = cr.x + cr.w - icon_sz - 4.0;
+              if pos.0 < icon_x {
+                // Click on text area — don't open picker, let normal focus/edit proceed.
+              } else {
               let already_open = tree.interaction.date_picker.as_ref()
                 .is_some_and(|dp| dp.path == *target_path);
               if already_open {
@@ -423,6 +429,7 @@ pub fn mouse_down_with_click_count(
                 date_picker_overlay::compute_popup_rects(&mut dp, br.x, br.y, br.h, vw, vh);
                 tree.interaction.date_picker = Some(dp);
               }
+              } // icon click else
             }
             _ => {}
           }

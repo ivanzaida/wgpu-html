@@ -2091,24 +2091,6 @@ fn compute_value_run(
       ) {
         return (None, None);
       }
-      if matches!(inp.r#type, Some(InputType::Date)) {
-        let raw = inp.value.as_deref().unwrap_or("");
-        let text = if let Some((y, m, d)) = wgpu_html_tree::date::parse_date(raw) {
-          ctx.locale.format_date(y, m, d)
-        } else {
-          ctx.locale.date_placeholder()
-        };
-        return shape_input_text(&text, false, content_rect, node, ctx);
-      }
-      if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
-        let raw = inp.value.as_deref().unwrap_or("");
-        let text = if let Some((y, m, d, h, min)) = wgpu_html_tree::date::parse_datetime_local(raw) {
-          ctx.locale.format_datetime(y, m, d, h, min)
-        } else {
-          ctx.locale.datetime_placeholder()
-        };
-        return shape_input_text(&text, false, content_rect, node, ctx);
-      }
       let default_label = match inp.r#type {
         Some(InputType::Submit) => "Submit",
         Some(InputType::Reset) => "Reset",
@@ -2227,8 +2209,6 @@ fn compute_placeholder_run(
             | InputType::Radio
             | InputType::Range
             | InputType::Color
-            | InputType::Date
-            | InputType::DatetimeLocal
             | InputType::File
         )
       ) {

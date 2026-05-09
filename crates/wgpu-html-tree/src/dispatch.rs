@@ -969,8 +969,6 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
               | InputType::Image
               | InputType::Color
               | InputType::Range
-              | InputType::Date
-              | InputType::DatetimeLocal
           )
         ) {
           return None;
@@ -2382,8 +2380,6 @@ fn enter_in_form_input(tree: &Tree) -> Option<(Vec<usize>, Vec<usize>)> {
             | InputType::Image
             | InputType::Color
             | InputType::Range
-            | InputType::Date
-            | InputType::DatetimeLocal
             | InputType::Button
             | InputType::Submit
             | InputType::Reset
@@ -2637,8 +2633,6 @@ fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
             | InputType::Image
             | InputType::Color
             | InputType::Range
-            | InputType::Date
-            | InputType::DatetimeLocal
         )
       ) {
         return None;
