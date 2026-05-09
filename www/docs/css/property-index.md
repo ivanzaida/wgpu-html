@@ -188,12 +188,23 @@ Custom properties for styling form control parts that have no standard CSS equiv
 |---|---|---|
 | `--lui-track-color` | white | Range slider unfilled track background |
 | `--lui-thumb-color` | white | Range slider thumb fill |
+| `--lui-picker-bg` | `rgba(38,38,38,0.96)` | Color picker popup background |
+| `--lui-picker-border` | `rgb(77,77,77)` | Color picker popup border |
+| `--lui-picker-indicator` | white | Color picker crosshair circle and slider knob |
+| `--lui-picker-label` | `rgb(217,217,217)` | Color picker rgba/hex text labels |
 
 ```css
 input[type="range"] {
     accent-color: #7c3aed;
     --lui-track-color: rgba(124, 58, 237, 0.15);
     --lui-thumb-color: #e0d4fc;
+}
+
+input[type="color"] {
+    --lui-picker-bg: #1e1e2e;
+    --lui-picker-border: #444;
+    --lui-picker-indicator: #cdd6f4;
+    --lui-picker-label: #bac2de;
 }
 ```
 

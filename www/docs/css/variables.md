@@ -39,6 +39,10 @@ wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling.
 |---|---|
 | `--lui-track-color` | Range slider unfilled track background |
 | `--lui-thumb-color` | Range slider thumb fill |
+| `--lui-picker-bg` | Color picker popup background |
+| `--lui-picker-border` | Color picker popup border |
+| `--lui-picker-indicator` | Color picker crosshair and slider knob |
+| `--lui-picker-label` | Color picker rgba/hex text label |
 
 See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details.
 
