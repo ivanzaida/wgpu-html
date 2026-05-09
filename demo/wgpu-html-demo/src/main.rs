@@ -120,5 +120,9 @@ fn launch(mut tree: wgpu_html_tree::Tree, source: String, profiling: bool, rende
 }
 
 fn main() -> ExitCode {
-  run()
+  let builder = std::thread::Builder::new()
+    .name("app".into())
+    .stack_size(8 * 1024 * 1024);
+  let handle = builder.spawn(run).expect("failed to spawn app thread");
+  handle.join().unwrap_or(ExitCode::FAILURE)
 }
