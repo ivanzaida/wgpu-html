@@ -22,7 +22,7 @@ const TOOLTIP_DIM: [f32; 4] = [0.85, 0.85, 0.85, 1.0];
 const TOOLTIP_FONT_SIZE: f32 = 11.0;
 const TOOLTIP_PAD_H: f32 = 8.0;
 const TOOLTIP_PAD_V: f32 = 4.0;
-const TOOLTIP_GAP: f32 = 6.0;
+
 
 pub fn paint_inspect_overlay(
   list: &mut DisplayList,
@@ -71,7 +71,7 @@ pub fn paint_inspect_overlay(
 
   // Tooltip
   if let Some(node) = node_at_path(tree, path) {
-    paint_tooltip(list, text_ctx, node, &br, dx, dy, scale, viewport_w);
+    paint_tooltip(list, text_ctx, node, &br, &mr, dx, dy, scale, viewport_w);
   }
 }
 
@@ -80,6 +80,7 @@ fn paint_tooltip(
   text_ctx: &mut TextContext,
   node: &Node,
   border_rect: &Rect,
+  margin_rect: &Rect,
   dx: f32,
   dy: f32,
   scale: f32,
@@ -112,7 +113,7 @@ fn paint_tooltip(
     segments.push((&class_str, TOOLTIP_CLASS));
   }
 
-  let dim_str = format!("{w_px} \u{00d7} {h_px} px");
+  let dim_str = format!(" {w_px}\u{00d7}{h_px}");
   segments.push((&dim_str, TOOLTIP_DIM));
 
   let font_size = TOOLTIP_FONT_SIZE * scale;
@@ -147,19 +148,17 @@ fn paint_tooltip(
     }
   }
 
-  let gap_total = TOOLTIP_GAP * scale * (segments.len().saturating_sub(1)) as f32;
-  let pill_w = total_w + gap_total + TOOLTIP_PAD_H * scale * 2.0;
+  let pill_w = total_w + TOOLTIP_PAD_H * scale * 2.0;
   let pill_h = max_h + TOOLTIP_PAD_V * scale * 2.0;
 
-  // Position: below the border rect, clamped to viewport
-  let mut pill_x = border_rect.x + dx;
-  let mut pill_y = border_rect.y + border_rect.h + dy + 4.0 * scale;
+  let mut pill_x = margin_rect.x + dx;
+  let mut pill_y = margin_rect.y + dy - pill_h - 4.0 * scale;
 
+  if pill_y < 0.0 {
+    pill_y = margin_rect.y + margin_rect.h + dy + 4.0 * scale;
+  }
   if pill_x + pill_w > viewport_w {
     pill_x = (viewport_w - pill_w).max(0.0);
-  }
-  if pill_y + pill_h > border_rect.y + border_rect.h + dy + pill_h + 20.0 * scale {
-    pill_y = border_rect.y + dy - pill_h - 4.0 * scale;
   }
 
   let radius = 3.0 * scale;
@@ -177,7 +176,7 @@ fn paint_tooltip(
           g.uv_max,
         );
       }
-      cursor_x += run.width + TOOLTIP_GAP * scale;
+      cursor_x += run.width;
     }
   }
 }

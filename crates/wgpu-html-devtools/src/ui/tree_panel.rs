@@ -303,7 +303,9 @@ fn sel_class(selected: bool, ctx: &Ctx<TreePanelMsg>) -> String {
   }
 }
 
-fn row(children: Vec<El>, pad_left: f32, selected: bool, ctx: &Ctx<TreePanelMsg>) -> El {
+fn row(children: Vec<El>, pad_left: f32, selected: bool, ctx: &Ctx<TreePanelMsg>, store: &DevtoolsStore, path: &[usize]) -> El {
+  let hover_path = store.hover_path.clone();
+  let p = path.to_vec();
   div()
     .class(if selected {
       format!("{} {}", ctx.scoped("row"), ctx.scoped("selected"))
@@ -311,6 +313,7 @@ fn row(children: Vec<El>, pad_left: f32, selected: bool, ctx: &Ctx<TreePanelMsg>
       ctx.scoped("row").to_string()
     })
     .style(format!("padding-left: {}px", pad_left))
+    .on_mouse_enter(move |_| { hover_path.set(Some(p.clone())); })
     .children(children)
 }
 

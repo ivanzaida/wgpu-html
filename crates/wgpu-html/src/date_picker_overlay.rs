@@ -94,9 +94,9 @@ pub fn paint_date_picker_overlay(
   let cx = px + POPUP_PAD;
   let cy = py + POPUP_PAD;
 
-  // Navigation arrows
-  paint_centered_text(list, text_ctx, "\u{25C0}", dp.prev_btn_rect, dim_c, FONT_SIZE);
-  paint_centered_text(list, text_ctx, "\u{25B6}", dp.next_btn_rect, dim_c, FONT_SIZE);
+  // Navigation arrows (chevrons drawn from quads)
+  paint_chevron(list, dp.prev_btn_rect, dim_c, true);
+  paint_chevron(list, dp.next_btn_rect, dim_c, false);
 
   // Month/year header
   let month_name = locale.month_name(dp.view_month);
@@ -169,6 +169,34 @@ pub fn paint_date_picker_overlay(
 
     let colon_x = dp.hour_rect[0] + dp.hour_rect[2];
     paint_centered_text(list, text_ctx, ":", [colon_x, dp.hour_rect[1], 12.0, TIME_ROW_H], text_c, FONT_SIZE);
+  }
+}
+
+fn paint_chevron(list: &mut DisplayList, rect: [f32; 4], color: [f32; 4], left: bool) {
+  let [rx, ry, rw, rh] = rect;
+  let sz = rh.min(rw) * 0.3;
+  let t = (sz * 0.18).max(1.2);
+  let cx = rx + rw / 2.0;
+  let cy = ry + rh / 2.0;
+  let half = sz / 2.0;
+  let steps = (sz / (t * 0.4)).ceil().max(4.0) as usize;
+  let r = t / 2.0;
+
+  let (tip_x, wing_x) = if left { (cx - half * 0.4, cx + half * 0.4) } else { (cx + half * 0.4, cx - half * 0.4) };
+  let top_y = cy - half;
+  let bot_y = cy + half;
+
+  for i in 0..=steps {
+    let frac = i as f32 / steps as f32;
+    let px = wing_x + (tip_x - wing_x) * frac;
+    let py = top_y + (cy - top_y) * frac;
+    list.push_quad_rounded(Rect::new(px - r, py - r, t, t), color, [r; 4]);
+  }
+  for i in 0..=steps {
+    let frac = i as f32 / steps as f32;
+    let px = tip_x + (wing_x - tip_x) * frac;
+    let py = cy + (bot_y - cy) * frac;
+    list.push_quad_rounded(Rect::new(px - r, py - r, t, t), color, [r; 4]);
   }
 }
 
