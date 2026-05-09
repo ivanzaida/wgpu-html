@@ -133,6 +133,13 @@ pub struct CascadedNode {
   pub placeholder: Option<Style>,
   pub selection: Option<Style>,
   pub marker: Option<PseudoElementStyle>,
+  pub lui_pseudo: Vec<(wgpu_html_tree::PseudoElement, Style)>,
+}
+
+impl CascadedNode {
+  pub fn lui_style(&self, pe: wgpu_html_tree::PseudoElement) -> Option<&Style> {
+    self.lui_pseudo.iter().find(|(p, _)| *p == pe).map(|(_, s)| s)
+  }
 }
 
 impl CascadedNode {
@@ -412,6 +419,20 @@ fn compound_to_string(c: &CompoundSelector, s: &mut String) {
       PseudoElement::Placeholder => s.push_str("placeholder"),
       PseudoElement::Selection => s.push_str("selection"),
       PseudoElement::Marker => s.push_str("marker"),
+      PseudoElement::LuiPopup => s.push_str("lui-popup"),
+      PseudoElement::LuiCanvas => s.push_str("lui-canvas"),
+      PseudoElement::LuiRange => s.push_str("lui-range"),
+      PseudoElement::LuiThumb => s.push_str("lui-thumb"),
+      PseudoElement::LuiInput => s.push_str("lui-input"),
+      PseudoElement::LuiCalendarCell => s.push_str("lui-calendar-cell"),
+      PseudoElement::LuiCalendarSelected => s.push_str("lui-calendar-selected"),
+      PseudoElement::LuiCalendarToday => s.push_str("lui-calendar-today"),
+      PseudoElement::LuiCalendarHeader => s.push_str("lui-calendar-header"),
+      PseudoElement::LuiCalendarWeekday => s.push_str("lui-calendar-weekday"),
+      PseudoElement::LuiCalendarNav => s.push_str("lui-calendar-nav"),
+      PseudoElement::LuiCalendarTime => s.push_str("lui-calendar-time"),
+      PseudoElement::LuiCalendarReset => s.push_str("lui-calendar-reset"),
+      PseudoElement::LuiCalendarIcon => s.push_str("lui-calendar-icon"),
     }
   }
   if s.is_empty() {
@@ -1881,6 +1902,8 @@ fn cascade_node(
 
   let marker = compute_marker(&node.element, &style, root, path, sheets, interaction);
 
+  let lui_pseudo = compute_lui_pseudo_styles(&node.element, &style, sheets, root, path, interaction);
+
   CascadedNode {
     element: node.element.clone(),
     style,
@@ -1892,7 +1915,42 @@ fn cascade_node(
     placeholder,
     selection,
     marker,
+    lui_pseudo,
   }
+}
+
+const LUI_PSEUDO_ELEMENTS: &[PseudoElement] = &[
+  PseudoElement::LuiPopup,
+  PseudoElement::LuiCanvas,
+  PseudoElement::LuiRange,
+  PseudoElement::LuiThumb,
+  PseudoElement::LuiInput,
+  PseudoElement::LuiCalendarCell,
+  PseudoElement::LuiCalendarSelected,
+  PseudoElement::LuiCalendarToday,
+  PseudoElement::LuiCalendarHeader,
+  PseudoElement::LuiCalendarWeekday,
+  PseudoElement::LuiCalendarNav,
+  PseudoElement::LuiCalendarTime,
+  PseudoElement::LuiCalendarReset,
+  PseudoElement::LuiCalendarIcon,
+];
+
+fn compute_lui_pseudo_styles(
+  element: &Element,
+  element_style: &Style,
+  sheets: &[&PreparedStylesheet],
+  root: &Node,
+  path: &[usize],
+  interaction: &InteractionState,
+) -> Vec<(PseudoElement, Style)> {
+  let mut out = Vec::new();
+  for &pe in LUI_PSEUDO_ELEMENTS {
+    if let Some(s) = compute_pseudo_style_only(pe, element, element_style, sheets, root, path, interaction) {
+      out.push((pe, s));
+    }
+  }
+  out
 }
 
 /// Fill in unset inherited properties on `child` from `parent`'s

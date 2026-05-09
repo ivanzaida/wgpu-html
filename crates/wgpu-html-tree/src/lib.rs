@@ -40,7 +40,7 @@ pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
 pub use locale::{DefaultLocale, Locale, format_date_pattern};
 pub use patch::{PatchResult, patch_node};
 pub use profiler::{ProfileEntry, Profiler};
-pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
+pub use query::{Combinator, ComplexSelector, CompoundSelector, PseudoElement, SelectorList};
 pub use system_fonts::{SystemFontVariant, register_system_fonts, system_font_variants};
 pub use tree_hook::{
   TreeHook, TreeHookHandle, TreeHookResponse, TreeLifecycleEvent, TreeLifecyclePhase, TreeLifecycleStage,

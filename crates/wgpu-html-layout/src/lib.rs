@@ -1198,25 +1198,125 @@ fn resolve_lui_properties(
   }
 }
 
-fn resolve_lui_popup_arc(
-  cp: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
-) -> Option<std::sync::Arc<wgpu_html_models::LuiPopupStyle>> {
-  if !cp.keys().any(|k| k.starts_with("--lui-popup-")) { return None; }
-  Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_popup_style(cp)))
+fn lui_popup_from_pseudo(node: &CascadedNode) -> Option<std::sync::Arc<wgpu_html_models::LuiPopupStyle>> {
+  let s = node.lui_style(wgpu_html_tree::PseudoElement::LuiPopup)?;
+  Some(std::sync::Arc::new(wgpu_html_models::LuiPopupStyle {
+    width: s.width.clone(),
+    height: s.height.clone(),
+    background_color: s.background_color.clone(),
+    color: s.color.clone(),
+    border_top_width: s.border_top_width.clone(),
+    border_right_width: s.border_right_width.clone(),
+    border_bottom_width: s.border_bottom_width.clone(),
+    border_left_width: s.border_left_width.clone(),
+    border_top_style: s.border_top_style.clone(),
+    border_right_style: s.border_right_style.clone(),
+    border_bottom_style: s.border_bottom_style.clone(),
+    border_left_style: s.border_left_style.clone(),
+    border_top_color: s.border_top_color.clone(),
+    border_right_color: s.border_right_color.clone(),
+    border_bottom_color: s.border_bottom_color.clone(),
+    border_left_color: s.border_left_color.clone(),
+    border_radius: s.border_top_left_radius.clone(),
+    font_size: s.font_size.clone(),
+    font_family: s.font_family.clone(),
+    font_weight: s.font_weight.clone(),
+  }))
 }
 
-fn resolve_lui_color_picker_arc(
-  cp: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
-) -> Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>> {
-  if !cp.keys().any(|k| k.starts_with("--lui-color-")) { return None; }
-  Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_color_picker_style(cp)))
+fn lui_color_from_pseudo(node: &CascadedNode) -> Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>> {
+  use wgpu_html_tree::PseudoElement;
+  let mut p = wgpu_html_models::LuiColorPickerStyle::default();
+  let mut any = false;
+  if let Some(s) = node.lui_style(PseudoElement::LuiCanvas) {
+    p.canvas_width = s.width.clone();
+    p.canvas_height = s.height.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiRange) {
+    p.range_height = s.height.clone();
+    p.range_border_radius = s.border_top_left_radius.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiThumb) {
+    p.thumb_width = s.width.clone();
+    p.thumb_height = s.height.clone();
+    p.thumb_color = s.background_color.clone().or_else(|| s.color.clone());
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiInput) {
+    p.input_height = s.height.clone();
+    p.input_background = s.background_color.clone();
+    p.input_border_color = s.border_top_color.clone();
+    p.input_border_width = s.border_top_width.clone();
+    p.input_border_radius = s.border_top_left_radius.clone();
+    p.input_font_size = s.font_size.clone();
+    any = true;
+  }
+  if any { Some(std::sync::Arc::new(p)) } else { None }
 }
 
-fn resolve_lui_calendar_arc(
-  cp: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
-) -> Option<std::sync::Arc<wgpu_html_models::LuiCalendarStyle>> {
-  if !cp.keys().any(|k| k.starts_with("--lui-calendar-")) { return None; }
-  Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_calendar_style(cp)))
+fn lui_calendar_from_pseudo(node: &CascadedNode) -> Option<std::sync::Arc<wgpu_html_models::LuiCalendarStyle>> {
+  use wgpu_html_tree::PseudoElement;
+  let mut p = wgpu_html_models::LuiCalendarStyle::default();
+  let mut any = false;
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarCell) {
+    p.cell_size = s.width.clone();
+    p.cell_radius = s.border_top_left_radius.clone();
+    p.day_font_size = s.font_size.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarSelected) {
+    p.selected_bg = s.background_color.clone();
+    p.selected_color = s.color.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarToday) {
+    p.today_color = s.border_top_color.clone().or_else(|| s.color.clone());
+    p.today_width = s.border_top_width.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarHeader) {
+    p.header_font_size = s.font_size.clone();
+    p.header_font_weight = s.font_weight.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarWeekday) {
+    p.weekday_font_size = s.font_size.clone();
+    p.dim = s.color.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarNav) {
+    p.nav_size = s.width.clone().or_else(|| s.font_size.clone());
+    if p.dim.is_none() { p.dim = s.color.clone(); }
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarTime) {
+    p.time_width = s.width.clone();
+    p.time_height = s.height.clone();
+    p.time_background = s.background_color.clone();
+    p.time_border_color = s.border_top_color.clone();
+    p.time_border_width = s.border_top_width.clone();
+    p.time_border_radius = s.border_top_left_radius.clone();
+    p.time_font_size = s.font_size.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarReset) {
+    p.reset_height = s.height.clone();
+    p.reset_background = s.background_color.clone();
+    p.reset_color = s.color.clone();
+    p.reset_border_color = s.border_top_color.clone();
+    p.reset_border_width = s.border_top_width.clone();
+    p.reset_border_radius = s.border_top_left_radius.clone();
+    p.reset_font_size = s.font_size.clone();
+    any = true;
+  }
+  if let Some(s) = node.lui_style(PseudoElement::LuiCalendarIcon) {
+    if p.dim.is_none() { p.dim = s.color.clone(); }
+    p.padding = s.width.clone();
+    any = true;
+  }
+  if any { Some(std::sync::Arc::new(p)) } else { None }
 }
 
 fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Color) {
@@ -1938,9 +2038,9 @@ fn layout_block(
     selection_fg: None,
     accent_color,
     lui,
-    lui_popup: resolve_lui_popup_arc(&style.custom_properties),
-    lui_color_picker: resolve_lui_color_picker_arc(&style.custom_properties),
-    lui_calendar: resolve_lui_calendar_arc(&style.custom_properties),
+    lui_popup: lui_popup_from_pseudo(node),
+    lui_color_picker: lui_color_from_pseudo(node),
+    lui_calendar: lui_calendar_from_pseudo(node),
     children,
     is_fixed: false,
     form_control: fc,
@@ -3044,6 +3144,7 @@ fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
       placeholder: None,
       selection: None,
       marker: None,
+      lui_pseudo: vec![],
     }],
     before: None,
     after: None,
@@ -3052,6 +3153,7 @@ fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
     placeholder: None,
     selection: None,
     marker: None,
+    lui_pseudo: vec![],
   }
 }
 
@@ -3462,9 +3564,9 @@ fn layout_atomic_inline_subtree(
       selection_fg: None,
       accent_color,
       lui,
-      lui_popup: resolve_lui_popup_arc(&style.custom_properties),
-      lui_color_picker: resolve_lui_color_picker_arc(&style.custom_properties),
-      lui_calendar: resolve_lui_calendar_arc(&style.custom_properties),
+      lui_popup: lui_popup_from_pseudo(node),
+      lui_color_picker: lui_color_from_pseudo(node),
+      lui_calendar: lui_calendar_from_pseudo(node),
       children,
       is_fixed: false,
       form_control: fc,

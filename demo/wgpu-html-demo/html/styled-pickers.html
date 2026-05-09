@@ -54,33 +54,24 @@
 
     /* ── Catppuccin Mocha ── */
 
-    .mocha input[type="color"],
-    .mocha input[type="date"],
-    .mocha input[type="datetime-local"] {
-        border-color: #585b70;
-        --lui-popup-background: #1e1e2e;
-        --lui-popup-border: 1px solid #585b70;
-        --lui-popup-color: #cdd6f4;
-        --lui-color-thumb-color: #cdd6f4;
-        --lui-color-input-background: #181825;
-        --lui-color-input-border-color: #585b70;
+    .mocha input::lui-popup {
+        background: #1e1e2e;
+        border: 1px solid #585b70;
+        color: #cdd6f4;
     }
+    .mocha input::lui-thumb { background: #cdd6f4; }
+    .mocha input::lui-input { background: #181825; border-color: #585b70; }
 
     /* ── Nord ── */
 
-    .nord input[type="color"],
-    .nord input[type="date"],
-    .nord input[type="datetime-local"] {
-        border-color: #4c566a;
-        --lui-popup-background: #2e3440;
-        --lui-popup-border: 1px solid #4c566a;
-        --lui-popup-color: #eceff4;
-        --lui-popup-border-radius: 8px;
-        --lui-color-thumb-color: #eceff4;
-        --lui-color-input-background: #3b4252;
-        --lui-color-input-border-color: #4c566a;
-        --lui-color-input-border-radius: 6px;
+    .nord input::lui-popup {
+        background: #2e3440;
+        border: 1px solid #4c566a;
+        color: #eceff4;
+        border-radius: 8px;
     }
+    .nord input::lui-thumb { background: #eceff4; }
+    .nord input::lui-input { background: #3b4252; border-color: #4c566a; border-radius: 6px; }
 
     /* ── Warm (light) ── */
 
@@ -90,45 +81,40 @@
         background: #fdf6e3;
         border-color: #d4a373;
         color: #3d2c1e;
-        --lui-popup-background: #fdf6e3;
-        --lui-popup-border: 1px solid #d4a373;
-        --lui-popup-color: #3d2c1e;
-        --lui-color-thumb-color: #3d2c1e;
-        --lui-color-input-background: #f5edd6;
-        --lui-color-input-border-color: #d4a373;
     }
+    .warm input::lui-popup { background: #fdf6e3; border: 1px solid #d4a373; color: #3d2c1e; }
+    .warm input::lui-thumb { background: #3d2c1e; }
+    .warm input::lui-input { background: #f5edd6; border-color: #d4a373; }
 
     /* ── Custom (granular overrides) ── */
 
-    .custom input[type="color"] {
-        border-color: #7c3aed;
-        --lui-popup-background: #120b24;
-        --lui-popup-border: 2px solid #7c3aed;
-        --lui-popup-border-radius: 12px;
-        --lui-popup-color: #c4b5fd;
-        --lui-color-canvas-width: 200px;
-        --lui-color-canvas-height: 200px;
-        --lui-color-range-height: 10px;
-        --lui-color-range-border-radius: 5px;
-        --lui-color-thumb-width: 4px;
-        --lui-color-thumb-height: 14px;
-        --lui-color-thumb-color: #a78bfa;
-        --lui-color-input-height: 24px;
-        --lui-color-input-background: #1e1038;
-        --lui-color-input-border-color: #7c3aed;
-        --lui-color-input-border-radius: 6px;
-        --lui-color-input-font-size: 12px;
+    .custom input[type="color"] { border-color: #7c3aed; }
+    .custom input[type="color"]::lui-popup {
+        background: #120b24;
+        border: 2px solid #7c3aed;
+        border-radius: 12px;
+        color: #c4b5fd;
+    }
+    .custom input[type="color"]::lui-canvas { width: 200px; height: 200px; }
+    .custom input[type="color"]::lui-range { height: 10px; border-radius: 5px; }
+    .custom input[type="color"]::lui-thumb { width: 4px; height: 14px; background: #a78bfa; }
+    .custom input[type="color"]::lui-input {
+        height: 24px; background: #1e1038; border-color: #7c3aed;
+        border-radius: 6px; font-size: 12px;
     }
 
     .custom input[type="date"],
-    .custom input[type="datetime-local"] {
-        border-color: #7c3aed;
-        --lui-popup-background: #120b24;
-        --lui-popup-border: 2px solid #7c3aed;
-        --lui-popup-border-radius: 12px;
-        --lui-popup-color: #c4b5fd;
-        --lui-popup-font-size: 11px;
+    .custom input[type="datetime-local"] { border-color: #7c3aed; }
+    .custom input[type="date"]::lui-popup,
+    .custom input[type="datetime-local"]::lui-popup {
+        background: #120b24;
+        border: 2px solid #7c3aed;
+        border-radius: 12px;
+        color: #c4b5fd;
+        font-size: 11px;
     }
+    .custom input::lui-calendar-selected { background: #a78bfa; color: white; }
+    .custom input::lui-calendar-today { border-color: #c4b5fd; }
 </style>
 <div class="columns">
 

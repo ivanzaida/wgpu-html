@@ -97,7 +97,7 @@ pub struct HasSelector {
   pub combinators: Vec<Combinator>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PseudoElement {
   Before,
   After,
@@ -106,6 +106,20 @@ pub enum PseudoElement {
   Placeholder,
   Selection,
   Marker,
+  LuiPopup,
+  LuiCanvas,
+  LuiRange,
+  LuiThumb,
+  LuiInput,
+  LuiCalendarCell,
+  LuiCalendarSelected,
+  LuiCalendarToday,
+  LuiCalendarHeader,
+  LuiCalendarWeekday,
+  LuiCalendarNav,
+  LuiCalendarTime,
+  LuiCalendarReset,
+  LuiCalendarIcon,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -512,6 +526,20 @@ fn parse_pseudo_element_name(name: &str) -> Result<PseudoElement, String> {
     "placeholder" => Ok(PseudoElement::Placeholder),
     "selection" | "-moz-selection" => Ok(PseudoElement::Selection),
     "marker" => Ok(PseudoElement::Marker),
+    "lui-popup" => Ok(PseudoElement::LuiPopup),
+    "lui-canvas" => Ok(PseudoElement::LuiCanvas),
+    "lui-range" => Ok(PseudoElement::LuiRange),
+    "lui-thumb" => Ok(PseudoElement::LuiThumb),
+    "lui-input" => Ok(PseudoElement::LuiInput),
+    "lui-calendar-cell" => Ok(PseudoElement::LuiCalendarCell),
+    "lui-calendar-selected" => Ok(PseudoElement::LuiCalendarSelected),
+    "lui-calendar-today" => Ok(PseudoElement::LuiCalendarToday),
+    "lui-calendar-header" => Ok(PseudoElement::LuiCalendarHeader),
+    "lui-calendar-weekday" => Ok(PseudoElement::LuiCalendarWeekday),
+    "lui-calendar-nav" => Ok(PseudoElement::LuiCalendarNav),
+    "lui-calendar-time" => Ok(PseudoElement::LuiCalendarTime),
+    "lui-calendar-reset" => Ok(PseudoElement::LuiCalendarReset),
+    "lui-calendar-icon" => Ok(PseudoElement::LuiCalendarIcon),
     _ => Err(format!("unknown pseudo-element `::{}`", name)),
   }
 }
