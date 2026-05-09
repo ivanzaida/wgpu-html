@@ -158,15 +158,20 @@ pub fn paint_color_picker_overlay(
   let slider_knob_w = 6.0;
   let slider_knob_r = 2.0;
 
+  let bg = cp.style_bg.unwrap_or(BG);
+  let border = cp.style_border.unwrap_or(BORDER_COLOR);
+  let indicator = cp.style_indicator.unwrap_or(INDICATOR_BORDER);
+  let label_color = cp.style_label.unwrap_or(LABEL_COLOR);
+
   // Background
   list.push_quad_rounded(
     Rect::new(popup_x, popup_y, pw, ph),
-    BG,
+    bg,
     [corner_r; 4],
   );
   list.push_quad_stroke(
     Rect::new(popup_x, popup_y, pw, ph),
-    BORDER_COLOR,
+    border,
     [corner_r; 4],
     [1.0; 4],
   );
@@ -193,7 +198,7 @@ pub fn paint_color_picker_overlay(
   );
   list.push_quad_stroke(
     Rect::new(ind_x - ind_r, ind_y - ind_r, ind_r * 2.0, ind_r * 2.0),
-    INDICATOR_BORDER,
+    indicator,
     [ind_r; 4],
     [1.5; 4],
   );
@@ -220,7 +225,7 @@ pub fn paint_color_picker_overlay(
   let hi_x = hx + hue_frac * hue_w;
   list.push_quad_rounded(
     Rect::new(hi_x - slider_knob_w * 0.5, hy - 1.0, slider_knob_w, hue_h + 2.0),
-    INDICATOR_BORDER,
+    indicator,
     [slider_knob_r; 4],
   );
 
@@ -246,7 +251,7 @@ pub fn paint_color_picker_overlay(
   let ai_x = ax + cp.alpha * alpha_w;
   list.push_quad_rounded(
     Rect::new(ai_x - slider_knob_w * 0.5, ay - 1.0, slider_knob_w, alpha_h + 2.0),
-    INDICATOR_BORDER,
+    indicator,
     [slider_knob_r; 4],
   );
 
@@ -262,8 +267,8 @@ pub fn paint_color_picker_overlay(
   };
 
   let font_size = FONT_SIZE;
-  paint_label(list, text_ctx, &rgba_str, cx, label_y, canvas_w, font_size);
-  paint_label(list, text_ctx, &hex_str, cx, label_y + LABEL_H + GAP, canvas_w, font_size);
+  paint_label(list, text_ctx, &rgba_str, cx, label_y, canvas_w, font_size, label_color);
+  paint_label(list, text_ctx, &hex_str, cx, label_y + LABEL_H + GAP, canvas_w, font_size, label_color);
 }
 
 fn paint_label(
@@ -274,6 +279,7 @@ fn paint_label(
   y: f32,
   max_w: f32,
   font_size: f32,
+  color: [f32; 4],
 ) {
   let families = ["monospace", "sans-serif"];
   let font = text_ctx.pick_font(&families, 400, wgpu_html_tree::FontStyleAxis::Normal);
@@ -287,7 +293,7 @@ fn paint_label(
     400,
     wgpu_html_tree::FontStyleAxis::Normal,
     None,
-    LABEL_COLOR,
+    color,
   );
   let Some(run) = shaped else { return };
   for g in &run.glyphs {

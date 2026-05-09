@@ -800,7 +800,7 @@ fn paint_form_control(
       let track_h = (ch * 0.25).clamp(3.0, 6.0);
       let track_y = cy + (ch - track_h) / 2.0;
       let track_r = track_h / 2.0;
-      let track_bg = apply_opacity(b.lui_track_color.unwrap_or(FC_BG), opacity);
+      let track_bg = apply_opacity(b.lui.track_color.unwrap_or(FC_BG), opacity);
       out.push_quad_rounded(
         Rect::new(cx, track_y, cw, track_h),
         track_bg,
@@ -826,7 +826,7 @@ fn paint_form_control(
       let thumb_x = cx + frac * (cw - thumb_r * 2.0);
       let thumb_y = cy + (ch - thumb_r * 2.0) / 2.0;
       let thumb_border = apply_opacity(FC_THUMB_SHADOW, opacity);
-      let thumb_bg = apply_opacity(b.lui_thumb_color.unwrap_or(FC_BG), opacity);
+      let thumb_bg = apply_opacity(b.lui.thumb_color.unwrap_or(FC_BG), opacity);
       out.push_quad_rounded(
         Rect::new(thumb_x - 0.5, thumb_y - 0.5, thumb_r * 2.0 + 1.0, thumb_r * 2.0 + 1.0),
         thumb_border,

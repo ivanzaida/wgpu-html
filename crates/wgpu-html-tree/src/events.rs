@@ -275,6 +275,10 @@ pub struct ColorPickerState {
   pub canvas_rect: [f32; 4],
   pub hue_rect: [f32; 4],
   pub alpha_rect: [f32; 4],
+  pub style_bg: Option<[f32; 4]>,
+  pub style_border: Option<[f32; 4]>,
+  pub style_indicator: Option<[f32; 4]>,
+  pub style_label: Option<[f32; 4]>,
 }
 
 #[derive(Debug, Clone)]

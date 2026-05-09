@@ -254,6 +254,10 @@ pub fn mouse_down_with_click_count(
                   canvas_rect: [0.0; 4],
                   hue_rect: [0.0; 4],
                   alpha_rect: [0.0; 4],
+                  style_bg: lb.lui.picker_bg,
+                  style_border: lb.lui.picker_border,
+                  style_indicator: lb.lui.picker_indicator,
+                  style_label: lb.lui.picker_label,
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;
