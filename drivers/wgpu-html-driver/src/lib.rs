@@ -543,7 +543,7 @@ impl<D: Driver> Runtime<D> {
         layout,
         tree,
         &mut self.text_ctx,
-        self.scroll_y,
+        0.0,
         scale,
         content_w,
         paint_h,

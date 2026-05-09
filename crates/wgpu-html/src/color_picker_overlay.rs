@@ -139,10 +139,10 @@ pub fn paint_color_picker_overlay(
   _root: &LayoutBox,
   tree: &Tree,
   text_ctx: &mut TextContext,
-  scroll_y: f32,
+  _scroll_y: f32,
   scale: f32,
   _viewport_w: f32,
-  viewport_h: f32,
+  _viewport_h: f32,
 ) {
   let cp = match &tree.interaction.color_picker {
     Some(cp) => cp,
@@ -161,11 +161,7 @@ pub fn paint_color_picker_overlay(
   let font_size = FONT_SIZE * s;
 
   let popup_x = cp.popup_rect[0];
-  let popup_y = cp.popup_rect[1] - scroll_y;
-
-  if popup_y + ph < 0.0 || popup_y > viewport_h {
-    return;
-  }
+  let popup_y = cp.popup_rect[1];
 
   // Background
   list.push_quad_rounded(
@@ -352,40 +348,28 @@ pub fn compute_popup_rects(cp: &mut ColorPickerState, swatch_x: f32, swatch_y: f
   cp.alpha_rect = [cx, ay, canvas_sz, bar_h];
 }
 
-pub fn hit_test_color_picker(cp: &ColorPickerState, pos: (f32, f32), scroll_y: f32) -> Option<ColorPickerHit> {
+pub fn hit_test_color_picker(cp: &ColorPickerState, pos: (f32, f32)) -> Option<ColorPickerHit> {
   let (mx, my) = (pos.0, pos.1);
-  let popup_y = cp.popup_rect[1] - scroll_y;
-  let popup_x = cp.popup_rect[0];
-  let pw = cp.popup_rect[2];
-  let ph = cp.popup_rect[3];
+  let [popup_x, popup_y, pw, ph] = cp.popup_rect;
 
   if mx < popup_x || mx > popup_x + pw || my < popup_y || my > popup_y + ph {
     return None;
   }
 
-  let canvas_y = cp.canvas_rect[1] - scroll_y;
-  let canvas_x = cp.canvas_rect[0];
-  let canvas_w = cp.canvas_rect[2];
-  let canvas_h = cp.canvas_rect[3];
+  let [canvas_x, canvas_y, canvas_w, canvas_h] = cp.canvas_rect;
   if mx >= canvas_x && mx <= canvas_x + canvas_w && my >= canvas_y && my <= canvas_y + canvas_h {
     let s = ((mx - canvas_x) / canvas_w).clamp(0.0, 1.0);
     let v = (1.0 - (my - canvas_y) / canvas_h).clamp(0.0, 1.0);
     return Some(ColorPickerHit::Canvas(s, v));
   }
 
-  let hue_y = cp.hue_rect[1] - scroll_y;
-  let hue_x = cp.hue_rect[0];
-  let hue_w = cp.hue_rect[2];
-  let hue_h = cp.hue_rect[3];
+  let [hue_x, hue_y, hue_w, hue_h] = cp.hue_rect;
   if mx >= hue_x && mx <= hue_x + hue_w && my >= hue_y && my <= hue_y + hue_h {
     let frac = ((mx - hue_x) / hue_w).clamp(0.0, 1.0);
     return Some(ColorPickerHit::HueBar(frac));
   }
 
-  let alpha_y = cp.alpha_rect[1] - scroll_y;
-  let alpha_x = cp.alpha_rect[0];
-  let alpha_w = cp.alpha_rect[2];
-  let alpha_h = cp.alpha_rect[3];
+  let [alpha_x, alpha_y, alpha_w, alpha_h] = cp.alpha_rect;
   if mx >= alpha_x && mx <= alpha_x + alpha_w && my >= alpha_y && my <= alpha_y + alpha_h {
     let frac = ((mx - alpha_x) / alpha_w).clamp(0.0, 1.0);
     return Some(ColorPickerHit::AlphaBar(frac));

@@ -40,7 +40,7 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
   // Color picker drag.
   if let Some(ref cp) = tree.interaction.color_picker.clone() {
     if let Some(drag) = cp.drag {
-      return update_color_picker_drag(tree, pos, drag, 0.0);
+      return update_color_picker_drag(tree, pos, drag);
     }
   }
 
@@ -66,7 +66,7 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
   // Color picker drag.
   if let Some(ref cp) = tree.interaction.color_picker.clone() {
     if let Some(drag) = cp.drag {
-      let changed = update_color_picker_drag(tree, pos, drag, 0.0);
+      let changed = update_color_picker_drag(tree, pos, drag);
       return (changed, Cursor::Default);
     }
   }
@@ -113,7 +113,7 @@ pub fn mouse_down_with_click_count(
   // Color picker: intercept clicks when open.
   if button == MouseButton::Primary {
     if let Some(ref cp) = tree.interaction.color_picker.clone() {
-      if let Some(hit) = color_picker_overlay::hit_test_color_picker(cp, pos, 0.0) {
+      if let Some(hit) = color_picker_overlay::hit_test_color_picker(cp, pos) {
         match hit {
           color_picker_overlay::ColorPickerHit::Canvas(s, v) => {
             if let Some(cp) = &mut tree.interaction.color_picker {
@@ -369,28 +369,23 @@ pub fn mouse_up(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: Mo
   tree.dispatch_mouse_up(target.as_deref(), pos, button, cursor)
 }
 
-fn update_color_picker_drag(tree: &mut Tree, pos: (f32, f32), drag: ColorPickerDragTarget, scroll_y: f32) -> bool {
+fn update_color_picker_drag(tree: &mut Tree, pos: (f32, f32), drag: ColorPickerDragTarget) -> bool {
   let cp = match &mut tree.interaction.color_picker {
     Some(cp) => cp,
     None => return false,
   };
   match drag {
     ColorPickerDragTarget::Canvas => {
-      let cx = cp.canvas_rect[0];
-      let cy = cp.canvas_rect[1] - scroll_y;
-      let cw = cp.canvas_rect[2];
-      let ch = cp.canvas_rect[3];
+      let [cx, cy, cw, ch] = cp.canvas_rect;
       cp.saturation = ((pos.0 - cx) / cw).clamp(0.0, 1.0);
       cp.value = (1.0 - (pos.1 - cy) / ch).clamp(0.0, 1.0);
     }
     ColorPickerDragTarget::HueBar => {
-      let hx = cp.hue_rect[0];
-      let hw = cp.hue_rect[2];
+      let [hx, _, hw, _] = cp.hue_rect;
       cp.hue = ((pos.0 - hx) / hw).clamp(0.0, 1.0) * 360.0;
     }
     ColorPickerDragTarget::AlphaBar => {
-      let ax = cp.alpha_rect[0];
-      let aw = cp.alpha_rect[2];
+      let [ax, _, aw, _] = cp.alpha_rect;
       cp.alpha = ((pos.0 - ax) / aw).clamp(0.0, 1.0);
     }
   }
