@@ -1001,10 +1001,16 @@ pub fn layout_incremental(
   scale: f32,
   locale: &dyn wgpu_html_tree::Locale,
   date_display_value: Option<String>,
+  focus_path: Option<&[usize]>,
 ) -> bool {
   let Some(root) = cascaded.root.as_ref() else {
     return false;
   };
+  let date_focus_element = focus_path.and_then(|p| {
+    let mut cur = root;
+    for &i in p { cur = cur.children.get(i)?; }
+    Some(&cur.element as *const _)
+  });
   let mut ctx = Ctx {
     viewport_w,
     viewport_h,
@@ -1013,7 +1019,7 @@ pub fn layout_incremental(
     images: image_cache,
     locale,
     date_display_value,
-    date_focus_path: None,
+    date_focus_element,
     profiler: None,
   };
   let path = Vec::new();
@@ -1403,7 +1409,7 @@ pub fn layout_with_text_locale(
   scale: f32,
   locale: &dyn wgpu_html_tree::Locale,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, None)
+  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, None, None)
 }
 
 pub fn layout_with_text_locale_date(
@@ -1415,8 +1421,9 @@ pub fn layout_with_text_locale_date(
   scale: f32,
   locale: &dyn wgpu_html_tree::Locale,
   date_display: Option<String>,
+  focus_path: Option<&[usize]>,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, date_display)
+  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, date_display, focus_path)
 }
 
 /// Like [`layout_with_text`] but optionally enables the layout
@@ -1432,8 +1439,14 @@ pub fn layout_with_text_profiled(
   profile: bool,
   locale: &dyn wgpu_html_tree::Locale,
   date_display: Option<String>,
+  focus_path: Option<&[usize]>,
 ) -> Option<LayoutBox> {
   let root = tree.root.as_ref()?;
+  let date_focus_element = focus_path.and_then(|p| {
+    let mut cur = root;
+    for &i in p { cur = cur.children.get(i)?; }
+    Some(&cur.element as *const _)
+  });
   let mut ctx = Ctx {
     viewport_w,
     viewport_h,
@@ -1442,7 +1455,7 @@ pub fn layout_with_text_profiled(
     images: image_cache,
     locale,
     date_display_value: date_display,
-    date_focus_path: None,
+    date_focus_element,
     profiler: if profile {
       Some(layout_profile::LayoutProfiler::new())
     } else {
@@ -1557,7 +1570,7 @@ pub(crate) struct Ctx<'a> {
   pub profiler: Option<layout_profile::LayoutProfiler>,
   pub locale: &'a dyn wgpu_html_tree::Locale,
   pub date_display_value: Option<String>,
-  pub date_focus_path: Option<Vec<usize>>,
+  pub date_focus_element: Option<*const wgpu_html_tree::Element>,
 }
 
 /// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
@@ -2114,8 +2127,11 @@ fn compute_value_run(
       }
       // Date inputs: show locale-formatted value (or display value while editing).
       if matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal)) {
-        let val = if let Some(dv) = &ctx.date_display_value {
-          dv.clone()
+        let is_focused = ctx.date_focus_element.is_some()
+          && ctx.date_focus_element == Some(&node.element as *const _)
+          && ctx.date_display_value.is_some();
+        let val = if is_focused {
+          ctx.date_display_value.as_ref().unwrap().clone()
         } else {
           let iso = inp.value.as_deref().unwrap_or("");
           if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {

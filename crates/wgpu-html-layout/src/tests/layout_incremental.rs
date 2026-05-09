@@ -31,6 +31,7 @@ fn full_and_incremental(
     1.0,
     &wgpu_html_tree::DefaultLocale,
     None,
+    None,
   );
   let incremental = prev;
 
@@ -496,6 +497,7 @@ fn empty_dirty_paths_is_noop() {
     600.0,
     1.0,
     &wgpu_html_tree::DefaultLocale,
+    None,
     None,
   );
   assert!(!changed);
