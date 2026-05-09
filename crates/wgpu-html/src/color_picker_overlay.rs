@@ -355,7 +355,9 @@ pub fn paint_color_picker_overlay(
   let popup_box = &layout;
   if popup_box.children.len() < 5 { return; }
 
+  let saved_canvas_color = list.canvas_color;
   crate::paint::paint_layout_with_selection(popup_box, list, None, wgpu_html_tree::SelectionColors::default(), 0.0);
+  list.canvas_color = saved_canvas_color;
 
   // Canvas gradient
   let cb = &popup_box.children[0];
