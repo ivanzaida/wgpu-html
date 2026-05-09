@@ -1,6 +1,49 @@
 use std::sync::Arc;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DateFormat {
+  /// day-month-year (31/12/2025)
+  DMY,
+  /// month-day-year (12/31/2025)
+  MDY,
+  /// year-month-day (2025-12-31)
+  YMD,
+}
+
+impl DateFormat {
+  pub fn format(&self, y: i32, m: u8, d: u8) -> String {
+    match self {
+      Self::DMY => format!("{d:02}/{m:02}/{y:04}"),
+      Self::MDY => format!("{m:02}/{d:02}/{y:04}"),
+      Self::YMD => format!("{y:04}-{m:02}-{d:02}"),
+    }
+  }
+
+  pub fn format_datetime(&self, y: i32, m: u8, d: u8, hour: u8, min: u8) -> String {
+    let date = self.format(y, m, d);
+    format!("{date} {hour:02}:{min:02}")
+  }
+
+  pub fn placeholder(&self) -> &'static str {
+    match self {
+      Self::DMY => "dd/mm/yyyy",
+      Self::MDY => "mm/dd/yyyy",
+      Self::YMD => "yyyy-mm-dd",
+    }
+  }
+
+  pub fn placeholder_datetime(&self) -> &'static str {
+    match self {
+      Self::DMY => "dd/mm/yyyy hh:mm",
+      Self::MDY => "mm/dd/yyyy hh:mm",
+      Self::YMD => "yyyy-mm-dd hh:mm",
+    }
+  }
+}
+
 pub trait Locale: Send + Sync + std::fmt::Debug {
+  fn key(&self) -> &str { "en-US" }
+  fn date_format(&self) -> DateFormat { DateFormat::MDY }
   fn month_name(&self, month: u8) -> &str;
   fn month_short(&self, month: u8) -> &str;
   fn weekday_name(&self, weekday: u8) -> &str;
