@@ -1006,10 +1006,10 @@ pub fn layout_incremental(
   let Some(root) = cascaded.root.as_ref() else {
     return false;
   };
-  let date_focus_element = focus_path.and_then(|p| {
+  let date_focus_iso = focus_path.and_then(|p| {
     let mut cur = root;
     for &i in p { cur = cur.children.get(i)?; }
-    Some(&cur.element as *const _)
+    match &cur.element { wgpu_html_tree::Element::Input(inp) => inp.value.as_ref().map(|v| v.to_string()), _ => None }
   });
   let mut ctx = Ctx {
     viewport_w,
@@ -1019,7 +1019,7 @@ pub fn layout_incremental(
     images: image_cache,
     locale,
     date_display_value,
-    date_focus_element,
+    date_focus_iso,
     profiler: None,
   };
   let path = Vec::new();
@@ -1442,10 +1442,10 @@ pub fn layout_with_text_profiled(
   focus_path: Option<&[usize]>,
 ) -> Option<LayoutBox> {
   let root = tree.root.as_ref()?;
-  let date_focus_element = focus_path.and_then(|p| {
+  let date_focus_iso = focus_path.and_then(|p| {
     let mut cur = root;
     for &i in p { cur = cur.children.get(i)?; }
-    Some(&cur.element as *const _)
+    match &cur.element { wgpu_html_tree::Element::Input(inp) => inp.value.as_ref().map(|v| v.to_string()), _ => None }
   });
   let mut ctx = Ctx {
     viewport_w,
@@ -1455,7 +1455,7 @@ pub fn layout_with_text_profiled(
     images: image_cache,
     locale,
     date_display_value: date_display,
-    date_focus_element,
+    date_focus_iso,
     profiler: if profile {
       Some(layout_profile::LayoutProfiler::new())
     } else {
@@ -1570,7 +1570,7 @@ pub(crate) struct Ctx<'a> {
   pub profiler: Option<layout_profile::LayoutProfiler>,
   pub locale: &'a dyn wgpu_html_tree::Locale,
   pub date_display_value: Option<String>,
-  pub date_focus_element: Option<*const wgpu_html_tree::Element>,
+  pub date_focus_iso: Option<String>,
 }
 
 /// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
@@ -2127,9 +2127,8 @@ fn compute_value_run(
       }
       // Date inputs: show locale-formatted value (or display value while editing).
       if matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal)) {
-        let is_focused = ctx.date_focus_element.is_some()
-          && ctx.date_focus_element == Some(&node.element as *const _)
-          && ctx.date_display_value.is_some();
+        let is_focused = ctx.date_display_value.is_some()
+          && ctx.date_focus_iso.as_deref() == inp.value.as_deref();
         let val = if is_focused {
           ctx.date_display_value.as_ref().unwrap().clone()
         } else {

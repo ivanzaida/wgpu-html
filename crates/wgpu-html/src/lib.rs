@@ -558,6 +558,10 @@ pub fn layout_at_path<'a>(root: &'a LayoutBox, path: &[usize]) -> Option<&'a Lay
 /// within the focused input's content rect. Call after layout and
 /// before paint each frame.
 pub fn update_edit_scroll(tree: &mut Tree, layout: &layout::LayoutBox) {
+  if tree.interaction.date_display_value.is_some() {
+    tree.interaction.edit_scroll_x = 0.0;
+    return;
+  }
   let Some(ec) = &tree.interaction.edit_cursor else {
     return;
   };
