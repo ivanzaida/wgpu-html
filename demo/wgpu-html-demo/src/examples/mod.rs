@@ -30,6 +30,7 @@ mod svg_test;
 mod text_selection;
 mod text_shrink;
 mod text_wrapping;
+mod styled_pickers;
 
 pub fn get_example_tree(name: &str) -> Option<Tree> {
   match name {
@@ -63,6 +64,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "text_selection" => Some(text_selection::build()),
     "text_shrink" => Some(text_shrink::build()),
     "text_wrapping" => Some(text_wrapping::build()),
+    "styled_pickers" => Some(styled_pickers::build()),
     _ => None,
   }
 }

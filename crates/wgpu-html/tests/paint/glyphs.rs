@@ -66,6 +66,8 @@ fn simple_body_with_glyphs() -> LayoutBox {
     selection_fg: None,
     accent_color: None,
     lui: wgpu_html_layout::LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

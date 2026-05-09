@@ -14,6 +14,7 @@ use std::sync::{
 
 use crate::ui::{DevtoolsComponent, DevtoolsProps, DevtoolsStore};
 use wgpu_html_events::HtmlEvent;
+use wgpu_html_layout::LayoutBox;
 use wgpu_html_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use wgpu_html_ui::Mount;
 
@@ -133,6 +134,12 @@ impl Devtools {
   /// Sync with the host tree and process component messages.
   /// Call once per frame or event-loop iteration.
   pub fn poll(&mut self, host_tree: &Tree) {
+    self.poll_with_layout(host_tree, None);
+  }
+
+  /// Like [`poll`](Self::poll), but also binds the host layout tree
+  /// so the Layout section in the styles panel can show box model data.
+  pub fn poll_with_layout(&mut self, host_tree: &Tree, layout: Option<&LayoutBox>) {
     if self.toggle_requested.swap(false, Ordering::Relaxed) {
       self.toggle();
     }
@@ -152,6 +159,7 @@ impl Devtools {
     }
 
     self.store.bind_host_tree(host_tree);
+    if let Some(l) = layout { self.store.bind_layout(l); }
 
     let cascade_changed = self.last_cascade_gen != Some(host_tree.cascade_generation);
     let dom_changed = self.last_inspected_gen != Some(host_tree.generation);
@@ -175,6 +183,7 @@ impl Devtools {
     }
 
     self.store.unbind_host_tree();
+    self.store.unbind_layout();
   }
 
   /// Called by the host after rendering a frame.
@@ -230,7 +239,7 @@ impl Devtools {
 
 impl wgpu_html_driver::SecondaryWindow for Devtools {
   fn poll(&mut self, tree: &Tree) {
-    Devtools::poll(self, tree);
+    self.poll_with_layout(tree, None);
   }
 
   fn needs_redraw(&self) -> bool {

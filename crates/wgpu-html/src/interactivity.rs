@@ -371,10 +371,8 @@ pub fn mouse_down_with_click_count(
                   alpha_rect: [0.0; 4],
                   rgba_field_rect: [0.0; 4],
                   hex_field_rect: [0.0; 4],
-                  style_bg: lb.lui.picker_bg,
-                  style_border: lb.lui.picker_border,
-                  style_indicator: lb.lui.picker_indicator,
-                  style_label: lb.lui.picker_label,
+                  popup_style: lb.lui_popup.clone(),
+                  picker_style: lb.lui_color_picker.clone(),
                   active_field: None,
                   field_text: String::new(),
                   field_cursor: wgpu_html_tree::EditCursor::collapsed(0),
@@ -417,12 +415,7 @@ pub fn mouse_down_with_click_count(
                   hour_rect: [0.0; 4],
                   minute_rect: [0.0; 4],
                   reset_btn_rect: [0.0; 4],
-                  style_bg: lb.lui.calendar_bg,
-                  style_border: lb.lui.calendar_border,
-                  style_text: lb.lui.calendar_text,
-                  style_dim: lb.lui.calendar_dim,
-                  style_selected: lb.lui.calendar_selected,
-                  style_today: lb.lui.calendar_today,
+                  popup_style: lb.lui_popup.clone(),
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;

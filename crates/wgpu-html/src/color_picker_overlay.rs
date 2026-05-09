@@ -5,6 +5,10 @@ use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_text::TextContext;
 use wgpu_html_tree::{ColorPickerField, ColorPickerState, EditCursor, Tree};
 
+fn resolve_lui_color(c: &Option<wgpu_html_models::common::css_enums::CssColor>) -> Option<[f32; 4]> {
+  c.as_ref().and_then(|c| wgpu_html_layout::color::resolve_color(c))
+}
+
 const POPUP_W: f32 = 260.0;
 const POPUP_PAD: f32 = 10.0;
 const CANVAS_SIZE: f32 = 240.0;
@@ -180,10 +184,10 @@ pub fn paint_color_picker_overlay(
   let slider_knob_w = 6.0;
   let slider_knob_r = 2.0;
 
-  let bg = cp.style_bg.unwrap_or(BG);
-  let border = cp.style_border.unwrap_or(BORDER_COLOR);
-  let indicator = cp.style_indicator.unwrap_or(INDICATOR_BORDER);
-  let label_color = cp.style_label.unwrap_or(LABEL_COLOR);
+  let bg = resolve_lui_color(&cp.popup_style.background_color).unwrap_or(BG);
+  let border = resolve_lui_color(&cp.popup_style.border_top_color).unwrap_or(BORDER_COLOR);
+  let indicator = resolve_lui_color(&cp.picker_style.thumb_color).unwrap_or(INDICATOR_BORDER);
+  let label_color = resolve_lui_color(&cp.popup_style.color).unwrap_or(LABEL_COLOR);
 
   // Background
   list.push_quad_rounded(Rect::new(popup_x, popup_y, pw, ph), bg, [corner_r; 4]);

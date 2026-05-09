@@ -285,10 +285,8 @@ pub struct ColorPickerState {
   pub alpha_rect: [f32; 4],
   pub rgba_field_rect: [f32; 4],
   pub hex_field_rect: [f32; 4],
-  pub style_bg: Option<[f32; 4]>,
-  pub style_border: Option<[f32; 4]>,
-  pub style_indicator: Option<[f32; 4]>,
-  pub style_label: Option<[f32; 4]>,
+  pub popup_style: wgpu_html_models::css::style::LuiPopupStyle,
+  pub picker_style: wgpu_html_models::css::style::LuiColorPickerStyle,
   pub active_field: Option<ColorPickerField>,
   pub field_text: String,
   pub field_cursor: EditCursor,
@@ -314,12 +312,7 @@ pub struct DatePickerState {
   pub hour_rect: [f32; 4],
   pub minute_rect: [f32; 4],
   pub reset_btn_rect: [f32; 4],
-  pub style_bg: Option<[f32; 4]>,
-  pub style_border: Option<[f32; 4]>,
-  pub style_text: Option<[f32; 4]>,
-  pub style_dim: Option<[f32; 4]>,
-  pub style_selected: Option<[f32; 4]>,
-  pub style_today: Option<[f32; 4]>,
+  pub popup_style: wgpu_html_models::css::style::LuiPopupStyle,
 }
 
 #[derive(Debug, Clone)]

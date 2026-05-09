@@ -514,6 +514,8 @@ pub struct LayoutBox {
   pub accent_color: Option<Color>,
   /// Resolved `--lui-*` vendor custom properties.
   pub lui: LuiProperties,
+  pub lui_popup: wgpu_html_models::css::style::LuiPopupStyle,
+  pub lui_color_picker: wgpu_html_models::css::style::LuiColorPickerStyle,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -541,16 +543,6 @@ pub struct FormControlInfo {
 pub struct LuiProperties {
   pub track_color: Option<Color>,
   pub thumb_color: Option<Color>,
-  pub picker_bg: Option<Color>,
-  pub picker_border: Option<Color>,
-  pub picker_indicator: Option<Color>,
-  pub picker_label: Option<Color>,
-  pub calendar_bg: Option<Color>,
-  pub calendar_border: Option<Color>,
-  pub calendar_text: Option<Color>,
-  pub calendar_dim: Option<Color>,
-  pub calendar_selected: Option<Color>,
-  pub calendar_today: Option<Color>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1202,16 +1194,6 @@ fn resolve_lui_properties(
   LuiProperties {
     track_color: resolve_lui_color(cp, "--lui-track-color", fg),
     thumb_color: resolve_lui_color(cp, "--lui-thumb-color", fg),
-    picker_bg: resolve_lui_color(cp, "--lui-picker-bg", fg),
-    picker_border: resolve_lui_color(cp, "--lui-picker-border", fg),
-    picker_indicator: resolve_lui_color(cp, "--lui-picker-indicator", fg),
-    picker_label: resolve_lui_color(cp, "--lui-picker-label", fg),
-    calendar_bg: resolve_lui_color(cp, "--lui-calendar-bg", fg),
-    calendar_border: resolve_lui_color(cp, "--lui-calendar-border", fg),
-    calendar_text: resolve_lui_color(cp, "--lui-calendar-text", fg),
-    calendar_dim: resolve_lui_color(cp, "--lui-calendar-dim", fg),
-    calendar_selected: resolve_lui_color(cp, "--lui-calendar-selected", fg),
-    calendar_today: resolve_lui_color(cp, "--lui-calendar-today", fg),
   }
 }
 
@@ -1934,6 +1916,8 @@ fn layout_block(
     selection_fg: None,
     accent_color,
     lui,
+    lui_popup: style.lui_popup.clone(),
+    lui_color_picker: style.lui_color_picker.clone(),
     children,
     is_fixed: false,
     form_control: fc,
@@ -2842,6 +2826,8 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -2921,6 +2907,8 @@ fn make_text_leaf(
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3251,6 +3239,8 @@ fn layout_inline_subtree(
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: final_children,
     is_fixed: false,
     form_control: None,
@@ -3446,6 +3436,8 @@ fn layout_atomic_inline_subtree(
       selection_fg: None,
       accent_color,
       lui,
+      lui_popup: style.lui_popup.clone(),
+      lui_color_picker: style.lui_color_picker.clone(),
       children,
       is_fixed: false,
       form_control: fc,
@@ -3972,6 +3964,8 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -4204,6 +4198,8 @@ fn layout_inline_paragraph(
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

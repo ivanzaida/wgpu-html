@@ -99,6 +99,8 @@ pub(crate) fn synthetic_text_layout() -> LayoutBox {
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
+    lui_popup: Default::default(),
+    lui_color_picker: Default::default(),
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

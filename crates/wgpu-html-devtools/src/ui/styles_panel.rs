@@ -1,3 +1,4 @@
+use super::layout_section::{LayoutSection, LayoutSectionProps};
 use super::store::DevtoolsStore;
 use super::style_rule::{StyleRule, StyleRuleProps};
 use super::theme::Theme;
@@ -17,21 +18,44 @@ pub struct StylesPanelProps {
   pub store: DevtoolsStore,
 }
 
-#[derive(Clone)]
-pub enum StylesPanelMsg {}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Tab {
+  Styles,
+  Computed,
+  Layout,
+  EventListeners,
+}
 
-pub struct StylesPanel;
+#[derive(Clone)]
+pub enum StylesPanelMsg {
+  SelectTab(Tab),
+}
+
+pub struct StylesPanel {
+  active_tab: Tab,
+}
 
 impl Component for StylesPanel {
   type Props = StylesPanelProps;
   type Msg = StylesPanelMsg;
 
   fn create(_props: &StylesPanelProps) -> Self {
-    Self
+    Self {
+      active_tab: Tab::Styles,
+    }
   }
 
   fn update(&mut self, msg: StylesPanelMsg, _props: &StylesPanelProps) -> ShouldRender {
-    match msg {}
+    match msg {
+      StylesPanelMsg::SelectTab(tab) => {
+        if self.active_tab != tab {
+          self.active_tab = tab;
+          ShouldRender::Yes
+        } else {
+          ShouldRender::No
+        }
+      }
+    }
   }
 
   fn styles() -> Stylesheet {
@@ -90,6 +114,18 @@ impl Component for StylesPanel {
         .color(Theme::TEXT_MUTED)
         .padding(px(12))
         .font_family("Inter, system-ui, sans-serif"),
+      style::rule(".computed-row")
+        .display(Display::Flex)
+        .align_items(AlignItems::Center)
+        .height(px(18))
+        .padding_vh(px(0), px(12))
+        .font_family("Roboto Mono, monospace"),
+      style::rule(".computed-prop")
+        .color(Theme::PROPERTY),
+      style::rule(".computed-sep")
+        .color(Theme::TEXT_SECONDARY),
+      style::rule(".computed-val")
+        .color(Theme::VALUE),
     ])
     .scoped("styles")
   }
@@ -97,24 +133,63 @@ impl Component for StylesPanel {
   fn view(&self, props: &StylesPanelProps, ctx: &Ctx<StylesPanelMsg>) -> El {
     let selected = props.store.selected_path.get();
 
-    let content = if let Some(path) = &selected {
-      if let Some(host_tree) = props.store.host_tree() {
-        let inspection = wgpu_html_style::InspectionContext::new(host_tree);
-        build_styles_content(host_tree, &inspection, path, ctx)
+    let tab_class = |tab: Tab| {
+      if self.active_tab == tab {
+        format!("{} {}", ctx.scoped("tab"), ctx.scoped("active"))
       } else {
-        vec![el::span().class(ctx.scoped("empty")).text("No element selected")]
+        ctx.scoped("tab").to_string()
       }
-    } else {
-      vec![el::span().class(ctx.scoped("empty")).text("No element selected")]
+    };
+
+    let no_selection = || {
+      vec![el::span()
+        .class(ctx.scoped("empty"))
+        .text("No element selected")]
+    };
+
+    let content = match self.active_tab {
+      Tab::Layout => {
+        vec![ctx.child::<LayoutSection>(LayoutSectionProps {
+          store: props.store.clone(),
+        })]
+      }
+      Tab::EventListeners => {
+        vec![el::span()
+          .class(ctx.scoped("empty"))
+          .text("No event listeners")]
+      }
+      tab => {
+        if let (Some(path), Some(host_tree)) = (&selected, props.store.host_tree()) {
+          let inspection = wgpu_html_style::InspectionContext::new(host_tree);
+          match tab {
+            Tab::Styles => build_styles_content(host_tree, &inspection, path, ctx),
+            Tab::Computed => build_computed_content(host_tree, &inspection, path, ctx),
+            _ => unreachable!(),
+          }
+        } else {
+          no_selection()
+        }
+      }
     };
 
     div().class(ctx.scoped("panel")).children([
       div().class(ctx.scoped("tabs")).children([
         el::span()
-          .class(format!("{} {}", ctx.scoped("tab"), ctx.scoped("active")))
+          .class(tab_class(Tab::Styles))
+          .on_click_cb(ctx.on_click(StylesPanelMsg::SelectTab(Tab::Styles)))
           .text("Styles"),
-        el::span().class(ctx.scoped("tab")).text("Computed"),
-        el::span().class(ctx.scoped("tab")).text("Layout"),
+        el::span()
+          .class(tab_class(Tab::Computed))
+          .on_click_cb(ctx.on_click(StylesPanelMsg::SelectTab(Tab::Computed)))
+          .text("Computed"),
+        el::span()
+          .class(tab_class(Tab::Layout))
+          .on_click_cb(ctx.on_click(StylesPanelMsg::SelectTab(Tab::Layout)))
+          .text("Layout"),
+        el::span()
+          .class(tab_class(Tab::EventListeners))
+          .on_click_cb(ctx.on_click(StylesPanelMsg::SelectTab(Tab::EventListeners)))
+          .text("Event Listeners"),
       ]),
       div().class(ctx.scoped("content")).children(content),
     ])
@@ -244,6 +319,74 @@ fn is_inherited_property(prop: &str) -> bool {
       | "list-style-type"
       | "list-style-position"
   )
+}
+
+fn build_computed_content(
+  tree: &wgpu_html_tree::Tree,
+  inspection: &wgpu_html_style::InspectionContext,
+  path: &[usize],
+  ctx: &Ctx<StylesPanelMsg>,
+) -> Vec<El> {
+  let mut props: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+
+  if let Some(node) = tree.root.as_ref().and_then(|r| r.at_path(path)) {
+    let inline = collect_inline_style(&node.element);
+    for (p, v) in &inline {
+      props.insert(p.clone(), v.clone());
+    }
+  }
+
+  let matched = inspection.matched_rules(tree, path);
+  for rule in matched.iter().rev() {
+    for (p, v) in &rule.declarations {
+      props.entry(p.clone()).or_insert_with(|| v.clone());
+    }
+  }
+
+  let mut ancestor_path = path.to_vec();
+  while !ancestor_path.is_empty() {
+    ancestor_path.pop();
+    let ancestor_node = tree.root.as_ref().and_then(|r| r.at_path(&ancestor_path));
+    let Some(ancestor_node) = ancestor_node else { break };
+
+    let ancestor_matched = inspection.matched_rules(tree, &ancestor_path);
+    for rule in ancestor_matched.iter().rev() {
+      for (p, v) in &rule.declarations {
+        if is_inherited_property(p) {
+          props.entry(p.clone()).or_insert_with(|| v.clone());
+        }
+      }
+    }
+
+    let ancestor_inline = collect_inline_style(&ancestor_node.element);
+    for (p, v) in &ancestor_inline {
+      if is_inherited_property(p) {
+        props.entry(p.clone()).or_insert_with(|| v.clone());
+      }
+    }
+  }
+
+  if props.is_empty() {
+    return vec![el::span()
+      .class(ctx.scoped("empty"))
+      .text("No computed styles")];
+  }
+
+  props
+    .iter()
+    .map(|(prop, val)| {
+      div().class(ctx.scoped("computed-row")).children([
+        el::span()
+          .class(ctx.scoped("computed-prop"))
+          .text(prop.as_str()),
+        el::span().class(ctx.scoped("computed-sep")).text(": "),
+        el::span()
+          .class(ctx.scoped("computed-val"))
+          .text(val.as_str()),
+        el::span().class(ctx.scoped("computed-sep")).text(";"),
+      ])
+    })
+    .collect()
 }
 
 fn collect_inline_style(element: &Element) -> Vec<(String, String)> {

@@ -579,7 +579,7 @@ impl ApplicationHandler for DemoApp {
     self.driver.window().request_redraw();
 
     if let Some(devtools) = &mut self.devtools {
-      devtools.poll(&self.driver.tree);
+      devtools.poll_with_layout(&self.driver.tree, self.driver.rt.layout());
       let hover = devtools.hovered_path();
       self.driver.rt.set_inspect_overlay(hover);
 

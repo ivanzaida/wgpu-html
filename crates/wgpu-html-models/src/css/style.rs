@@ -222,6 +222,9 @@ pub struct Style {
   pub box_shadow: Option<ArcStr>,
   // css property: box-sizing
   pub box_sizing: Option<BoxSizing>,
+  pub lui_popup: LuiPopupStyle,
+  pub lui_color_picker: LuiColorPickerStyle,
+
   /// Longhands that the engine recognizes and preserves for future
   /// implementation, but doesn't model as dedicated typed fields yet.
   /// Keys are CSS kebab-case property names.
@@ -246,4 +249,45 @@ pub struct Style {
   /// to block later implicit inheritance for the omitted members when
   /// a following longhand value clears the covering shorthand keyword.
   pub keyword_reset_properties: HashSet<ArcStr>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LuiPopupStyle {
+  pub width: Option<CssLength>,
+  pub height: Option<CssLength>,
+  pub background_color: Option<CssColor>,
+  pub color: Option<CssColor>,
+  pub border_top_width: Option<CssLength>,
+  pub border_right_width: Option<CssLength>,
+  pub border_bottom_width: Option<CssLength>,
+  pub border_left_width: Option<CssLength>,
+  pub border_top_style: Option<BorderStyle>,
+  pub border_right_style: Option<BorderStyle>,
+  pub border_bottom_style: Option<BorderStyle>,
+  pub border_left_style: Option<BorderStyle>,
+  pub border_top_color: Option<CssColor>,
+  pub border_right_color: Option<CssColor>,
+  pub border_bottom_color: Option<CssColor>,
+  pub border_left_color: Option<CssColor>,
+  pub border_radius: Option<CssLength>,
+  pub font_size: Option<CssLength>,
+  pub font_family: Option<ArcStr>,
+  pub font_weight: Option<FontWeight>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LuiColorPickerStyle {
+  pub canvas_width: Option<CssLength>,
+  pub canvas_height: Option<CssLength>,
+  pub range_height: Option<CssLength>,
+  pub range_border_radius: Option<CssLength>,
+  pub thumb_width: Option<CssLength>,
+  pub thumb_height: Option<CssLength>,
+  pub thumb_color: Option<CssColor>,
+  pub input_height: Option<CssLength>,
+  pub input_background: Option<CssColor>,
+  pub input_border_color: Option<CssColor>,
+  pub input_border_width: Option<CssLength>,
+  pub input_border_radius: Option<CssLength>,
+  pub input_font_size: Option<CssLength>,
 }

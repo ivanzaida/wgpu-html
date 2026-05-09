@@ -4,6 +4,10 @@ use wgpu_html_text::TextContext;
 use wgpu_html_tree::{DatePickerState, Tree};
 use wgpu_html_tree::date;
 
+fn resolve_lui_color(c: &Option<wgpu_html_models::common::css_enums::CssColor>) -> Option<[f32; 4]> {
+  c.as_ref().and_then(|c| wgpu_html_layout::color::resolve_color(c))
+}
+
 const POPUP_PAD: f32 = 8.0;
 const HEADER_H: f32 = 28.0;
 const DAY_HEADER_H: f32 = 20.0;
@@ -84,12 +88,12 @@ pub fn paint_date_picker_overlay(
 
   let [px, py, pw, ph] = dp.popup_rect;
 
-  let bg = dp.style_bg.unwrap_or(BG);
-  let border = dp.style_border.unwrap_or(BORDER);
-  let text_c = dp.style_text.unwrap_or(TEXT_COLOR);
-  let dim_c = dp.style_dim.unwrap_or(DIM_COLOR);
-  let selected_c = dp.style_selected.unwrap_or(SELECTED_BG);
-  let today_c = dp.style_today.unwrap_or(TODAY_BORDER);
+  let bg = resolve_lui_color(&dp.popup_style.background_color).unwrap_or(BG);
+  let border = resolve_lui_color(&dp.popup_style.border_top_color).unwrap_or(BORDER);
+  let text_c = resolve_lui_color(&dp.popup_style.color).unwrap_or(TEXT_COLOR);
+  let dim_c = DIM_COLOR;
+  let selected_c = SELECTED_BG;
+  let today_c = TODAY_BORDER;
 
   // Background
   list.push_quad_rounded(Rect::new(px, py, pw, ph), bg, [CORNER_R; 4]);

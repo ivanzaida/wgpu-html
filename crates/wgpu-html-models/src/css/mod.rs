@@ -1,2 +1,2 @@
-mod style;
-pub use style::Style;
+pub mod style;
+pub use style::{LuiColorPickerStyle, LuiPopupStyle, Style};
