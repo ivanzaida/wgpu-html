@@ -142,6 +142,12 @@ fn text_node(text: &str) -> CascadedNode {
   cn(Element::Text(ArcStr::from(text)), wgpu_html_models::Style::default(), vec![])
 }
 
+fn text_node_colored(text: &str, color: &CssColor) -> CascadedNode {
+  let mut s = wgpu_html_models::Style::default();
+  s.color = Some(color.clone());
+  cn(Element::Text(ArcStr::from(text)), s, vec![])
+}
+
 fn merge_popup_style(base: &mut wgpu_html_models::Style, popup: Option<&wgpu_html_models::LuiPopupStyle>) {
   let Some(ps) = popup else { return };
   if ps.width.is_some() { base.width = ps.width.clone(); }
@@ -204,18 +210,18 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   ps.gap = Some(CssLength::Px(8.0));
   merge_popup_style(&mut ps, popup_ps);
 
-  // Canvas
+  // Resolve the effective text color for children (no cascade = no inheritance).
+  let text_color = ps.color.clone().unwrap_or(CssColor::Rgba(217, 217, 217, 1.0));
+
+  // Canvas — no explicit width, stretches via flexbox
   let mut cs = wgpu_html_models::Style::default();
-  cs.width = Some(CssLength::Px(240.0));
   cs.height = Some(CssLength::Px(240.0));
-  // LuiCanvas pseudo merges width/height
   if let Some(pks) = cp.picker_style.as_deref() {
-    if pks.canvas_width.is_some() { cs.width = pks.canvas_width.clone(); }
     if pks.canvas_height.is_some() { cs.height = pks.canvas_height.clone(); }
   }
   let canvas_node = cn(Element::Div(Div::default()), cs, vec![]);
 
-  // Hue bar
+  // Hue bar — no explicit width, stretches via flexbox
   let mut hs = wgpu_html_models::Style::default();
   hs.height = Some(CssLength::Px(14.0));
   let bar_r = CssLength::Px(7.0);
@@ -242,7 +248,7 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   } else {
     rgba_string(cp)
   };
-  let rgba_node = build_input_node(&rgba_text, cp);
+  let rgba_node = build_input_node(&rgba_text, cp, &text_color);
 
   // Hex field
   let hex_text = if cp.active_field == Some(ColorPickerField::Hex) {
@@ -250,7 +256,7 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   } else {
     hex_string(cp)
   };
-  let hex_node = build_input_node(&hex_text, cp);
+  let hex_node = build_input_node(&hex_text, cp, &text_color);
 
   let popup = cn(Element::Div(Div::default()), ps, vec![
     canvas_node, hue_node, alpha_node, rgba_node, hex_node,
@@ -259,7 +265,7 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   CascadedTree { root: Some(popup) }
 }
 
-fn build_input_node(text: &str, cp: &ColorPickerState) -> CascadedNode {
+fn build_input_node(text: &str, cp: &ColorPickerState, text_color: &CssColor) -> CascadedNode {
   let mut is = wgpu_html_models::Style::default();
   is.height = Some(CssLength::Px(20.0));
   is.background_color = Some(CssColor::Rgba(26, 26, 26, 1.0));
@@ -315,7 +321,8 @@ fn build_input_node(text: &str, cp: &ColorPickerState) -> CascadedNode {
     if pks.input_font_size.is_some() { is.font_size = pks.input_font_size.clone(); }
   }
 
-  cn(Element::Div(Div::default()), is, vec![text_node(text)])
+  let effective_color = is.color.clone().unwrap_or_else(|| text_color.clone());
+  cn(Element::Div(Div::default()), is, vec![text_node_colored(text, &effective_color)])
 }
 
 pub fn paint_color_picker_overlay(
