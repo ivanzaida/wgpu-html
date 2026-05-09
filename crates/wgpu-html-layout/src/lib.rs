@@ -512,6 +512,10 @@ pub struct LayoutBox {
   /// Resolved CSS `accent-color`. Used by form-control paint to tint
   /// checked checkboxes, radio buttons, and range slider thumbs/fills.
   pub accent_color: Option<Color>,
+  /// `--lui-track-color`: range slider unfilled track background.
+  pub lui_track_color: Option<Color>,
+  /// `--lui-thumb-color`: range slider thumb fill.
+  pub lui_thumb_color: Option<Color>,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -1179,6 +1183,8 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Co
   }
 
   b.accent_color = style.accent_color.as_ref().and_then(|c| resolve_with_current(c, fg));
+  b.lui_track_color = resolve_lui_color(&style.custom_properties, "--lui-track-color", fg);
+  b.lui_thumb_color = resolve_lui_color(&style.custom_properties, "--lui-thumb-color", fg);
 
   let resolve_border = |c: &CssColor| resolve_with_current(c, fg);
   b.border_colors = BorderColors {

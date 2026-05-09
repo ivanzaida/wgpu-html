@@ -699,6 +699,15 @@ fn stroke_line(
   }
 }
 
+/// Checked checkbox/radio fill, range filled portion + accent fallback.
+const FC_DEFAULT_ACCENT: [f32; 4] = [0.2, 0.45, 0.85, 1.0];
+/// Unchecked checkbox/radio border, range track stroke.
+const FC_DEFAULT_BORDER: [f32; 4] = [0.76, 0.76, 0.76, 1.0];
+/// Unchecked checkbox/radio fill, range track + thumb fill.
+const FC_BG: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+/// Range thumb outer shadow ring.
+const FC_THUMB_SHADOW: [f32; 4] = [0.0, 0.0, 0.0, 0.15];
+
 fn accent_mark_color(accent: [f32; 4]) -> [f32; 4] {
   let lum = 0.2126 * accent[0] + 0.7152 * accent[1] + 0.0722 * accent[2];
   if lum > 0.5 {
@@ -722,12 +731,11 @@ fn paint_form_control(
   let cw = cr.w;
   let ch = cr.h;
 
-  let default_accent: [f32; 4] = [0.2, 0.45, 0.85, 1.0];
-  let accent_raw = b.accent_color.unwrap_or(default_accent);
+  let accent_raw = b.accent_color.unwrap_or(FC_DEFAULT_ACCENT);
   let accent = apply_opacity(accent_raw, opacity);
   let mark = apply_opacity(accent_mark_color(accent_raw), opacity);
   let border_color = apply_opacity(
-    b.border_colors.top.unwrap_or([0.76, 0.76, 0.76, 1.0]),
+    b.border_colors.top.unwrap_or(FC_DEFAULT_BORDER),
     opacity,
   );
 
@@ -749,7 +757,7 @@ fn paint_form_control(
         stroke_line(out, x1, y1, x2, y2, t, mark);
         stroke_line(out, x2, y2, x3, y3, t, mark);
       } else {
-        let bg: [f32; 4] = apply_opacity([1.0, 1.0, 1.0, 1.0], opacity);
+        let bg = apply_opacity(FC_BG, opacity);
         out.push_quad_rounded(Rect::new(bx, by, size, size), bg, [r; 4]);
         out.push_quad_stroke_ellipse(
           Rect::new(bx, by, size, size),
@@ -770,7 +778,7 @@ fn paint_form_control(
       if *checked {
         out.push_quad_rounded(Rect::new(bx, by, size, size), accent, [r; 4]);
         if inner > 0.0 {
-          let bg: [f32; 4] = apply_opacity([1.0, 1.0, 1.0, 1.0], opacity);
+          let bg = apply_opacity(FC_BG, opacity);
           out.push_quad_rounded(Rect::new(bx + inset, by + inset, inner, inner), bg, [ir; 4]);
           let dot_r = (size * 0.25).max(1.0);
           let dot_x = bx + (size - dot_r * 2.0) / 2.0;
@@ -778,7 +786,7 @@ fn paint_form_control(
           out.push_quad_rounded(Rect::new(dot_x, dot_y, dot_r * 2.0, dot_r * 2.0), accent, [dot_r; 4]);
         }
       } else {
-        let bg: [f32; 4] = apply_opacity([1.0, 1.0, 1.0, 1.0], opacity);
+        let bg = apply_opacity(FC_BG, opacity);
         out.push_quad_rounded(Rect::new(bx, by, size, size), border_color, [r; 4]);
         if inner > 0.0 {
           out.push_quad_rounded(Rect::new(bx + inset, by + inset, inner, inner), bg, [ir; 4]);
@@ -791,15 +799,18 @@ fn paint_form_control(
 
       let track_h = (ch * 0.25).clamp(3.0, 6.0);
       let track_y = cy + (ch - track_h) / 2.0;
-      let track_color = apply_opacity(
-        b.background.unwrap_or([0.35, 0.35, 0.38, 1.0]),
-        opacity,
-      );
       let track_r = track_h / 2.0;
+      let track_bg = apply_opacity(FC_BG, opacity);
       out.push_quad_rounded(
         Rect::new(cx, track_y, cw, track_h),
-        track_color,
+        track_bg,
         [track_r; 4],
+      );
+      out.push_quad_stroke_ellipse(
+        Rect::new(cx, track_y, cw, track_h),
+        border_color,
+        [track_r; 4], [track_r; 4],
+        [1.0; 4],
       );
 
       let fill_w = cw * frac;
@@ -814,8 +825,8 @@ fn paint_form_control(
       let thumb_r = (ch * 0.35).clamp(5.0, 10.0);
       let thumb_x = cx + frac * (cw - thumb_r * 2.0);
       let thumb_y = cy + (ch - thumb_r * 2.0) / 2.0;
-      let thumb_border: [f32; 4] = apply_opacity([0.0, 0.0, 0.0, 0.15], opacity);
-      let thumb_bg: [f32; 4] = apply_opacity([1.0, 1.0, 1.0, 1.0], opacity);
+      let thumb_border = apply_opacity(FC_THUMB_SHADOW, opacity);
+      let thumb_bg = apply_opacity(FC_BG, opacity);
       out.push_quad_rounded(
         Rect::new(thumb_x - 0.5, thumb_y - 0.5, thumb_r * 2.0 + 1.0, thumb_r * 2.0 + 1.0),
         thumb_border,

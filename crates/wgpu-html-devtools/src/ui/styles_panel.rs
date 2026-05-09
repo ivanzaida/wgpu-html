@@ -99,11 +99,8 @@ impl Component for StylesPanel {
 
     let content = if let Some(path) = &selected {
       if let Some(host_tree) = props.store.host_tree() {
-        let t0 = std::time::Instant::now();
         let inspection = wgpu_html_style::InspectionContext::new(host_tree);
-        let result = build_styles_content(host_tree, &inspection, path, ctx);
-        eprintln!("[styles-panel] build {:.1}ms ({} rules)", t0.elapsed().as_secs_f64() * 1000.0, result.len());
-        result
+        build_styles_content(host_tree, &inspection, path, ctx)
       } else {
         vec![el::span().class(ctx.scoped("empty")).text("No element selected")]
       }

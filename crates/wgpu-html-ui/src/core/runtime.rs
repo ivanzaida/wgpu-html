@@ -512,12 +512,19 @@ impl Runtime {
 }
 
 fn replace_placeholder(node: &mut Node, marker_id: &str, replacement: Node) -> bool {
+  let mut slot = Some(replacement);
+  replace_placeholder_inner(node, marker_id, &mut slot)
+}
+
+fn replace_placeholder_inner(node: &mut Node, marker_id: &str, replacement: &mut Option<Node>) -> bool {
   for i in 0..node.children.len() {
     if node.children[i].element.id() == Some(marker_id) {
-      node.children[i] = replacement;
+      if let Some(r) = replacement.take() {
+        node.children[i] = r;
+      }
       return true;
     }
-    if replace_placeholder(&mut node.children[i], marker_id, replacement.clone()) {
+    if replace_placeholder_inner(&mut node.children[i], marker_id, replacement) {
       return true;
     }
   }
