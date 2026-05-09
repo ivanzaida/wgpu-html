@@ -182,22 +182,53 @@ Standard CSS properties that affect form control rendering:
 
 ### `--lui-*` Vendor Properties
 
-Custom properties for styling form control parts that have no standard CSS equivalent. These use the `--lui-` prefix and accept any `<color>` value.
+Vendor properties for styling form control overlay parts. Unlike plain custom properties, `--lui-*` values are **parsed through the CSS engine** — they support the same syntax as their regular CSS counterparts (shorthands, `<length>`, `<color>`, `<border-style>`, etc.). They also inherit and work with `var()`.
 
-| Property | Default | Effect |
-|---|---|---|
-| `--lui-track-color` | white | Range slider unfilled track background |
-| `--lui-thumb-color` | white | Range slider thumb fill |
-| `--lui-picker-bg` | `rgba(38,38,38,0.96)` | Color picker popup background |
-| `--lui-picker-border` | `rgb(77,77,77)` | Color picker popup border |
-| `--lui-picker-indicator` | white | Color picker crosshair circle and slider knob |
-| `--lui-picker-label` | `rgb(217,217,217)` | Color picker rgba/hex text labels |
-| `--lui-calendar-bg` | `rgba(38,38,38,0.96)` | Date picker popup background |
-| `--lui-calendar-border` | `rgb(77,77,77)` | Date picker popup border |
-| `--lui-calendar-text` | `rgb(217,217,217)` | Date picker primary text (header, day numbers) |
-| `--lui-calendar-dim` | `rgb(115,115,115)` | Date picker secondary text (weekday headers, overflow days, nav arrows) |
-| `--lui-calendar-selected` | `rgba(59,130,245,1)` | Date picker selected day background |
-| `--lui-calendar-today` | `rgba(102,153,255,1)` | Date picker today outline ring |
+#### Range slider
+
+| Property | Default | Type | Effect |
+|---|---|---|---|
+| `--lui-track-color` | white | `<color>` | Unfilled track background |
+| `--lui-thumb-color` | white | `<color>` | Thumb fill |
+
+#### Popup (shared)
+
+These apply to both color picker and date picker popups.
+
+| Property | Default | Type | Effect |
+|---|---|---|---|
+| `--lui-popup-width` | (auto) | `<length>` | Popup width |
+| `--lui-popup-height` | (auto) | `<length>` | Popup height |
+| `--lui-popup-background` | dark gray | `<color>` | Background |
+| `--lui-popup-color` | light gray | `<color>` | Text color |
+| `--lui-popup-border` | — | `<border-shorthand>` | Border (width + style + color, all sides) |
+| `--lui-popup-border-width` | `1px` | `<length>` | Border width (all sides) |
+| `--lui-popup-border-style` | `solid` | `<border-style>` | Border style (all sides) |
+| `--lui-popup-border-color` | mid gray | `<color>` | Border color (all sides) |
+| `--lui-popup-border-radius` | `6px` | `<length>` | Corner radius |
+| `--lui-popup-font-size` | `11px` | `<length>` | Text size |
+| `--lui-popup-font-family` | sans-serif | `<string>` | Font family |
+| `--lui-popup-font-weight` | normal | `<font-weight>` | Font weight |
+
+Per-side longhands are also available: `--lui-popup-border-top-width`, `--lui-popup-border-right-color`, etc.
+
+#### Color picker
+
+| Property | Default | Type | Effect |
+|---|---|---|---|
+| `--lui-color-canvas-width` | `240px` | `<length>` | SV canvas width |
+| `--lui-color-canvas-height` | `240px` | `<length>` | SV canvas height |
+| `--lui-color-range-height` | `14px` | `<length>` | Hue/alpha bar height |
+| `--lui-color-range-border-radius` | `7px` | `<length>` | Bar corner radius |
+| `--lui-color-thumb-width` | `6px` | `<length>` | Slider knob width |
+| `--lui-color-thumb-height` | `16px` | `<length>` | Slider knob height |
+| `--lui-color-thumb-color` | white | `<color>` | Knob and crosshair color |
+| `--lui-color-input-height` | `20px` | `<length>` | RGBA/hex text field height |
+| `--lui-color-input-background` | dark gray | `<color>` | Text field background |
+| `--lui-color-input-border-color` | mid gray | `<color>` | Text field border |
+| `--lui-color-input-border-width` | `1px` | `<length>` | Text field border width |
+| `--lui-color-input-border-radius` | `3px` | `<length>` | Text field corner radius |
+| `--lui-color-input-font-size` | `11px` | `<length>` | Text field font size |
 
 ```css
 input[type="range"] {
@@ -207,20 +238,20 @@ input[type="range"] {
 }
 
 input[type="color"] {
-    --lui-picker-bg: #1e1e2e;
-    --lui-picker-border: #444;
-    --lui-picker-indicator: #cdd6f4;
-    --lui-picker-label: #bac2de;
+    --lui-popup-background: #1e1e2e;
+    --lui-popup-border: 1px solid #585b70;
+    --lui-popup-color: #cdd6f4;
+    --lui-color-thumb-color: #cdd6f4;
+    --lui-color-input-background: #181825;
+    --lui-color-input-border-color: #585b70;
 }
 
 input[type="date"],
 input[type="datetime-local"] {
-    --lui-calendar-bg: #1e1e2e;
-    --lui-calendar-border: #444;
-    --lui-calendar-text: #cdd6f4;
-    --lui-calendar-dim: #6c7086;
-    --lui-calendar-selected: #89b4fa;
-    --lui-calendar-today: #74c7ec;
+    --lui-popup-background: #1e1e2e;
+    --lui-popup-border: 1px solid #585b70;
+    --lui-popup-color: #cdd6f4;
+    --lui-popup-border-radius: 8px;
 }
 ```
 

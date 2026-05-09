@@ -33,24 +33,54 @@ Custom properties can be defined:
 
 ### Engine Vendor Properties (`--lui-*`)
 
-wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling. These are regular custom properties (inherited, `var()`-compatible) that the paint system reads directly:
+wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling. Unlike plain custom properties, `--lui-*` values are **parsed through the CSS engine** into typed values (colors, lengths, border shorthands, etc.) — they support the same syntax as their regular CSS counterparts.
 
-| Property | Effect |
-|---|---|
-| `--lui-track-color` | Range slider unfilled track background |
-| `--lui-thumb-color` | Range slider thumb fill |
-| `--lui-picker-bg` | Color picker popup background |
-| `--lui-picker-border` | Color picker popup border |
-| `--lui-picker-indicator` | Color picker crosshair and slider knob |
-| `--lui-picker-label` | Color picker rgba/hex text label |
-| `--lui-calendar-bg` | Date picker popup background |
-| `--lui-calendar-border` | Date picker popup border |
-| `--lui-calendar-text` | Date picker primary text |
-| `--lui-calendar-dim` | Date picker secondary text (weekday headers, overflow days) |
-| `--lui-calendar-selected` | Date picker selected day background |
-| `--lui-calendar-today` | Date picker today outline |
+#### Range slider
 
-See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details.
+| Property | Type | Effect |
+|---|---|---|
+| `--lui-track-color` | `<color>` | Unfilled track background |
+| `--lui-thumb-color` | `<color>` | Thumb fill |
+
+#### Popup (shared by color picker and date picker)
+
+| Property | Type | Effect |
+|---|---|---|
+| `--lui-popup-width` | `<length>` | Popup width |
+| `--lui-popup-height` | `<length>` | Popup height |
+| `--lui-popup-background` | `<color>` | Popup background |
+| `--lui-popup-color` | `<color>` | Popup text color |
+| `--lui-popup-border` | `<border-shorthand>` | Popup border (width + style + color) |
+| `--lui-popup-border-width` | `<length>` | All four sides |
+| `--lui-popup-border-style` | `<border-style>` | All four sides |
+| `--lui-popup-border-color` | `<color>` | All four sides |
+| `--lui-popup-border-top-width` | `<length>` | Single side (also `-right`, `-bottom`, `-left`) |
+| `--lui-popup-border-top-style` | `<border-style>` | Single side |
+| `--lui-popup-border-top-color` | `<color>` | Single side |
+| `--lui-popup-border-radius` | `<length>` | Corner radius |
+| `--lui-popup-font-size` | `<length>` | Text font size |
+| `--lui-popup-font-family` | `<string>` | Text font family |
+| `--lui-popup-font-weight` | `<font-weight>` | Text font weight |
+
+#### Color picker
+
+| Property | Type | Effect |
+|---|---|---|
+| `--lui-color-canvas-width` | `<length>` | Saturation/value canvas width |
+| `--lui-color-canvas-height` | `<length>` | Saturation/value canvas height |
+| `--lui-color-range-height` | `<length>` | Hue/alpha slider bar height |
+| `--lui-color-range-border-radius` | `<length>` | Slider bar corner radius |
+| `--lui-color-thumb-width` | `<length>` | Slider thumb knob width |
+| `--lui-color-thumb-height` | `<length>` | Slider thumb knob height |
+| `--lui-color-thumb-color` | `<color>` | Slider thumb and canvas crosshair color |
+| `--lui-color-input-height` | `<length>` | Text input field height |
+| `--lui-color-input-background` | `<color>` | Text input field background |
+| `--lui-color-input-border-color` | `<color>` | Text input field border color |
+| `--lui-color-input-border-width` | `<length>` | Text input field border width |
+| `--lui-color-input-border-radius` | `<length>` | Text input field corner radius |
+| `--lui-color-input-font-size` | `<length>` | Text input field font size |
+
+See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details and examples.
 
 ## `var()` Usage
 
