@@ -17,6 +17,7 @@
     .columns {
         display: flex;
         gap: 32px;
+        flex-wrap: wrap;
     }
 
     .card {
@@ -53,69 +54,80 @@
 
     /* ── Catppuccin Mocha ── */
 
-    .mocha input[type="color"] {
-        border-color: #585b70;
-        --lui-picker-bg: #1e1e2e;
-        --lui-picker-border: #585b70;
-        --lui-picker-indicator: #cdd6f4;
-        --lui-picker-label: #bac2de;
-    }
-
+    .mocha input[type="color"],
     .mocha input[type="date"],
     .mocha input[type="datetime-local"] {
         border-color: #585b70;
-        --lui-calendar-bg: #1e1e2e;
-        --lui-calendar-border: #585b70;
-        --lui-calendar-text: #cdd6f4;
-        --lui-calendar-dim: #6c7086;
-        --lui-calendar-selected: #89b4fa;
-        --lui-calendar-today: #74c7ec;
+        --lui-popup-background: #1e1e2e;
+        --lui-popup-border: 1px solid #585b70;
+        --lui-popup-color: #cdd6f4;
+        --lui-color-thumb-color: #cdd6f4;
+        --lui-color-input-background: #181825;
+        --lui-color-input-border-color: #585b70;
     }
 
     /* ── Nord ── */
 
-    .nord input[type="color"] {
-        border-color: #4c566a;
-        --lui-picker-bg: #2e3440;
-        --lui-picker-border: #4c566a;
-        --lui-picker-indicator: #eceff4;
-        --lui-picker-label: #d8dee9;
-    }
-
+    .nord input[type="color"],
     .nord input[type="date"],
     .nord input[type="datetime-local"] {
         border-color: #4c566a;
-        --lui-calendar-bg: #2e3440;
-        --lui-calendar-border: #4c566a;
-        --lui-calendar-text: #eceff4;
-        --lui-calendar-dim: #616e88;
-        --lui-calendar-selected: #88c0d0;
-        --lui-calendar-today: #81a1c1;
+        --lui-popup-background: #2e3440;
+        --lui-popup-border: 1px solid #4c566a;
+        --lui-popup-color: #eceff4;
+        --lui-popup-border-radius: 8px;
+        --lui-color-thumb-color: #eceff4;
+        --lui-color-input-background: #3b4252;
+        --lui-color-input-border-color: #4c566a;
+        --lui-color-input-border-radius: 6px;
     }
 
-    /* ── Warm ── */
+    /* ── Warm (light) ── */
 
-    .warm input[type="color"] {
-        background: #fdf6e3;
-        border-color: #d4a373;
-        color: #3d2c1e;
-        --lui-picker-bg: #fdf6e3;
-        --lui-picker-border: #d4a373;
-        --lui-picker-indicator: #3d2c1e;
-        --lui-picker-label: #5c4033;
-    }
-
+    .warm input[type="color"],
     .warm input[type="date"],
     .warm input[type="datetime-local"] {
         background: #fdf6e3;
         border-color: #d4a373;
         color: #3d2c1e;
-        --lui-calendar-bg: #fdf6e3;
-        --lui-calendar-border: #d4a373;
-        --lui-calendar-text: #3d2c1e;
-        --lui-calendar-dim: #a08060;
-        --lui-calendar-selected: #d4a373;
-        --lui-calendar-today: #cb997e;
+        --lui-popup-background: #fdf6e3;
+        --lui-popup-border: 1px solid #d4a373;
+        --lui-popup-color: #3d2c1e;
+        --lui-color-thumb-color: #3d2c1e;
+        --lui-color-input-background: #f5edd6;
+        --lui-color-input-border-color: #d4a373;
+    }
+
+    /* ── Custom (granular overrides) ── */
+
+    .custom input[type="color"] {
+        border-color: #7c3aed;
+        --lui-popup-background: #120b24;
+        --lui-popup-border: 2px solid #7c3aed;
+        --lui-popup-border-radius: 12px;
+        --lui-popup-color: #c4b5fd;
+        --lui-color-canvas-width: 200px;
+        --lui-color-canvas-height: 200px;
+        --lui-color-range-height: 10px;
+        --lui-color-range-border-radius: 5px;
+        --lui-color-thumb-width: 4px;
+        --lui-color-thumb-height: 14px;
+        --lui-color-thumb-color: #a78bfa;
+        --lui-color-input-height: 24px;
+        --lui-color-input-background: #1e1038;
+        --lui-color-input-border-color: #7c3aed;
+        --lui-color-input-border-radius: 6px;
+        --lui-color-input-font-size: 12px;
+    }
+
+    .custom input[type="date"],
+    .custom input[type="datetime-local"] {
+        border-color: #7c3aed;
+        --lui-popup-background: #120b24;
+        --lui-popup-border: 2px solid #7c3aed;
+        --lui-popup-border-radius: 12px;
+        --lui-popup-color: #c4b5fd;
+        --lui-popup-font-size: 11px;
     }
 </style>
 <div class="columns">
@@ -173,6 +185,22 @@
         <label>
             Color
             <input type="color" value="#d4a373"/>
+        </label>
+        <label>
+            Date
+            <input type="date" value="2025-05-09"/>
+        </label>
+        <label>
+            Date + Time
+            <input type="datetime-local" value="2025-05-09T14:30"/>
+        </label>
+    </div>
+
+    <div class="card custom">
+        <h2>Custom (granular)</h2>
+        <label>
+            Color
+            <input type="color" value="#a78bfa"/>
         </label>
         <label>
             Date
