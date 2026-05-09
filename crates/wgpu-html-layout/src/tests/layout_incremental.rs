@@ -29,6 +29,8 @@ fn full_and_incremental(
     vw,
     vh,
     1.0,
+    &wgpu_html_tree::DefaultLocale,
+    None,
   );
   let incremental = prev;
 
@@ -493,6 +495,8 @@ fn empty_dirty_paths_is_noop() {
     800.0,
     600.0,
     1.0,
+    &wgpu_html_tree::DefaultLocale,
+    None,
   );
   assert!(!changed);
   assert!((prev.margin_rect.h - original_h).abs() < 0.01);

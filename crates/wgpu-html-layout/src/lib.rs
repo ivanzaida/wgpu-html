@@ -999,19 +999,20 @@ pub fn layout_incremental(
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
+  locale: &dyn wgpu_html_tree::Locale,
+  date_display_value: Option<String>,
 ) -> bool {
   let Some(root) = cascaded.root.as_ref() else {
     return false;
   };
-  let default_locale = wgpu_html_tree::DefaultLocale;
   let mut ctx = Ctx {
     viewport_w,
     viewport_h,
     scale,
     text: TextCtx { ctx: text_ctx },
     images: image_cache,
-    locale: &default_locale,
-    date_display_value: None,
+    locale,
+    date_display_value,
     date_focus_path: None,
     profiler: None,
   };

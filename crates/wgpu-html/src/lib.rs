@@ -453,6 +453,7 @@ pub fn paint_tree_cached<'c>(
           if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
             wgpu_html_layout::layout_incremental(
               cascaded, layout, &dirty, text_ctx, image_cache, viewport_w, viewport_h, scale,
+              tree.locale.as_ref(), tree.interaction.date_display_value.clone(),
             );
             true
           } else {
