@@ -236,7 +236,7 @@ fn file_has_form_control_info() {
   let tree = make(r#"<body style="margin:0;"><input type="file" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let fc = find_form_control(&root).expect("file should have FormControlInfo");
-  assert!(matches!(fc.kind, FormControlKind::File));
+  assert!(matches!(fc.kind, FormControlKind::File { .. }));
 }
 
 // ── Hidden ──────────────────────────────────────────────────────────

@@ -50,6 +50,7 @@ bytemuck = { version = "1", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 ureq = "3.3.0"
 resvg = "0.47.0"
+rfd = "0.17.2"
 
 
 # ── Dev profile: optimize hot crates for usable FPS during development ──

@@ -1463,7 +1463,7 @@ fn handle_activation_key(tree: &mut Tree) {
     Element::A(a) => a.href.is_some(),
     Element::Input(inp) => matches!(
       inp.r#type,
-      Some(InputType::Checkbox) | Some(InputType::Submit) | Some(InputType::Reset) | Some(InputType::Button)
+      Some(InputType::Checkbox) | Some(InputType::Submit) | Some(InputType::Reset) | Some(InputType::Button) | Some(InputType::File)
     ),
     _ => false,
   };
@@ -2636,6 +2636,21 @@ pub fn set_date_value(tree: &mut Tree, path: &[usize], value: &str) {
     tree.dirty_paths.push(path.to_vec());
   }
   bubble_input(tree, path, None, ev::enums::InputType::InsertText);
+  fire_change_event_at(tree, path);
+}
+
+pub fn set_file_value(tree: &mut Tree, path: &[usize], files: Vec<m::input::FileInfo>) {
+  use wgpu_html_models::common::html_enums::InputType;
+  let Some(root) = tree.root.as_mut() else { return };
+  let Some(node) = root.at_path_mut(path) else { return };
+  if let Element::Input(inp) = &mut node.element {
+    if !matches!(inp.r#type, Some(InputType::File)) { return; }
+    inp.value = files.first().map(|f| f.name.clone());
+    inp.files = files;
+    tree.form_control_generation += 1;
+    tree.generation += 1;
+    tree.dirty_paths.push(path.to_vec());
+  }
   fire_change_event_at(tree, path);
 }
 

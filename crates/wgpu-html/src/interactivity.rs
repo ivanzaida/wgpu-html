@@ -116,6 +116,18 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
             css_cursor = Cursor::Pointer;
           }
         }
+        if matches!(fc.kind, FormControlKind::File { .. }) {
+          let cr = lb.content_rect;
+          let btn_w = crate::paint::file_button_width(lb);
+          if pos.0 <= cr.x + btn_w {
+            let btn_cursor = lb.file_button.as_ref()
+              .map(|f| f.cursor.clone())
+              .unwrap_or(Cursor::Pointer);
+            css_cursor = btn_cursor;
+          } else {
+            css_cursor = Cursor::Auto;
+          }
+        }
       }
     }
   }
@@ -454,6 +466,15 @@ pub fn mouse_down_with_click_count(
               }
               } // icon click else
             }
+            FormControlKind::File { disabled, .. } => {
+              if !disabled {
+                let cr = lb.content_rect;
+                let btn_w = crate::paint::file_button_width(lb);
+                if pos.0 <= cr.x + btn_w {
+                  open_file_dialog(tree, target_path);
+                }
+              }
+            }
             _ => {}
           }
         }
@@ -462,6 +483,99 @@ pub fn mouse_down_with_click_count(
   }
 
   result
+}
+
+fn open_file_dialog(tree: &mut Tree, path: &[usize]) {
+  let (accept, multiple) = tree.root.as_ref()
+    .and_then(|r| r.at_path(path))
+    .and_then(|n| match &n.element {
+      wgpu_html_tree::Element::Input(inp) => Some((
+        inp.accept.as_deref().map(str::to_string),
+        inp.multiple.unwrap_or(false),
+      )),
+      _ => None,
+    })
+    .unwrap_or((None, false));
+
+  let mut dialog = rfd::FileDialog::new();
+  if let Some(accept) = &accept {
+    let (name, exts) = parse_accept_filter(accept);
+    if !exts.is_empty() {
+      let refs: Vec<&str> = exts.iter().map(|s| s.as_str()).collect();
+      dialog = dialog.add_filter(&name, &refs);
+    }
+  }
+
+  let files = if multiple {
+    dialog.pick_files()
+  } else {
+    dialog.pick_file().map(|f| vec![f])
+  };
+
+  if let Some(paths) = files {
+    let infos: Vec<wgpu_html_models::input::FileInfo> = paths.iter().map(|p| {
+      let meta = std::fs::metadata(p).ok();
+      wgpu_html_models::input::FileInfo {
+        name: p.file_name().unwrap_or_default().to_string_lossy().into(),
+        size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+        mime_type: guess_mime_type(p).into(),
+        last_modified: meta.and_then(|m| m.modified().ok())
+          .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+          .map(|d| d.as_millis() as u64)
+          .unwrap_or(0),
+        path: Some(p.clone()),
+      }
+    }).collect();
+    wgpu_html_tree::set_file_value(tree, path, infos);
+  }
+}
+
+fn parse_accept_filter(accept: &str) -> (String, Vec<String>) {
+  let mut exts = Vec::new();
+  for token in accept.split(',') {
+    let token = token.trim();
+    if token.starts_with('.') {
+      exts.push(token.trim_start_matches('.').to_string());
+    } else if let Some((_cat, sub)) = token.split_once('/') {
+      if sub != "*" {
+        exts.push(sub.to_string());
+      }
+    }
+  }
+  let name = if exts.is_empty() { "All files".to_string() } else { exts.join(", ") };
+  (name, exts)
+}
+
+fn guess_mime_type(path: &std::path::Path) -> &'static str {
+  match path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+    "html" | "htm" => "text/html",
+    "css" => "text/css",
+    "js" | "mjs" => "application/javascript",
+    "json" => "application/json",
+    "xml" => "application/xml",
+    "txt" => "text/plain",
+    "csv" => "text/csv",
+    "pdf" => "application/pdf",
+    "zip" => "application/zip",
+    "gz" | "gzip" => "application/gzip",
+    "png" => "image/png",
+    "jpg" | "jpeg" => "image/jpeg",
+    "gif" => "image/gif",
+    "svg" => "image/svg+xml",
+    "webp" => "image/webp",
+    "bmp" => "image/bmp",
+    "ico" => "image/x-icon",
+    "mp3" => "audio/mpeg",
+    "wav" => "audio/wav",
+    "ogg" => "audio/ogg",
+    "mp4" => "video/mp4",
+    "webm" => "video/webm",
+    "woff" => "font/woff",
+    "woff2" => "font/woff2",
+    "ttf" => "font/ttf",
+    "otf" => "font/otf",
+    _ => "application/octet-stream",
+  }
 }
 
 fn field_value(tree: &Tree, focus_path: &[usize]) -> Option<String> {

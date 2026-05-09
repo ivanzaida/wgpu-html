@@ -233,7 +233,7 @@ pub mod label;
 pub use label::Label;
 
 pub mod input;
-pub use input::Input;
+pub use input::{FileInfo, Input};
 
 pub mod textarea;
 pub use textarea::Textarea;

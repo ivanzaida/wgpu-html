@@ -26,8 +26,8 @@ pub mod tree_hook;
 pub use dispatch::{
   blur, clipboard_event, cut_selection, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave,
   dispatch_pointer_move, flush_date_to_iso, focus, focus_next, key_down, key_up, resize_event, scroll_event,
-  select_event, selectionchange_event, set_color_value, set_date_value, set_range_value_by_fraction,
-  text_input, wheel_event,
+  select_event, selectionchange_event, set_color_value, set_date_value, set_file_value,
+  set_range_value_by_fraction, text_input, wheel_event,
 };
 pub use events::{
   CachedLayout, ColorPickerDragTarget, ColorPickerField, ColorPickerState, DatePickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,

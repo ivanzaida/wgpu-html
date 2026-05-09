@@ -120,6 +120,7 @@ pub enum PseudoElement {
   LuiCalendarTime,
   LuiCalendarReset,
   LuiCalendarIcon,
+  FileSelectorButton,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -540,6 +541,7 @@ fn parse_pseudo_element_name(name: &str) -> Result<PseudoElement, String> {
     "lui-calendar-time" => Ok(PseudoElement::LuiCalendarTime),
     "lui-calendar-reset" => Ok(PseudoElement::LuiCalendarReset),
     "lui-calendar-icon" => Ok(PseudoElement::LuiCalendarIcon),
+    "file-selector-button" => Ok(PseudoElement::FileSelectorButton),
     _ => Err(format!("unknown pseudo-element `::{}`", name)),
   }
 }

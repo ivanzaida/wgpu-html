@@ -517,6 +517,7 @@ pub struct LayoutBox {
   pub lui_popup: Option<std::sync::Arc<wgpu_html_models::LuiPopupStyle>>,
   pub lui_color_picker: Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>>,
   pub lui_calendar: Option<std::sync::Arc<wgpu_html_models::LuiCalendarStyle>>,
+  pub file_button: Option<FileButtonStyle>,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -524,7 +525,7 @@ pub struct LayoutBox {
   pub form_control: Option<FormControlInfo>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FormControlKind {
   Checkbox { checked: bool },
   Radio { checked: bool },
@@ -532,12 +533,35 @@ pub enum FormControlKind {
   Color { r: f32, g: f32, b: f32, a: f32 },
   Date { year: i32, month: u8, day: u8 },
   DatetimeLocal { year: i32, month: u8, day: u8, hour: u8, minute: u8 },
-  File,
+  File { file_name: Option<String>, file_count: usize, disabled: bool },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FormControlInfo {
   pub kind: FormControlKind,
+}
+
+#[derive(Debug, Clone)]
+pub struct FileButtonStyle {
+  pub background: Option<Color>,
+  pub color: Option<Color>,
+  pub border_color: Option<Color>,
+  pub border_radius: f32,
+  pub padding_x: f32,
+  pub cursor: Cursor,
+}
+
+impl Default for FileButtonStyle {
+  fn default() -> Self {
+    Self {
+      background: Some([0.93, 0.93, 0.93, 1.0]),
+      color: Some([0.0, 0.0, 0.0, 1.0]),
+      border_color: Some([0.6, 0.6, 0.6, 1.0]),
+      border_radius: 3.0,
+      padding_x: 8.0,
+      cursor: Cursor::Pointer,
+    }
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -1323,6 +1347,44 @@ fn lui_calendar_from_pseudo(node: &CascadedNode) -> Option<std::sync::Arc<wgpu_h
   if any { Some(std::sync::Arc::new(p)) } else { None }
 }
 
+fn file_button_from_pseudo(node: &CascadedNode) -> Option<FileButtonStyle> {
+  let s = node.lui_style(wgpu_html_tree::PseudoElement::FileSelectorButton)?;
+  let mut fb = FileButtonStyle::default();
+  if let Some(c) = s.background_color.as_ref().and_then(|c| color::resolve_color(c)) {
+    fb.background = Some(c);
+  }
+  if let Some(c) = s.color.as_ref().and_then(|c| color::resolve_color(c)) {
+    fb.color = Some(c);
+  }
+  if let Some(c) = s.border_top_color.as_ref().and_then(|c| color::resolve_color(c)) {
+    fb.border_color = Some(c);
+  }
+  if let Some(r) = resolve_border_radius_single(s.border_top_left_radius.as_ref()) {
+    fb.border_radius = r;
+  }
+  if let Some(px) = resolve_length_px(s.padding_left.as_ref(), 16.0) {
+    fb.padding_x = px;
+  }
+  if let Some(c) = s.cursor.clone() {
+    fb.cursor = c;
+  }
+  Some(fb)
+}
+
+fn resolve_length_px(val: Option<&wgpu_html_models::common::CssLength>, font_size: f32) -> Option<f32> {
+  use wgpu_html_models::common::CssLength;
+  match val? {
+    CssLength::Px(v) => Some(*v),
+    CssLength::Em(v) => Some(*v * font_size),
+    CssLength::Rem(v) => Some(*v * 16.0),
+    _ => None,
+  }
+}
+
+fn resolve_border_radius_single(val: Option<&wgpu_html_models::common::CssLength>) -> Option<f32> {
+  resolve_length_px(val, 16.0)
+}
+
 fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Color) {
   use color::{resolve_foreground, resolve_with_current};
   let style = &node.style;
@@ -2065,6 +2127,7 @@ fn layout_block(
     lui_popup: lui_popup_from_pseudo(node),
     lui_color_picker: lui_color_from_pseudo(node),
     lui_calendar: lui_calendar_from_pseudo(node),
+    file_button: file_button_from_pseudo(node),
     children,
     is_fixed: false,
     form_control: fc,
@@ -2110,10 +2173,22 @@ fn compute_value_run(
             | InputType::Radio
             | InputType::Range
             | InputType::Color
-            | InputType::File
         )
       ) {
         return (None, None);
+      }
+      if matches!(inp.r#type, Some(InputType::File)) {
+        let label = if let Some(first) = inp.files.first() {
+          if inp.files.len() > 1 {
+            format!("{} files", inp.files.len())
+          } else {
+            first.name.to_string()
+          }
+        } else {
+          ctx.locale.file_no_file_label().to_string()
+        };
+        let composite = format!("{}  {}", ctx.locale.file_browse_label(), label);
+        return shape_input_text(&composite, false, content_rect, node, ctx);
       }
       // Date inputs: show locale-formatted value (or display value while editing).
       if matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal)) {
@@ -2259,9 +2334,11 @@ fn compute_placeholder_run(
             | InputType::Radio
             | InputType::Range
             | InputType::Color
-            | InputType::File
         )
       ) {
+        return (None, None);
+      }
+      if matches!(inp.r#type, Some(InputType::File)) {
         return (None, None);
       }
       (inp.placeholder.as_deref(), false)
@@ -2453,7 +2530,11 @@ fn form_control_info_from_element(element: &Element) -> Option<FormControlInfo> 
       let (y, m, d, hour, minute) = wgpu_html_tree::date::parse_datetime_local(val).unwrap_or((0, 0, 0, 0, 0));
       FormControlKind::DatetimeLocal { year: y, month: m, day: d, hour, minute }
     }
-    Some(InputType::File) => FormControlKind::File,
+    Some(InputType::File) => FormControlKind::File {
+      file_name: inp.files.first().map(|f| f.name.to_string()),
+      file_count: inp.files.len(),
+      disabled: inp.disabled.unwrap_or(false),
+    },
     _ => return None,
   };
   Some(FormControlInfo { kind })
@@ -2982,6 +3063,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
+    file_button: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3064,6 +3146,7 @@ fn make_text_leaf(
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
+    file_button: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3399,6 +3482,7 @@ fn layout_inline_subtree(
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
+    file_button: None,
     children: final_children,
     is_fixed: false,
     form_control: None,
@@ -3597,6 +3681,7 @@ fn layout_atomic_inline_subtree(
       lui_popup: lui_popup_from_pseudo(node),
       lui_color_picker: lui_color_from_pseudo(node),
       lui_calendar: lui_calendar_from_pseudo(node),
+      file_button: file_button_from_pseudo(node),
       children,
       is_fixed: false,
       form_control: fc,
@@ -4126,6 +4211,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
+    file_button: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -4361,6 +4447,7 @@ fn layout_inline_paragraph(
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
+    file_button: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

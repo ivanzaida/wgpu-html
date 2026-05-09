@@ -886,7 +886,27 @@ fn paint_form_control(
         out.push_quad_rounded(Rect::new(r2x, ring_y, ring_w, ring_h), c, [rr; 4]);
       }
     }
-    FormControlKind::File => {}
+    FormControlKind::File { disabled, .. } => {
+      if cw > 0.0 && ch > 0.0 {
+        let fb = b.file_button.as_ref();
+        let btn_h = (ch - 4.0).max(0.0).min(22.0);
+        let btn_w = file_button_width(b);
+        let btn_y = cy + (ch - btn_h) / 2.0;
+        let btn_r = fb.map(|f| f.border_radius).unwrap_or(3.0);
+        let default_bg = if *disabled {
+          [0.85, 0.85, 0.85, 1.0]
+        } else {
+          [0.93, 0.93, 0.93, 1.0]
+        };
+        let btn_bg = apply_opacity(fb.and_then(|f| f.background).unwrap_or(default_bg), opacity);
+        let btn_border = apply_opacity(
+          fb.and_then(|f| f.border_color).unwrap_or([0.6, 0.6, 0.6, 1.0]),
+          opacity,
+        );
+        out.push_quad_rounded(Rect::new(cx, btn_y, btn_w, btn_h), btn_bg, [btn_r; 4]);
+        out.push_quad_stroke(Rect::new(cx, btn_y, btn_w, btn_h), btn_border, [btn_r; 4], [1.0; 4]);
+      }
+    }
   }
 }
 
@@ -1591,6 +1611,21 @@ fn paint_edge(
 }
 
 /// Convert a byte offset in a value string to a glyph index in the
+pub fn file_button_width(b: &wgpu_html_layout::LayoutBox) -> f32 {
+  if let Some(run) = &b.text_run {
+    if let Some(sep) = run.text.find("  ") {
+      let char_idx = run.text[..sep].chars().count();
+      let glyph_idx = run.char_to_glyph_index(char_idx);
+      if glyph_idx > 0 && glyph_idx <= run.glyphs.len() {
+        let g = &run.glyphs[glyph_idx - 1];
+        let pad = b.file_button.as_ref().map(|f| f.padding_x).unwrap_or(4.0);
+        return g.x + g.w + pad;
+      }
+    }
+  }
+  (b.content_rect.w * 0.35).min(80.0).max(40.0).min(b.content_rect.w)
+}
+
 /// shaped run. Uses the run's `byte_boundaries` to map byte positions
 /// to glyph positions.
 pub fn byte_offset_to_glyph_index(run: &wgpu_html_text::ShapedRun, byte_offset: usize) -> usize {

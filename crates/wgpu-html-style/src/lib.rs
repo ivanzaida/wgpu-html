@@ -433,6 +433,7 @@ fn compound_to_string(c: &CompoundSelector, s: &mut String) {
       PseudoElement::LuiCalendarTime => s.push_str("lui-calendar-time"),
       PseudoElement::LuiCalendarReset => s.push_str("lui-calendar-reset"),
       PseudoElement::LuiCalendarIcon => s.push_str("lui-calendar-icon"),
+      PseudoElement::FileSelectorButton => s.push_str("file-selector-button"),
     }
   }
   if s.is_empty() {
@@ -840,6 +841,9 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
 }
 
 pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
+  eprintln!("[cascade] Style size = {} bytes, CascadedNode size = {} bytes",
+    std::mem::size_of::<Style>(),
+    std::mem::size_of::<CascadedNode>());
   let author = collect_prepared_stylesheet_cached(tree);
   let sheets = collect_sheets(tree.use_ua_stylesheet, &author);
   let interaction = &tree.interaction;
@@ -849,10 +853,11 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
   let Some(root) = tree.root.as_ref() else {
     return CascadedTree { root: None };
   };
-  CascadedTree {
+  let mut max_depth: usize = 0;
+  let result = CascadedTree {
     root: Some(cascade_node(
       root,
-      root, // node = root for the root element
+      root,
       &sheets,
       None,
       &[],
@@ -862,8 +867,12 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
       None,
       &cascade_ctx,
       media,
+      0,
+      &mut max_depth,
     )),
-  }
+  };
+  eprintln!("[cascade] max depth = {max_depth}");
+  result
 }
 
 /// Incrementally re-cascade only the nodes whose pseudo-class state
@@ -1802,7 +1811,10 @@ fn cascade_node(
   sibling_count: Option<usize>,
   cascade_ctx: &CascadeContext,
   media: &MediaContext,
+  depth: usize,
+  max_depth: &mut usize,
 ) -> CascadedNode {
+  if depth > *max_depth { *max_depth = depth; }
   let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
   let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
     (Style::default(), HashMap::new())
@@ -1876,6 +1888,8 @@ fn cascade_node(
         Some(child_count),
         cascade_ctx,
         media,
+        depth + 1,
+        max_depth,
       );
       path.pop();
       cn
@@ -1934,6 +1948,7 @@ const LUI_PSEUDO_ELEMENTS: &[PseudoElement] = &[
   PseudoElement::LuiCalendarTime,
   PseudoElement::LuiCalendarReset,
   PseudoElement::LuiCalendarIcon,
+  PseudoElement::FileSelectorButton,
 ];
 
 fn compute_lui_pseudo_styles(

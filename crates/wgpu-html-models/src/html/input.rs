@@ -3,6 +3,15 @@ use std::collections::HashMap;
 
 use crate::common::html_enums::{AriaRole, CaptureMode, HtmlDirection, InputType};
 
+#[derive(Debug, Clone)]
+pub struct FileInfo {
+  pub name: ArcStr,
+  pub size: u64,
+  pub mime_type: ArcStr,
+  pub last_modified: u64,
+  pub path: Option<std::path::PathBuf>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Input {
   pub id: Option<ArcStr>,
@@ -46,4 +55,5 @@ pub struct Input {
   pub size: Option<u32>,
   pub list: Option<ArcStr>,
   pub form: Option<ArcStr>,
+  pub files: Vec<FileInfo>,
 }
