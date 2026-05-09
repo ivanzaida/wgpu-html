@@ -33,87 +33,68 @@ Custom properties can be defined:
 
 ### Engine Vendor Properties (`--lui-*`)
 
-wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling. Unlike plain custom properties, `--lui-*` values are **parsed through the CSS engine** into typed values (colors, lengths, border shorthands, etc.) — they support the same syntax as their regular CSS counterparts.
-
-#### Range slider
+Range slider custom properties (simple color overrides):
 
 | Property | Type | Effect |
 |---|---|---|
 | `--lui-track-color` | `<color>` | Unfilled track background |
 | `--lui-thumb-color` | `<color>` | Thumb fill |
 
-#### Popup (shared by color picker and date picker)
+### Popup Pseudo-Elements (`::lui-*`)
 
-| Property | Type | Effect |
+wgpu-html provides `::lui-*` pseudo-elements for styling overlay popup parts (color picker, date picker). These use **standard CSS properties** — `background`, `border`, `color`, `width`, `height`, `font-size`, etc. — with full cascade, specificity, and media query support.
+
+#### Shared
+
+| Pseudo-element | Supported properties | Target |
 |---|---|---|
-| `--lui-popup-width` | `<length>` | Popup width |
-| `--lui-popup-height` | `<length>` | Popup height |
-| `--lui-popup-background` | `<color>` | Popup background |
-| `--lui-popup-color` | `<color>` | Popup text color |
-| `--lui-popup-border` | `<border-shorthand>` | Popup border (width + style + color) |
-| `--lui-popup-border-width` | `<length>` | All four sides |
-| `--lui-popup-border-style` | `<border-style>` | All four sides |
-| `--lui-popup-border-color` | `<color>` | All four sides |
-| `--lui-popup-border-top-width` | `<length>` | Single side (also `-right`, `-bottom`, `-left`) |
-| `--lui-popup-border-top-style` | `<border-style>` | Single side |
-| `--lui-popup-border-top-color` | `<color>` | Single side |
-| `--lui-popup-border-radius` | `<length>` | Corner radius |
-| `--lui-popup-font-size` | `<length>` | Text font size |
-| `--lui-popup-font-family` | `<string>` | Text font family |
-| `--lui-popup-font-weight` | `<font-weight>` | Text font weight |
+| `::lui-popup` | `background`, `border` (shorthand + longhands), `border-radius`, `color`, `width`, `height`, `font-size`, `font-family`, `font-weight` | Popup container |
 
 #### Color picker
 
-| Property | Type | Effect |
+| Pseudo-element | Supported properties | Target |
 |---|---|---|
-| `--lui-color-canvas-width` | `<length>` | Saturation/value canvas width |
-| `--lui-color-canvas-height` | `<length>` | Saturation/value canvas height |
-| `--lui-color-range-height` | `<length>` | Hue/alpha slider bar height |
-| `--lui-color-range-border-radius` | `<length>` | Slider bar corner radius |
-| `--lui-color-thumb-width` | `<length>` | Slider thumb knob width |
-| `--lui-color-thumb-height` | `<length>` | Slider thumb knob height |
-| `--lui-color-thumb-color` | `<color>` | Slider thumb and canvas crosshair color |
-| `--lui-color-input-height` | `<length>` | Text input field height |
-| `--lui-color-input-background` | `<color>` | Text input field background |
-| `--lui-color-input-border-color` | `<color>` | Text input field border color |
-| `--lui-color-input-border-width` | `<length>` | Text input field border width |
-| `--lui-color-input-border-radius` | `<length>` | Text input field corner radius |
-| `--lui-color-input-font-size` | `<length>` | Text input field font size |
+| `::lui-canvas` | `width`, `height` | SV gradient canvas |
+| `::lui-range` | `height`, `border-radius` | Hue/alpha slider bars |
+| `::lui-thumb` | `width`, `height`, `background` | Slider knobs and crosshair |
+| `::lui-input` | `height`, `background`, `border-color`, `border-width`, `border-radius`, `font-size` | RGBA/hex text fields |
 
 #### Calendar (date / datetime-local)
 
-| Property | Type | Effect |
+| Pseudo-element | Supported properties | Target |
 |---|---|---|
-| `--lui-calendar-padding` | `<length>` | Inner padding |
-| `--lui-calendar-gap` | `<length>` | Gap between sections |
-| `--lui-calendar-cell-size` | `<length>` | Day cell width and height |
-| `--lui-calendar-cell-radius` | `<length>` | Day cell corner radius |
-| `--lui-calendar-selected-bg` | `<color>` | Selected day background |
-| `--lui-calendar-selected-color` | `<color>` | Selected day text |
-| `--lui-calendar-today-color` | `<color>` | Today outline ring |
-| `--lui-calendar-today-width` | `<length>` | Today outline thickness |
-| `--lui-calendar-dim` | `<color>` | Secondary text (weekday headers, overflow days, nav arrows) |
-| `--lui-calendar-nav-size` | `<length>` | Navigation arrow size |
-| `--lui-calendar-header-font-size` | `<length>` | Month/year header font size |
-| `--lui-calendar-header-font-weight` | `<font-weight>` | Month/year header weight |
-| `--lui-calendar-weekday-font-size` | `<length>` | Weekday header font size |
-| `--lui-calendar-day-font-size` | `<length>` | Day number font size |
-| `--lui-calendar-time-width` | `<length>` | Hour/minute field width |
-| `--lui-calendar-time-height` | `<length>` | Hour/minute field height |
-| `--lui-calendar-time-background` | `<color>` | Hour/minute field background |
-| `--lui-calendar-time-border-color` | `<color>` | Hour/minute field border |
-| `--lui-calendar-time-border-width` | `<length>` | Hour/minute field border width |
-| `--lui-calendar-time-border-radius` | `<length>` | Hour/minute field corner radius |
-| `--lui-calendar-time-font-size` | `<length>` | Hour/minute field font size |
-| `--lui-calendar-reset-height` | `<length>` | Reset button height |
-| `--lui-calendar-reset-background` | `<color>` | Reset button background |
-| `--lui-calendar-reset-color` | `<color>` | Reset button text |
-| `--lui-calendar-reset-border-color` | `<color>` | Reset button border |
-| `--lui-calendar-reset-border-width` | `<length>` | Reset button border width |
-| `--lui-calendar-reset-border-radius` | `<length>` | Reset button corner radius |
-| `--lui-calendar-reset-font-size` | `<length>` | Reset button font size |
+| `::lui-calendar-cell` | `width`, `border-radius`, `font-size` | Day cells |
+| `::lui-calendar-selected` | `background`, `color` | Selected day highlight |
+| `::lui-calendar-today` | `border-color`, `border-width` | Today outline ring |
+| `::lui-calendar-header` | `font-size`, `font-weight` | Month/year header |
+| `::lui-calendar-weekday` | `color`, `font-size` | Weekday labels (Mon, Tue…) |
+| `::lui-calendar-nav` | `color`, `width` | Prev/next arrows |
+| `::lui-calendar-time` | `width`, `height`, `background`, `border-color`, `border-width`, `border-radius`, `font-size` | Hour/minute fields |
+| `::lui-calendar-reset` | `height`, `background`, `color`, `border-color`, `border-width`, `border-radius`, `font-size` | Reset button |
+| `::lui-calendar-icon` | `color`, `width` | Calendar icon on input |
 
-See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details and examples.
+```css
+/* Theme a color picker */
+input[type="color"]::lui-popup {
+    background: #1e1e2e;
+    border: 1px solid #585b70;
+    border-radius: 8px;
+    color: #cdd6f4;
+}
+input[type="color"]::lui-thumb { background: #cdd6f4; }
+input[type="color"]::lui-input { background: #181825; border-color: #585b70; }
+
+/* Theme a date picker */
+input[type="date"]::lui-popup {
+    background: #1e1e2e;
+    border: 1px solid #585b70;
+    color: #cdd6f4;
+}
+input[type="date"]::lui-calendar-selected { background: #89b4fa; color: white; }
+input[type="date"]::lui-calendar-today { border-color: #74c7ec; }
+```
+
+See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for full reference.
 
 ## `var()` Usage
 
