@@ -263,6 +263,12 @@ pub enum ColorPickerDragTarget {
   AlphaBar,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorPickerField {
+  Rgba,
+  Hex,
+}
+
 #[derive(Debug, Clone)]
 pub struct ColorPickerState {
   pub path: Vec<usize>,
@@ -275,10 +281,16 @@ pub struct ColorPickerState {
   pub canvas_rect: [f32; 4],
   pub hue_rect: [f32; 4],
   pub alpha_rect: [f32; 4],
+  pub rgba_field_rect: [f32; 4],
+  pub hex_field_rect: [f32; 4],
   pub style_bg: Option<[f32; 4]>,
   pub style_border: Option<[f32; 4]>,
   pub style_indicator: Option<[f32; 4]>,
   pub style_label: Option<[f32; 4]>,
+  pub active_field: Option<ColorPickerField>,
+  pub field_text: String,
+  pub field_cursor: EditCursor,
+  pub field_blink_epoch: Instant,
 }
 
 #[derive(Debug, Clone)]

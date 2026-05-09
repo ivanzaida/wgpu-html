@@ -191,7 +191,7 @@ pub(crate) fn color_to_srgb_u8(c: Color) -> [u8; 4] {
 }
 
 /// Parse a CSS color string directly into a linear RGBA color.
-pub(crate) fn parse_color_str(s: &str) -> Option<Color> {
+pub fn parse_color_str(s: &str) -> Option<Color> {
   let s = s.trim();
   if s.is_empty() {
     return None;

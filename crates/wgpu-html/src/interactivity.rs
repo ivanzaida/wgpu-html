@@ -117,6 +117,7 @@ pub fn mouse_down_with_click_count(
         match hit {
           color_picker_overlay::ColorPickerHit::Canvas(s, v) => {
             if let Some(cp) = &mut tree.interaction.color_picker {
+              color_picker_overlay::deactivate_field(cp);
               cp.saturation = s;
               cp.value = v;
               cp.drag = Some(ColorPickerDragTarget::Canvas);
@@ -129,6 +130,7 @@ pub fn mouse_down_with_click_count(
           }
           color_picker_overlay::ColorPickerHit::HueBar(frac) => {
             if let Some(cp) = &mut tree.interaction.color_picker {
+              color_picker_overlay::deactivate_field(cp);
               cp.hue = frac * 360.0;
               cp.drag = Some(ColorPickerDragTarget::HueBar);
               let path = cp.path.clone();
@@ -140,6 +142,7 @@ pub fn mouse_down_with_click_count(
           }
           color_picker_overlay::ColorPickerHit::AlphaBar(frac) => {
             if let Some(cp) = &mut tree.interaction.color_picker {
+              color_picker_overlay::deactivate_field(cp);
               cp.alpha = frac;
               cp.drag = Some(ColorPickerDragTarget::AlphaBar);
               let path = cp.path.clone();
@@ -149,7 +152,16 @@ pub fn mouse_down_with_click_count(
             }
             return true;
           }
+          color_picker_overlay::ColorPickerHit::Field(field) => {
+            if let Some(cp) = &mut tree.interaction.color_picker {
+              color_picker_overlay::activate_field(cp, field);
+            }
+            return true;
+          }
           color_picker_overlay::ColorPickerHit::Background => {
+            if let Some(cp) = &mut tree.interaction.color_picker {
+              color_picker_overlay::deactivate_field(cp);
+            }
             return true;
           }
         }
@@ -254,10 +266,16 @@ pub fn mouse_down_with_click_count(
                   canvas_rect: [0.0; 4],
                   hue_rect: [0.0; 4],
                   alpha_rect: [0.0; 4],
+                  rgba_field_rect: [0.0; 4],
+                  hex_field_rect: [0.0; 4],
                   style_bg: lb.lui.picker_bg,
                   style_border: lb.lui.picker_border,
                   style_indicator: lb.lui.picker_indicator,
                   style_label: lb.lui.picker_label,
+                  active_field: None,
+                  field_text: String::new(),
+                  field_cursor: wgpu_html_tree::EditCursor::collapsed(0),
+                  field_blink_epoch: std::time::Instant::now(),
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;

@@ -887,6 +887,72 @@ impl<D: Driver> Runtime<D> {
   pub fn on_key(&mut self, tree: &mut Tree, key: &str, code: &str, pressed: bool, repeat: bool, text: Option<&str>) {
     if pressed {
       let ctrl = tree.modifiers().ctrl;
+      let shift = tree.modifiers().shift;
+
+      // Color picker field intercept
+      if tree.interaction.color_picker.as_ref().is_some_and(|cp| cp.active_field.is_some()) {
+        if ctrl && !repeat {
+          match code {
+            "KeyA" | "KeyC" | "KeyX" | "KeyV" => {
+              if let Some(cp) = &mut tree.interaction.color_picker {
+                match code {
+                  "KeyA" => {
+                    wgpu_html::color_picker_overlay::field_key_down(cp, key, code, ctrl, shift);
+                  }
+                  "KeyC" => {
+                    if let Some(sel) = wgpu_html::color_picker_overlay::field_selected_text(cp) {
+                      self.driver.set_clipboard_text(&sel);
+                    }
+                  }
+                  "KeyX" => {
+                    if let Some(sel) = wgpu_html::color_picker_overlay::field_selected_text(cp) {
+                      self.driver.set_clipboard_text(&sel);
+                      let (v, c) = wgpu_html_tree::text_edit::delete_selection(&cp.field_text, &cp.field_cursor);
+                      cp.field_text = v;
+                      cp.field_cursor = c;
+                    }
+                  }
+                  "KeyV" => {
+                    if let Some(clip) = self.driver.get_clipboard_text() {
+                      if !clip.is_empty() {
+                        wgpu_html::color_picker_overlay::field_text_input(cp, &clip);
+                      }
+                    }
+                  }
+                  _ => {}
+                }
+              }
+              self.driver.request_redraw();
+              return;
+            }
+            _ => {}
+          }
+        }
+        if let Some(cp) = &mut tree.interaction.color_picker {
+          if wgpu_html::color_picker_overlay::field_key_down(cp, key, code, ctrl, shift) {
+            if cp.active_field.is_none() {
+              let path = cp.path.clone();
+              let (r, g, b) = wgpu_html::color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
+              let a = cp.alpha;
+              wgpu_html_tree::set_color_value(tree, &path, r, g, b, a);
+            }
+            self.driver.request_redraw();
+            return;
+          }
+        }
+        if !ctrl && !tree.modifiers().meta {
+          if let Some(s) = text {
+            if !s.is_empty() && s.chars().all(|c| !c.is_control()) {
+              if let Some(cp) = &mut tree.interaction.color_picker {
+                wgpu_html::color_picker_overlay::field_text_input(cp, s);
+              }
+              self.driver.request_redraw();
+              return;
+            }
+          }
+        }
+        return;
+      }
 
       // ── Clipboard / selection shortcuts ──────────────────────────
       if ctrl && !repeat {
