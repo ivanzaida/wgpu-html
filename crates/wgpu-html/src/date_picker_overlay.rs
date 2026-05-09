@@ -88,9 +88,9 @@ pub fn paint_date_picker_overlay(
 
   let [px, py, pw, ph] = dp.popup_rect;
 
-  let bg = resolve_lui_color(&dp.popup_style.background_color).unwrap_or(BG);
-  let border = resolve_lui_color(&dp.popup_style.border_top_color).unwrap_or(BORDER);
-  let text_c = resolve_lui_color(&dp.popup_style.color).unwrap_or(TEXT_COLOR);
+  let bg = dp.popup_style.as_ref().and_then(|s| resolve_lui_color(&s.background_color)).unwrap_or(BG);
+  let border = dp.popup_style.as_ref().and_then(|s| resolve_lui_color(&s.border_top_color)).unwrap_or(BORDER);
+  let text_c = dp.popup_style.as_ref().and_then(|s| resolve_lui_color(&s.color)).unwrap_or(TEXT_COLOR);
   let dim_c = DIM_COLOR;
   let selected_c = SELECTED_BG;
   let today_c = TODAY_BORDER;

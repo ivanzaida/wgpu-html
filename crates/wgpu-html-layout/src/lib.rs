@@ -514,8 +514,8 @@ pub struct LayoutBox {
   pub accent_color: Option<Color>,
   /// Resolved `--lui-*` vendor custom properties.
   pub lui: LuiProperties,
-  pub lui_popup: wgpu_html_models::LuiPopupStyle,
-  pub lui_color_picker: wgpu_html_models::LuiColorPickerStyle,
+  pub lui_popup: Option<std::sync::Arc<wgpu_html_models::LuiPopupStyle>>,
+  pub lui_color_picker: Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>>,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -1195,6 +1195,20 @@ fn resolve_lui_properties(
     track_color: resolve_lui_color(cp, "--lui-track-color", fg),
     thumb_color: resolve_lui_color(cp, "--lui-thumb-color", fg),
   }
+}
+
+fn resolve_lui_popup_arc(
+  cp: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
+) -> Option<std::sync::Arc<wgpu_html_models::LuiPopupStyle>> {
+  if !cp.keys().any(|k| k.starts_with("--lui-popup-")) { return None; }
+  Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_popup_style(cp)))
+}
+
+fn resolve_lui_color_picker_arc(
+  cp: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
+) -> Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>> {
+  if !cp.keys().any(|k| k.starts_with("--lui-color-")) { return None; }
+  Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_color_picker_style(cp)))
 }
 
 fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Color) {
@@ -1916,8 +1930,8 @@ fn layout_block(
     selection_fg: None,
     accent_color,
     lui,
-    lui_popup: wgpu_html_parser::resolve_lui_popup_style(&style.custom_properties),
-    lui_color_picker: wgpu_html_parser::resolve_lui_color_picker_style(&style.custom_properties),
+    lui_popup: resolve_lui_popup_arc(&style.custom_properties),
+    lui_color_picker: resolve_lui_color_picker_arc(&style.custom_properties),
     children,
     is_fixed: false,
     form_control: fc,
@@ -2826,8 +2840,8 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
-    lui_popup: Default::default(),
-    lui_color_picker: Default::default(),
+    lui_popup: None,
+    lui_color_picker: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -2907,8 +2921,8 @@ fn make_text_leaf(
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
-    lui_popup: Default::default(),
-    lui_color_picker: Default::default(),
+    lui_popup: None,
+    lui_color_picker: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3239,8 +3253,8 @@ fn layout_inline_subtree(
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
-    lui_popup: Default::default(),
-    lui_color_picker: Default::default(),
+    lui_popup: None,
+    lui_color_picker: None,
     children: final_children,
     is_fixed: false,
     form_control: None,
@@ -3436,8 +3450,8 @@ fn layout_atomic_inline_subtree(
       selection_fg: None,
       accent_color,
       lui,
-      lui_popup: wgpu_html_parser::resolve_lui_popup_style(&style.custom_properties),
-      lui_color_picker: wgpu_html_parser::resolve_lui_color_picker_style(&style.custom_properties),
+      lui_popup: resolve_lui_popup_arc(&style.custom_properties),
+      lui_color_picker: resolve_lui_color_picker_arc(&style.custom_properties),
       children,
       is_fixed: false,
       form_control: fc,
@@ -3964,8 +3978,8 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
-    lui_popup: Default::default(),
-    lui_color_picker: Default::default(),
+    lui_popup: None,
+    lui_color_picker: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -4198,8 +4212,8 @@ fn layout_inline_paragraph(
     selection_fg: None,
     accent_color: None,
     lui: LuiProperties::default(),
-    lui_popup: Default::default(),
-    lui_color_picker: Default::default(),
+    lui_popup: None,
+    lui_color_picker: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

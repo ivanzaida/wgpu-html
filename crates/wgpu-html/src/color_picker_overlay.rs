@@ -184,10 +184,10 @@ pub fn paint_color_picker_overlay(
   let slider_knob_w = 6.0;
   let slider_knob_r = 2.0;
 
-  let bg = resolve_lui_color(&cp.popup_style.background_color).unwrap_or(BG);
-  let border = resolve_lui_color(&cp.popup_style.border_top_color).unwrap_or(BORDER_COLOR);
-  let indicator = resolve_lui_color(&cp.picker_style.thumb_color).unwrap_or(INDICATOR_BORDER);
-  let label_color = resolve_lui_color(&cp.popup_style.color).unwrap_or(LABEL_COLOR);
+  let bg = cp.popup_style.as_ref().and_then(|s| resolve_lui_color(&s.background_color)).unwrap_or(BG);
+  let border = cp.popup_style.as_ref().and_then(|s| resolve_lui_color(&s.border_top_color)).unwrap_or(BORDER_COLOR);
+  let indicator = cp.picker_style.as_ref().and_then(|s| resolve_lui_color(&s.thumb_color)).unwrap_or(INDICATOR_BORDER);
+  let label_color = cp.popup_style.as_ref().and_then(|s| resolve_lui_color(&s.color)).unwrap_or(LABEL_COLOR);
 
   // Background
   list.push_quad_rounded(Rect::new(popup_x, popup_y, pw, ph), bg, [corner_r; 4]);
