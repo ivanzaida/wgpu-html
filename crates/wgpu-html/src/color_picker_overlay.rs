@@ -11,7 +11,6 @@ const CANVAS_SIZE: f32 = 240.0;
 const BAR_H: f32 = 14.0;
 const GAP: f32 = 8.0;
 const LABEL_H: f32 = 16.0;
-const CORNER_R: f32 = 6.0;
 
 const BG: [f32; 4] = [0.15, 0.15, 0.15, 0.96];
 const LABEL_COLOR: [f32; 4] = [0.85, 0.85, 0.85, 1.0];
@@ -140,7 +139,7 @@ pub fn paint_color_picker_overlay(
   tree: &Tree,
   text_ctx: &mut TextContext,
   _scroll_y: f32,
-  scale: f32,
+  _scale: f32,
   _viewport_w: f32,
   _viewport_h: f32,
 ) {
@@ -149,19 +148,15 @@ pub fn paint_color_picker_overlay(
     None => return,
   };
 
-  let s = scale.max(0.5);
-  let pw = POPUP_W * s;
-  let ph = popup_height() * s;
-  let pad = POPUP_PAD * s;
-  let canvas_sz = CANVAS_SIZE * s;
-  let bar_h = BAR_H * s;
-  let gap = GAP * s;
-  let label_h = LABEL_H * s;
-  let corner_r = CORNER_R * s;
-  let font_size = FONT_SIZE * s;
+  let [popup_x, popup_y, pw, ph] = cp.popup_rect;
+  let [cx, cy, canvas_w, canvas_h] = cp.canvas_rect;
+  let [hx, hy, hue_w, hue_h] = cp.hue_rect;
+  let [ax, ay, alpha_w, alpha_h] = cp.alpha_rect;
 
-  let popup_x = cp.popup_rect[0];
-  let popup_y = cp.popup_rect[1];
+  let corner_r = 6.0;
+  let ind_r = 5.0;
+  let slider_knob_w = 6.0;
+  let slider_knob_r = 2.0;
 
   // Background
   list.push_quad_rounded(
@@ -177,12 +172,10 @@ pub fn paint_color_picker_overlay(
   );
 
   // SV canvas
-  let cx = popup_x + pad;
-  let cy = popup_y + pad;
   let hue_q = (cp.hue * 2.0) as u16;
   let sv_data = gen_sv_texture(cp.hue);
   list.push_image(
-    Rect::new(cx, cy, canvas_sz, canvas_sz),
+    Rect::new(cx, cy, canvas_w, canvas_h),
     image_id_sv(hue_q),
     Arc::new(sv_data),
     SV_TEX_SIZE,
@@ -190,9 +183,8 @@ pub fn paint_color_picker_overlay(
   );
 
   // SV crosshair indicator
-  let ind_x = cx + cp.saturation * canvas_sz;
-  let ind_y = cy + (1.0 - cp.value) * canvas_sz;
-  let ind_r = 5.0 * s;
+  let ind_x = cx + cp.saturation * canvas_w;
+  let ind_y = cy + (1.0 - cp.value) * canvas_h;
   list.push_quad_stroke(
     Rect::new(ind_x - ind_r, ind_y - ind_r, ind_r * 2.0, ind_r * 2.0),
     INDICATOR_SHADOW,
@@ -207,17 +199,15 @@ pub fn paint_color_picker_overlay(
   );
 
   // Hue bar
-  let hx = cx;
-  let hy = cy + canvas_sz + gap;
   let hue_data = gen_hue_texture();
-  let bar_r = bar_h / 2.0;
+  let bar_r = hue_h / 2.0;
   list.push_clip(
-    Some(Rect::new(hx, hy, canvas_sz, bar_h)),
+    Some(Rect::new(hx, hy, hue_w, hue_h)),
     [bar_r; 4],
     [bar_r; 4],
   );
   list.push_image(
-    Rect::new(hx, hy, canvas_sz, bar_h),
+    Rect::new(hx, hy, hue_w, hue_h),
     IMAGE_ID_HUE,
     Arc::new(hue_data),
     HUE_TEX_W,
@@ -227,25 +217,24 @@ pub fn paint_color_picker_overlay(
 
   // Hue indicator
   let hue_frac = cp.hue / 360.0;
-  let hi_x = hx + hue_frac * canvas_sz;
+  let hi_x = hx + hue_frac * hue_w;
   list.push_quad_rounded(
-    Rect::new(hi_x - 3.0 * s, hy - 1.0 * s, 6.0 * s, bar_h + 2.0 * s),
+    Rect::new(hi_x - slider_knob_w * 0.5, hy - 1.0, slider_knob_w, hue_h + 2.0),
     INDICATOR_BORDER,
-    [2.0 * s; 4],
+    [slider_knob_r; 4],
   );
 
   // Alpha bar
-  let ax = cx;
-  let ay = hy + bar_h + gap;
   let (ar, ag, ab) = hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
   let alpha_data = gen_alpha_texture(ar, ag, ab);
+  let alpha_bar_r = alpha_h / 2.0;
   list.push_clip(
-    Some(Rect::new(ax, ay, canvas_sz, bar_h)),
-    [bar_r; 4],
-    [bar_r; 4],
+    Some(Rect::new(ax, ay, alpha_w, alpha_h)),
+    [alpha_bar_r; 4],
+    [alpha_bar_r; 4],
   );
   list.push_image(
-    Rect::new(ax, ay, canvas_sz, bar_h),
+    Rect::new(ax, ay, alpha_w, alpha_h),
     image_id_alpha(ar, ag, ab),
     Arc::new(alpha_data),
     HUE_TEX_W,
@@ -254,15 +243,15 @@ pub fn paint_color_picker_overlay(
   list.pop_clip(None, [0.0; 4], [0.0; 4]);
 
   // Alpha indicator
-  let ai_x = ax + cp.alpha * canvas_sz;
+  let ai_x = ax + cp.alpha * alpha_w;
   list.push_quad_rounded(
-    Rect::new(ai_x - 3.0 * s, ay - 1.0 * s, 6.0 * s, bar_h + 2.0 * s),
+    Rect::new(ai_x - slider_knob_w * 0.5, ay - 1.0, slider_knob_w, alpha_h + 2.0),
     INDICATOR_BORDER,
-    [2.0 * s; 4],
+    [slider_knob_r; 4],
   );
 
   // Labels
-  let ly = ay + bar_h + gap;
+  let label_y = ay + alpha_h + GAP;
   let (sr, sg, sb) = hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
   let a_byte = (cp.alpha * 255.0 + 0.5) as u8;
   let rgba_str = format!("rgba({sr}, {sg}, {sb}, {a_byte})");
@@ -272,8 +261,9 @@ pub fn paint_color_picker_overlay(
     format!("#{sr:02x}{sg:02x}{sb:02x}{a_byte:02x}")
   };
 
-  paint_label(list, text_ctx, &rgba_str, cx, ly, canvas_sz, font_size, s);
-  paint_label(list, text_ctx, &hex_str, cx, ly + label_h + gap, canvas_sz, font_size, s);
+  let font_size = FONT_SIZE;
+  paint_label(list, text_ctx, &rgba_str, cx, label_y, canvas_w, font_size);
+  paint_label(list, text_ctx, &hex_str, cx, label_y + LABEL_H + GAP, canvas_w, font_size);
 }
 
 fn paint_label(
@@ -284,7 +274,6 @@ fn paint_label(
   y: f32,
   max_w: f32,
   font_size: f32,
-  _scale: f32,
 ) {
   let families = ["monospace", "sans-serif"];
   let font = text_ctx.pick_font(&families, 400, wgpu_html_tree::FontStyleAxis::Normal);
