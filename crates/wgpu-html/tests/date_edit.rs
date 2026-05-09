@@ -120,19 +120,18 @@ fn blur_valid_date_writes_iso() {
 }
 
 #[test]
-fn blur_invalid_date_reverts() {
+fn blur_invalid_date_clamps() {
   let mut tree = make_date_tree("2025-05-09");
   let path = input_path(&tree);
   tree.focus(Some(&path));
 
-  // Overwrite month to "00" (invalid)
+  // Overwrite month to "00" (invalid) — auto-advances to day, clamped to 01.
   tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
   text_input(&mut tree, "0");
   text_input(&mut tree, "0");
 
-  // Blur — should revert
   tree.focus(None);
-  assert_eq!(input_value(&tree), "2025-05-09"); // unchanged
+  assert_eq!(input_value(&tree), "2025-01-09"); // clamped month 00 → 01
 }
 
 // ── Calendar picker updates display ──
@@ -272,18 +271,18 @@ fn datetime_blur_valid_writes_iso() {
 }
 
 #[test]
-fn datetime_blur_invalid_hour_reverts() {
+fn datetime_blur_invalid_hour_clamps() {
   let mut tree = make_datetime_tree("2025-05-09T14:30");
   let path = input_path(&tree);
   tree.focus(Some(&path));
 
-  // Overwrite hour to "25" (invalid)
+  // Overwrite hour to "25" — auto-advances to minute, clamped to 23.
   tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(11));
   text_input(&mut tree, "2");
   text_input(&mut tree, "5");
 
   tree.focus(None);
-  assert_eq!(input_value(&tree), "2025-05-09T14:30"); // reverted
+  assert_eq!(input_value(&tree), "2025-05-09T23:30"); // clamped hour 25 → 23
 }
 
 #[test]
@@ -292,11 +291,136 @@ fn datetime_blur_invalid_minute_reverts() {
   let path = input_path(&tree);
   tree.focus(Some(&path));
 
-  // Overwrite minute to "60" (invalid)
+  // Overwrite minute to "60" (invalid) — clamped to 59 on segment leave.
   tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(14));
   text_input(&mut tree, "6");
   text_input(&mut tree, "0");
 
   tree.focus(None);
-  assert_eq!(input_value(&tree), "2025-05-09T14:30"); // reverted
+  assert_eq!(input_value(&tree), "2025-05-09T14:59"); // clamped
+}
+
+#[test]
+fn segment_leave_clamps_month() {
+  let mut tree = make_date_tree("2025-01-15");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Type "34" into month — fills segment, auto-advances to day.
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
+  text_input(&mut tree, "3");
+  text_input(&mut tree, "4");
+
+  // Display value should be clamped to 12, and ISO updated.
+  let dv = tree.interaction.date_display_value.as_deref().unwrap();
+  assert_eq!(&dv[..2], "12", "month should clamp to 12");
+  assert_eq!(input_value(&tree), "2025-12-15");
+}
+
+#[test]
+fn segment_leave_clamps_hour() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Type "25" into hour — auto-advances to minute, clamped to 23.
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(11));
+  text_input(&mut tree, "2");
+  text_input(&mut tree, "5");
+
+  let dv = tree.interaction.date_display_value.as_deref().unwrap();
+  assert_eq!(&dv[11..13], "23", "hour should clamp to 23");
+  assert_eq!(input_value(&tree), "2025-05-09T23:30");
+}
+
+#[test]
+fn tab_away_clamps_segment() {
+  let mut tree = make_date_tree("2025-01-15");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Type "5" into month (partial "51"), then Tab to day.
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
+  text_input(&mut tree, "5");
+  tree.key_down("Tab", "Tab", false);
+
+  // Month "51" clamped to "12" on segment leave.
+  let dv = tree.interaction.date_display_value.as_deref().unwrap();
+  assert_eq!(&dv[..2], "12");
+  assert_eq!(input_value(&tree), "2025-12-15");
+}
+
+// ── Selection ↔ glyph mapping (reproduces +1 shift) ──
+
+/// Build a synthetic ShapedRun for `text` where every character with
+/// a visible glyph gets a 10 px wide box and invisible characters
+/// (spaces) are skipped — matching real shaping behaviour.
+fn synthetic_run(text: &str) -> wgpu_html_text::ShapedRun {
+  let bb = wgpu_html_text::utf8_boundaries(text);
+  let mut glyphs = Vec::new();
+  let mut glyph_chars = Vec::new();
+  let mut x = 0.0_f32;
+  for (char_idx, ch) in text.chars().enumerate() {
+    if ch == ' ' {
+      x += 5.0;
+      continue;
+    }
+    glyphs.push(wgpu_html_text::PositionedGlyph {
+      x,
+      y: 0.0,
+      w: 10.0,
+      h: 16.0,
+      uv_min: [0.0; 2],
+      uv_max: [1.0; 2],
+      color: [0.0, 0.0, 0.0, 1.0],
+    });
+    glyph_chars.push(char_idx);
+    x += 10.0;
+  }
+  wgpu_html_text::ShapedRun {
+    lines: vec![wgpu_html_text::ShapedLine {
+      top: 0.0,
+      height: 20.0,
+      glyph_range: (0, glyphs.len()),
+    }],
+    text: text.to_owned(),
+    byte_boundaries: bb,
+    width: x,
+    height: 20.0,
+    ascent: 16.0,
+    glyphs,
+    glyph_chars,
+  }
+}
+
+#[test]
+fn byte_offset_to_glyph_hour_selection() {
+  // "05/09/2025 14:30" — space at position 10 is skipped during shaping.
+  // Hour segment: bytes 11..13 ("14"), minute segment: bytes 14..16 ("30").
+  let run = synthetic_run("05/09/2025 14:30");
+
+  // Space is skipped: 15 glyphs for 16 characters.
+  assert_eq!(run.glyphs.len(), 15, "space should be skipped");
+  assert_eq!(run.glyph_chars.len(), 15);
+
+  // Glyph 10 should map to char 11 ('1' of "14").
+  assert_eq!(run.glyph_chars[10], 11, "glyph 10 = char 11 = '1'");
+
+  // byte_offset_to_glyph_index must return glyph 10 for byte 11 (start of hour).
+  let start_g = wgpu_html::paint::byte_offset_to_glyph_index(&run, 11);
+  assert_eq!(start_g, 10, "hour selection start should be glyph 10 ('1'), not 11 ('4')");
+
+  let end_g = wgpu_html::paint::byte_offset_to_glyph_index(&run, 13);
+  assert_eq!(end_g, 12, "hour selection end should be glyph 12 (':'), not 13 ('3')");
+}
+
+#[test]
+fn byte_offset_to_glyph_minute_selection() {
+  let run = synthetic_run("05/09/2025 14:30");
+
+  let start_g = wgpu_html::paint::byte_offset_to_glyph_index(&run, 14);
+  assert_eq!(start_g, 13, "minute selection start should be glyph 13 ('3'), not 14 ('0')");
+
+  let end_g = wgpu_html::paint::byte_offset_to_glyph_index(&run, 16);
+  assert_eq!(end_g, 15, "minute selection end should be glyph 15 (past last), not glyphs.len()");
 }

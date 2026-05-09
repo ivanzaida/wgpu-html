@@ -311,11 +311,8 @@ pub fn mouse_down_with_click_count(
               .iter()
               .position(|g| g.x + g.w * 0.5 > click_x)
               .unwrap_or(run.glyphs.len());
-            if glyph_idx < run.byte_boundaries.len() {
-              run.byte_boundaries[glyph_idx]
-            } else {
-              value_len
-            }
+            let char_idx = run.glyph_to_char_index(glyph_idx);
+            run.byte_offset_for_boundary(char_idx).min(value_len)
           } else {
             0
           }
@@ -323,6 +320,7 @@ pub fn mouse_down_with_click_count(
           0
         };
         if tree.interaction.date_display_value.is_some() {
+          wgpu_html_tree::flush_date_to_iso(tree);
           let pattern = wgpu_html_tree::date::focused_date_pattern_from_tree(tree);
           let segs = wgpu_html_tree::date::parse_pattern_segments(&pattern);
           let clamped = wgpu_html_tree::date::clamp_to_editable(&segs, byte_offset);

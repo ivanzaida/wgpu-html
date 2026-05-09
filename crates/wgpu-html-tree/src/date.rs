@@ -285,6 +285,25 @@ pub fn prev_segment(segments: &[DateSegment], byte_pos: usize) -> (usize, usize)
   (s.byte_start, s.byte_start + s.byte_len)
 }
 
+/// Select the full editable segment at or nearest to `byte_pos`.
+/// Returns `(anchor, cursor)` spanning the segment, or `(0, 0)` if
+/// no editable segments exist.
+pub fn select_segment_near(segments: &[DateSegment], byte_pos: usize) -> (usize, usize) {
+  let clamped = clamp_to_editable(segments, byte_pos);
+  if let Some(idx) = segment_at(segments, clamped) {
+    let s = &segments[idx];
+    (s.byte_start, s.byte_start + s.byte_len)
+  } else {
+    let editable = editable_segment_indices(segments);
+    if let Some(&last) = editable.last() {
+      let s = &segments[last];
+      (s.byte_start, s.byte_start + s.byte_len)
+    } else {
+      (0, 0)
+    }
+  }
+}
+
 /// Clamp a byte position to the nearest editable position.
 /// If on a separator, snap to the start of the next editable segment
 /// (or end of previous if at the end).
@@ -428,6 +447,58 @@ pub fn validate_segment(kind: DateSegmentKind, value: &str, year: i32, month: u8
     DateSegmentKind::Minute => n <= 59,
     DateSegmentKind::Separator => true,
   }
+}
+
+/// Clamp every editable segment in `text` to its valid range,
+/// returning the corrected string.  E.g. month "34" → "12",
+/// day "00" → "01", hour "25" → "23".
+pub fn clamp_segments(text: &str, segments: &[DateSegment]) -> String {
+  let mut out: Vec<u8> = text.bytes().collect();
+  let min_len = segments.last().map(|s| s.byte_start + s.byte_len).unwrap_or(0);
+  while out.len() < min_len { out.push(b'0'); }
+
+  // First pass: extract year and month (may already be clamped).
+  let mut year: i32 = 0;
+  let mut month: u8 = 0;
+  for seg in segments {
+    let s = std::str::from_utf8(&out[seg.byte_start..seg.byte_start + seg.byte_len]).unwrap_or("0");
+    match seg.kind {
+      DateSegmentKind::Year => year = s.parse().unwrap_or(0),
+      DateSegmentKind::Month => month = s.parse().unwrap_or(0),
+      _ => {}
+    }
+  }
+
+  for seg in segments {
+    if seg.kind == DateSegmentKind::Separator { continue; }
+    let slice = &out[seg.byte_start..seg.byte_start + seg.byte_len];
+    let s = std::str::from_utf8(slice).unwrap_or("0");
+    let n: u32 = s.parse().unwrap_or(0);
+    let clamped: u32 = match seg.kind {
+      DateSegmentKind::Month => n.max(1).min(12),
+      DateSegmentKind::Day => {
+        let m = if month >= 1 && month <= 12 { month } else { 1 };
+        let y = if year > 0 { year } else { 2000 };
+        n.max(1).min(days_in_month(y, m) as u32)
+      }
+      DateSegmentKind::Year => n.max(1).min(9999),
+      DateSegmentKind::Hour => n.min(23),
+      DateSegmentKind::Minute => n.min(59),
+      DateSegmentKind::Separator => continue,
+    };
+    if clamped != n {
+      let formatted = format!("{:0>width$}", clamped, width = seg.byte_len);
+      for (i, b) in formatted.bytes().enumerate() {
+        if seg.byte_start + i < out.len() {
+          out[seg.byte_start + i] = b;
+        }
+      }
+      // Re-extract month/year if we clamped them, for day validation.
+      if seg.kind == DateSegmentKind::Month { month = clamped as u8; }
+      if seg.kind == DateSegmentKind::Year { year = clamped as i32; }
+    }
+  }
+  String::from_utf8(out).unwrap_or_else(|_| text.to_string())
 }
 
 /// Validate the entire formatted date string against its pattern.

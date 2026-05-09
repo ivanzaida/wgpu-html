@@ -172,16 +172,13 @@ pub fn paint_tree_returning_layout_profiled(
       let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
         let fp = tree.interaction.focus_path.as_deref()?;
         let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
-        let sel = if ec.has_selection() {
-          Some(ec.selection_range())
-        } else {
-          None
-        };
+        let sel = date_segment_selection(tree, ec)
+          .or_else(|| if ec.has_selection() { Some(ec.selection_range()) } else { None });
         Some(paint::EditCaretInfo {
           focus_path: fp,
           cursor_byte: ec.cursor,
           selection_bytes: sel,
-          caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+          caret_visible: sel.is_none() && (elapsed_ms % 1000) < 500,
           scroll_x: tree.interaction.edit_scroll_x,
         })
       });
@@ -361,19 +358,23 @@ pub fn paint_tree_cached<'c>(
 
       let cascade_t0 = Instant::now();
       let media = media_context(viewport_w, viewport_h, scale);
+      eprintln!("[pipeline] cascade START");
       let cascaded;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "cascade");
         cascaded = wgpu_html_style::cascade_with_media(tree, &media);
       }
+      eprintln!("[pipeline] cascade END");
       timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
       let layout_t0 = Instant::now();
+      eprintln!("[pipeline] layout START");
       let layout;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
         layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree));
       }
+      eprintln!("[pipeline] layout END");
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
       cache.layout = layout;
@@ -500,16 +501,13 @@ pub fn paint_tree_cached<'c>(
       let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
         let fp = tree.interaction.focus_path.as_deref()?;
         let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
-        let sel = if ec.has_selection() {
-          Some(ec.selection_range())
-        } else {
-          None
-        };
+        let sel = date_segment_selection(tree, ec)
+          .or_else(|| if ec.has_selection() { Some(ec.selection_range()) } else { None });
         Some(paint::EditCaretInfo {
           focus_path: fp,
           cursor_byte: ec.cursor,
           selection_bytes: sel,
-          caret_visible: !ec.has_selection() && (elapsed_ms % 1000) < 500,
+          caret_visible: sel.is_none() && (elapsed_ms % 1000) < 500,
           scroll_x: tree.interaction.edit_scroll_x,
         })
       });
@@ -540,6 +538,18 @@ fn focused_input_value(tree: &Tree) -> Option<String> {
     wgpu_html_tree::Element::Input(inp) => inp.value.as_ref().map(|v| v.to_string()),
     _ => None,
   }
+}
+
+fn date_segment_selection(
+  tree: &Tree,
+  ec: &wgpu_html_tree::EditCursor,
+) -> Option<(usize, usize)> {
+  tree.interaction.date_display_value.as_ref()?;
+  let pattern = wgpu_html_tree::date::focused_date_pattern_from_tree(tree);
+  let segs = wgpu_html_tree::date::parse_pattern_segments(&pattern);
+  let pos = if ec.has_selection() { ec.selection_range().0 } else { ec.cursor };
+  let (start, end) = wgpu_html_tree::date::select_segment_near(&segs, pos);
+  if start < end { Some((start, end)) } else { None }
 }
 
 fn media_context(viewport_w: f32, viewport_h: f32, scale: f32) -> MediaContext {

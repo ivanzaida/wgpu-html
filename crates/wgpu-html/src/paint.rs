@@ -1597,13 +1597,12 @@ pub fn byte_offset_to_glyph_index(run: &wgpu_html_text::ShapedRun, byte_offset: 
   if run.byte_boundaries.is_empty() {
     return 0;
   }
-  // byte_boundaries[i] is the byte offset of glyph i. Find the
-  // first boundary >= byte_offset.
-  run
+  let char_idx = run
     .byte_boundaries
     .iter()
     .position(|&b| b >= byte_offset)
-    .unwrap_or(run.glyphs.len())
+    .unwrap_or(run.text.chars().count());
+  run.char_to_glyph_index(char_idx)
 }
 
 /// Emit a sequence of `on`-length segments with `off`-length gaps along

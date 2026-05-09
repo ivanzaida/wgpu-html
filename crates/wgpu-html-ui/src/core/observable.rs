@@ -100,6 +100,12 @@ impl<T: Send + Sync + 'static> Observable<T> {
     self.inner.value.read().unwrap().clone()
   }
 
+  /// Access the current value by reference without cloning.
+  pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+    let guard = self.inner.value.read().unwrap();
+    f(&*guard)
+  }
+
   /// Replace the value and notify subscribers.
   pub fn set(&self, value: impl Into<T>) {
     {

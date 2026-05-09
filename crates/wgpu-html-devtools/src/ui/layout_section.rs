@@ -2,7 +2,6 @@ use wgpu_html_layout::LayoutBox;
 use wgpu_html_models::common::{
   AlignItems, CssLength, Display, FontWeight,
 };
-use wgpu_html_style::CascadedNode;
 use wgpu_html_ui::{
   el::{self, div},
   style::{self, px, Stylesheet},
@@ -167,20 +166,20 @@ impl Component for LayoutSection {
 
     if let Some(path) = &selected {
       let layout = props.store.layout_root();
-      let cascaded = props.store.cascaded.get();
-
       let lb = layout.and_then(|root| box_at_path(root, path));
-      let cn = cascaded.as_ref()
-        .and_then(|c| c.root.as_ref())
-        .and_then(|r| r.at_path(path));
 
       if let Some(lb) = lb {
-        children.push(build_box_model(lb, cn, ctx));
+        let extracted = props.store.cascaded.with(|cascaded| {
+          let cn = cascaded.as_ref()
+            .and_then(|c| c.root.as_ref())
+            .and_then(|r| r.at_path(path));
+          ExtractedStyle::from_cascaded(cn)
+        });
 
-        if let Some(cn) = cn {
-          if is_flex_container(&cn.style) {
-            children.push(build_flex_info(cn, ctx));
-          }
+        children.push(build_box_model(lb, &extracted, ctx));
+
+        if let Some(fi) = &extracted.flex {
+          children.push(build_flex_info(fi, ctx));
         }
       }
     }
@@ -189,11 +188,63 @@ impl Component for LayoutSection {
   }
 }
 
+// ── Extracted style data (avoids cloning entire CascadedTree) ────────
+
+struct ExtractedFlex {
+  direction: String,
+  gap: Option<CssLength>,
+  row_gap: Option<CssLength>,
+  col_gap: Option<CssLength>,
+  justify_content: Option<String>,
+  align_items: Option<String>,
+}
+
+struct ExtractedStyle {
+  margin_auto: [bool; 4],
+  flex: Option<ExtractedFlex>,
+}
+
+impl ExtractedStyle {
+  fn from_cascaded(cn: Option<&wgpu_html_style::CascadedNode>) -> Self {
+    let Some(cn) = cn else {
+      return Self { margin_auto: [false; 4], flex: None };
+    };
+    let s = &cn.style;
+    let is_auto = |specific: &Option<CssLength>, shorthand: &Option<CssLength>| -> bool {
+      match specific {
+        Some(CssLength::Auto) => true,
+        Some(_) => false,
+        None => matches!(shorthand, Some(CssLength::Auto)),
+      }
+    };
+    let margin_auto = [
+      is_auto(&s.margin_top, &s.margin),
+      is_auto(&s.margin_right, &s.margin),
+      is_auto(&s.margin_bottom, &s.margin),
+      is_auto(&s.margin_left, &s.margin),
+    ];
+    let is_flex = matches!(s.display, Some(Display::Flex) | Some(Display::InlineFlex));
+    let flex = if is_flex {
+      Some(ExtractedFlex {
+        direction: s.flex_direction.as_ref().map(|d| d.as_css_str().to_string()).unwrap_or_default(),
+        gap: s.gap.clone(),
+        row_gap: s.row_gap.clone(),
+        col_gap: s.column_gap.clone(),
+        justify_content: s.justify_content.as_ref().map(|v| v.as_css_str().to_string()),
+        align_items: s.align_items.as_ref().map(|v| v.as_css_str().to_string()),
+      })
+    } else {
+      None
+    };
+    Self { margin_auto, flex }
+  }
+}
+
 // ── Box model ────────────────────────────────────────────────────────
 
 fn build_box_model(
   lb: &LayoutBox,
-  cn: Option<&CascadedNode>,
+  style: &ExtractedStyle,
   ctx: &Ctx<LayoutSectionMsg>,
 ) -> El {
   let mr = &lb.margin_rect;
@@ -211,7 +262,7 @@ fn build_box_model(
   let p_bottom = (br.y + br.h - bd.bottom) - (cr.y + cr.h);
   let p_left = cr.x - (br.x + bd.left);
 
-  let m_auto = margin_auto_sides(cn);
+  let m = &style.margin_auto;
 
   let content_box = div()
     .class(ctx.scoped("content-box"))
@@ -232,10 +283,10 @@ fn build_box_model(
 
   let margin_band = band(
     "margin", BM_MARGIN,
-    if m_auto[0] { "auto".into() } else { fmt_val(m_top) },
-    if m_auto[1] { "auto".into() } else { fmt_val(m_right) },
-    if m_auto[2] { "auto".into() } else { fmt_val(m_bottom) },
-    if m_auto[3] { "auto".into() } else { fmt_val(m_left) },
+    if m[0] { "auto".into() } else { fmt_val(m_top) },
+    if m[1] { "auto".into() } else { fmt_val(m_right) },
+    if m[2] { "auto".into() } else { fmt_val(m_bottom) },
+    if m[3] { "auto".into() } else { fmt_val(m_left) },
     border_band, ctx,
   );
 
@@ -276,44 +327,21 @@ fn fmt_val(v: f32) -> String {
   r.to_string()
 }
 
-fn margin_auto_sides(cn: Option<&CascadedNode>) -> [bool; 4] {
-  let Some(cn) = cn else { return [false; 4] };
-  let s = &cn.style;
-  let is_auto = |specific: &Option<CssLength>, shorthand: &Option<CssLength>| -> bool {
-    match specific {
-      Some(CssLength::Auto) => true,
-      Some(_) => false,
-      None => matches!(shorthand, Some(CssLength::Auto)),
-    }
-  };
-  [
-    is_auto(&s.margin_top, &s.margin),
-    is_auto(&s.margin_right, &s.margin),
-    is_auto(&s.margin_bottom, &s.margin),
-    is_auto(&s.margin_left, &s.margin),
-  ]
-}
-
 // ── Flex info ────────────────────────────────────────────────────────
 
-fn is_flex_container(s: &wgpu_html_models::Style) -> bool {
-  matches!(s.display, Some(Display::Flex) | Some(Display::InlineFlex))
-}
-
-fn build_flex_info(cn: &CascadedNode, ctx: &Ctx<LayoutSectionMsg>) -> El {
-  let s = &cn.style;
+fn build_flex_info(fi: &ExtractedFlex, ctx: &Ctx<LayoutSectionMsg>) -> El {
   let mut rows: Vec<El> = Vec::new();
   rows.push(el::span().class(ctx.scoped("fi-title")).text("Flex Container"));
 
-  if let Some(dir) = &s.flex_direction {
-    rows.push(fi_row("flex-direction:", dir.as_css_str(), ctx));
+  if !fi.direction.is_empty() {
+    rows.push(fi_row("flex-direction:", &fi.direction, ctx));
   }
 
-  let gap = s.gap.as_ref().or(s.row_gap.as_ref()).or(s.column_gap.as_ref());
+  let gap = fi.gap.as_ref().or(fi.row_gap.as_ref()).or(fi.col_gap.as_ref());
   if let Some(gap_val) = gap {
-    let row_gap = s.row_gap.as_ref().or(s.gap.as_ref());
-    let col_gap = s.column_gap.as_ref().or(s.gap.as_ref());
-    let same = match (row_gap, col_gap) {
+    let rg = fi.row_gap.as_ref().or(fi.gap.as_ref());
+    let cg = fi.col_gap.as_ref().or(fi.gap.as_ref());
+    let same = match (rg, cg) {
       (Some(a), Some(b)) => format!("{a}") == format!("{b}"),
       (None, None) => true,
       _ => false,
@@ -321,12 +349,12 @@ fn build_flex_info(cn: &CascadedNode, ctx: &Ctx<LayoutSectionMsg>) -> El {
     rows.push(fi_gap_row(gap_val, same, ctx));
   }
 
-  if let Some(jc) = &s.justify_content {
-    rows.push(fi_row("justify-content:", jc.as_css_str(), ctx));
+  if let Some(jc) = &fi.justify_content {
+    rows.push(fi_row("justify-content:", jc, ctx));
   }
 
-  if let Some(ai) = &s.align_items {
-    rows.push(fi_row("align-items:", ai.as_css_str(), ctx));
+  if let Some(ai) = &fi.align_items {
+    rows.push(fi_row("align-items:", ai, ctx));
   }
 
   div().class(ctx.scoped("fi")).children(rows)

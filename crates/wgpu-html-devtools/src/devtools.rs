@@ -171,14 +171,18 @@ impl Devtools {
       self.store.update_cascade(host_tree);
     }
 
+    eprintln!("[devtools] mount.process START");
     if self.mount.process(&mut self.tree) {
       self.needs_redraw = true;
     }
+    eprintln!("[devtools] mount.process END");
 
     let current_sel = self.store.selected_path.get();
     if current_sel != self.last_selected_path || cascade_changed {
       self.last_selected_path = current_sel;
+      eprintln!("[devtools] force_render START");
       self.mount.force_render(&mut self.tree);
+      eprintln!("[devtools] force_render END");
       self.needs_redraw = true;
     }
 
