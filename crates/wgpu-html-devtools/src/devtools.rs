@@ -151,6 +151,8 @@ impl Devtools {
       }
     }
 
+    let poll_t0 = std::time::Instant::now();
+
     // Bind the live host tree for the duration of this poll window.
     // Components read it via store.host_tree() — no clone needed.
     self.store.bind_host_tree(host_tree);
@@ -163,23 +165,35 @@ impl Devtools {
     }
     if cascade_changed {
       self.last_cascade_gen = Some(host_tree.cascade_generation);
+      let t0 = std::time::Instant::now();
       self.store.update_cascade(host_tree);
+      eprintln!("[devtools] cascade {:.1}ms", t0.elapsed().as_secs_f64() * 1000.0);
     }
 
     // Process pending component messages.
+    let t0 = std::time::Instant::now();
     if self.mount.process(&mut self.tree) {
       self.needs_redraw = true;
     }
+    let process_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
     // Re-render if the selection or tree structure changed.
     let current_sel = self.store.selected_path.get();
+    let mut force_ms = 0.0;
     if current_sel != self.last_selected_path || cascade_changed {
       self.last_selected_path = current_sel;
+      let t0 = std::time::Instant::now();
       self.mount.force_render(&mut self.tree);
+      force_ms = t0.elapsed().as_secs_f64() * 1000.0;
       self.needs_redraw = true;
     }
 
     self.store.unbind_host_tree();
+
+    let total = poll_t0.elapsed().as_secs_f64() * 1000.0;
+    if total > 1.0 {
+      eprintln!("[devtools] poll {:.1}ms  process={:.1}ms  force_render={:.1}ms", total, process_ms, force_ms);
+    }
   }
 
   /// Called by the host after rendering a frame.

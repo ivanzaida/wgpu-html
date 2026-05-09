@@ -147,6 +147,369 @@ impl CascadedNode {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Devtools: matched-rules inspection
+// ---------------------------------------------------------------------------
+
+/// A CSS rule that matched a specific element, with source attribution.
+#[derive(Debug, Clone)]
+pub struct MatchedRuleInfo {
+  pub selector: String,
+  pub source: String,
+  pub is_ua: bool,
+  pub declarations: Vec<(String, String)>,
+}
+
+/// Pre-prepared stylesheet data for devtools inspection. Create once
+/// via [`InspectionContext::new`], then call [`matched_rules`] for
+/// each element path without re-parsing.
+pub struct InspectionContext {
+  sheets: Vec<(String, bool, PreparedStylesheet)>,
+}
+
+impl InspectionContext {
+  pub fn new(tree: &Tree) -> Self {
+    Self { sheets: collect_named_sheets(tree) }
+  }
+
+  pub fn matched_rules(&self, tree: &Tree, path: &[usize]) -> Vec<MatchedRuleInfo> {
+    let root = match &tree.root {
+      Some(r) => r,
+      None => return Vec::new(),
+    };
+    let target = match root.at_path(path) {
+      Some(n) => n,
+      None => return Vec::new(),
+    };
+
+    let mut ancestors: Vec<(&Element, MatchContext)> = Vec::new();
+    {
+      let mut cursor = root;
+      let mut ancestor_path: Vec<usize> = Vec::new();
+      for &idx in path {
+        let ctx = MatchContext::for_path(&ancestor_path, &tree.interaction);
+        ancestors.push((&cursor.element, ctx));
+        cursor = match cursor.children.get(idx) {
+          Some(c) => c,
+          None => return Vec::new(),
+        };
+        ancestor_path.push(idx);
+      }
+    }
+    let element_ctx = MatchContext::for_path(path, &tree.interaction);
+    let media = MediaContext::default();
+    let tag = element_tag(&target.element);
+    let id = element_id(&target.element);
+    let class_attr = element_class(&target.element);
+
+    let mut out = Vec::new();
+
+    for (name, is_ua, prepared) in &self.sheets {
+      let matched = matching_rules_for_element(
+        prepared,
+        &target.element,
+        &element_ctx,
+        &ancestors,
+        tag,
+        id,
+        class_attr,
+        &media,
+        root,
+        path,
+        &tree.interaction,
+      );
+      for (_spec, _rule_idx, rule, has_normal, _has_important) in &matched {
+        if !has_normal {
+          continue;
+        }
+        let selector = selector_list_to_string(&rule.selectors);
+        let declarations = collect_style_declarations(&rule.declarations);
+        if declarations.is_empty() {
+          continue;
+        }
+        out.push(MatchedRuleInfo {
+          selector,
+          source: name.clone(),
+          is_ua: *is_ua,
+          declarations,
+        });
+      }
+    }
+
+    out
+  }
+}
+
+/// Convenience wrapper — prepares sheets and matches in one call.
+/// Use [`InspectionContext`] directly when matching multiple paths.
+pub fn inspect_matched_rules(tree: &Tree, path: &[usize]) -> Vec<MatchedRuleInfo> {
+  InspectionContext::new(tree).matched_rules(tree, path)
+}
+
+fn collect_named_sheets(tree: &Tree) -> Vec<(String, bool, PreparedStylesheet)> {
+  let mut sheets = Vec::new();
+
+  if tree.use_ua_stylesheet {
+    sheets.push((
+      "user-agent".to_string(),
+      true,
+      ua_prepared_stylesheet().clone(),
+    ));
+  }
+
+  // Inline <style> tags
+  let mut style_css = String::new();
+  if let Some(root) = &tree.root {
+    gather_style_elements(root, &mut style_css);
+  }
+  if !style_css.is_empty() {
+    let parsed = parse_stylesheet(&style_css);
+    sheets.push((
+      "<style>".to_string(),
+      false,
+      PreparedStylesheet::from_sheet(Arc::new(parsed)),
+    ));
+  }
+
+  // Linked stylesheets
+  for (href, css) in &tree.linked_stylesheets {
+    let parsed = parse_stylesheet(css);
+    if !parsed.rules.is_empty() {
+      sheets.push((
+        href.to_string(),
+        false,
+        PreparedStylesheet::from_sheet(Arc::new(parsed)),
+      ));
+    }
+  }
+
+  sheets
+}
+
+fn gather_style_elements(node: &Node, out: &mut String) {
+  if let Element::StyleElement(_) = &node.element {
+    for child in &node.children {
+      if let Element::Text(t) = &child.element {
+        out.push_str(t);
+      }
+    }
+    out.push('\n');
+  }
+  for child in &node.children {
+    gather_style_elements(child, out);
+  }
+}
+
+fn selector_list_to_string(list: &wgpu_html_parser::SelectorList) -> String {
+  list
+    .selectors
+    .iter()
+    .map(|sel| complex_selector_to_string(sel))
+    .collect::<Vec<_>>()
+    .join(", ")
+}
+
+fn complex_selector_to_string(sel: &ComplexSelector) -> String {
+  let mut s = String::new();
+  for (i, compound) in sel.compounds.iter().enumerate() {
+    if i > 0 {
+      if let Some(comb) = sel.combinators.get(i - 1) {
+        match comb {
+          wgpu_html_parser::Combinator::Descendant => s.push(' '),
+          wgpu_html_parser::Combinator::Child => s.push_str(" > "),
+          wgpu_html_parser::Combinator::NextSibling => s.push_str(" + "),
+          wgpu_html_parser::Combinator::SubsequentSibling => s.push_str(" ~ "),
+        }
+      } else {
+        s.push(' ');
+      }
+    }
+    compound_to_string(compound, &mut s);
+  }
+  s
+}
+
+fn compound_to_string(c: &CompoundSelector, s: &mut String) {
+  if let Some(tag) = &c.tag {
+    s.push_str(tag);
+  }
+  if let Some(id) = &c.id {
+    s.push('#');
+    s.push_str(id);
+  }
+  for class in &c.classes {
+    s.push('.');
+    s.push_str(class);
+  }
+  for attr in &c.attrs {
+    s.push('[');
+    s.push_str(&attr.name);
+    let val = &attr.value;
+    match attr.op {
+      AttrOp::Exists => {}
+      AttrOp::Equals => { s.push_str(&format!("=\"{val}\"")); }
+      AttrOp::Substring => { s.push_str(&format!("*=\"{val}\"")); }
+      AttrOp::Prefix => { s.push_str(&format!("^=\"{val}\"")); }
+      AttrOp::Suffix => { s.push_str(&format!("$=\"{val}\"")); }
+      AttrOp::DashMatch => { s.push_str(&format!("|=\"{val}\"")); }
+      AttrOp::Includes => { s.push_str(&format!("~=\"{val}\"")); }
+    }
+    s.push(']');
+  }
+  for pc in &c.pseudo_classes {
+    s.push(':');
+    match pc {
+      PseudoClass::Hover => s.push_str("hover"),
+      PseudoClass::Active => s.push_str("active"),
+      PseudoClass::Focus => s.push_str("focus"),
+      PseudoClass::FocusWithin => s.push_str("focus-within"),
+      PseudoClass::Checked => s.push_str("checked"),
+      PseudoClass::Disabled => s.push_str("disabled"),
+      PseudoClass::Enabled => s.push_str("enabled"),
+      PseudoClass::Required => s.push_str("required"),
+      PseudoClass::Optional => s.push_str("optional"),
+      PseudoClass::ReadOnly => s.push_str("read-only"),
+      PseudoClass::ReadWrite => s.push_str("read-write"),
+      PseudoClass::FirstChild => s.push_str("first-child"),
+      PseudoClass::LastChild => s.push_str("last-child"),
+      PseudoClass::FirstOfType => s.push_str("first-of-type"),
+      PseudoClass::LastOfType => s.push_str("last-of-type"),
+      PseudoClass::NthChild(f, _) => { s.push_str(&format!("nth-child({}n+{})", f.a, f.b)); }
+      PseudoClass::NthLastChild(f) => { s.push_str(&format!("nth-last-child({}n+{})", f.a, f.b)); }
+      PseudoClass::NthOfType(f) => { s.push_str(&format!("nth-of-type({}n+{})", f.a, f.b)); }
+      PseudoClass::OnlyChild => s.push_str("only-child"),
+      PseudoClass::Root => s.push_str("root"),
+      PseudoClass::Scope => s.push_str("scope"),
+      PseudoClass::Empty => s.push_str("empty"),
+      PseudoClass::PlaceholderShown => s.push_str("placeholder-shown"),
+      PseudoClass::Lang(l) => { s.push_str(&format!("lang({l})")); }
+      PseudoClass::Dir(d) => { s.push_str(&format!("dir({d})")); }
+      PseudoClass::Not(inner) => {
+        s.push_str("not(");
+        s.push_str(&selector_list_to_string(inner));
+        s.push(')');
+      }
+      PseudoClass::Is(inner) => {
+        s.push_str("is(");
+        s.push_str(&selector_list_to_string(inner));
+        s.push(')');
+      }
+      PseudoClass::Where(inner) => {
+        s.push_str("where(");
+        s.push_str(&selector_list_to_string(inner));
+        s.push(')');
+      }
+      PseudoClass::Has(_) => s.push_str("has(...)"),
+    }
+  }
+  if let Some(pe) = &c.pseudo_element {
+    s.push_str("::");
+    match pe {
+      PseudoElement::Before => s.push_str("before"),
+      PseudoElement::After => s.push_str("after"),
+      PseudoElement::FirstLine => s.push_str("first-line"),
+      PseudoElement::FirstLetter => s.push_str("first-letter"),
+      PseudoElement::Placeholder => s.push_str("placeholder"),
+      PseudoElement::Selection => s.push_str("selection"),
+      PseudoElement::Marker => s.push_str("marker"),
+    }
+  }
+  if s.is_empty() {
+    s.push('*');
+  }
+}
+
+fn collect_style_declarations(style: &Style) -> Vec<(String, String)> {
+  let mut out = Vec::new();
+  macro_rules! prop {
+    ($name:literal, $field:expr) => {
+      if let Some(v) = &$field {
+        out.push(($name.to_string(), format!("{}", v)));
+      }
+    };
+  }
+  prop!("display", style.display);
+  prop!("position", style.position);
+  prop!("top", style.top);
+  prop!("right", style.right);
+  prop!("bottom", style.bottom);
+  prop!("left", style.left);
+  prop!("width", style.width);
+  prop!("height", style.height);
+  prop!("min-width", style.min_width);
+  prop!("min-height", style.min_height);
+  prop!("max-width", style.max_width);
+  prop!("max-height", style.max_height);
+  prop!("margin", style.margin);
+  prop!("margin-top", style.margin_top);
+  prop!("margin-right", style.margin_right);
+  prop!("margin-bottom", style.margin_bottom);
+  prop!("margin-left", style.margin_left);
+  prop!("padding", style.padding);
+  prop!("padding-top", style.padding_top);
+  prop!("padding-right", style.padding_right);
+  prop!("padding-bottom", style.padding_bottom);
+  prop!("padding-left", style.padding_left);
+  prop!("color", style.color);
+  prop!("accent-color", style.accent_color);
+  prop!("background-color", style.background_color);
+  prop!("border", style.border);
+  prop!("border-top-width", style.border_top_width);
+  prop!("border-right-width", style.border_right_width);
+  prop!("border-bottom-width", style.border_bottom_width);
+  prop!("border-left-width", style.border_left_width);
+  prop!("border-top-color", style.border_top_color);
+  prop!("border-right-color", style.border_right_color);
+  prop!("border-bottom-color", style.border_bottom_color);
+  prop!("border-left-color", style.border_left_color);
+  prop!("border-top-style", style.border_top_style);
+  prop!("border-right-style", style.border_right_style);
+  prop!("border-bottom-style", style.border_bottom_style);
+  prop!("border-left-style", style.border_left_style);
+  prop!("border-top-left-radius", style.border_top_left_radius);
+  prop!("border-top-right-radius", style.border_top_right_radius);
+  prop!("border-bottom-right-radius", style.border_bottom_right_radius);
+  prop!("border-bottom-left-radius", style.border_bottom_left_radius);
+  prop!("font-family", style.font_family);
+  prop!("font-size", style.font_size);
+  prop!("font-weight", style.font_weight);
+  prop!("font-style", style.font_style);
+  prop!("line-height", style.line_height);
+  prop!("letter-spacing", style.letter_spacing);
+  prop!("text-align", style.text_align);
+  prop!("text-transform", style.text_transform);
+  prop!("white-space", style.white_space);
+  prop!("overflow", style.overflow);
+  prop!("overflow-x", style.overflow_x);
+  prop!("overflow-y", style.overflow_y);
+  prop!("opacity", style.opacity);
+  prop!("visibility", style.visibility);
+  prop!("z-index", style.z_index);
+  prop!("flex-direction", style.flex_direction);
+  prop!("flex-wrap", style.flex_wrap);
+  prop!("justify-content", style.justify_content);
+  prop!("align-items", style.align_items);
+  prop!("align-content", style.align_content);
+  prop!("align-self", style.align_self);
+  prop!("gap", style.gap);
+  prop!("row-gap", style.row_gap);
+  prop!("column-gap", style.column_gap);
+  prop!("flex-grow", style.flex_grow);
+  prop!("flex-shrink", style.flex_shrink);
+  prop!("flex-basis", style.flex_basis);
+  prop!("order", style.order);
+  prop!("cursor", style.cursor);
+  prop!("user-select", style.user_select);
+  prop!("pointer-events", style.pointer_events);
+  prop!("box-sizing", style.box_sizing);
+  for (k, v) in &style.custom_properties {
+    out.push((k.to_string(), v.to_string()));
+  }
+  out
+}
+
+// ---------------------------------------------------------------------------
+
 /// Tracks which pseudo-classes appear in which position across all
 /// selectors. Used by incremental cascade to decide whether a
 /// pseudo-class state change requires re-cascade at all.

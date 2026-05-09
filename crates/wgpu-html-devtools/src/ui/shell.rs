@@ -40,10 +40,12 @@ impl Component for DevtoolsComponent {
         .background_color(Theme::BG_PRIMARY)
         .color(Theme::TEXT_PRIMARY)
         .font_family("Inter, system-ui, sans-serif")
-        .font_size(style::px(12)),
+        .font_size(style::px(12))
+        .overflow(Overflow::Hidden),
       style::rule(".body")
         .display(Display::Flex)
         .flex_grow(1.0)
+        .min_width(style::px(0))
         .overflow(Overflow::Hidden),
       style::rule(".breadcrumb")
         .display(Display::Flex)

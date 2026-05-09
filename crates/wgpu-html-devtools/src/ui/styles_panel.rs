@@ -1,14 +1,16 @@
-use wgpu_html_models::common::{AlignItems, Display, FontStyle, FontWeight, Overflow, WhiteSpace};
-use wgpu_html_models::Style;
+use super::store::DevtoolsStore;
+use super::style_rule::{StyleRule, StyleRuleProps};
+use super::theme::Theme;
+use wgpu_html_models::common::{AlignItems, Display, FontWeight, Overflow};
 use wgpu_html_tree::Element;
+use wgpu_html_ui::style::Val;
 use wgpu_html_ui::{
   el::{self, div},
   style::{self, pct, px, Stylesheet},
   Component, Ctx, El, ShouldRender,
 };
 
-use super::store::DevtoolsStore;
-use super::theme::Theme;
+const ELEM_MARGIN: Val = Val::Px(4f32);
 
 #[derive(Clone)]
 pub struct StylesPanelProps {
@@ -38,12 +40,13 @@ impl Component for StylesPanel {
         .display(Display::Flex)
         .prop("flex-direction", "column")
         .flex_grow(1.0)
+        .min_width(px(0))
         .height(pct(100))
         .background_color(Theme::BG_PRIMARY)
         .font_family("monospace")
         .font_size(px(11))
+        .overflow_x(Overflow::Hidden)
         .overflow_y(Overflow::Auto),
-      // ── Tab bar ──
       style::rule(".tabs")
         .display(Display::Flex)
         .align_items(AlignItems::Center)
@@ -66,89 +69,41 @@ impl Component for StylesPanel {
         .color(Theme::TEXT_PRIMARY)
         .font_weight(FontWeight::Weight(600))
         .border_bottom(format!("2px solid {}", Theme::ACCENT_BLUE)),
-      // ── Scrollable content ──
       style::rule(".content")
         .flex_grow(1.0)
+        .min_width(px(0))
+        .overflow_x(Overflow::Hidden)
         .overflow_y(Overflow::Auto),
-      // ── Rule block ──
-      style::rule(".rule")
-        .display(Display::Flex)
-        .prop("flex-direction", "column")
-        .width(pct(100))
-        .border_bottom(format!("1px solid {}", Theme::BORDER)),
-      style::rule(".rule-hdr")
+      style::rule(".inherited-hdr")
         .display(Display::Flex)
         .align_items(AlignItems::Center)
         .height(px(22))
         .padding_vh(px(0), px(12))
-        .gap(px(6))
-        .width(pct(100)),
-      style::rule(".rule-end")
-        .display(Display::Flex)
-        .align_items(AlignItems::Center)
-        .height(px(18))
-        .padding_vh(px(0), px(12)),
-      // ── Declaration row ──
-      style::rule(".decl")
-        .display(Display::Flex)
-        .align_items(AlignItems::Center)
-        .height(px(18))
-        .padding_left(px(28))
-        .padding_right(px(12))
-        .white_space(WhiteSpace::Nowrap),
-      // ── Syntax colors ──
-      style::rule(".sel")
-        .color(Theme::SELECTOR)
-        .font_weight(FontWeight::Weight(500)),
-      style::rule(".brace")
-        .color(Theme::PROPERTY),
-      style::rule(".prop")
-        .color(Theme::PROPERTY),
-      style::rule(".val")
-        .color(Theme::VALUE),
-      style::rule(".unit")
-        .color(Theme::UNIT),
-      style::rule(".punct")
-        .color(Theme::PROPERTY),
-      style::rule(".file")
-        .color(Theme::ACCENT_BLUE)
-        .font_family("Inter, system-ui, sans-serif")
-        .font_size(px(10)),
-      style::rule(".ua-file")
         .color(Theme::TEXT_MUTED)
         .font_family("Inter, system-ui, sans-serif")
         .font_size(px(10))
-        .font_style(FontStyle::Italic),
-      style::rule(".spacer")
-        .flex_grow(1.0),
-      style::rule(".chevron")
-        .width(px(11))
-        .height(px(11))
-        .font_size(px(11))
+        .border_bottom(format!("1px solid {}", Theme::BORDER)),
+      style::rule(".inherited-tag")
         .color(Theme::TEXT_SECONDARY)
-        .prop("line-height", "11px"),
+        .margin_left(ELEM_MARGIN),
       style::rule(".empty")
         .color(Theme::TEXT_MUTED)
         .padding(px(12))
         .font_family("Inter, system-ui, sans-serif"),
     ])
-      .scoped("styles")
+    .scoped("styles")
   }
 
   fn view(&self, props: &StylesPanelProps, ctx: &Ctx<StylesPanelMsg>) -> El {
     let selected = props.store.selected_path.get();
-    let cascaded = props.store.cascaded.get();
 
-    let content = if let (Some(path), Some(cascaded)) = (&selected, &cascaded) {
-      let cnode = cascaded.root.as_ref().and_then(|r| {
-        if path.is_empty() {
-          Some(r)
-        } else {
-          r.at_path(path)
-        }
-      });
-      if let Some(cnode) = cnode {
-        build_styles_content(&cnode.style, &cnode.element, ctx)
+    let content = if let Some(path) = &selected {
+      if let Some(host_tree) = props.store.host_tree() {
+        let t0 = std::time::Instant::now();
+        let inspection = wgpu_html_style::InspectionContext::new(host_tree);
+        let result = build_styles_content(host_tree, &inspection, path, ctx);
+        eprintln!("[styles-panel] build {:.1}ms ({} rules)", t0.elapsed().as_secs_f64() * 1000.0, result.len());
+        result
       } else {
         vec![el::span().class(ctx.scoped("empty")).text("No element selected")]
       }
@@ -158,7 +113,9 @@ impl Component for StylesPanel {
 
     div().class(ctx.scoped("panel")).children([
       div().class(ctx.scoped("tabs")).children([
-        el::span().class(format!("{} {}", ctx.scoped("tab"), ctx.scoped("active"))).text("Styles"),
+        el::span()
+          .class(format!("{} {}", ctx.scoped("tab"), ctx.scoped("active")))
+          .text("Styles"),
         el::span().class(ctx.scoped("tab")).text("Computed"),
         el::span().class(ctx.scoped("tab")).text("Layout"),
       ]),
@@ -167,68 +124,129 @@ impl Component for StylesPanel {
   }
 }
 
-fn build_styles_content(style: &Style, element: &Element, ctx: &Ctx<StylesPanelMsg>) -> Vec<El> {
+fn rule_el(
+  selector: &str,
+  source: Option<&str>,
+  is_ua: bool,
+  declarations: &[(String, String)],
+  ctx: &Ctx<StylesPanelMsg>,
+) -> El {
+  ctx.child::<StyleRule>(StyleRuleProps {
+    selector: selector.to_string(),
+    source: source.map(|s| s.to_string()),
+    is_ua,
+    declarations: declarations.to_vec(),
+  })
+}
+
+fn build_styles_content(
+  tree: &wgpu_html_tree::Tree,
+  inspection: &wgpu_html_style::InspectionContext,
+  path: &[usize],
+  ctx: &Ctx<StylesPanelMsg>,
+) -> Vec<El> {
   let mut blocks: Vec<El> = Vec::new();
 
-  // element.style block (inline styles)
-  blocks.push(build_rule_block(
-    "element.style",
-    None,
-    &collect_inline_style(element),
-    ctx,
-  ));
+  if let Some(node) = tree.root.as_ref().and_then(|r| r.at_path(path)) {
+    let inline = collect_inline_style(&node.element);
+    blocks.push(rule_el("element.style", None, false, &inline, ctx));
+  }
 
-  // Computed styles as a single rule block
-  let computed = collect_computed(style);
-  if !computed.is_empty() {
-    let selector = element.tag_name();
-    blocks.push(build_rule_block(selector, None, &computed, ctx));
+  let matched = inspection.matched_rules(tree, path);
+  for rule in &matched {
+    blocks.push(rule_el(
+      &rule.selector,
+      Some(&rule.source),
+      rule.is_ua,
+      &rule.declarations,
+      ctx,
+    ));
+  }
+
+  let mut ancestor_path = path.to_vec();
+  while !ancestor_path.is_empty() {
+    ancestor_path.pop();
+    let ancestor_node = tree.root.as_ref().and_then(|r| r.at_path(&ancestor_path));
+    let Some(ancestor_node) = ancestor_node else { break };
+
+    let ancestor_matched = inspection.matched_rules(tree, &ancestor_path);
+    let inherited_rules: Vec<&wgpu_html_style::MatchedRuleInfo> = ancestor_matched
+      .iter()
+      .filter(|r| r.declarations.iter().any(|(p, _)| is_inherited_property(p)))
+      .collect();
+    if inherited_rules.is_empty() {
+      continue;
+    }
+
+    let tag = ancestor_node.element.tag_name();
+    let class_attr = ancestor_node.element.attr("class");
+    let label = match &class_attr {
+      Some(c) if !c.is_empty() => {
+        format!("{}.{}", tag, c.split_whitespace().collect::<Vec<_>>().join("."))
+      }
+      _ => tag.to_string(),
+    };
+
+    blocks.push(
+      div().class(ctx.scoped("inherited-hdr")).children([
+        el::span().text("Inherited from"),
+        el::span()
+          .class(ctx.scoped("inherited-tag"))
+          .text(label.as_str()),
+      ]),
+    );
+
+    for rule in inherited_rules {
+      let inherited_decls: Vec<(String, String)> = rule
+        .declarations
+        .iter()
+        .filter(|(p, _)| is_inherited_property(p))
+        .cloned()
+        .collect();
+      blocks.push(rule_el(
+        &rule.selector,
+        Some(&rule.source),
+        rule.is_ua,
+        &inherited_decls,
+        ctx,
+      ));
+    }
+
+    let ancestor_inline = collect_inline_style(&ancestor_node.element);
+    let inherited_inline: Vec<(String, String)> = ancestor_inline
+      .into_iter()
+      .filter(|(p, _)| is_inherited_property(p))
+      .collect();
+    if !inherited_inline.is_empty() {
+      blocks.push(rule_el("element.style", None, false, &inherited_inline, ctx));
+    }
   }
 
   blocks
 }
 
-fn build_rule_block(
-  selector: &str,
-  source: Option<&str>,
-  declarations: &[(String, String)],
-  ctx: &Ctx<StylesPanelMsg>,
-) -> El {
-  let mut children: Vec<El> = Vec::new();
-
-  // Header: chevron + selector + { + spacer + source
-  let mut hdr_parts: Vec<El> = vec![
-    el::span().class(ctx.scoped("sel")).text(selector),
-    el::span().class(ctx.scoped("brace")).text(" {"),
-  ];
-  if let Some(src) = source {
-    hdr_parts.push(div().class(ctx.scoped("spacer")));
-    hdr_parts.push(el::span().class(ctx.scoped("file")).text(src));
-  }
-  children.push(div().class(ctx.scoped("rule-hdr")).children(hdr_parts));
-
-  // Declarations
-  for (prop, val) in declarations {
-    children.push(build_declaration(prop, val, ctx));
-  }
-
-  // Closing brace
-  children.push(
-    div()
-      .class(ctx.scoped("rule-end"))
-      .children([el::span().class(ctx.scoped("brace")).text("}")]),
-  );
-
-  div().class(ctx.scoped("rule")).children(children)
-}
-
-fn build_declaration(prop: &str, value: &str, ctx: &Ctx<StylesPanelMsg>) -> El {
-  div().class(ctx.scoped("decl")).children([
-    el::span().class(ctx.scoped("prop")).text(prop),
-    el::span().class(ctx.scoped("punct")).text(": "),
-    el::span().class(ctx.scoped("val")).text(value),
-    el::span().class(ctx.scoped("punct")).text(";"),
-  ])
+fn is_inherited_property(prop: &str) -> bool {
+  matches!(
+    prop,
+    "color"
+      | "accent-color"
+      | "font-family"
+      | "font-size"
+      | "font-weight"
+      | "font-style"
+      | "line-height"
+      | "letter-spacing"
+      | "text-align"
+      | "text-transform"
+      | "text-decoration"
+      | "white-space"
+      | "visibility"
+      | "cursor"
+      | "user-select"
+      | "pointer-events"
+      | "list-style-type"
+      | "list-style-position"
+  )
 }
 
 fn collect_inline_style(element: &Element) -> Vec<(String, String)> {
@@ -250,68 +268,4 @@ fn collect_inline_style(element: &Element) -> Vec<(String, String)> {
       Some((p.trim().to_string(), v.trim().to_string()))
     })
     .collect()
-}
-
-fn collect_computed(style: &Style) -> Vec<(String, String)> {
-  let mut out = Vec::new();
-  macro_rules! prop {
-    ($name:literal, $field:expr) => {
-      if let Some(v) = &$field {
-        out.push(($name.to_string(), format!("{}", v)));
-      }
-    };
-  }
-  prop!("display", style.display);
-  prop!("position", style.position);
-  prop!("width", style.width);
-  prop!("height", style.height);
-  prop!("min-width", style.min_width);
-  prop!("min-height", style.min_height);
-  prop!("max-width", style.max_width);
-  prop!("max-height", style.max_height);
-  prop!("margin", style.margin);
-  prop!("margin-top", style.margin_top);
-  prop!("margin-right", style.margin_right);
-  prop!("margin-bottom", style.margin_bottom);
-  prop!("margin-left", style.margin_left);
-  prop!("padding", style.padding);
-  prop!("padding-top", style.padding_top);
-  prop!("padding-right", style.padding_right);
-  prop!("padding-bottom", style.padding_bottom);
-  prop!("padding-left", style.padding_left);
-  prop!("color", style.color);
-  prop!("background-color", style.background_color);
-  prop!("border", style.border);
-  prop!("font-family", style.font_family);
-  prop!("font-size", style.font_size);
-  prop!("font-weight", style.font_weight);
-  prop!("font-style", style.font_style);
-  prop!("line-height", style.line_height);
-  prop!("letter-spacing", style.letter_spacing);
-  prop!("text-align", style.text_align);
-  prop!("text-transform", style.text_transform);
-  prop!("white-space", style.white_space);
-  prop!("overflow", style.overflow);
-  prop!("overflow-x", style.overflow_x);
-  prop!("overflow-y", style.overflow_y);
-  prop!("opacity", style.opacity);
-  prop!("visibility", style.visibility);
-  prop!("z-index", style.z_index);
-  prop!("flex-direction", style.flex_direction);
-  prop!("flex-wrap", style.flex_wrap);
-  prop!("justify-content", style.justify_content);
-  prop!("align-items", style.align_items);
-  prop!("align-self", style.align_self);
-  prop!("gap", style.gap);
-  prop!("flex-grow", style.flex_grow);
-  prop!("flex-shrink", style.flex_shrink);
-  prop!("flex-basis", style.flex_basis);
-  prop!("cursor", style.cursor);
-  prop!("user-select", style.user_select);
-  prop!("box-sizing", style.box_sizing);
-  prop!("border-radius", style.border_top_left_radius);
-  for (k, v) in &style.custom_properties {
-    out.push((k.to_string(), v.to_string()));
-  }
-  out
 }
