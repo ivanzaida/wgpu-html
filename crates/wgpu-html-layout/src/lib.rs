@@ -1011,6 +1011,8 @@ pub fn layout_incremental(
     text: TextCtx { ctx: text_ctx },
     images: image_cache,
     locale: &default_locale,
+    date_display_value: None,
+    date_focus_path: None,
     profiler: None,
   };
   let path = Vec::new();
@@ -1400,7 +1402,20 @@ pub fn layout_with_text_locale(
   scale: f32,
   locale: &dyn wgpu_html_tree::Locale,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale)
+  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, None)
+}
+
+pub fn layout_with_text_locale_date(
+  tree: &CascadedTree,
+  text_ctx: &mut TextContext,
+  image_cache: &mut ImageCache,
+  viewport_w: f32,
+  viewport_h: f32,
+  scale: f32,
+  locale: &dyn wgpu_html_tree::Locale,
+  date_display: Option<String>,
+) -> Option<LayoutBox> {
+  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, date_display)
 }
 
 /// Like [`layout_with_text`] but optionally enables the layout
@@ -1415,6 +1430,7 @@ pub fn layout_with_text_profiled(
   scale: f32,
   profile: bool,
   locale: &dyn wgpu_html_tree::Locale,
+  date_display: Option<String>,
 ) -> Option<LayoutBox> {
   let root = tree.root.as_ref()?;
   let mut ctx = Ctx {
@@ -1424,6 +1440,8 @@ pub fn layout_with_text_profiled(
     text: TextCtx { ctx: text_ctx },
     images: image_cache,
     locale,
+    date_display_value: date_display,
+    date_focus_path: None,
     profiler: if profile {
       Some(layout_profile::LayoutProfiler::new())
     } else {
@@ -1537,6 +1555,8 @@ pub(crate) struct Ctx<'a> {
   pub images: &'a mut ImageCache,
   pub profiler: Option<layout_profile::LayoutProfiler>,
   pub locale: &'a dyn wgpu_html_tree::Locale,
+  pub date_display_value: Option<String>,
+  pub date_focus_path: Option<Vec<usize>>,
 }
 
 /// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
@@ -2090,6 +2110,30 @@ fn compute_value_run(
         )
       ) {
         return (None, None);
+      }
+      // Date inputs: show locale-formatted value (or display value while editing).
+      if matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal)) {
+        let val = if let Some(dv) = &ctx.date_display_value {
+          dv.clone()
+        } else {
+          let iso = inp.value.as_deref().unwrap_or("");
+          if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
+            if let Some((y, m, d, h, min)) = wgpu_html_tree::date::parse_datetime_local(iso) {
+              ctx.locale.format_datetime(y, m, d, h, min)
+            } else if iso.is_empty() {
+              return (None, None);
+            } else {
+              iso.to_string()
+            }
+          } else if let Some((y, m, d)) = wgpu_html_tree::date::parse_date(iso) {
+            ctx.locale.format_date(y, m, d)
+          } else if iso.is_empty() {
+            return (None, None);
+          } else {
+            iso.to_string()
+          }
+        };
+        return shape_input_text(&val, false, content_rect, node, ctx);
       }
       let default_label = match inp.r#type {
         Some(InputType::Submit) => "Submit",

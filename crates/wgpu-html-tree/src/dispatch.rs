@@ -926,6 +926,30 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
       }
     }
 
+    // Date input: parse formatted display value back to ISO on blur.
+    if let Some(display) = tree.interaction.date_display_value.take() {
+      use wgpu_html_models::common::html_enums::InputType;
+      if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(old)) {
+        if let Element::Input(inp) = &mut node.element {
+          let pattern = tree.locale.date_pattern();
+          if matches!(inp.r#type, Some(InputType::Date)) {
+            if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
+              inp.value = Some(crate::date::format_date(y, m, d).into());
+              tree.generation += 1;
+              tree.dirty_paths.push(old.to_vec());
+            }
+          } else if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
+            if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
+              let (h, min) = parse_time_from_display(&display);
+              inp.value = Some(crate::date::format_datetime_local(y, m, d, h, min).into());
+              tree.generation += 1;
+              tree.dirty_paths.push(old.to_vec());
+            }
+          }
+        }
+      }
+    }
+
     fire_focus_event(
       tree,
       old,
@@ -973,6 +997,28 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
         ) {
           return None;
         }
+        let is_date = matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal));
+        if is_date {
+          let iso = inp.value.as_deref().unwrap_or("");
+          let pattern = tree.locale.date_pattern();
+          let display = if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
+            if let Some((y, m, d, h, min)) = crate::date::parse_datetime_local(iso) {
+              tree.locale.format_datetime(y, m, d, h, min)
+            } else {
+              tree.locale.datetime_placeholder()
+            }
+          } else {
+            if let Some((y, m, d)) = crate::date::parse_date(iso) {
+              tree.locale.format_date(y, m, d)
+            } else {
+              tree.locale.date_placeholder()
+            }
+          };
+          let len = display.len();
+          tree.interaction.date_display_value = Some(display);
+          return Some(crate::EditCursor::collapsed(len));
+        }
+        tree.interaction.date_display_value = None;
         let len = inp.value.as_deref().unwrap_or("").len();
         Some(crate::EditCursor::collapsed(len))
       }
@@ -2614,6 +2660,17 @@ fn textarea_value(ta: &m::Textarea, children: &[Node]) -> String {
   s
 }
 
+fn parse_time_from_display(display: &str) -> (u8, u8) {
+  if let Some(time_part) = display.rsplit(' ').next() {
+    let mut parts = time_part.splitn(2, ':');
+    let h: u8 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let m: u8 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    (h.min(23), m.min(59))
+  } else {
+    (0, 0)
+  }
+}
+
 /// Read the current editable value from the focused form control.
 /// Returns `(value, is_textarea, is_readonly)`.
 fn read_editable_value(node: &Node) -> Option<(String, bool, bool)> {
@@ -2721,7 +2778,13 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
   let Some(node) = root.at_path(&focus_path) else {
     return false;
   };
-  let Some((old_value, is_textarea, is_readonly)) = read_editable_value(node) else {
+  let is_date_display = tree.interaction.date_display_value.is_some();
+  let Some((old_value, is_textarea, is_readonly)) = (if is_date_display {
+    let dv = tree.interaction.date_display_value.as_ref().unwrap().clone();
+    Some((dv, false, false))
+  } else {
+    read_editable_value(node)
+  }) else {
     return false;
   };
   if is_readonly {
@@ -2756,7 +2819,9 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     value: old_value,
     cursor,
   });
-  if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
+  if is_date_display {
+    tree.interaction.date_display_value = Some(new_value);
+  } else if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
     write_value(node, new_value);
   }
   tree.interaction.edit_cursor = Some(new_cursor);

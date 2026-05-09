@@ -92,8 +92,14 @@ fn each_input_type_gets_its_own_value_via_text_input() {
 
     if expect_editable {
       assert!(mutated, "type={type_name}: text_input should have mutated the value");
-      let v = value.unwrap_or_default();
-      assert!(v.contains('X'), "type={type_name}: value should contain 'X', got {v:?}");
+      let is_date = type_name == "date" || type_name == "datetime-local";
+      if is_date {
+        let dv = tree.interaction.date_display_value.as_deref().unwrap_or("");
+        assert!(dv.contains('X'), "type={type_name}: date_display_value should contain 'X', got {dv:?}");
+      } else {
+        let v = value.unwrap_or_default();
+        assert!(v.contains('X'), "type={type_name}: value should contain 'X', got {v:?}");
+      }
     } else {
       assert!(
         !mutated,

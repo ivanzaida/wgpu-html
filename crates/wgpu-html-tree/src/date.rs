@@ -55,6 +55,78 @@ pub fn format_datetime_local(y: i32, m: u8, d: u8, hour: u8, min: u8) -> String 
   format!("{y:04}-{m:02}-{d:02}T{hour:02}:{min:02}")
 }
 
+/// Describes a segment in a date pattern.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DateSegmentKind {
+  Day,
+  Month,
+  Year,
+  Hour,
+  Minute,
+  Separator,
+}
+
+/// A segment within the formatted date string.
+#[derive(Debug, Clone, Copy)]
+pub struct DateSegment {
+  pub kind: DateSegmentKind,
+  pub byte_start: usize,
+  pub byte_len: usize,
+}
+
+/// Parse a date pattern into segments.
+/// E.g. `"dd/mm/yyyy"` → [Day(0,2), Sep(2,1), Month(3,2), Sep(5,1), Year(6,4)]
+pub fn parse_pattern_segments(pattern: &str) -> Vec<DateSegment> {
+  let mut segs = Vec::new();
+  let bytes = pattern.as_bytes();
+  let mut i = 0;
+  let mut pos = 0;
+  while i < bytes.len() {
+    if i + 4 <= bytes.len() && &bytes[i..i + 4] == b"yyyy" {
+      segs.push(DateSegment { kind: DateSegmentKind::Year, byte_start: pos, byte_len: 4 });
+      pos += 4; i += 4;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"dd" {
+      segs.push(DateSegment { kind: DateSegmentKind::Day, byte_start: pos, byte_len: 2 });
+      pos += 2; i += 2;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"mm" {
+      segs.push(DateSegment { kind: DateSegmentKind::Month, byte_start: pos, byte_len: 2 });
+      pos += 2; i += 2;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"HH" {
+      segs.push(DateSegment { kind: DateSegmentKind::Hour, byte_start: pos, byte_len: 2 });
+      pos += 2; i += 2;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"MM" {
+      segs.push(DateSegment { kind: DateSegmentKind::Minute, byte_start: pos, byte_len: 2 });
+      pos += 2; i += 2;
+    } else {
+      segs.push(DateSegment { kind: DateSegmentKind::Separator, byte_start: pos, byte_len: 1 });
+      pos += 1; i += 1;
+    }
+  }
+  segs
+}
+
+/// Parse a locale-formatted date string using the given pattern.
+/// Returns (year, month, day) or None.
+pub fn parse_formatted_date(text: &str, pattern: &str) -> Option<(i32, u8, u8)> {
+  let segs = parse_pattern_segments(pattern);
+  let mut y: Option<i32> = None;
+  let mut m: Option<u8> = None;
+  let mut d: Option<u8> = None;
+  for seg in &segs {
+    if seg.kind == DateSegmentKind::Separator { continue; }
+    let s = text.get(seg.byte_start..seg.byte_start + seg.byte_len)?;
+    match seg.kind {
+      DateSegmentKind::Year => y = s.parse().ok(),
+      DateSegmentKind::Month => m = s.parse().ok(),
+      DateSegmentKind::Day => d = s.parse().ok(),
+      _ => {}
+    }
+  }
+  let (y, m, d) = (y?, m?, d?);
+  if m < 1 || m > 12 || d < 1 || d > days_in_month(y, m) { return None; }
+  Some((y, m, d))
+}
+
 pub fn prev_month(y: i32, m: u8) -> (i32, u8) {
   if m <= 1 { (y - 1, 12) } else { (y, m - 1) }
 }

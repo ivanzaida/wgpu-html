@@ -221,6 +221,10 @@ pub struct InteractionState {
   /// gained focus. Compared with the current value on `blur` to
   /// decide whether to fire a `change` event.
   pub focus_value_snapshot: Option<String>,
+  /// For date/datetime-local inputs: the locale-formatted display
+  /// string that the edit cursor operates on. `None` for non-date
+  /// inputs. Populated on focus, parsed back to ISO on blur.
+  pub date_display_value: Option<String>,
   /// Instant of the most recent primary-button `click` synthesis.
   /// Used with `last_click_path` to detect double-clicks (300 ms
   /// window, same-element requirement).
@@ -399,6 +403,7 @@ impl Default for InteractionState {
       edit_scroll_x: 0.0,
       caret_blink_epoch: Instant::now(),
       focus_value_snapshot: None,
+      date_display_value: None,
       last_click_time: Instant::now(),
       last_click_path: None,
       drag_pending: None,

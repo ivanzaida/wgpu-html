@@ -112,7 +112,7 @@ pub fn compute_layout_profiled(
   let layout;
   {
     wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-    layout = wgpu_html_layout::layout_with_text_locale(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
+    layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone());
   }
   let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -372,7 +372,7 @@ pub fn paint_tree_cached<'c>(
       let layout;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-        layout = wgpu_html_layout::layout_with_text_locale(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
+        layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone());
       }
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
