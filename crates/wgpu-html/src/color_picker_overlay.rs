@@ -170,20 +170,13 @@ fn merge_popup_style(base: &mut wgpu_html_models::Style, popup: Option<&wgpu_htm
   }
 }
 
-fn build_picker_tree(cp: &ColorPickerState, popup_x: f32, popup_y: f32) -> CascadedTree {
+fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   let popup_ps = cp.popup_style.as_deref();
-  let picker_ps = cp.picker_style.as_deref();
 
-  let canvas_ps = picker_ps.and_then(|_| None::<&wgpu_html_models::Style>);
-  let _ = canvas_ps;
-
-  // Popup container
+  // Popup container — laid out at (0,0), translated to popup position later.
   let mut ps = wgpu_html_models::Style::default();
   ps.display = Some(Display::Flex);
   ps.flex_direction = Some(FlexDirection::Column);
-  ps.position = Some(Position::Absolute);
-  ps.left = Some(CssLength::Px(popup_x));
-  ps.top = Some(CssLength::Px(popup_y));
   ps.width = Some(CssLength::Px(260.0));
   ps.background_color = Some(CssColor::Rgba(38, 38, 38, 0.96));
   ps.color = Some(CssColor::Rgba(217, 217, 217, 1.0));
@@ -263,14 +256,7 @@ fn build_picker_tree(cp: &ColorPickerState, popup_x: f32, popup_y: f32) -> Casca
     canvas_node, hue_node, alpha_node, rgba_node, hex_node,
   ]);
 
-  // Wrap in a viewport-sized relative container so absolute positioning works.
-  let mut wrapper_style = wgpu_html_models::Style::default();
-  wrapper_style.position = Some(Position::Relative);
-  wrapper_style.width = Some(CssLength::Px(4096.0));
-  wrapper_style.height = Some(CssLength::Px(4096.0));
-  let wrapper = cn(Element::Div(Div::default()), wrapper_style, vec![popup]);
-
-  CascadedTree { root: Some(wrapper) }
+  CascadedTree { root: Some(popup) }
 }
 
 fn build_input_node(text: &str, cp: &ColorPickerState) -> CascadedNode {
@@ -349,19 +335,20 @@ pub fn paint_color_picker_overlay(
 
   let [popup_x, popup_y, _, _] = cp.popup_rect;
 
-  // Build + layout the popup tree
-  let picker_tree = build_picker_tree(cp, popup_x, popup_y);
+  // Build + layout the popup at (0,0), then translate to popup position.
+  let picker_tree = build_picker_tree(cp);
   let mut image_cache = wgpu_html_layout::ImageCache::default();
-  let Some(layout) = wgpu_html_layout::layout_with_text(
+  let Some(mut layout) = wgpu_html_layout::layout_with_text(
     &picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0,
   ) else { return };
 
-  // Paint the laid-out tree (backgrounds, borders, text)
-  crate::paint::paint_layout_with_selection(&layout, list, None, wgpu_html_tree::SelectionColors::default(), 0.0);
+  translate_layout_box(&mut layout, popup_x, popup_y);
 
-  // The layout tree is: wrapper → popup → [canvas, hue, alpha, rgba, hex]
-  let Some(popup_box) = layout.children.first() else { return };
+  // popup is root, children: [canvas, hue, alpha, rgba, hex]
+  let popup_box = &layout;
   if popup_box.children.len() < 5 { return; }
+
+  crate::paint::paint_layout_with_selection(popup_box, list, None, wgpu_html_tree::SelectionColors::default(), 0.0);
 
   // Canvas gradient
   let cb = &popup_box.children[0];
@@ -437,6 +424,20 @@ pub fn paint_color_picker_overlay(
         }
       }
     }
+  }
+}
+
+fn translate_layout_box(b: &mut LayoutBox, dx: f32, dy: f32) {
+  b.margin_rect.x += dx;
+  b.margin_rect.y += dy;
+  b.border_rect.x += dx;
+  b.border_rect.y += dy;
+  b.content_rect.x += dx;
+  b.content_rect.y += dy;
+  b.background_rect.x += dx;
+  b.background_rect.y += dy;
+  for child in &mut b.children {
+    translate_layout_box(child, dx, dy);
   }
 }
 
