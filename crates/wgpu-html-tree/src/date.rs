@@ -248,6 +248,145 @@ pub fn is_separator(segments: &[DateSegment], byte_pos: usize) -> bool {
   })
 }
 
+/// Result of inserting a character into a date display string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DateEditResult {
+  pub text: String,
+  pub cursor: usize,
+  pub consumed: bool,
+}
+
+/// Insert a digit character into the date display string using overwrite
+/// mode within the current segment. Non-digit input is rejected.
+/// When a segment is full, auto-advances to the next segment.
+pub fn date_overwrite_char(
+  text: &str,
+  cursor_pos: usize,
+  ch: char,
+  segments: &[DateSegment],
+) -> DateEditResult {
+  if !ch.is_ascii_digit() {
+    return DateEditResult { text: text.to_string(), cursor: cursor_pos, consumed: false };
+  }
+
+  let mut pos = clamp_to_editable(segments, cursor_pos);
+  let seg_idx = match segment_at(segments, pos) {
+    Some(i) => i,
+    None => {
+      let editable = editable_segment_indices(segments);
+      if let Some(&first) = editable.first() {
+        pos = segments[first].byte_start;
+        first
+      } else {
+        return DateEditResult { text: text.to_string(), cursor: cursor_pos, consumed: false };
+      }
+    }
+  };
+
+  let seg = &segments[seg_idx];
+  let offset_in_seg = pos - seg.byte_start;
+
+  // Replace the character at `pos` in the text.
+  let mut chars: Vec<u8> = text.bytes().collect();
+  while chars.len() < seg.byte_start + seg.byte_len {
+    chars.push(b'0');
+  }
+  if pos < chars.len() {
+    chars[pos] = ch as u8;
+  }
+  let new_text = String::from_utf8(chars).unwrap_or_else(|_| text.to_string());
+
+  // Advance cursor: if at end of segment, jump to next editable segment.
+  let next_pos = pos + 1;
+  let new_cursor = if next_pos >= seg.byte_start + seg.byte_len {
+    // Auto-advance to next segment
+    let editable = editable_segment_indices(segments);
+    let cur_e = editable.iter().position(|&i| i == seg_idx);
+    match cur_e {
+      Some(c) if c + 1 < editable.len() => segments[editable[c + 1]].byte_start,
+      _ => next_pos.min(new_text.len()),
+    }
+  } else {
+    next_pos
+  };
+
+  DateEditResult { text: new_text, cursor: new_cursor, consumed: true }
+}
+
+/// Backspace: find the nearest editable position before cursor,
+/// replace that character with '0', move cursor there.
+pub fn date_backspace(
+  text: &str,
+  cursor_pos: usize,
+  segments: &[DateSegment],
+) -> DateEditResult {
+  if cursor_pos == 0 {
+    return DateEditResult { text: text.to_string(), cursor: 0, consumed: false };
+  }
+  // Walk backwards to find the nearest editable character position.
+  let mut target = cursor_pos - 1;
+  loop {
+    if let Some(seg_idx) = segment_at(segments, target) {
+      let mut chars: Vec<u8> = text.bytes().collect();
+      if target < chars.len() {
+        chars[target] = b'0';
+      }
+      let new_text = String::from_utf8(chars).unwrap_or_else(|_| text.to_string());
+      return DateEditResult { text: new_text, cursor: target, consumed: true };
+    }
+    if target == 0 { break; }
+    target -= 1;
+  }
+  DateEditResult { text: text.to_string(), cursor: cursor_pos, consumed: false }
+}
+
+/// Validate a segment value against its allowed range.
+pub fn validate_segment(kind: DateSegmentKind, value: &str, year: i32, month: u8) -> bool {
+  let n: u32 = match value.parse() {
+    Ok(v) => v,
+    Err(_) => return false,
+  };
+  match kind {
+    DateSegmentKind::Month => (1..=12).contains(&n),
+    DateSegmentKind::Day => {
+      let max = if month >= 1 && month <= 12 { days_in_month(year, month) as u32 } else { 31 };
+      (1..=max).contains(&n)
+    }
+    DateSegmentKind::Year => n >= 1 && n <= 9999,
+    DateSegmentKind::Hour => n <= 23,
+    DateSegmentKind::Minute => n <= 59,
+    DateSegmentKind::Separator => true,
+  }
+}
+
+/// Validate the entire formatted date string against its pattern.
+pub fn validate_formatted(text: &str, segments: &[DateSegment]) -> bool {
+  if text.len() < segments.last().map(|s| s.byte_start + s.byte_len).unwrap_or(0) {
+    return false;
+  }
+  let mut year: i32 = 0;
+  let mut month: u8 = 0;
+  // First pass: extract year and month for day validation.
+  for seg in segments {
+    if seg.kind == DateSegmentKind::Separator { continue; }
+    let Some(s) = text.get(seg.byte_start..seg.byte_start + seg.byte_len) else { return false };
+    match seg.kind {
+      DateSegmentKind::Year => year = s.parse().unwrap_or(0),
+      DateSegmentKind::Month => month = s.parse().unwrap_or(0),
+      _ => {}
+    }
+  }
+  // Second pass: validate each segment.
+  for seg in segments {
+    if seg.kind == DateSegmentKind::Separator { continue; }
+    let Some(s) = text.get(seg.byte_start..seg.byte_start + seg.byte_len) else { return false };
+    if !validate_segment(seg.kind, s, year, month) {
+      return false;
+    }
+  }
+  true
+}
+
 pub fn prev_month(y: i32, m: u8) -> (i32, u8) {
   if m <= 1 { (y - 1, 12) } else { (y, m - 1) }
 }
@@ -456,5 +595,178 @@ mod tests {
     assert_eq!(parse_formatted_date("13/09/2025", "mm/dd/yyyy"), None); // month 13
     assert_eq!(parse_formatted_date("02/30/2025", "mm/dd/yyyy"), None); // feb 30
     assert_eq!(parse_formatted_date("xx/09/2025", "mm/dd/yyyy"), None); // non-numeric
+  }
+
+  // ── Phase 3: Overwrite mode ──
+
+  #[test]
+  fn overwrite_digit_in_month() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_overwrite_char("05/09/2025", 0, '1', &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "15/09/2025");
+    assert_eq!(r.cursor, 1);
+  }
+
+  #[test]
+  fn overwrite_second_digit_auto_advances() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_overwrite_char("15/09/2025", 1, '2', &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "12/09/2025");
+    assert_eq!(r.cursor, 3); // auto-advanced past '/' to day segment
+  }
+
+  #[test]
+  fn overwrite_in_day_segment() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_overwrite_char("05/09/2025", 3, '1', &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "05/19/2025");
+    assert_eq!(r.cursor, 4);
+  }
+
+  #[test]
+  fn overwrite_in_year_segment() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_overwrite_char("05/09/2025", 6, '3', &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "05/09/3025");
+    assert_eq!(r.cursor, 7);
+  }
+
+  #[test]
+  fn overwrite_rejects_non_digit() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_overwrite_char("05/09/2025", 0, 'a', &segs);
+    assert!(!r.consumed);
+    assert_eq!(r.text, "05/09/2025");
+  }
+
+  #[test]
+  fn overwrite_dmy_dot_pattern() {
+    let segs = parse_pattern_segments("dd.mm.yyyy");
+    let r = date_overwrite_char("09.05.2025", 0, '3', &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "39.05.2025");
+    assert_eq!(r.cursor, 1);
+  }
+
+  #[test]
+  fn overwrite_last_year_digit_stays() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_overwrite_char("05/09/2025", 9, '6', &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "05/09/2026");
+    assert_eq!(r.cursor, 10); // at end, no more segments
+  }
+
+  // ── Phase 3: Backspace ──
+
+  #[test]
+  fn backspace_replaces_with_zero() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // cursor at 2: backspace targets pos 1 ('5'), zeros it
+    let r = date_backspace("05/09/2025", 2, &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "00/09/2025");
+    assert_eq!(r.cursor, 1);
+
+    // cursor at 1: backspace targets pos 0 ('0'), zeros it (already '0')
+    let r2 = date_backspace("15/09/2025", 1, &segs);
+    assert!(r2.consumed);
+    assert_eq!(r2.text, "05/09/2025");
+    assert_eq!(r2.cursor, 0);
+  }
+
+  #[test]
+  fn backspace_across_separator() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    // cursor at 3 (start of day), backspace skips '/' and zeros pos 1 ('5')
+    let r = date_backspace("05/09/2025", 3, &segs);
+    assert!(r.consumed);
+    assert_eq!(r.text, "00/09/2025");
+    assert_eq!(r.cursor, 1);
+  }
+
+  #[test]
+  fn backspace_at_zero_does_nothing() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    let r = date_backspace("05/09/2025", 0, &segs);
+    assert!(!r.consumed);
+    assert_eq!(r.text, "05/09/2025");
+  }
+
+  // ── Phase 4: Segment validation ──
+
+  #[test]
+  fn validate_month() {
+    assert!(validate_segment(DateSegmentKind::Month, "01", 2025, 1));
+    assert!(validate_segment(DateSegmentKind::Month, "12", 2025, 1));
+    assert!(!validate_segment(DateSegmentKind::Month, "00", 2025, 1));
+    assert!(!validate_segment(DateSegmentKind::Month, "13", 2025, 1));
+  }
+
+  #[test]
+  fn validate_day() {
+    assert!(validate_segment(DateSegmentKind::Day, "01", 2025, 1));
+    assert!(validate_segment(DateSegmentKind::Day, "31", 2025, 1));
+    assert!(!validate_segment(DateSegmentKind::Day, "00", 2025, 1));
+    assert!(!validate_segment(DateSegmentKind::Day, "32", 2025, 1));
+  }
+
+  #[test]
+  fn validate_day_feb() {
+    assert!(validate_segment(DateSegmentKind::Day, "28", 2023, 2));
+    assert!(!validate_segment(DateSegmentKind::Day, "29", 2023, 2));
+    assert!(validate_segment(DateSegmentKind::Day, "29", 2024, 2)); // leap
+  }
+
+  #[test]
+  fn validate_year() {
+    assert!(validate_segment(DateSegmentKind::Year, "2025", 0, 0));
+    assert!(validate_segment(DateSegmentKind::Year, "0001", 0, 0));
+    assert!(!validate_segment(DateSegmentKind::Year, "0000", 0, 0));
+  }
+
+  #[test]
+  fn validate_hour() {
+    assert!(validate_segment(DateSegmentKind::Hour, "00", 0, 0));
+    assert!(validate_segment(DateSegmentKind::Hour, "23", 0, 0));
+    assert!(!validate_segment(DateSegmentKind::Hour, "24", 0, 0));
+  }
+
+  #[test]
+  fn validate_minute() {
+    assert!(validate_segment(DateSegmentKind::Minute, "00", 0, 0));
+    assert!(validate_segment(DateSegmentKind::Minute, "59", 0, 0));
+    assert!(!validate_segment(DateSegmentKind::Minute, "60", 0, 0));
+  }
+
+  // ── Phase 4: Full validation ──
+
+  #[test]
+  fn validate_full_valid() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert!(validate_formatted("05/09/2025", &segs));
+    assert!(validate_formatted("12/31/2025", &segs));
+    assert!(validate_formatted("02/29/2024", &segs)); // leap year
+  }
+
+  #[test]
+  fn validate_full_invalid() {
+    let segs = parse_pattern_segments("mm/dd/yyyy");
+    assert!(!validate_formatted("13/09/2025", &segs)); // month 13
+    assert!(!validate_formatted("02/30/2025", &segs)); // feb 30
+    assert!(!validate_formatted("00/09/2025", &segs)); // month 0
+    assert!(!validate_formatted("05/00/2025", &segs)); // day 0
+    assert!(!validate_formatted("05/09/0000", &segs)); // year 0
+  }
+
+  #[test]
+  fn validate_dmy_dot() {
+    let segs = parse_pattern_segments("dd.mm.yyyy");
+    assert!(validate_formatted("09.05.2025", &segs));
+    assert!(!validate_formatted("31.02.2025", &segs)); // feb 31
   }
 }

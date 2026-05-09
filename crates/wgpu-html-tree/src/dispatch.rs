@@ -926,28 +926,36 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
       }
     }
 
-    // Date input: parse formatted display value back to ISO on blur.
+    // Date input: validate and parse formatted display value back to ISO on blur.
+    // If invalid, the display value is discarded and inp.value stays unchanged (revert).
     if let Some(display) = tree.interaction.date_display_value.take() {
       use wgpu_html_models::common::html_enums::InputType;
-      if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(old)) {
-        if let Element::Input(inp) = &mut node.element {
-          let pattern = tree.locale.date_pattern();
-          if matches!(inp.r#type, Some(InputType::Date)) {
-            if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
-              inp.value = Some(crate::date::format_date(y, m, d).into());
-              tree.generation += 1;
-              tree.dirty_paths.push(old.to_vec());
-            }
-          } else if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
-            if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
-              let (h, min) = parse_time_from_display(&display);
-              inp.value = Some(crate::date::format_datetime_local(y, m, d, h, min).into());
-              tree.generation += 1;
-              tree.dirty_paths.push(old.to_vec());
+      let pattern = tree.locale.date_pattern();
+      let segs = crate::date::parse_pattern_segments(pattern);
+      let valid = crate::date::validate_formatted(&display, &segs);
+      if valid {
+        if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(old)) {
+          if let Element::Input(inp) = &mut node.element {
+            if matches!(inp.r#type, Some(InputType::Date)) {
+              if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
+                inp.value = Some(crate::date::format_date(y, m, d).into());
+                tree.generation += 1;
+                tree.dirty_paths.push(old.to_vec());
+              }
+            } else if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
+              if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
+                let (h, min) = parse_time_from_display(&display);
+                inp.value = Some(crate::date::format_datetime_local(y, m, d, h, min).into());
+                tree.generation += 1;
+                tree.dirty_paths.push(old.to_vec());
+              }
             }
           }
         }
       }
+      // If not valid, inp.value stays unchanged — effectively reverts.
+      tree.generation += 1;
+      tree.dirty_paths.push(old.to_vec());
     }
 
     fire_focus_event(
@@ -2814,19 +2822,33 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     return true;
   }
 
-  let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
-
-  // Write back.
-  tree.interaction.undo_stack.push(crate::UndoEntry {
-    value: old_value,
-    cursor,
-  });
   if is_date_display {
-    tree.interaction.date_display_value = Some(new_value);
-  } else if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
-    write_value(node, new_value);
+    // Date overwrite mode: one char at a time, digits only.
+    let pattern = tree.locale.date_pattern();
+    let segs = crate::date::parse_pattern_segments(pattern);
+    let mut current_text = old_value.clone();
+    let mut current_pos = cursor.cursor;
+    let mut any = false;
+    for ch in text.chars() {
+      let r = crate::date::date_overwrite_char(&current_text, current_pos, ch, &segs);
+      if r.consumed {
+        current_text = r.text;
+        current_pos = r.cursor;
+        any = true;
+      }
+    }
+    if !any { return false; }
+    tree.interaction.undo_stack.push(crate::UndoEntry { value: old_value, cursor });
+    tree.interaction.date_display_value = Some(current_text);
+    tree.interaction.edit_cursor = Some(crate::EditCursor::collapsed(current_pos));
+  } else {
+    let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
+    tree.interaction.undo_stack.push(crate::UndoEntry { value: old_value, cursor });
+    if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
+      write_value(node, new_value);
+    }
+    tree.interaction.edit_cursor = Some(new_cursor);
   }
-  tree.interaction.edit_cursor = Some(new_cursor);
   tree.interaction.caret_blink_epoch = std::time::Instant::now();
   tree.generation += 1;
   tree.dirty_paths.push(focus_path.clone());
@@ -2976,6 +2998,18 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
     if let Some(new_cursor) = nav_cursor {
       tree.interaction.edit_cursor = Some(new_cursor);
       tree.interaction.caret_blink_epoch = std::time::Instant::now();
+      return true;
+    }
+    // Date backspace: replace char with '0' instead of deleting.
+    if key == "Backspace" || key == "Delete" {
+      let r = crate::date::date_backspace(&old_value, pos, &segs);
+      if r.consumed {
+        tree.interaction.date_display_value = Some(r.text);
+        tree.interaction.edit_cursor = Some(crate::EditCursor::collapsed(r.cursor));
+        tree.interaction.caret_blink_epoch = std::time::Instant::now();
+        tree.generation += 1;
+        tree.dirty_paths.push(focus_path.clone());
+      }
       return true;
     }
   }
