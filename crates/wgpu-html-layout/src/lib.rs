@@ -1001,16 +1001,11 @@ pub fn layout_incremental(
   scale: f32,
   locale: &dyn wgpu_html_tree::Locale,
   date_display_value: Option<String>,
-  focus_path: Option<&[usize]>,
+  date_focus_iso: Option<String>,
 ) -> bool {
   let Some(root) = cascaded.root.as_ref() else {
     return false;
   };
-  let date_focus_iso = focus_path.and_then(|p| {
-    let mut cur = root;
-    for &i in p { cur = cur.children.get(i)?; }
-    match &cur.element { wgpu_html_tree::Element::Input(inp) => inp.value.as_ref().map(|v| v.to_string()), _ => None }
-  });
   let mut ctx = Ctx {
     viewport_w,
     viewport_h,
@@ -1421,9 +1416,9 @@ pub fn layout_with_text_locale_date(
   scale: f32,
   locale: &dyn wgpu_html_tree::Locale,
   date_display: Option<String>,
-  focus_path: Option<&[usize]>,
+  date_focus_iso: Option<String>,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, date_display, focus_path)
+  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, date_display, date_focus_iso)
 }
 
 /// Like [`layout_with_text`] but optionally enables the layout
@@ -1439,14 +1434,9 @@ pub fn layout_with_text_profiled(
   profile: bool,
   locale: &dyn wgpu_html_tree::Locale,
   date_display: Option<String>,
-  focus_path: Option<&[usize]>,
+  date_focus_iso: Option<String>,
 ) -> Option<LayoutBox> {
   let root = tree.root.as_ref()?;
-  let date_focus_iso = focus_path.and_then(|p| {
-    let mut cur = root;
-    for &i in p { cur = cur.children.get(i)?; }
-    match &cur.element { wgpu_html_tree::Element::Input(inp) => inp.value.as_ref().map(|v| v.to_string()), _ => None }
-  });
   let mut ctx = Ctx {
     viewport_w,
     viewport_h,

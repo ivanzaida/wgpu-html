@@ -112,7 +112,7 @@ pub fn compute_layout_profiled(
   let layout;
   {
     wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-    layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), tree.interaction.focus_path.as_deref());
+    layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree));
   }
   let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -372,7 +372,7 @@ pub fn paint_tree_cached<'c>(
       let layout;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-        layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), tree.interaction.focus_path.as_deref());
+        layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree));
       }
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -453,7 +453,7 @@ pub fn paint_tree_cached<'c>(
           if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
             wgpu_html_layout::layout_incremental(
               cascaded, layout, &dirty, text_ctx, image_cache, viewport_w, viewport_h, scale,
-              tree.locale.as_ref(), tree.interaction.date_display_value.clone(), tree.interaction.focus_path.as_deref(),
+              tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree),
             );
             true
           } else {
@@ -531,6 +531,15 @@ pub fn paint_tree_cached<'c>(
 
   tree.profiler.as_ref().map(|p| p.frame_end());
   (list, cache.layout.as_ref(), timings)
+}
+
+fn focused_input_value(tree: &Tree) -> Option<String> {
+  let path = tree.interaction.focus_path.as_deref()?;
+  let node = tree.root.as_ref()?.at_path(path)?;
+  match &node.element {
+    wgpu_html_tree::Element::Input(inp) => inp.value.as_ref().map(|v| v.to_string()),
+    _ => None,
+  }
 }
 
 fn media_context(viewport_w: f32, viewport_h: f32, scale: f32) -> MediaContext {
