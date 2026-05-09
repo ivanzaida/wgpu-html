@@ -2595,6 +2595,8 @@ pub fn set_date_value(tree: &mut Tree, path: &[usize], value: &str) {
     }
     inp.value = Some(value.into());
     tree.form_control_generation += 1;
+    tree.generation += 1;
+    tree.dirty_paths.push(path.to_vec());
   }
   bubble_input(tree, path, None, ev::enums::InputType::InsertText);
   fire_change_event_at(tree, path);
