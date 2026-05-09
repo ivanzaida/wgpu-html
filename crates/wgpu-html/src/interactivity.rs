@@ -211,11 +211,6 @@ pub fn mouse_down_with_click_count(
             let first_dow = tree.locale.first_day_of_week();
             let (y, m, d) = date_picker_overlay::resolve_day_cell(dp, row, col, first_dow);
             if let Some(dp) = &mut tree.interaction.date_picker {
-              dp.year = y;
-              dp.month = m;
-              dp.day = d;
-              dp.view_year = y;
-              dp.view_month = m;
               let path = dp.path.clone();
               let val = if dp.has_time {
                 wgpu_html_tree::date::format_datetime_local(y, m, d, dp.hour, dp.minute)
@@ -224,6 +219,7 @@ pub fn mouse_down_with_click_count(
               };
               wgpu_html_tree::set_date_value(tree, &path, &val);
             }
+            tree.interaction.date_picker = None;
             return true;
           }
           date_picker_overlay::DatePickerHit::HourField => {
@@ -246,14 +242,10 @@ pub fn mouse_down_with_click_count(
           }
           date_picker_overlay::DatePickerHit::Reset => {
             if let Some(dp) = &mut tree.interaction.date_picker {
-              dp.year = 0;
-              dp.month = 0;
-              dp.day = 0;
-              dp.hour = 0;
-              dp.minute = 0;
               let path = dp.path.clone();
               wgpu_html_tree::set_date_value(tree, &path, "");
             }
+            tree.interaction.date_picker = None;
             return true;
           }
           date_picker_overlay::DatePickerHit::Background => {
