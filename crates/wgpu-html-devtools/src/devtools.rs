@@ -153,7 +153,7 @@ impl Devtools {
       let html = self.tree.to_html();
       let path = format!("devtools-dump-{}.html", self.tree.generation);
       match std::fs::write(&path, &html) {
-        Ok(()) => println!("[devtools] saved HTML \u{2192} {path} ({} bytes)", html.len()),
+        Ok(()) => println!("[devtools] saved HTML → {path} ({} bytes)", html.len()),
         Err(e) => eprintln!("[devtools] failed to save HTML: {e}"),
       }
     }
@@ -171,18 +171,14 @@ impl Devtools {
       self.store.update_cascade(host_tree);
     }
 
-    eprintln!("[devtools] mount.process START");
     if self.mount.process(&mut self.tree) {
       self.needs_redraw = true;
     }
-    eprintln!("[devtools] mount.process END");
 
     let current_sel = self.store.selected_path.get();
     if current_sel != self.last_selected_path || cascade_changed {
       self.last_selected_path = current_sel;
-      eprintln!("[devtools] force_render START");
       self.mount.force_render(&mut self.tree);
-      eprintln!("[devtools] force_render END");
       self.needs_redraw = true;
     }
 

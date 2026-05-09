@@ -477,9 +477,7 @@ impl ApplicationHandler for DemoApp {
               dd.window().set_visible(false);
             }
             WindowEvent::RedrawRequested => {
-              eprintln!("[devtools] render START");
               dd.render(devtools.tree_mut());
-              eprintln!("[devtools] render END");
               devtools.frame_rendered();
             }
             other => {
@@ -581,9 +579,7 @@ impl ApplicationHandler for DemoApp {
     self.driver.window().request_redraw();
 
     if let Some(devtools) = &mut self.devtools {
-      eprintln!("[devtools] poll START");
       devtools.poll_with_layout(&self.driver.tree, self.driver.rt.layout());
-      eprintln!("[devtools] poll END");
       let hover = devtools.hovered_path();
       self.driver.rt.set_inspect_overlay(hover);
 

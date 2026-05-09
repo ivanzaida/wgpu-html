@@ -126,13 +126,13 @@ pub struct CascadedNode {
   pub element: Element,
   pub style: Style,
   pub children: Vec<CascadedNode>,
-  pub before: Option<PseudoElementStyle>,
-  pub after: Option<PseudoElementStyle>,
-  pub first_line: Option<Style>,
-  pub first_letter: Option<Style>,
-  pub placeholder: Option<Style>,
-  pub selection: Option<Style>,
-  pub marker: Option<PseudoElementStyle>,
+  pub before: Option<Box<PseudoElementStyle>>,
+  pub after: Option<Box<PseudoElementStyle>>,
+  pub first_line: Option<Box<Style>>,
+  pub first_letter: Option<Box<Style>>,
+  pub placeholder: Option<Box<Style>>,
+  pub selection: Option<Box<Style>>,
+  pub marker: Option<Box<PseudoElementStyle>>,
   pub lui_pseudo: Vec<(wgpu_html_tree::PseudoElement, Style)>,
 }
 
@@ -841,9 +841,6 @@ pub fn cascade(tree: &Tree) -> CascadedTree {
 }
 
 pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
-  eprintln!("[cascade] Style size = {} bytes, CascadedNode size = {} bytes",
-    std::mem::size_of::<Style>(),
-    std::mem::size_of::<CascadedNode>());
   let author = collect_prepared_stylesheet_cached(tree);
   let sheets = collect_sheets(tree.use_ua_stylesheet, &author);
   let interaction = &tree.interaction;
@@ -853,8 +850,7 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
   let Some(root) = tree.root.as_ref() else {
     return CascadedTree { root: None };
   };
-  let mut max_depth: usize = 0;
-  let result = CascadedTree {
+  CascadedTree {
     root: Some(cascade_node(
       root,
       root,
@@ -867,12 +863,8 @@ pub fn cascade_with_media(tree: &Tree, media: &MediaContext) -> CascadedTree {
       None,
       &cascade_ctx,
       media,
-      0,
-      &mut max_depth,
     )),
-  };
-  eprintln!("[cascade] max depth = {max_depth}");
-  result
+  }
 }
 
 /// Incrementally re-cascade only the nodes whose pseudo-class state
@@ -1110,23 +1102,23 @@ fn re_cascade_dirty(
     }
     cached.before = compute_pseudo_element_style(
       PseudoElement::Before, &node.element, &style, sheets, root, path, interaction,
-    );
+    ).map(Box::new);
     cached.after = compute_pseudo_element_style(
       PseudoElement::After, &node.element, &style, sheets, root, path, interaction,
-    );
+    ).map(Box::new);
     cached.first_line = compute_pseudo_style_only(
       PseudoElement::FirstLine, &node.element, &style, sheets, root, path, interaction,
-    );
+    ).map(Box::new);
     cached.first_letter = compute_pseudo_style_only(
       PseudoElement::FirstLetter, &node.element, &style, sheets, root, path, interaction,
-    );
+    ).map(Box::new);
     cached.placeholder = compute_pseudo_style_only(
       PseudoElement::Placeholder, &node.element, &style, sheets, root, path, interaction,
-    );
+    ).map(Box::new);
     cached.selection = compute_pseudo_style_only(
       PseudoElement::Selection, &node.element, &style, sheets, root, path, interaction,
-    );
-    cached.marker = compute_marker(&node.element, &style, root, path, sheets, interaction);
+    ).map(Box::new);
+    cached.marker = compute_marker(&node.element, &style, root, path, sheets, interaction).map(Box::new);
     cached.style = style;
   }
 
@@ -1811,10 +1803,7 @@ fn cascade_node(
   sibling_count: Option<usize>,
   cascade_ctx: &CascadeContext,
   media: &MediaContext,
-  depth: usize,
-  max_depth: &mut usize,
 ) -> CascadedNode {
-  if depth > *max_depth { *max_depth = depth; }
   let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
   let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
     (Style::default(), HashMap::new())
@@ -1888,8 +1877,6 @@ fn cascade_node(
         Some(child_count),
         cascade_ctx,
         media,
-        depth + 1,
-        max_depth,
       );
       path.pop();
       cn
@@ -1897,24 +1884,24 @@ fn cascade_node(
     .collect();
   let before = compute_pseudo_element_style(
     PseudoElement::Before, &node.element, &style, sheets, root, path, interaction,
-  );
+  ).map(Box::new);
   let after = compute_pseudo_element_style(
     PseudoElement::After, &node.element, &style, sheets, root, path, interaction,
-  );
+  ).map(Box::new);
   let first_line = compute_pseudo_style_only(
     PseudoElement::FirstLine, &node.element, &style, sheets, root, path, interaction,
-  );
+  ).map(Box::new);
   let first_letter = compute_pseudo_style_only(
     PseudoElement::FirstLetter, &node.element, &style, sheets, root, path, interaction,
-  );
+  ).map(Box::new);
   let placeholder = compute_pseudo_style_only(
     PseudoElement::Placeholder, &node.element, &style, sheets, root, path, interaction,
-  );
+  ).map(Box::new);
   let selection = compute_pseudo_style_only(
     PseudoElement::Selection, &node.element, &style, sheets, root, path, interaction,
-  );
+  ).map(Box::new);
 
-  let marker = compute_marker(&node.element, &style, root, path, sheets, interaction);
+  let marker = compute_marker(&node.element, &style, root, path, sheets, interaction).map(Box::new);
 
   let lui_pseudo = compute_lui_pseudo_styles(&node.element, &style, sheets, root, path, interaction);
 

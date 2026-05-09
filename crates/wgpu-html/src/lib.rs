@@ -358,23 +358,19 @@ pub fn paint_tree_cached<'c>(
 
       let cascade_t0 = Instant::now();
       let media = media_context(viewport_w, viewport_h, scale);
-      eprintln!("[pipeline] cascade START");
       let cascaded;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "cascade");
         cascaded = wgpu_html_style::cascade_with_media(tree, &media);
       }
-      eprintln!("[pipeline] cascade END");
       timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
 
       let layout_t0 = Instant::now();
-      eprintln!("[pipeline] layout START");
       let layout;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
         layout = wgpu_html_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree));
       }
-      eprintln!("[pipeline] layout END");
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
       cache.layout = layout;
