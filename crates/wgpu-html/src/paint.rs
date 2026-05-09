@@ -864,15 +864,6 @@ fn paint_form_control(
     }
     FormControlKind::Date { .. } | FormControlKind::DatetimeLocal { .. } => {
       if cw > 0.0 && ch > 0.0 {
-        let bg_c = apply_opacity(FC_BG, opacity);
-        out.push_quad_rounded(Rect::new(cx, cy, cw, ch), bg_c, [3.0; 4]);
-        out.push_quad_stroke_ellipse(
-          Rect::new(cx, cy, cw, ch),
-          border_color,
-          [3.0; 4], [3.0; 4],
-          [1.0; 4],
-        );
-        // Calendar icon (right side)
         let icon_sz = (ch * 0.5).min(12.0);
         let ix = cx + cw - icon_sz - 4.0;
         let iy = cy + (ch - icon_sz) / 2.0;
