@@ -1167,6 +1167,16 @@ pub fn patch_layout_colors(layout: &mut LayoutBox, cascaded: &CascadedTree) {
   }
 }
 
+fn resolve_lui_color(
+  custom_properties: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
+  name: &str,
+  current: Color,
+) -> Option<Color> {
+  let val = custom_properties.get(name)?;
+  let css_color = wgpu_html_parser::parse_css_color(val.trim())?;
+  color::resolve_with_current(&css_color, current)
+}
+
 fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Color) {
   use color::{resolve_foreground, resolve_with_current};
   let style = &node.style;
@@ -1757,6 +1767,8 @@ fn layout_block(
   let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
   let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
   let accent_color = style.accent_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let lui_track_color = resolve_lui_color(&style.custom_properties, "--lui-track-color", fg);
+  let lui_thumb_color = resolve_lui_color(&style.custom_properties, "--lui-thumb-color", fg);
   let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
     top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
@@ -1869,6 +1881,8 @@ fn layout_block(
     selection_bg: None,
     selection_fg: None,
     accent_color,
+    lui_track_color,
+    lui_thumb_color,
     children,
     is_fixed: false,
     form_control: fc,
@@ -2732,6 +2746,8 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
+    lui_track_color: None,
+    lui_thumb_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -2810,6 +2826,8 @@ fn make_text_leaf(
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
+    lui_track_color: None,
+    lui_thumb_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3139,6 +3157,8 @@ fn layout_inline_subtree(
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
+    lui_track_color: None,
+    lui_thumb_color: None,
     children: final_children,
     is_fixed: false,
     form_control: None,
@@ -3234,6 +3254,8 @@ fn layout_atomic_inline_subtree(
   let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
   let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
   let accent_color = style.accent_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let lui_track_color = resolve_lui_color(&style.custom_properties, "--lui-track-color", fg);
+  let lui_thumb_color = resolve_lui_color(&style.custom_properties, "--lui-thumb-color", fg);
   let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
     top: style.border_top_color.as_ref().and_then(resolve_border).or(Some(fg)),
@@ -3332,6 +3354,8 @@ fn layout_atomic_inline_subtree(
       selection_bg: None,
       selection_fg: None,
       accent_color,
+      lui_track_color,
+      lui_thumb_color,
       children,
       is_fixed: false,
       form_control: fc,
@@ -3857,6 +3881,8 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
+    lui_track_color: None,
+    lui_thumb_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -4088,6 +4114,8 @@ fn layout_inline_paragraph(
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
+    lui_track_color: None,
+    lui_thumb_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

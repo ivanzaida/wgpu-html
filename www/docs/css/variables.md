@@ -31,6 +31,17 @@ Custom properties can be defined:
 - In inline `style="--color: red;"` attributes
 - Programmatically via `Node::set_custom_property()`
 
+### Engine Vendor Properties (`--lui-*`)
+
+wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling. These are regular custom properties (inherited, `var()`-compatible) that the paint system reads directly:
+
+| Property | Effect |
+|---|---|
+| `--lui-track-color` | Range slider unfilled track background |
+| `--lui-thumb-color` | Range slider thumb fill |
+
+See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details.
+
 ## `var()` Usage
 
 The `var()` function references a custom property:

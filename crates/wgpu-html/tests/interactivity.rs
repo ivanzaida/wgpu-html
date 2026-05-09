@@ -81,6 +81,8 @@ fn synthetic_text_layout() -> LayoutBox {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
+    lui_track_color: None,
+    lui_thumb_color: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

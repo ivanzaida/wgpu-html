@@ -77,6 +77,7 @@ This is the complete index of all supported CSS properties in wgpu-html, formatt
 | Property | Values | Initial | Inherited | Notes |
 |---|---|---|---|---|
 | `color` | `<color>` | `canvastext` | Yes | ✅ Full color parsing; inherited |
+| `accent-color` | `<color>` | UA blue | Yes | ✅ Tints checked checkbox/radio fills, range filled portion |
 | `background-color` | `<color>` \| `transparent` | `transparent` | No | ✅ |
 | `background-image` | `url(...)` \| `none` | `none` | No | ✅ URL-based image loading |
 | `background-repeat` | `repeat` \| `repeat-x` \| `repeat-y` \| `no-repeat` | `repeat` | No | ✅ Tiling with background-clip |
@@ -168,6 +169,35 @@ This is the complete index of all supported CSS properties in wgpu-html, formatt
 | `transition` | `<string>` (raw) | `all 0s ease 0s` | No | ❌ Parsed as raw string; never consumed |
 | `animation` | `<string>` (raw) | `none` | No | ❌ Parsed as raw string; never consumed |
 | `box-shadow` | `<string>` (raw) | `none` | No | ❌ Parsed as raw string; never consumed |
+
+## Form Control Styling
+
+Standard CSS properties that affect form control rendering:
+
+| Property | Applies to | Effect |
+|---|---|---|
+| `accent-color` | checkbox, radio, range | Tints checked fills and range filled portion. Inherited. |
+| `border-color` | checkbox, radio | Unchecked border stroke color |
+| `color` | checkbox, radio | Checkmark / radio dot color (auto-contrast from accent by default) |
+
+### `--lui-*` Vendor Properties
+
+Custom properties for styling form control parts that have no standard CSS equivalent. These use the `--lui-` prefix and accept any `<color>` value.
+
+| Property | Default | Effect |
+|---|---|---|
+| `--lui-track-color` | white | Range slider unfilled track background |
+| `--lui-thumb-color` | white | Range slider thumb fill |
+
+```css
+input[type="range"] {
+    accent-color: #7c3aed;
+    --lui-track-color: rgba(124, 58, 237, 0.15);
+    --lui-thumb-color: #e0d4fc;
+}
+```
+
+These work like regular CSS custom properties — they inherit, can use `var()` references, and can be set programmatically via `Node::set_custom_property()`.
 
 ## Grid Track Size Units
 
