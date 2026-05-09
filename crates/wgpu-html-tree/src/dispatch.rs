@@ -934,7 +934,7 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
         .and_then(|r| r.at_path(old))
         .map(|n| matches!(&n.element, Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
         .unwrap_or(false);
-      let pattern = if is_datetime { tree.locale.datetime_pattern() } else { tree.locale.date_pattern().to_string() };
+      let pattern = if is_datetime { tree.locale.datetime_pattern().to_string() } else { tree.locale.date_pattern().to_string() };
       let segs = crate::date::parse_pattern_segments(&pattern);
       let valid = crate::date::validate_formatted(&display, &segs);
       if valid {
@@ -2683,7 +2683,7 @@ fn textarea_value(ta: &m::Textarea, children: &[Node]) -> String {
 fn focused_date_pattern_for(tree: &Tree, input_type: Option<&wgpu_html_models::common::html_enums::InputType>) -> String {
   use wgpu_html_models::common::html_enums::InputType;
   if matches!(input_type, Some(InputType::DatetimeLocal)) {
-    tree.locale.datetime_pattern()
+    tree.locale.datetime_pattern().to_string()
   } else {
     tree.locale.date_pattern().to_string()
   }
@@ -2696,7 +2696,7 @@ fn focused_date_pattern(tree: &Tree) -> String {
     .map(|n| matches!(&n.element, Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
     .unwrap_or(false);
   if is_datetime {
-    tree.locale.datetime_pattern()
+    tree.locale.datetime_pattern().to_string()
   } else {
     tree.locale.date_pattern().to_string()
   }

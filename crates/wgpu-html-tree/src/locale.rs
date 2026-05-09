@@ -30,21 +30,18 @@ pub fn format_date_pattern(pattern: &str, y: i32, m: u8, d: u8) -> String {
 pub trait Locale: Send + Sync + std::fmt::Debug {
   fn key(&self) -> &str { "en-US" }
   fn date_pattern(&self) -> &str { "mm/dd/yyyy" }
+  fn datetime_pattern(&self) -> &str { "mm/dd/yyyy HH:MM" }
   fn format_date(&self, y: i32, m: u8, d: u8) -> String {
     format_date_pattern(self.date_pattern(), y, m, d)
   }
   fn format_datetime(&self, y: i32, m: u8, d: u8, hour: u8, min: u8) -> String {
-    let date = self.format_date(y, m, d);
-    format!("{date} {hour:02}:{min:02}")
+    crate::date::format_datetime_pattern(self.datetime_pattern(), y, m, d, hour, min)
   }
   fn date_placeholder(&self) -> String {
     self.date_pattern().to_string()
   }
-  fn datetime_pattern(&self) -> String {
-    format!("{} HH:MM", self.date_pattern())
-  }
   fn datetime_placeholder(&self) -> String {
-    format!("{} hh:mm", self.date_pattern())
+    self.datetime_pattern().replace("HH", "hh").replace("MM", "mm")
   }
   fn month_name(&self, month: u8) -> &str;
   fn month_short(&self, month: u8) -> &str;

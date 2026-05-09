@@ -465,7 +465,7 @@ pub fn focused_date_pattern_from_tree(tree: &crate::Tree) -> String {
     .and_then(|p| tree.root.as_ref()?.at_path(p))
     .map(|n| matches!(&n.element, crate::Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
     .unwrap_or(false);
-  if is_datetime { tree.locale.datetime_pattern() } else { tree.locale.date_pattern().to_string() }
+  if is_datetime { tree.locale.datetime_pattern().to_string() } else { tree.locale.date_pattern().to_string() }
 }
 
 pub fn prev_month(y: i32, m: u8) -> (i32, u8) {
@@ -734,6 +734,37 @@ mod tests {
     // reverse
     assert_eq!(prev_segment(&segs, 14), (11, 13)); // minute → hour
     assert_eq!(prev_segment(&segs, 11), (6, 10));  // hour → year
+  }
+
+  #[test]
+  fn time_first_pattern() {
+    let pattern = "HH:MM yyyy-mm-dd";
+    let segs = parse_pattern_segments(pattern);
+    assert_eq!(segs[0].kind, DateSegmentKind::Hour);
+    assert_eq!((segs[0].byte_start, segs[0].byte_len), (0, 2));
+    assert_eq!(segs[2].kind, DateSegmentKind::Minute);
+    assert_eq!((segs[2].byte_start, segs[2].byte_len), (3, 2));
+    assert_eq!(segs[4].kind, DateSegmentKind::Year);
+    assert_eq!(segs[6].kind, DateSegmentKind::Month);
+    assert_eq!(segs[8].kind, DateSegmentKind::Day);
+
+    let formatted = format_datetime_pattern(pattern, 2025, 5, 9, 14, 30);
+    assert_eq!(formatted, "14:30 2025-05-09");
+    assert_eq!(parse_formatted_datetime(&formatted, pattern), Some((2025, 5, 9, 14, 30)));
+
+    // Tab: hour → minute → year → month → day
+    assert_eq!(next_segment(&segs, 0), (3, 5));   // hour → minute
+    assert_eq!(next_segment(&segs, 3), (6, 10));  // minute → year
+    assert_eq!(next_segment(&segs, 7), (11, 13)); // year → month
+    assert_eq!(next_segment(&segs, 11), (14, 16)); // month → day
+  }
+
+  #[test]
+  fn dot_separated_dmy_datetime() {
+    let pattern = "dd.mm.yyyy HH:MM";
+    let formatted = format_datetime_pattern(pattern, 2025, 12, 31, 23, 59);
+    assert_eq!(formatted, "31.12.2025 23:59");
+    assert_eq!(parse_formatted_datetime(&formatted, pattern), Some((2025, 12, 31, 23, 59)));
   }
 
   // ── Phase 3: Overwrite mode ──
