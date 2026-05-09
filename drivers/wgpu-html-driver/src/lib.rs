@@ -464,6 +464,9 @@ impl<D: Driver> Runtime<D> {
       paint_w
     };
 
+    // Pre-shape overlay text so the atlas includes all glyphs before the main paint.
+    wgpu_html::color_picker_overlay::update_cached_layout(tree, &mut self.text_ctx);
+
     let (mut list, layout, timings) = wgpu_html::paint_tree_cached(
       tree,
       &mut self.text_ctx,
@@ -542,7 +545,6 @@ impl<D: Driver> Runtime<D> {
         &mut list,
         layout,
         tree,
-        &mut self.text_ctx,
         0.0,
         scale,
         content_w,

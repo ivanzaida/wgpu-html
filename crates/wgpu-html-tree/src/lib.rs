@@ -29,7 +29,7 @@ pub use dispatch::{
   selectionchange_event, set_color_value, set_date_value, set_range_value_by_fraction, text_input, wheel_event,
 };
 pub use events::{
-  ColorPickerDragTarget, ColorPickerField, ColorPickerState, DatePickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,
+  CachedLayout, ColorPickerDragTarget, ColorPickerField, ColorPickerState, DatePickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,
   InteractionState, Modifier, Modifiers, MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset,
   SelectionColors, TextCursor, TextSelection, UndoEntry, UndoStack,
 };

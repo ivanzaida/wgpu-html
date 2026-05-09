@@ -258,6 +258,21 @@ pub struct RangeDrag {
   pub max: f32,
 }
 
+/// Opaque cached layout for overlays. Clones to empty (cache is rebuilt next frame).
+pub struct CachedLayout(pub Option<Box<dyn std::any::Any + Send + Sync>>);
+
+impl Default for CachedLayout {
+  fn default() -> Self { Self(None) }
+}
+impl Clone for CachedLayout {
+  fn clone(&self) -> Self { Self(None) }
+}
+impl std::fmt::Debug for CachedLayout {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "CachedLayout({})", if self.0.is_some() { "Some" } else { "None" })
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorPickerDragTarget {
   Canvas,
@@ -291,6 +306,9 @@ pub struct ColorPickerState {
   pub field_text: String,
   pub field_cursor: EditCursor,
   pub field_blink_epoch: Instant,
+  #[doc(hidden)]
+  pub cached_layout: CachedLayout,
+  pub layout_generation: u64,
 }
 
 #[derive(Debug, Clone)]

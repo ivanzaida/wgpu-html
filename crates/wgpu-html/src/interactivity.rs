@@ -377,6 +377,8 @@ pub fn mouse_down_with_click_count(
                   field_text: String::new(),
                   field_cursor: wgpu_html_tree::EditCursor::collapsed(0),
                   field_blink_epoch: std::time::Instant::now(),
+                  cached_layout: wgpu_html_tree::CachedLayout::default(),
+                  layout_generation: 0,
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;

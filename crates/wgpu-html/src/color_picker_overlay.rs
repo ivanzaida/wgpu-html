@@ -325,11 +325,29 @@ fn build_input_node(text: &str, cp: &ColorPickerState, text_color: &CssColor) ->
   cn(Element::Div(Div::default()), is, vec![text_node_colored(text, &effective_color)])
 }
 
+/// Build/rebuild the picker layout and cache it on the state.
+/// Call this BEFORE the main paint pass so the atlas has all needed glyphs.
+pub fn update_cached_layout(tree: &mut Tree, text_ctx: &mut TextContext) {
+  let cp = match &mut tree.interaction.color_picker {
+    Some(cp) => cp,
+    None => return,
+  };
+  let prev_gen = cp.layout_generation;
+  let picker_tree = build_picker_tree(cp);
+  let mut image_cache = wgpu_html_layout::ImageCache::default();
+  let Some(mut layout) = wgpu_html_layout::layout_with_text(
+    &picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0,
+  ) else { return };
+  let [popup_x, popup_y, _, _] = cp.popup_rect;
+  translate_layout_box(&mut layout, popup_x, popup_y);
+  cp.cached_layout = wgpu_html_tree::CachedLayout(Some(Box::new(layout)));
+  cp.layout_generation = prev_gen + 1;
+}
+
 pub fn paint_color_picker_overlay(
   list: &mut DisplayList,
   _root: &LayoutBox,
   tree: &Tree,
-  text_ctx: &mut TextContext,
   _scroll_y: f32,
   _scale: f32,
   _viewport_w: f32,
@@ -340,19 +358,10 @@ pub fn paint_color_picker_overlay(
     None => return,
   };
 
-  let [popup_x, popup_y, _, _] = cp.popup_rect;
-
-  // Build + layout the popup at (0,0), then translate to popup position.
-  let picker_tree = build_picker_tree(cp);
-  let mut image_cache = wgpu_html_layout::ImageCache::default();
-  let Some(mut layout) = wgpu_html_layout::layout_with_text(
-    &picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0,
-  ) else { return };
-
-  translate_layout_box(&mut layout, popup_x, popup_y);
-
-  // popup is root, children: [canvas, hue, alpha, rgba, hex]
-  let popup_box = &layout;
+  let popup_box = match cp.cached_layout.0.as_ref().and_then(|l| l.downcast_ref::<LayoutBox>()) {
+    Some(l) => l,
+    None => return,
+  };
   if popup_box.children.len() < 5 { return; }
 
   let saved_canvas_color = list.canvas_color;
