@@ -228,12 +228,17 @@ pub fn mouse_down_with_click_count(
             let (y, m, d) = date_picker_overlay::resolve_day_cell(dp, row, col, first_dow);
             if let Some(dp) = &mut tree.interaction.date_picker {
               let path = dp.path.clone();
-              let val = if dp.has_time {
-                wgpu_html_tree::date::format_datetime_local(y, m, d, dp.hour, dp.minute)
+              let (iso, display) = if dp.has_time {
+                let iso = wgpu_html_tree::date::format_datetime_local(y, m, d, dp.hour, dp.minute);
+                let display = tree.locale.format_datetime(y, m, d, dp.hour, dp.minute);
+                (iso, display)
               } else {
-                wgpu_html_tree::date::format_date(y, m, d)
+                let iso = wgpu_html_tree::date::format_date(y, m, d);
+                let display = tree.locale.format_date(y, m, d);
+                (iso, display)
               };
-              wgpu_html_tree::set_date_value(tree, &path, &val);
+              wgpu_html_tree::set_date_value(tree, &path, &iso);
+              tree.interaction.date_display_value = Some(display);
             }
             tree.interaction.date_picker = None;
             return true;
@@ -242,8 +247,10 @@ pub fn mouse_down_with_click_count(
             if let Some(dp) = &mut tree.interaction.date_picker {
               dp.hour = (dp.hour + 1) % 24;
               let path = dp.path.clone();
-              let val = wgpu_html_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
-              wgpu_html_tree::set_date_value(tree, &path, &val);
+              let iso = wgpu_html_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              let display = tree.locale.format_datetime(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              wgpu_html_tree::set_date_value(tree, &path, &iso);
+              tree.interaction.date_display_value = Some(display);
             }
             return true;
           }
@@ -251,8 +258,10 @@ pub fn mouse_down_with_click_count(
             if let Some(dp) = &mut tree.interaction.date_picker {
               dp.minute = (dp.minute + 1) % 60;
               let path = dp.path.clone();
-              let val = wgpu_html_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
-              wgpu_html_tree::set_date_value(tree, &path, &val);
+              let iso = wgpu_html_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              let display = tree.locale.format_datetime(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              wgpu_html_tree::set_date_value(tree, &path, &iso);
+              tree.interaction.date_display_value = Some(display);
             }
             return true;
           }
@@ -260,6 +269,7 @@ pub fn mouse_down_with_click_count(
             if let Some(dp) = &mut tree.interaction.date_picker {
               let path = dp.path.clone();
               wgpu_html_tree::set_date_value(tree, &path, "");
+              tree.interaction.date_display_value = None;
             }
             tree.interaction.date_picker = None;
             return true;
