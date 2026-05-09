@@ -222,9 +222,6 @@ pub struct Style {
   pub box_shadow: Option<ArcStr>,
   // css property: box-sizing
   pub box_sizing: Option<BoxSizing>,
-  pub lui_popup: LuiPopupStyle,
-  pub lui_color_picker: LuiColorPickerStyle,
-
   /// Longhands that the engine recognizes and preserves for future
   /// implementation, but doesn't model as dedicated typed fields yet.
   /// Keys are CSS kebab-case property names.

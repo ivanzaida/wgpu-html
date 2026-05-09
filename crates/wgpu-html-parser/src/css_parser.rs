@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use wgpu_html_models::{ArcStr, Style, common::css_enums::*};
+use wgpu_html_models::{ArcStr, LuiColorPickerStyle, LuiPopupStyle, Style, common::css_enums::*};
 
 use crate::{
   shorthands::{all_shorthands, is_deferred_longhand, shorthand_contains_member, shorthand_members},
@@ -324,18 +324,6 @@ fn overlay(dst: &mut Style, src: &Style) {
 }
 
 pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
-  // --lui-* vendor properties: parse into typed fields, then also
-  // store as custom properties for var() / inheritance.
-  if let Some(sub) = property.strip_prefix("--lui-popup-") {
-    apply_lui_popup(style, sub, value);
-    style.custom_properties.insert(ArcStr::from(property), ArcStr::from(value));
-    return;
-  }
-  if let Some(sub) = property.strip_prefix("--lui-color-") {
-    apply_lui_color_picker(style, sub, value);
-    style.custom_properties.insert(ArcStr::from(property), ArcStr::from(value));
-    return;
-  }
   // Custom properties (--*): store in side-car map.
   if property.starts_with("--") {
     style.custom_properties.insert(ArcStr::from(property), ArcStr::from(value));
@@ -3183,91 +3171,105 @@ fn parse_css_content(value: &str) -> Option<CssContent> {
 // --lui-popup-* / --lui-color-* vendor property dispatch
 // ---------------------------------------------------------------------------
 
-fn apply_lui_popup(style: &mut Style, sub: &str, value: &str) {
-  let p = &mut style.lui_popup;
-  match sub {
-    "width" => p.width = parse_css_length(value),
-    "height" => p.height = parse_css_length(value),
-    "background" | "background-color" => p.background_color = parse_css_color(value),
-    "color" => p.color = parse_css_color(value),
-    "border" => {
-      let (w, s, c) = parse_border_pieces(value);
-      if let Some(w) = w {
-        p.border_top_width = Some(w.clone());
-        p.border_right_width = Some(w.clone());
-        p.border_bottom_width = Some(w.clone());
-        p.border_left_width = Some(w);
+/// Resolve `--lui-popup-*` custom properties into a typed struct.
+pub fn resolve_lui_popup_style(
+  props: &std::collections::HashMap<ArcStr, ArcStr>,
+) -> LuiPopupStyle {
+  let mut p = LuiPopupStyle::default();
+  for (key, value) in props {
+    let Some(sub) = key.strip_prefix("--lui-popup-") else { continue };
+    match sub {
+      "width" => p.width = parse_css_length(value),
+      "height" => p.height = parse_css_length(value),
+      "background" | "background-color" => p.background_color = parse_css_color(value),
+      "color" => p.color = parse_css_color(value),
+      "border" => {
+        let (w, s, c) = parse_border_pieces(value);
+        if let Some(w) = w {
+          p.border_top_width = Some(w.clone());
+          p.border_right_width = Some(w.clone());
+          p.border_bottom_width = Some(w.clone());
+          p.border_left_width = Some(w);
+        }
+        if let Some(s) = s {
+          p.border_top_style = Some(s.clone());
+          p.border_right_style = Some(s.clone());
+          p.border_bottom_style = Some(s.clone());
+          p.border_left_style = Some(s);
+        }
+        if let Some(c) = c {
+          p.border_top_color = Some(c.clone());
+          p.border_right_color = Some(c.clone());
+          p.border_bottom_color = Some(c.clone());
+          p.border_left_color = Some(c);
+        }
       }
-      if let Some(s) = s {
-        p.border_top_style = Some(s.clone());
-        p.border_right_style = Some(s.clone());
-        p.border_bottom_style = Some(s.clone());
-        p.border_left_style = Some(s);
+      "border-width" => {
+        let w = parse_css_length(value);
+        p.border_top_width = w.clone();
+        p.border_right_width = w.clone();
+        p.border_bottom_width = w.clone();
+        p.border_left_width = w;
       }
-      if let Some(c) = c {
-        p.border_top_color = Some(c.clone());
-        p.border_right_color = Some(c.clone());
-        p.border_bottom_color = Some(c.clone());
-        p.border_left_color = Some(c);
+      "border-style" => {
+        let s = parse_border_style(value);
+        p.border_top_style = s.clone();
+        p.border_right_style = s.clone();
+        p.border_bottom_style = s.clone();
+        p.border_left_style = s;
       }
+      "border-color" => {
+        let c = parse_css_color(value);
+        p.border_top_color = c.clone();
+        p.border_right_color = c.clone();
+        p.border_bottom_color = c.clone();
+        p.border_left_color = c;
+      }
+      "border-top-width" => p.border_top_width = parse_css_length(value),
+      "border-right-width" => p.border_right_width = parse_css_length(value),
+      "border-bottom-width" => p.border_bottom_width = parse_css_length(value),
+      "border-left-width" => p.border_left_width = parse_css_length(value),
+      "border-top-style" => p.border_top_style = parse_border_style(value),
+      "border-right-style" => p.border_right_style = parse_border_style(value),
+      "border-bottom-style" => p.border_bottom_style = parse_border_style(value),
+      "border-left-style" => p.border_left_style = parse_border_style(value),
+      "border-top-color" => p.border_top_color = parse_css_color(value),
+      "border-right-color" => p.border_right_color = parse_css_color(value),
+      "border-bottom-color" => p.border_bottom_color = parse_css_color(value),
+      "border-left-color" => p.border_left_color = parse_css_color(value),
+      "border-radius" => p.border_radius = parse_css_length(value),
+      "font-size" => p.font_size = parse_css_length(value),
+      "font-family" => p.font_family = Some(ArcStr::from(value.as_ref())),
+      "font-weight" => p.font_weight = parse_font_weight(value),
+      _ => {}
     }
-    "border-width" => {
-      let w = parse_css_length(value);
-      p.border_top_width = w.clone();
-      p.border_right_width = w.clone();
-      p.border_bottom_width = w.clone();
-      p.border_left_width = w;
-    }
-    "border-style" => {
-      let s = parse_border_style(value);
-      p.border_top_style = s.clone();
-      p.border_right_style = s.clone();
-      p.border_bottom_style = s.clone();
-      p.border_left_style = s;
-    }
-    "border-color" => {
-      let c = parse_css_color(value);
-      p.border_top_color = c.clone();
-      p.border_right_color = c.clone();
-      p.border_bottom_color = c.clone();
-      p.border_left_color = c;
-    }
-    "border-top-width" => p.border_top_width = parse_css_length(value),
-    "border-right-width" => p.border_right_width = parse_css_length(value),
-    "border-bottom-width" => p.border_bottom_width = parse_css_length(value),
-    "border-left-width" => p.border_left_width = parse_css_length(value),
-    "border-top-style" => p.border_top_style = parse_border_style(value),
-    "border-right-style" => p.border_right_style = parse_border_style(value),
-    "border-bottom-style" => p.border_bottom_style = parse_border_style(value),
-    "border-left-style" => p.border_left_style = parse_border_style(value),
-    "border-top-color" => p.border_top_color = parse_css_color(value),
-    "border-right-color" => p.border_right_color = parse_css_color(value),
-    "border-bottom-color" => p.border_bottom_color = parse_css_color(value),
-    "border-left-color" => p.border_left_color = parse_css_color(value),
-    "border-radius" => p.border_radius = parse_css_length(value),
-    "font-size" => p.font_size = parse_css_length(value),
-    "font-family" => p.font_family = Some(ArcStr::from(value)),
-    "font-weight" => p.font_weight = parse_font_weight(value),
-    _ => {}
   }
+  p
 }
 
-fn apply_lui_color_picker(style: &mut Style, sub: &str, value: &str) {
-  let p = &mut style.lui_color_picker;
-  match sub {
-    "canvas-width" => p.canvas_width = parse_css_length(value),
-    "canvas-height" => p.canvas_height = parse_css_length(value),
-    "range-height" => p.range_height = parse_css_length(value),
-    "range-border-radius" => p.range_border_radius = parse_css_length(value),
-    "thumb-width" => p.thumb_width = parse_css_length(value),
-    "thumb-height" => p.thumb_height = parse_css_length(value),
-    "thumb-color" => p.thumb_color = parse_css_color(value),
-    "input-height" => p.input_height = parse_css_length(value),
-    "input-background" => p.input_background = parse_css_color(value),
-    "input-border-color" => p.input_border_color = parse_css_color(value),
-    "input-border-width" => p.input_border_width = parse_css_length(value),
-    "input-border-radius" => p.input_border_radius = parse_css_length(value),
-    "input-font-size" => p.input_font_size = parse_css_length(value),
-    _ => {}
+/// Resolve `--lui-color-*` custom properties into a typed struct.
+pub fn resolve_lui_color_picker_style(
+  props: &std::collections::HashMap<ArcStr, ArcStr>,
+) -> LuiColorPickerStyle {
+  let mut p = LuiColorPickerStyle::default();
+  for (key, value) in props {
+    let Some(sub) = key.strip_prefix("--lui-color-") else { continue };
+    match sub {
+      "canvas-width" => p.canvas_width = parse_css_length(value),
+      "canvas-height" => p.canvas_height = parse_css_length(value),
+      "range-height" => p.range_height = parse_css_length(value),
+      "range-border-radius" => p.range_border_radius = parse_css_length(value),
+      "thumb-width" => p.thumb_width = parse_css_length(value),
+      "thumb-height" => p.thumb_height = parse_css_length(value),
+      "thumb-color" => p.thumb_color = parse_css_color(value),
+      "input-height" => p.input_height = parse_css_length(value),
+      "input-background" => p.input_background = parse_css_color(value),
+      "input-border-color" => p.input_border_color = parse_css_color(value),
+      "input-border-width" => p.input_border_width = parse_css_length(value),
+      "input-border-radius" => p.input_border_radius = parse_css_length(value),
+      "input-font-size" => p.input_font_size = parse_css_length(value),
+      _ => {}
+    }
   }
+  p
 }

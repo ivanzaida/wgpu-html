@@ -514,8 +514,8 @@ pub struct LayoutBox {
   pub accent_color: Option<Color>,
   /// Resolved `--lui-*` vendor custom properties.
   pub lui: LuiProperties,
-  pub lui_popup: wgpu_html_models::css::style::LuiPopupStyle,
-  pub lui_color_picker: wgpu_html_models::css::style::LuiColorPickerStyle,
+  pub lui_popup: wgpu_html_models::LuiPopupStyle,
+  pub lui_color_picker: wgpu_html_models::LuiColorPickerStyle,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -1916,8 +1916,8 @@ fn layout_block(
     selection_fg: None,
     accent_color,
     lui,
-    lui_popup: style.lui_popup.clone(),
-    lui_color_picker: style.lui_color_picker.clone(),
+    lui_popup: wgpu_html_parser::resolve_lui_popup_style(&style.custom_properties),
+    lui_color_picker: wgpu_html_parser::resolve_lui_color_picker_style(&style.custom_properties),
     children,
     is_fixed: false,
     form_control: fc,
@@ -3436,8 +3436,8 @@ fn layout_atomic_inline_subtree(
       selection_fg: None,
       accent_color,
       lui,
-      lui_popup: style.lui_popup.clone(),
-      lui_color_picker: style.lui_color_picker.clone(),
+      lui_popup: wgpu_html_parser::resolve_lui_popup_style(&style.custom_properties),
+      lui_color_picker: wgpu_html_parser::resolve_lui_color_picker_style(&style.custom_properties),
       children,
       is_fixed: false,
       form_control: fc,
