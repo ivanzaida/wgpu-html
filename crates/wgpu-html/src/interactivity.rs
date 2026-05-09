@@ -43,6 +43,14 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
     if let Some(drag) = cp.drag {
       return update_color_picker_drag(tree, pos, drag);
     }
+    if color_picker_overlay::hit_test_color_picker(cp, pos).is_some() {
+      return true;
+    }
+  }
+  if let Some(ref dp) = tree.interaction.date_picker {
+    if date_picker_overlay::hit_test(dp, pos).is_some() {
+      return true;
+    }
   }
 
   // Range slider drag: update value from pointer position.
@@ -69,6 +77,14 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
     if let Some(drag) = cp.drag {
       let changed = update_color_picker_drag(tree, pos, drag);
       return (changed, Cursor::Default);
+    }
+    if color_picker_overlay::hit_test_color_picker(cp, pos).is_some() {
+      return (true, Cursor::Default);
+    }
+  }
+  if let Some(ref dp) = tree.interaction.date_picker {
+    if date_picker_overlay::hit_test(dp, pos).is_some() {
+      return (true, Cursor::Default);
     }
   }
 
