@@ -53,6 +53,7 @@ pub trait Locale: Send + Sync + std::fmt::Debug {
   fn file_no_file_label(&self) -> &str { "No file chosen" }
   fn color_picker_rgba_label(&self) -> &str { "RGBA" }
   fn color_picker_hex_label(&self) -> &str { "Hex" }
+  fn date_picker_reset_label(&self) -> &str { "Reset" }
 }
 
 #[derive(Debug)]

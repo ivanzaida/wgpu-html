@@ -9,6 +9,7 @@ const HEADER_H: f32 = 28.0;
 const DAY_HEADER_H: f32 = 20.0;
 const CELL_SIZE: f32 = 30.0;
 const TIME_ROW_H: f32 = 24.0;
+const RESET_BTN_H: f32 = 24.0;
 const GAP: f32 = 4.0;
 const CORNER_R: f32 = 6.0;
 
@@ -27,7 +28,7 @@ fn grid_w() -> f32 { CELL_SIZE * 7.0 }
 fn popup_h(has_time: bool) -> f32 {
   POPUP_PAD + HEADER_H + GAP + DAY_HEADER_H + CELL_SIZE * 6.0 + GAP
     + if has_time { TIME_ROW_H + GAP } else { 0.0 }
-    + POPUP_PAD
+    + RESET_BTN_H + POPUP_PAD
 }
 
 pub fn compute_popup_rects(
@@ -56,14 +57,18 @@ pub fn compute_popup_rects(
   let gy = cy + HEADER_H + GAP + DAY_HEADER_H;
   dp.grid_rect = [cx, gy, grid_w(), CELL_SIZE * 6.0];
 
+  let mut bottom_y = gy + CELL_SIZE * 6.0 + GAP;
+
   if dp.has_time {
-    let ty = gy + CELL_SIZE * 6.0 + GAP;
     let fw = 40.0;
     let total = fw * 2.0 + 12.0;
     let tx = cx + (grid_w() - total) / 2.0;
-    dp.hour_rect = [tx, ty, fw, TIME_ROW_H];
-    dp.minute_rect = [tx + fw + 12.0, ty, fw, TIME_ROW_H];
+    dp.hour_rect = [tx, bottom_y, fw, TIME_ROW_H];
+    dp.minute_rect = [tx + fw + 12.0, bottom_y, fw, TIME_ROW_H];
+    bottom_y += TIME_ROW_H + GAP;
   }
+
+  dp.reset_btn_rect = [cx, bottom_y, grid_w(), RESET_BTN_H];
 }
 
 pub fn paint_date_picker_overlay(
@@ -170,6 +175,12 @@ pub fn paint_date_picker_overlay(
     let colon_x = dp.hour_rect[0] + dp.hour_rect[2];
     paint_centered_text(list, text_ctx, ":", [colon_x, dp.hour_rect[1], 12.0, TIME_ROW_H], text_c, FONT_SIZE);
   }
+
+  // Reset button
+  let [rbx, rby, rbw, rbh] = dp.reset_btn_rect;
+  list.push_quad_stroke(Rect::new(rbx, rby, rbw, rbh), border, [3.0; 4], [1.0; 4]);
+  let reset_label = locale.date_picker_reset_label();
+  paint_centered_text(list, text_ctx, reset_label, dp.reset_btn_rect, dim_c, SMALL_FONT);
 }
 
 fn paint_chevron(list: &mut DisplayList, rect: [f32; 4], color: [f32; 4], left: bool) {
@@ -270,6 +281,11 @@ pub fn hit_test(dp: &DatePickerState, pos: (f32, f32)) -> Option<DatePickerHit> 
     }
   }
 
+  let [rbx, rby, rbw, rbh] = dp.reset_btn_rect;
+  if mx >= rbx && mx <= rbx + rbw && my >= rby && my <= rby + rbh {
+    return Some(DatePickerHit::Reset);
+  }
+
   Some(DatePickerHit::Background)
 }
 
@@ -298,6 +314,7 @@ pub enum DatePickerHit {
   DayCell(u8, u8),
   HourField,
   MinuteField,
+  Reset,
   Background,
 }
 

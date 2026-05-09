@@ -244,6 +244,18 @@ pub fn mouse_down_with_click_count(
             }
             return true;
           }
+          date_picker_overlay::DatePickerHit::Reset => {
+            if let Some(dp) = &mut tree.interaction.date_picker {
+              dp.year = 0;
+              dp.month = 0;
+              dp.day = 0;
+              dp.hour = 0;
+              dp.minute = 0;
+              let path = dp.path.clone();
+              wgpu_html_tree::set_date_value(tree, &path, "");
+            }
+            return true;
+          }
           date_picker_overlay::DatePickerHit::Background => {
             return true;
           }
@@ -396,6 +408,7 @@ pub fn mouse_down_with_click_count(
                   grid_rect: [0.0; 4],
                   hour_rect: [0.0; 4],
                   minute_rect: [0.0; 4],
+                  reset_btn_rect: [0.0; 4],
                   style_bg: lb.lui.calendar_bg,
                   style_border: lb.lui.calendar_border,
                   style_text: lb.lui.calendar_text,

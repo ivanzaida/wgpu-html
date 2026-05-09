@@ -313,6 +313,7 @@ pub struct DatePickerState {
   pub grid_rect: [f32; 4],
   pub hour_rect: [f32; 4],
   pub minute_rect: [f32; 4],
+  pub reset_btn_rect: [f32; 4],
   pub style_bg: Option<[f32; 4]>,
   pub style_border: Option<[f32; 4]>,
   pub style_text: Option<[f32; 4]>,
