@@ -545,6 +545,12 @@ pub struct LuiProperties {
   pub picker_border: Option<Color>,
   pub picker_indicator: Option<Color>,
   pub picker_label: Option<Color>,
+  pub calendar_bg: Option<Color>,
+  pub calendar_border: Option<Color>,
+  pub calendar_text: Option<Color>,
+  pub calendar_dim: Option<Color>,
+  pub calendar_selected: Option<Color>,
+  pub calendar_today: Option<Color>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1198,6 +1204,12 @@ fn resolve_lui_properties(
     picker_border: resolve_lui_color(cp, "--lui-picker-border", fg),
     picker_indicator: resolve_lui_color(cp, "--lui-picker-indicator", fg),
     picker_label: resolve_lui_color(cp, "--lui-picker-label", fg),
+    calendar_bg: resolve_lui_color(cp, "--lui-calendar-bg", fg),
+    calendar_border: resolve_lui_color(cp, "--lui-calendar-border", fg),
+    calendar_text: resolve_lui_color(cp, "--lui-calendar-text", fg),
+    calendar_dim: resolve_lui_color(cp, "--lui-calendar-dim", fg),
+    calendar_selected: resolve_lui_color(cp, "--lui-calendar-selected", fg),
+    calendar_today: resolve_lui_color(cp, "--lui-calendar-today", fg),
   }
 }
 

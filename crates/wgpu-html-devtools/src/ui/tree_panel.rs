@@ -145,12 +145,15 @@ impl Component for TreePanel {
     let mut rows: Vec<El> = Vec::new();
     if let Some(tree) = props.store.host_tree() {
       if let Some(root) = &tree.root {
-        self.build_rows(root, &[], 0, &mut rows, ctx);
+        self.build_rows(root, &[], 0, &mut rows, ctx, &props.store);
       }
     }
 
+    let hover_clear = props.store.hover_path.clone();
     div().class(ctx.scoped("panel")).children([
-      div().class(ctx.scoped("rows")).children(rows),
+      div().class(ctx.scoped("rows"))
+        .on_mouse_leave(move |_| { hover_clear.set(None); })
+        .children(rows),
     ])
   }
 }
@@ -165,6 +168,7 @@ impl TreePanel {
     depth: usize,
     rows: &mut Vec<El>,
     ctx: &Ctx<TreePanelMsg>,
+    store: &DevtoolsStore,
   ) {
     let tag = node.element.tag_name();
     if tag == "#text" || tag == "style" {
@@ -180,21 +184,21 @@ impl TreePanel {
     let path_vec = path.to_vec();
 
     if has_visible_children {
-      rows.push(self.render_open_tag(node, &path_vec, depth, is_selected, is_expanded, ctx));
+      rows.push(self.render_open_tag(node, &path_vec, depth, is_selected, is_expanded, ctx, store));
 
       if is_expanded {
         for (i, child) in node.children.iter().enumerate() {
           let mut child_path = path_vec.clone();
           child_path.push(i);
-          self.build_rows(child, &child_path, depth + 1, rows, ctx);
+          self.build_rows(child, &child_path, depth + 1, rows, ctx, store);
         }
-        rows.push(self.render_close_tag(node, &path_vec, depth, is_selected, ctx));
+        rows.push(self.render_close_tag(node, &path_vec, depth, is_selected, ctx, store));
       }
     } else {
       let text_content = node.children.iter().find_map(|c| {
         if let Element::Text(t) = &c.element { Some(t.as_ref()) } else { None }
       });
-      rows.push(self.render_leaf_tag(node, &path_vec, depth, is_selected, text_content, ctx));
+      rows.push(self.render_leaf_tag(node, &path_vec, depth, is_selected, text_content, ctx, store));
     }
   }
 
@@ -206,6 +210,7 @@ impl TreePanel {
     selected: bool,
     expanded: bool,
     ctx: &Ctx<TreePanelMsg>,
+    store: &DevtoolsStore,
   ) -> El {
     let pad_left = BASE_PAD_LEFT + depth as f32 * INDENT_PX;
     let tag = node.element.tag_name();
@@ -228,7 +233,7 @@ impl TreePanel {
       push_close_tag(tag, selected, &mut parts, ctx);
     }
 
-    row(parts, pad_left, selected, ctx)
+    row(parts, pad_left, selected, ctx, store, path)
       .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
 
@@ -239,6 +244,7 @@ impl TreePanel {
     depth: usize,
     selected: bool,
     ctx: &Ctx<TreePanelMsg>,
+    store: &DevtoolsStore,
   ) -> El {
     let pad_left = BASE_PAD_LEFT + depth as f32 * INDENT_PX;
     let tag = node.element.tag_name();
@@ -247,7 +253,7 @@ impl TreePanel {
     parts.push(div().class(ctx.scoped("spacer")));
     push_close_tag(tag, selected, &mut parts, ctx);
 
-    row(parts, pad_left, selected, ctx)
+    row(parts, pad_left, selected, ctx, store, path)
       .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
 
@@ -259,6 +265,7 @@ impl TreePanel {
     selected: bool,
     text: Option<&str>,
     ctx: &Ctx<TreePanelMsg>,
+    store: &DevtoolsStore,
   ) -> El {
     let pad_left = BASE_PAD_LEFT + depth as f32 * INDENT_PX;
     let tag = node.element.tag_name();
@@ -281,7 +288,7 @@ impl TreePanel {
       push_close_tag(tag, selected, &mut parts, ctx);
     }
 
-    row(parts, pad_left, selected, ctx)
+    row(parts, pad_left, selected, ctx, store, path)
       .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
 }

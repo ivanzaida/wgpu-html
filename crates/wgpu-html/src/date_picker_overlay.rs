@@ -18,9 +18,7 @@ const TEXT_COLOR: [f32; 4] = [0.85, 0.85, 0.85, 1.0];
 const DIM_COLOR: [f32; 4] = [0.45, 0.45, 0.45, 1.0];
 const SELECTED_BG: [f32; 4] = [0.23, 0.51, 0.96, 1.0];
 const TODAY_BORDER: [f32; 4] = [0.4, 0.6, 1.0, 1.0];
-const NAV_COLOR: [f32; 4] = [0.7, 0.7, 0.7, 1.0];
 const TIME_FIELD_BG: [f32; 4] = [0.1, 0.1, 0.1, 1.0];
-const TIME_FIELD_BORDER: [f32; 4] = [0.35, 0.35, 0.35, 1.0];
 
 const FONT_SIZE: f32 = 12.0;
 const SMALL_FONT: f32 = 10.0;
@@ -81,23 +79,29 @@ pub fn paint_date_picker_overlay(
 
   let [px, py, pw, ph] = dp.popup_rect;
 
+  let bg = dp.style_bg.unwrap_or(BG);
+  let border = dp.style_border.unwrap_or(BORDER);
+  let text_c = dp.style_text.unwrap_or(TEXT_COLOR);
+  let dim_c = dp.style_dim.unwrap_or(DIM_COLOR);
+  let selected_c = dp.style_selected.unwrap_or(SELECTED_BG);
+  let today_c = dp.style_today.unwrap_or(TODAY_BORDER);
+
   // Background
-  list.push_quad_rounded(Rect::new(px, py, pw, ph), BG, [CORNER_R; 4]);
-  list.push_quad_stroke(Rect::new(px, py, pw, ph), BORDER, [CORNER_R; 4], [1.0; 4]);
+  list.push_quad_rounded(Rect::new(px, py, pw, ph), bg, [CORNER_R; 4]);
+  list.push_quad_stroke(Rect::new(px, py, pw, ph), border, [CORNER_R; 4], [1.0; 4]);
 
   let locale = &tree.locale;
   let cx = px + POPUP_PAD;
   let cy = py + POPUP_PAD;
 
   // Navigation arrows
-  let _ = dp.prev_btn_rect;
-  paint_centered_text(list, text_ctx, "\u{25C0}", dp.prev_btn_rect, NAV_COLOR, FONT_SIZE);
-  paint_centered_text(list, text_ctx, "\u{25B6}", dp.next_btn_rect, NAV_COLOR, FONT_SIZE);
+  paint_centered_text(list, text_ctx, "\u{25C0}", dp.prev_btn_rect, dim_c, FONT_SIZE);
+  paint_centered_text(list, text_ctx, "\u{25B6}", dp.next_btn_rect, dim_c, FONT_SIZE);
 
   // Month/year header
   let month_name = locale.month_name(dp.view_month);
   let header = format!("{month_name} {}", dp.view_year);
-  paint_centered_text(list, text_ctx, &header, dp.header_rect, TEXT_COLOR, FONT_SIZE);
+  paint_centered_text(list, text_ctx, &header, dp.header_rect, text_c, FONT_SIZE);
 
   // Weekday headers
   let day_y = cy + HEADER_H + GAP;
@@ -106,7 +110,7 @@ pub fn paint_date_picker_overlay(
     let dow = (first_dow + i) % 7;
     let label = locale.weekday_short(dow);
     let dx = cx + i as f32 * CELL_SIZE;
-    paint_centered_text(list, text_ctx, label, [dx, day_y, CELL_SIZE, DAY_HEADER_H], DIM_COLOR, SMALL_FONT);
+    paint_centered_text(list, text_ctx, label, [dx, day_y, CELL_SIZE, DAY_HEADER_H], dim_c, SMALL_FONT);
   }
 
   // Day grid
@@ -141,14 +145,14 @@ pub fn paint_date_picker_overlay(
       let is_today = d_year == today.0 && d_month == today.1 && d_day == today.2;
 
       if is_selected {
-        list.push_quad_rounded(Rect::new(cell_x + 1.0, cell_y + 1.0, CELL_SIZE - 2.0, CELL_SIZE - 2.0), SELECTED_BG, [r; 4]);
+        list.push_quad_rounded(Rect::new(cell_x + 1.0, cell_y + 1.0, CELL_SIZE - 2.0, CELL_SIZE - 2.0), selected_c, [r; 4]);
       } else if is_today {
-        list.push_quad_stroke(Rect::new(cell_x + 1.0, cell_y + 1.0, CELL_SIZE - 2.0, CELL_SIZE - 2.0), TODAY_BORDER, [r; 4], [1.0; 4]);
+        list.push_quad_stroke(Rect::new(cell_x + 1.0, cell_y + 1.0, CELL_SIZE - 2.0, CELL_SIZE - 2.0), today_c, [r; 4], [1.0; 4]);
       }
 
       let color = if is_selected { [1.0, 1.0, 1.0, 1.0] }
-        else if is_current_month { TEXT_COLOR }
-        else { DIM_COLOR };
+        else if is_current_month { text_c }
+        else { dim_c };
 
       let label = format!("{d_day}");
       paint_centered_text(list, text_ctx, &label, [cell_x, cell_y, CELL_SIZE, CELL_SIZE], color, SMALL_FONT);
@@ -160,19 +164,19 @@ pub fn paint_date_picker_overlay(
     let hour_str = format!("{:02}", dp.hour);
     let min_str = format!("{:02}", dp.minute);
 
-    paint_time_field(list, text_ctx, &hour_str, dp.hour_rect);
-    paint_time_field(list, text_ctx, &min_str, dp.minute_rect);
+    paint_time_field(list, text_ctx, &hour_str, dp.hour_rect, text_c, border);
+    paint_time_field(list, text_ctx, &min_str, dp.minute_rect, text_c, border);
 
     let colon_x = dp.hour_rect[0] + dp.hour_rect[2];
-    paint_centered_text(list, text_ctx, ":", [colon_x, dp.hour_rect[1], 12.0, TIME_ROW_H], TEXT_COLOR, FONT_SIZE);
+    paint_centered_text(list, text_ctx, ":", [colon_x, dp.hour_rect[1], 12.0, TIME_ROW_H], text_c, FONT_SIZE);
   }
 }
 
-fn paint_time_field(list: &mut DisplayList, text_ctx: &mut TextContext, text: &str, rect: [f32; 4]) {
+fn paint_time_field(list: &mut DisplayList, text_ctx: &mut TextContext, text: &str, rect: [f32; 4], text_c: [f32; 4], border_c: [f32; 4]) {
   let [x, y, w, h] = rect;
   list.push_quad_rounded(Rect::new(x, y, w, h), TIME_FIELD_BG, [3.0; 4]);
-  list.push_quad_stroke(Rect::new(x, y, w, h), TIME_FIELD_BORDER, [3.0; 4], [1.0; 4]);
-  paint_centered_text(list, text_ctx, text, rect, TEXT_COLOR, FONT_SIZE);
+  list.push_quad_stroke(Rect::new(x, y, w, h), border_c, [3.0; 4], [1.0; 4]);
+  paint_centered_text(list, text_ctx, text, rect, text_c, FONT_SIZE);
 }
 
 fn paint_centered_text(

@@ -192,6 +192,12 @@ Custom properties for styling form control parts that have no standard CSS equiv
 | `--lui-picker-border` | `rgb(77,77,77)` | Color picker popup border |
 | `--lui-picker-indicator` | white | Color picker crosshair circle and slider knob |
 | `--lui-picker-label` | `rgb(217,217,217)` | Color picker rgba/hex text labels |
+| `--lui-calendar-bg` | `rgba(38,38,38,0.96)` | Date picker popup background |
+| `--lui-calendar-border` | `rgb(77,77,77)` | Date picker popup border |
+| `--lui-calendar-text` | `rgb(217,217,217)` | Date picker primary text (header, day numbers) |
+| `--lui-calendar-dim` | `rgb(115,115,115)` | Date picker secondary text (weekday headers, overflow days, nav arrows) |
+| `--lui-calendar-selected` | `rgba(59,130,245,1)` | Date picker selected day background |
+| `--lui-calendar-today` | `rgba(102,153,255,1)` | Date picker today outline ring |
 
 ```css
 input[type="range"] {
@@ -205,6 +211,16 @@ input[type="color"] {
     --lui-picker-border: #444;
     --lui-picker-indicator: #cdd6f4;
     --lui-picker-label: #bac2de;
+}
+
+input[type="date"],
+input[type="datetime-local"] {
+    --lui-calendar-bg: #1e1e2e;
+    --lui-calendar-border: #444;
+    --lui-calendar-text: #cdd6f4;
+    --lui-calendar-dim: #6c7086;
+    --lui-calendar-selected: #89b4fa;
+    --lui-calendar-today: #74c7ec;
 }
 ```
 

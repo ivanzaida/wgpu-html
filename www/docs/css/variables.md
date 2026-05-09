@@ -43,6 +43,12 @@ wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling.
 | `--lui-picker-border` | Color picker popup border |
 | `--lui-picker-indicator` | Color picker crosshair and slider knob |
 | `--lui-picker-label` | Color picker rgba/hex text label |
+| `--lui-calendar-bg` | Date picker popup background |
+| `--lui-calendar-border` | Date picker popup border |
+| `--lui-calendar-text` | Date picker primary text |
+| `--lui-calendar-dim` | Date picker secondary text (weekday headers, overflow days) |
+| `--lui-calendar-selected` | Date picker selected day background |
+| `--lui-calendar-today` | Date picker today outline |
 
 See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details.
 

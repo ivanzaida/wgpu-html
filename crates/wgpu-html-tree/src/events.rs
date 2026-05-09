@@ -313,6 +313,12 @@ pub struct DatePickerState {
   pub grid_rect: [f32; 4],
   pub hour_rect: [f32; 4],
   pub minute_rect: [f32; 4],
+  pub style_bg: Option<[f32; 4]>,
+  pub style_border: Option<[f32; 4]>,
+  pub style_text: Option<[f32; 4]>,
+  pub style_dim: Option<[f32; 4]>,
+  pub style_selected: Option<[f32; 4]>,
+  pub style_today: Option<[f32; 4]>,
 }
 
 #[derive(Debug, Clone)]

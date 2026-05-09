@@ -396,6 +396,12 @@ pub fn mouse_down_with_click_count(
                   grid_rect: [0.0; 4],
                   hour_rect: [0.0; 4],
                   minute_rect: [0.0; 4],
+                  style_bg: lb.lui.calendar_bg,
+                  style_border: lb.lui.calendar_border,
+                  style_text: lb.lui.calendar_text,
+                  style_dim: lb.lui.calendar_dim,
+                  style_selected: lb.lui.calendar_selected,
+                  style_today: lb.lui.calendar_today,
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;
