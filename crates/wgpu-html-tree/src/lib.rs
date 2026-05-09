@@ -14,6 +14,7 @@ mod dispatch;
 mod events;
 mod focus;
 mod fonts;
+pub mod locale;
 mod patch;
 mod profiler;
 pub mod query;
@@ -35,6 +36,7 @@ pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,
 };
 pub use fonts::{FontFace, FontHandle, FontRegistry, FontStyleAxis};
+pub use locale::{DefaultLocale, Locale};
 pub use patch::{PatchResult, patch_node};
 pub use profiler::{ProfileEntry, Profiler};
 pub use query::{Combinator, ComplexSelector, CompoundSelector, SelectorList};
@@ -166,6 +168,9 @@ pub struct Tree {
   /// stylesheet (browser defaults for `<body>`, headings, lists, form
   /// controls, etc.) before author rules.
   pub use_ua_stylesheet: bool,
+  /// Locale for system strings (month names, form control labels, etc.).
+  /// Swappable at runtime — takes effect on the next paint.
+  pub locale: Arc<dyn Locale>,
 }
 
 impl Default for Tree {
@@ -188,6 +193,7 @@ impl Default for Tree {
       custom_elements: CustomElementRegistry::new(),
       wrap_body: true,
       use_ua_stylesheet: true,
+      locale: DefaultLocale::new(),
     };
     tree.register_system_fonts("sans-serif");
     tree
@@ -213,6 +219,11 @@ impl Tree {
   pub fn with_ua_stylesheet(&mut self, use_ua: bool) -> &mut Self {
     self.use_ua_stylesheet = use_ua;
     self
+  }
+
+  /// Swap the locale at runtime. Takes effect on the next paint.
+  pub fn set_locale(&mut self, locale: Arc<dyn Locale>) {
+    self.locale = locale;
   }
 
   /// Set the root node. When `wrap_body` is true and the node isn't
