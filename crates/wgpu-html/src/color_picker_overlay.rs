@@ -263,7 +263,14 @@ fn build_picker_tree(cp: &ColorPickerState, popup_x: f32, popup_y: f32) -> Casca
     canvas_node, hue_node, alpha_node, rgba_node, hex_node,
   ]);
 
-  CascadedTree { root: Some(popup) }
+  // Wrap in a viewport-sized relative container so absolute positioning works.
+  let mut wrapper_style = wgpu_html_models::Style::default();
+  wrapper_style.position = Some(Position::Relative);
+  wrapper_style.width = Some(CssLength::Px(4096.0));
+  wrapper_style.height = Some(CssLength::Px(4096.0));
+  let wrapper = cn(Element::Div(Div::default()), wrapper_style, vec![popup]);
+
+  CascadedTree { root: Some(wrapper) }
 }
 
 fn build_input_node(text: &str, cp: &ColorPickerState) -> CascadedNode {
@@ -352,10 +359,9 @@ pub fn paint_color_picker_overlay(
   // Paint the laid-out tree (backgrounds, borders, text)
   crate::paint::paint_layout_with_selection(&layout, list, None, wgpu_html_tree::SelectionColors::default(), 0.0);
 
-  // Overlay gradient textures and indicators on the laid-out child rects.
-  // Children: [0]=canvas, [1]=hue bar, [2]=alpha bar, [3]=rgba field, [4]=hex field
-  if layout.children.len() < 5 { return; }
-  let popup_box = &layout;
+  // The layout tree is: wrapper → popup → [canvas, hue, alpha, rgba, hex]
+  let Some(popup_box) = layout.children.first() else { return };
+  if popup_box.children.len() < 5 { return; }
 
   // Canvas gradient
   let cb = &popup_box.children[0];
