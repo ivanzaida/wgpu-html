@@ -1,0 +1,187 @@
+<style>
+    body {
+        margin: 0;
+        padding: 32px;
+        background: #0e0e10;
+        color: #ddd;
+        font-family: sans-serif;
+        font-size: 14px;
+    }
+
+    h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .columns {
+        display: flex;
+        gap: 32px;
+    }
+
+    .card {
+        padding: 16px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: 240px;
+    }
+
+    label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: #999;
+    }
+
+    input {
+        background: #1c1c20;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+
+    /* ── Default (dark) ── */
+
+    .default {
+        user-select: none;
+    }
+
+    /* ── Catppuccin Mocha ── */
+
+    .mocha input[type="color"] {
+        border-color: #585b70;
+        --lui-picker-bg: #1e1e2e;
+        --lui-picker-border: #585b70;
+        --lui-picker-indicator: #cdd6f4;
+        --lui-picker-label: #bac2de;
+    }
+
+    .mocha input[type="date"],
+    .mocha input[type="datetime-local"] {
+        border-color: #585b70;
+        --lui-calendar-bg: #1e1e2e;
+        --lui-calendar-border: #585b70;
+        --lui-calendar-text: #cdd6f4;
+        --lui-calendar-dim: #6c7086;
+        --lui-calendar-selected: #89b4fa;
+        --lui-calendar-today: #74c7ec;
+    }
+
+    /* ── Nord ── */
+
+    .nord input[type="color"] {
+        border-color: #4c566a;
+        --lui-picker-bg: #2e3440;
+        --lui-picker-border: #4c566a;
+        --lui-picker-indicator: #eceff4;
+        --lui-picker-label: #d8dee9;
+    }
+
+    .nord input[type="date"],
+    .nord input[type="datetime-local"] {
+        border-color: #4c566a;
+        --lui-calendar-bg: #2e3440;
+        --lui-calendar-border: #4c566a;
+        --lui-calendar-text: #eceff4;
+        --lui-calendar-dim: #616e88;
+        --lui-calendar-selected: #88c0d0;
+        --lui-calendar-today: #81a1c1;
+    }
+
+    /* ── Warm ── */
+
+    .warm input[type="color"] {
+        background: #fdf6e3;
+        border-color: #d4a373;
+        color: #3d2c1e;
+        --lui-picker-bg: #fdf6e3;
+        --lui-picker-border: #d4a373;
+        --lui-picker-indicator: #3d2c1e;
+        --lui-picker-label: #5c4033;
+    }
+
+    .warm input[type="date"],
+    .warm input[type="datetime-local"] {
+        background: #fdf6e3;
+        border-color: #d4a373;
+        color: #3d2c1e;
+        --lui-calendar-bg: #fdf6e3;
+        --lui-calendar-border: #d4a373;
+        --lui-calendar-text: #3d2c1e;
+        --lui-calendar-dim: #a08060;
+        --lui-calendar-selected: #d4a373;
+        --lui-calendar-today: #cb997e;
+    }
+</style>
+<div class="columns">
+
+    <div class="card default">
+        <h2>Default</h2>
+        <label>
+            Color
+            <input type="color" value="#3b82f6"/>
+        </label>
+        <label>
+            Date
+            <input type="date" value="2025-05-09"/>
+        </label>
+        <label>
+            Date + Time
+            <input type="datetime-local" value="2025-05-09T14:30"/>
+        </label>
+    </div>
+
+    <div class="card mocha">
+        <h2>Catppuccin Mocha</h2>
+        <label>
+            Color
+            <input type="color" value="#cba6f7"/>
+        </label>
+        <label>
+            Date
+            <input type="date" value="2025-05-09"/>
+        </label>
+        <label>
+            Date + Time
+            <input type="datetime-local" value="2025-05-09T14:30"/>
+        </label>
+    </div>
+
+    <div class="card nord">
+        <h2>Nord</h2>
+        <label>
+            Color
+            <input type="color" value="#88c0d0"/>
+        </label>
+        <label>
+            Date
+            <input type="date" value="2025-05-09"/>
+        </label>
+        <label>
+            Date + Time
+            <input type="datetime-local" value="2025-05-09T14:30"/>
+        </label>
+    </div>
+
+    <div class="card warm">
+        <h2>Warm</h2>
+        <label>
+            Color
+            <input type="color" value="#d4a373"/>
+        </label>
+        <label>
+            Date
+            <input type="date" value="2025-05-09"/>
+        </label>
+        <label>
+            Date + Time
+            <input type="datetime-local" value="2025-05-09T14:30"/>
+        </label>
+    </div>
+
+</div>
