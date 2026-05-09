@@ -1024,9 +1024,17 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
               tree.locale.date_placeholder()
             }
           };
-          let len = display.len();
+          let pattern = focused_date_pattern_for(tree, inp.r#type.as_ref());
+          let segs = crate::date::parse_pattern_segments(&pattern);
+          let editable = crate::date::editable_segment_indices(&segs);
+          let cursor = if let Some(&first) = editable.first() {
+            let s = &segs[first];
+            crate::EditCursor { cursor: s.byte_start + s.byte_len, selection_anchor: Some(s.byte_start) }
+          } else {
+            crate::EditCursor::collapsed(display.len())
+          };
           tree.interaction.date_display_value = Some(display);
-          return Some(crate::EditCursor::collapsed(len));
+          return Some(cursor);
         }
         tree.interaction.date_display_value = None;
         let len = inp.value.as_deref().unwrap_or("").len();
@@ -2672,6 +2680,15 @@ fn textarea_value(ta: &m::Textarea, children: &[Node]) -> String {
   s
 }
 
+fn focused_date_pattern_for(tree: &Tree, input_type: Option<&wgpu_html_models::common::html_enums::InputType>) -> String {
+  use wgpu_html_models::common::html_enums::InputType;
+  if matches!(input_type, Some(InputType::DatetimeLocal)) {
+    tree.locale.datetime_pattern()
+  } else {
+    tree.locale.date_pattern().to_string()
+  }
+}
+
 fn focused_date_pattern(tree: &Tree) -> String {
   use wgpu_html_models::common::html_enums::InputType;
   let is_datetime = tree.interaction.focus_path.as_deref()
@@ -2830,7 +2847,11 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     let pattern = focused_date_pattern(tree);
     let segs = crate::date::parse_pattern_segments(&pattern);
     let mut current_text = old_value.clone();
-    let mut current_pos = cursor.cursor;
+    let mut current_pos = if cursor.has_selection() {
+      cursor.selection_range().0
+    } else {
+      cursor.cursor
+    };
     let mut any = false;
     for ch in text.chars() {
       let r = crate::date::date_overwrite_char(&current_text, current_pos, ch, &segs);
@@ -2841,9 +2862,23 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
       }
     }
     if !any { return false; }
+    let start_range = cursor.selection_range().0;
     tree.interaction.undo_stack.push(crate::UndoEntry { value: old_value, cursor });
     tree.interaction.date_display_value = Some(current_text);
-    tree.interaction.edit_cursor = Some(crate::EditCursor::collapsed(current_pos));
+    let start_seg = crate::date::segment_at(&segs, start_range);
+    let end_seg = crate::date::segment_at(&segs, current_pos.saturating_sub(1).min(segs.last().map(|s| s.byte_start + s.byte_len - 1).unwrap_or(0)));
+    let advanced = start_seg != end_seg;
+    let new_cursor = if advanced {
+      if let Some(si) = crate::date::segment_at(&segs, current_pos.min(segs.last().map(|s| s.byte_start + s.byte_len - 1).unwrap_or(0))) {
+        let s = &segs[si];
+        crate::EditCursor { cursor: s.byte_start + s.byte_len, selection_anchor: Some(s.byte_start) }
+      } else {
+        crate::EditCursor::collapsed(current_pos)
+      }
+    } else {
+      crate::EditCursor::collapsed(current_pos)
+    };
+    tree.interaction.edit_cursor = Some(new_cursor);
   } else {
     let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
     tree.interaction.undo_stack.push(crate::UndoEntry { value: old_value, cursor });

@@ -458,6 +458,16 @@ pub fn validate_formatted(text: &str, segments: &[DateSegment]) -> bool {
   true
 }
 
+/// Get the date/datetime pattern for the currently focused date input.
+pub fn focused_date_pattern_from_tree(tree: &crate::Tree) -> String {
+  use wgpu_html_models::common::html_enums::InputType;
+  let is_datetime = tree.interaction.focus_path.as_deref()
+    .and_then(|p| tree.root.as_ref()?.at_path(p))
+    .map(|n| matches!(&n.element, crate::Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
+    .unwrap_or(false);
+  if is_datetime { tree.locale.datetime_pattern() } else { tree.locale.date_pattern().to_string() }
+}
+
 pub fn prev_month(y: i32, m: u8) -> (i32, u8) {
   if m <= 1 { (y - 1, 12) } else { (y, m - 1) }
 }

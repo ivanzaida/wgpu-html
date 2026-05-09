@@ -322,7 +322,20 @@ pub fn mouse_down_with_click_count(
         } else {
           0
         };
-        tree.interaction.edit_cursor = Some(edit_cursor_for_click_count(&value, byte_offset, click_count));
+        if tree.interaction.date_display_value.is_some() {
+          let pattern = wgpu_html_tree::date::focused_date_pattern_from_tree(tree);
+          let segs = wgpu_html_tree::date::parse_pattern_segments(&pattern);
+          let clamped = wgpu_html_tree::date::clamp_to_editable(&segs, byte_offset);
+          if let Some(seg_idx) = wgpu_html_tree::date::segment_at(&segs, clamped) {
+            let s = &segs[seg_idx];
+            tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor {
+              cursor: s.byte_start + s.byte_len,
+              selection_anchor: Some(s.byte_start),
+            });
+          }
+        } else {
+          tree.interaction.edit_cursor = Some(edit_cursor_for_click_count(&value, byte_offset, click_count));
+        }
         tree.interaction.caret_blink_epoch = std::time::Instant::now();
       }
     } else if let Some(cursor) = cursor.as_ref() {

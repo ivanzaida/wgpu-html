@@ -91,9 +91,10 @@ fn type_auto_advances_past_separator() {
   tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
   text_input(&mut tree, "1");
   text_input(&mut tree, "2");
-  // After typing "12" in month, cursor should auto-advance past '/' to day segment (pos 3)
-  let cursor = tree.interaction.edit_cursor.as_ref().unwrap().cursor;
-  assert_eq!(cursor, 3);
+  // After typing "12" in month, auto-advances to day segment and selects it (3..5)
+  let ec = tree.interaction.edit_cursor.as_ref().unwrap();
+  assert!(ec.has_selection());
+  assert_eq!(ec.selection_range(), (3, 5));
 }
 
 // ── Blur roundtrip ──
@@ -225,7 +226,7 @@ fn datetime_tab_through_all_segments() {
   // Start at month (pos 0), tab through all 5 segments
   tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
 
-  // Tab 1: month → day
+  // Focus already selects month (0..2). Tab 1: month → day
   tree.key_down("Tab", "Tab", false);
   let ec = tree.interaction.edit_cursor.as_ref().unwrap();
   assert_eq!(ec.selection_range(), (3, 5));
