@@ -9,10 +9,10 @@ fn r(lr: wgpu_html_layout::Rect) -> Rect {
   Rect::new(lr.x, lr.y, lr.w, lr.h)
 }
 
-const OVERLAY_MARGIN: [f32; 4] = [237.0 / 255.0, 255.0 / 255.0, 100.0 / 255.0, 0.6];
-const OVERLAY_BORDER: [f32; 4] = [68.0 / 255.0, 68.0 / 255.0, 68.0 / 255.0, 0.6];
-const OVERLAY_PADDING: [f32; 4] = [106.0 / 255.0, 90.0 / 255.0, 205.0 / 255.0, 0.6];
-const OVERLAY_CONTENT: [f32; 4] = [137.0 / 255.0, 207.0 / 255.0, 235.0 / 255.0, 0.6];
+const OVERLAY_MARGIN: [f32; 4] = [0xF6 as f32 / 255.0, 0xB2 as f32 / 255.0, 0x6B as f32 / 255.0, 0.6];
+const OVERLAY_BORDER: [f32; 4] = [0xFB as f32 / 255.0, 0xBC as f32 / 255.0, 0x04 as f32 / 255.0, 0.6];
+const OVERLAY_PADDING: [f32; 4] = [0x81 as f32 / 255.0, 0xC9 as f32 / 255.0, 0x95 as f32 / 255.0, 0.6];
+const OVERLAY_CONTENT: [f32; 4] = [0x66 as f32 / 255.0, 0x9D as f32 / 255.0, 0xF6 as f32 / 255.0, 0.6];
 
 const TOOLTIP_BG: [f32; 4] = [0.15, 0.15, 0.15, 0.92];
 const TOOLTIP_TAG: [f32; 4] = [0.36, 0.69, 0.84, 1.0];

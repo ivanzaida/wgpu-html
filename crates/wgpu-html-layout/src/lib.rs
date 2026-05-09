@@ -1010,12 +1010,14 @@ pub fn layout_incremental(
   let Some(root) = cascaded.root.as_ref() else {
     return false;
   };
+  let default_locale = wgpu_html_tree::DefaultLocale;
   let mut ctx = Ctx {
     viewport_w,
     viewport_h,
     scale,
     text: TextCtx { ctx: text_ctx },
     images: image_cache,
+    locale: &default_locale,
     profiler: None,
   };
   let path = Vec::new();
@@ -1281,7 +1283,20 @@ pub fn layout_with_text(
   viewport_h: f32,
   scale: f32,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false)
+  let default_locale = wgpu_html_tree::DefaultLocale;
+  layout_with_text_locale(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, &default_locale)
+}
+
+pub fn layout_with_text_locale(
+  tree: &CascadedTree,
+  text_ctx: &mut TextContext,
+  image_cache: &mut ImageCache,
+  viewport_w: f32,
+  viewport_h: f32,
+  scale: f32,
+  locale: &dyn wgpu_html_tree::Locale,
+) -> Option<LayoutBox> {
+  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale)
 }
 
 /// Like [`layout_with_text`] but optionally enables the layout
@@ -1295,6 +1310,7 @@ pub fn layout_with_text_profiled(
   viewport_h: f32,
   scale: f32,
   profile: bool,
+  locale: &dyn wgpu_html_tree::Locale,
 ) -> Option<LayoutBox> {
   let root = tree.root.as_ref()?;
   let mut ctx = Ctx {
@@ -1303,6 +1319,7 @@ pub fn layout_with_text_profiled(
     scale,
     text: TextCtx { ctx: text_ctx },
     images: image_cache,
+    locale,
     profiler: if profile {
       Some(layout_profile::LayoutProfiler::new())
     } else {
@@ -1415,6 +1432,7 @@ pub(crate) struct Ctx<'a> {
   pub text: TextCtx<'a>,
   pub images: &'a mut ImageCache,
   pub profiler: Option<layout_profile::LayoutProfiler>,
+  pub locale: &'a dyn wgpu_html_tree::Locale,
 }
 
 /// Wrapper so `Ctx` can borrow a `&mut TextContext` without forcing
@@ -1922,6 +1940,20 @@ fn layout_block(
   }
 }
 
+fn shape_input_text(
+  text: &str,
+  wraps: bool,
+  content_rect: Rect,
+  node: &CascadedNode,
+  ctx: &mut Ctx,
+) -> (Option<wgpu_html_text::ShapedRun>, Option<Color>) {
+  if text.is_empty() { return (None, None); }
+  let max_width = if wraps { Some(content_rect.w) } else { None };
+  let (run, _w, _h, _a) = shape_text_run(text, &node.style, max_width, false, ctx);
+  let fg = node.style.color.as_ref().and_then(|c| color::resolve_color(c));
+  (run, fg)
+}
+
 /// Shape the current `value` of an `<input>` or `<textarea>` so the
 /// field renders the user-entered text. Returns `(None, None)` for
 /// non-form-control elements, hidden inputs, or fields with an empty
@@ -1947,12 +1979,28 @@ fn compute_value_run(
             | InputType::Radio
             | InputType::Range
             | InputType::Color
-            | InputType::Date
-            | InputType::DatetimeLocal
             | InputType::File
         )
       ) {
         return (None, None);
+      }
+      if matches!(inp.r#type, Some(InputType::Date)) {
+        let raw = inp.value.as_deref().unwrap_or("");
+        let text = if let Some((y, m, d)) = wgpu_html_tree::date::parse_date(raw) {
+          ctx.locale.format_date(y, m, d)
+        } else {
+          ctx.locale.date_placeholder()
+        };
+        return shape_input_text(&text, false, content_rect, node, ctx);
+      }
+      if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
+        let raw = inp.value.as_deref().unwrap_or("");
+        let text = if let Some((y, m, d, h, min)) = wgpu_html_tree::date::parse_datetime_local(raw) {
+          ctx.locale.format_datetime(y, m, d, h, min)
+        } else {
+          ctx.locale.datetime_placeholder()
+        };
+        return shape_input_text(&text, false, content_rect, node, ctx);
       }
       let default_label = match inp.r#type {
         Some(InputType::Submit) => "Submit",

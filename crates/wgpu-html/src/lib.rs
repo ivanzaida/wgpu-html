@@ -112,7 +112,7 @@ pub fn compute_layout_profiled(
   let layout;
   {
     wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-    layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+    layout = wgpu_html_layout::layout_with_text_locale(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
   }
   let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -372,7 +372,7 @@ pub fn paint_tree_cached<'c>(
       let layout;
       {
         wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
-        layout = wgpu_html_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+        layout = wgpu_html_layout::layout_with_text_locale(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
       }
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -422,7 +422,7 @@ pub fn paint_tree_cached<'c>(
             wgpu_html_tree::prof_scope!(&tree.profiler, "layout");
             if let Some(cascaded) = &cache.cascaded {
               cache.layout =
-                wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+                wgpu_html_layout::layout_with_text_locale(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
             }
           }
           timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
@@ -469,7 +469,7 @@ pub fn paint_tree_cached<'c>(
           timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
           if let Some(cascaded) = &cache.cascaded {
             cache.layout =
-              wgpu_html_layout::layout_with_text(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale);
+              wgpu_html_layout::layout_with_text_locale(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
           }
         }
       }
