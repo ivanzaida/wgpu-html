@@ -313,6 +313,7 @@ pub struct DatePickerState {
   pub minute_rect: [f32; 4],
   pub reset_btn_rect: [f32; 4],
   pub popup_style: Option<Arc<wgpu_html_models::css::style::LuiPopupStyle>>,
+  pub calendar_style: Option<Arc<wgpu_html_models::css::style::LuiCalendarStyle>>,
 }
 
 #[derive(Debug, Clone)]

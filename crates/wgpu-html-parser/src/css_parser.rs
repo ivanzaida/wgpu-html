@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use wgpu_html_models::{ArcStr, LuiColorPickerStyle, LuiPopupStyle, Style, common::css_enums::*};
+use wgpu_html_models::{ArcStr, LuiCalendarStyle, LuiColorPickerStyle, LuiPopupStyle, Style, common::css_enums::*};
 
 use crate::{
   shorthands::{all_shorthands, is_deferred_longhand, shorthand_contains_member, shorthand_members},
@@ -3268,6 +3268,48 @@ pub fn resolve_lui_color_picker_style(
       "input-border-width" => p.input_border_width = parse_css_length(value),
       "input-border-radius" => p.input_border_radius = parse_css_length(value),
       "input-font-size" => p.input_font_size = parse_css_length(value),
+      _ => {}
+    }
+  }
+  p
+}
+
+/// Resolve `--lui-calendar-*` custom properties into a typed struct.
+pub fn resolve_lui_calendar_style(
+  props: &std::collections::HashMap<ArcStr, ArcStr>,
+) -> LuiCalendarStyle {
+  let mut p = LuiCalendarStyle::default();
+  for (key, value) in props {
+    let Some(sub) = key.strip_prefix("--lui-calendar-") else { continue };
+    match sub {
+      "padding" => p.padding = parse_css_length(value),
+      "gap" => p.gap = parse_css_length(value),
+      "cell-size" => p.cell_size = parse_css_length(value),
+      "cell-radius" => p.cell_radius = parse_css_length(value),
+      "selected-bg" | "selected-background" => p.selected_bg = parse_css_color(value),
+      "selected-color" => p.selected_color = parse_css_color(value),
+      "today-color" => p.today_color = parse_css_color(value),
+      "today-width" => p.today_width = parse_css_length(value),
+      "dim" | "dim-color" => p.dim = parse_css_color(value),
+      "nav-size" => p.nav_size = parse_css_length(value),
+      "header-font-size" => p.header_font_size = parse_css_length(value),
+      "header-font-weight" => p.header_font_weight = parse_font_weight(value),
+      "weekday-font-size" => p.weekday_font_size = parse_css_length(value),
+      "day-font-size" => p.day_font_size = parse_css_length(value),
+      "time-width" => p.time_width = parse_css_length(value),
+      "time-height" => p.time_height = parse_css_length(value),
+      "time-background" => p.time_background = parse_css_color(value),
+      "time-border-color" => p.time_border_color = parse_css_color(value),
+      "time-border-width" => p.time_border_width = parse_css_length(value),
+      "time-border-radius" => p.time_border_radius = parse_css_length(value),
+      "time-font-size" => p.time_font_size = parse_css_length(value),
+      "reset-height" => p.reset_height = parse_css_length(value),
+      "reset-background" => p.reset_background = parse_css_color(value),
+      "reset-color" => p.reset_color = parse_css_color(value),
+      "reset-border-color" => p.reset_border_color = parse_css_color(value),
+      "reset-border-width" => p.reset_border_width = parse_css_length(value),
+      "reset-border-radius" => p.reset_border_radius = parse_css_length(value),
+      "reset-font-size" => p.reset_font_size = parse_css_length(value),
       _ => {}
     }
   }

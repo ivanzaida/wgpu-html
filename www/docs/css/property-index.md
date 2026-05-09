@@ -230,6 +230,39 @@ Per-side longhands are also available: `--lui-popup-border-top-width`, `--lui-po
 | `--lui-color-input-border-radius` | `3px` | `<length>` | Text field corner radius |
 | `--lui-color-input-font-size` | `11px` | `<length>` | Text field font size |
 
+#### Calendar (date / datetime-local)
+
+| Property | Default | Type | Effect |
+|---|---|---|---|
+| `--lui-calendar-padding` | `8px` | `<length>` | Inner padding |
+| `--lui-calendar-gap` | `4px` | `<length>` | Gap between sections |
+| `--lui-calendar-cell-size` | `30px` | `<length>` | Day cell width/height |
+| `--lui-calendar-cell-radius` | `15px` | `<length>` | Day cell corner radius |
+| `--lui-calendar-selected-bg` | blue | `<color>` | Selected day background |
+| `--lui-calendar-selected-color` | white | `<color>` | Selected day text |
+| `--lui-calendar-today-color` | light blue | `<color>` | Today outline ring |
+| `--lui-calendar-today-width` | `1px` | `<length>` | Today outline thickness |
+| `--lui-calendar-dim` | mid gray | `<color>` | Weekday headers, overflow days, nav arrows |
+| `--lui-calendar-nav-size` | (auto) | `<length>` | Navigation arrow size |
+| `--lui-calendar-header-font-size` | `12px` | `<length>` | Month/year header size |
+| `--lui-calendar-header-font-weight` | normal | `<font-weight>` | Month/year header weight |
+| `--lui-calendar-weekday-font-size` | `10px` | `<length>` | Weekday header size |
+| `--lui-calendar-day-font-size` | `10px` | `<length>` | Day number size |
+| `--lui-calendar-time-width` | `40px` | `<length>` | Hour/minute field width |
+| `--lui-calendar-time-height` | `24px` | `<length>` | Hour/minute field height |
+| `--lui-calendar-time-background` | dark gray | `<color>` | Hour/minute field background |
+| `--lui-calendar-time-border-color` | mid gray | `<color>` | Hour/minute field border |
+| `--lui-calendar-time-border-width` | `1px` | `<length>` | Hour/minute field border width |
+| `--lui-calendar-time-border-radius` | `3px` | `<length>` | Hour/minute field radius |
+| `--lui-calendar-time-font-size` | `12px` | `<length>` | Hour/minute field font size |
+| `--lui-calendar-reset-height` | `24px` | `<length>` | Reset button height |
+| `--lui-calendar-reset-background` | transparent | `<color>` | Reset button background |
+| `--lui-calendar-reset-color` | dim gray | `<color>` | Reset button text |
+| `--lui-calendar-reset-border-color` | mid gray | `<color>` | Reset button border |
+| `--lui-calendar-reset-border-width` | `1px` | `<length>` | Reset button border width |
+| `--lui-calendar-reset-border-radius` | `3px` | `<length>` | Reset button radius |
+| `--lui-calendar-reset-font-size` | `10px` | `<length>` | Reset button font size |
+
 ```css
 input[type="range"] {
     accent-color: #7c3aed;
@@ -252,6 +285,11 @@ input[type="datetime-local"] {
     --lui-popup-border: 1px solid #585b70;
     --lui-popup-color: #cdd6f4;
     --lui-popup-border-radius: 8px;
+    --lui-calendar-selected-bg: #89b4fa;
+    --lui-calendar-today-color: #74c7ec;
+    --lui-calendar-dim: #6c7086;
+    --lui-calendar-cell-size: 32px;
+    --lui-calendar-reset-border-color: #585b70;
 }
 ```
 

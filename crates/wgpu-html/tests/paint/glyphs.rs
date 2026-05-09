@@ -68,6 +68,7 @@ fn simple_body_with_glyphs() -> LayoutBox {
     lui: wgpu_html_layout::LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
+    lui_calendar: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

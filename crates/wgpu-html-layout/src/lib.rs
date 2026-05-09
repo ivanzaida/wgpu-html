@@ -516,6 +516,7 @@ pub struct LayoutBox {
   pub lui: LuiProperties,
   pub lui_popup: Option<std::sync::Arc<wgpu_html_models::LuiPopupStyle>>,
   pub lui_color_picker: Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>>,
+  pub lui_calendar: Option<std::sync::Arc<wgpu_html_models::LuiCalendarStyle>>,
   pub children: Vec<LayoutBox>,
   /// `true` when `position: fixed` so paint knows to counter
   /// viewport scroll translation.
@@ -1209,6 +1210,13 @@ fn resolve_lui_color_picker_arc(
 ) -> Option<std::sync::Arc<wgpu_html_models::LuiColorPickerStyle>> {
   if !cp.keys().any(|k| k.starts_with("--lui-color-")) { return None; }
   Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_color_picker_style(cp)))
+}
+
+fn resolve_lui_calendar_arc(
+  cp: &std::collections::HashMap<wgpu_html_models::ArcStr, wgpu_html_models::ArcStr>,
+) -> Option<std::sync::Arc<wgpu_html_models::LuiCalendarStyle>> {
+  if !cp.keys().any(|k| k.starts_with("--lui-calendar-")) { return None; }
+  Some(std::sync::Arc::new(wgpu_html_parser::resolve_lui_calendar_style(cp)))
 }
 
 fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Color) {
@@ -1932,6 +1940,7 @@ fn layout_block(
     lui,
     lui_popup: resolve_lui_popup_arc(&style.custom_properties),
     lui_color_picker: resolve_lui_color_picker_arc(&style.custom_properties),
+    lui_calendar: resolve_lui_calendar_arc(&style.custom_properties),
     children,
     is_fixed: false,
     form_control: fc,
@@ -2842,6 +2851,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
     lui: LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
+    lui_calendar: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -2923,6 +2933,7 @@ fn make_text_leaf(
     lui: LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
+    lui_calendar: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -3255,6 +3266,7 @@ fn layout_inline_subtree(
     lui: LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
+    lui_calendar: None,
     children: final_children,
     is_fixed: false,
     form_control: None,
@@ -3452,6 +3464,7 @@ fn layout_atomic_inline_subtree(
       lui,
       lui_popup: resolve_lui_popup_arc(&style.custom_properties),
       lui_color_picker: resolve_lui_color_picker_arc(&style.custom_properties),
+      lui_calendar: resolve_lui_calendar_arc(&style.custom_properties),
       children,
       is_fixed: false,
       form_control: fc,
@@ -3980,6 +3993,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     lui: LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
+    lui_calendar: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,
@@ -4214,6 +4228,7 @@ fn layout_inline_paragraph(
     lui: LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
+    lui_calendar: None,
     children: Vec::new(),
     is_fixed: false,
     form_control: None,

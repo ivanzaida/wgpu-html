@@ -416,6 +416,7 @@ pub fn mouse_down_with_click_count(
                   minute_rect: [0.0; 4],
                   reset_btn_rect: [0.0; 4],
                   popup_style: lb.lui_popup.clone(),
+                  calendar_style: lb.lui_calendar.clone(),
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;

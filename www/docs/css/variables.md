@@ -80,6 +80,39 @@ wgpu-html reserves the `--lui-` prefix for vendor-specific form control styling.
 | `--lui-color-input-border-radius` | `<length>` | Text input field corner radius |
 | `--lui-color-input-font-size` | `<length>` | Text input field font size |
 
+#### Calendar (date / datetime-local)
+
+| Property | Type | Effect |
+|---|---|---|
+| `--lui-calendar-padding` | `<length>` | Inner padding |
+| `--lui-calendar-gap` | `<length>` | Gap between sections |
+| `--lui-calendar-cell-size` | `<length>` | Day cell width and height |
+| `--lui-calendar-cell-radius` | `<length>` | Day cell corner radius |
+| `--lui-calendar-selected-bg` | `<color>` | Selected day background |
+| `--lui-calendar-selected-color` | `<color>` | Selected day text |
+| `--lui-calendar-today-color` | `<color>` | Today outline ring |
+| `--lui-calendar-today-width` | `<length>` | Today outline thickness |
+| `--lui-calendar-dim` | `<color>` | Secondary text (weekday headers, overflow days, nav arrows) |
+| `--lui-calendar-nav-size` | `<length>` | Navigation arrow size |
+| `--lui-calendar-header-font-size` | `<length>` | Month/year header font size |
+| `--lui-calendar-header-font-weight` | `<font-weight>` | Month/year header weight |
+| `--lui-calendar-weekday-font-size` | `<length>` | Weekday header font size |
+| `--lui-calendar-day-font-size` | `<length>` | Day number font size |
+| `--lui-calendar-time-width` | `<length>` | Hour/minute field width |
+| `--lui-calendar-time-height` | `<length>` | Hour/minute field height |
+| `--lui-calendar-time-background` | `<color>` | Hour/minute field background |
+| `--lui-calendar-time-border-color` | `<color>` | Hour/minute field border |
+| `--lui-calendar-time-border-width` | `<length>` | Hour/minute field border width |
+| `--lui-calendar-time-border-radius` | `<length>` | Hour/minute field corner radius |
+| `--lui-calendar-time-font-size` | `<length>` | Hour/minute field font size |
+| `--lui-calendar-reset-height` | `<length>` | Reset button height |
+| `--lui-calendar-reset-background` | `<color>` | Reset button background |
+| `--lui-calendar-reset-color` | `<color>` | Reset button text |
+| `--lui-calendar-reset-border-color` | `<color>` | Reset button border |
+| `--lui-calendar-reset-border-width` | `<length>` | Reset button border width |
+| `--lui-calendar-reset-border-radius` | `<length>` | Reset button corner radius |
+| `--lui-calendar-reset-font-size` | `<length>` | Reset button font size |
+
 See [CSS Property Index — Form Control Styling](./property-index#form-control-styling) for details and examples.
 
 ## `var()` Usage
