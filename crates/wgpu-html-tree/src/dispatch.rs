@@ -930,21 +930,24 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
     // If invalid, the display value is discarded and inp.value stays unchanged (revert).
     if let Some(display) = tree.interaction.date_display_value.take() {
       use wgpu_html_models::common::html_enums::InputType;
-      let pattern = tree.locale.date_pattern();
-      let segs = crate::date::parse_pattern_segments(pattern);
+      let is_datetime = tree.root.as_ref()
+        .and_then(|r| r.at_path(old))
+        .map(|n| matches!(&n.element, Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
+        .unwrap_or(false);
+      let pattern = if is_datetime { tree.locale.datetime_pattern() } else { tree.locale.date_pattern().to_string() };
+      let segs = crate::date::parse_pattern_segments(&pattern);
       let valid = crate::date::validate_formatted(&display, &segs);
       if valid {
         if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(old)) {
           if let Element::Input(inp) = &mut node.element {
             if matches!(inp.r#type, Some(InputType::Date)) {
-              if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
+              if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, &pattern) {
                 inp.value = Some(crate::date::format_date(y, m, d).into());
                 tree.generation += 1;
                 tree.dirty_paths.push(old.to_vec());
               }
             } else if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
-              if let Some((y, m, d)) = crate::date::parse_formatted_date(&display, pattern) {
-                let (h, min) = parse_time_from_display(&display);
+              if let Some((y, m, d, h, min)) = crate::date::parse_formatted_datetime(&display, &pattern) {
                 inp.value = Some(crate::date::format_datetime_local(y, m, d, h, min).into());
                 tree.generation += 1;
                 tree.dirty_paths.push(old.to_vec());
@@ -1008,7 +1011,6 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
         let is_date = matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal));
         if is_date {
           let iso = inp.value.as_deref().unwrap_or("");
-          let pattern = tree.locale.date_pattern();
           let display = if matches!(inp.r#type, Some(InputType::DatetimeLocal)) {
             if let Some((y, m, d, h, min)) = crate::date::parse_datetime_local(iso) {
               tree.locale.format_datetime(y, m, d, h, min)
@@ -2670,14 +2672,16 @@ fn textarea_value(ta: &m::Textarea, children: &[Node]) -> String {
   s
 }
 
-fn parse_time_from_display(display: &str) -> (u8, u8) {
-  if let Some(time_part) = display.rsplit(' ').next() {
-    let mut parts = time_part.splitn(2, ':');
-    let h: u8 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let m: u8 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    (h.min(23), m.min(59))
+fn focused_date_pattern(tree: &Tree) -> String {
+  use wgpu_html_models::common::html_enums::InputType;
+  let is_datetime = tree.interaction.focus_path.as_deref()
+    .and_then(|p| tree.root.as_ref()?.at_path(p))
+    .map(|n| matches!(&n.element, Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
+    .unwrap_or(false);
+  if is_datetime {
+    tree.locale.datetime_pattern()
   } else {
-    (0, 0)
+    tree.locale.date_pattern().to_string()
   }
 }
 
@@ -2823,9 +2827,8 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
   }
 
   if is_date_display {
-    // Date overwrite mode: one char at a time, digits only.
-    let pattern = tree.locale.date_pattern();
-    let segs = crate::date::parse_pattern_segments(pattern);
+    let pattern = focused_date_pattern(tree);
+    let segs = crate::date::parse_pattern_segments(&pattern);
     let mut current_text = old_value.clone();
     let mut current_pos = cursor.cursor;
     let mut any = false;
@@ -2977,8 +2980,8 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
 
   // Date inputs: segment-aware navigation.
   if is_date_display {
-    let pattern = tree.locale.date_pattern();
-    let segs = crate::date::parse_pattern_segments(pattern);
+    let pattern = focused_date_pattern(tree);
+    let segs = crate::date::parse_pattern_segments(&pattern);
     let pos = cursor.cursor.min(old_value.len());
     let nav_cursor = match key {
       "ArrowLeft" => Some(crate::EditCursor::collapsed(crate::date::cursor_left(&segs, pos))),

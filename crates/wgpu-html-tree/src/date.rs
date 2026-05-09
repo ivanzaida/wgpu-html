@@ -127,6 +127,64 @@ pub fn parse_formatted_date(text: &str, pattern: &str) -> Option<(i32, u8, u8)> 
   Some((y, m, d))
 }
 
+/// Parse a locale-formatted datetime string using the given pattern
+/// (e.g. `"mm/dd/yyyy HH:MM"`). Returns (year, month, day, hour, minute).
+pub fn parse_formatted_datetime(text: &str, pattern: &str) -> Option<(i32, u8, u8, u8, u8)> {
+  let segs = parse_pattern_segments(pattern);
+  let mut y: Option<i32> = None;
+  let mut m: Option<u8> = None;
+  let mut d: Option<u8> = None;
+  let mut hour: Option<u8> = None;
+  let mut minute: Option<u8> = None;
+  for seg in &segs {
+    if seg.kind == DateSegmentKind::Separator { continue; }
+    let s = text.get(seg.byte_start..seg.byte_start + seg.byte_len)?;
+    match seg.kind {
+      DateSegmentKind::Year => y = s.parse().ok(),
+      DateSegmentKind::Month => m = s.parse().ok(),
+      DateSegmentKind::Day => d = s.parse().ok(),
+      DateSegmentKind::Hour => hour = s.parse().ok(),
+      DateSegmentKind::Minute => minute = s.parse().ok(),
+      _ => {}
+    }
+  }
+  let (y, m, d) = (y?, m?, d?);
+  let hour = hour?;
+  let minute = minute?;
+  if m < 1 || m > 12 || d < 1 || d > days_in_month(y, m) { return None; }
+  if hour > 23 || minute > 59 { return None; }
+  Some((y, m, d, hour, minute))
+}
+
+/// Format a datetime using a pattern string (e.g. `"mm/dd/yyyy HH:MM"`).
+pub fn format_datetime_pattern(pattern: &str, y: i32, m: u8, d: u8, hour: u8, min: u8) -> String {
+  let mut out = String::with_capacity(pattern.len() + 4);
+  let bytes = pattern.as_bytes();
+  let mut i = 0;
+  while i < bytes.len() {
+    if i + 4 <= bytes.len() && &bytes[i..i + 4] == b"yyyy" {
+      out.push_str(&format!("{y:04}"));
+      i += 4;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"dd" {
+      out.push_str(&format!("{d:02}"));
+      i += 2;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"mm" {
+      out.push_str(&format!("{m:02}"));
+      i += 2;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"HH" {
+      out.push_str(&format!("{hour:02}"));
+      i += 2;
+    } else if i + 2 <= bytes.len() && &bytes[i..i + 2] == b"MM" {
+      out.push_str(&format!("{min:02}"));
+      i += 2;
+    } else {
+      out.push(bytes[i] as char);
+      i += 1;
+    }
+  }
+  out
+}
+
 /// Find the index of the editable segment containing `byte_pos`.
 /// Returns `None` if `byte_pos` is on a separator.
 pub fn segment_at(segments: &[DateSegment], byte_pos: usize) -> Option<usize> {
@@ -179,18 +237,36 @@ pub fn cursor_right(segments: &[DateSegment], byte_pos: usize, text_len: usize) 
   new_pos
 }
 
+/// Find the editable segment index at or just before `byte_pos`.
+fn find_current_editable(segments: &[DateSegment], byte_pos: usize) -> Option<usize> {
+  let editable = editable_segment_indices(segments);
+  // Exact match (cursor inside segment).
+  if let Some(pos) = editable.iter().position(|&i| {
+    let s = &segments[i];
+    byte_pos >= s.byte_start && byte_pos < s.byte_start + s.byte_len
+  }) {
+    return Some(pos);
+  }
+  // Cursor at end of a segment or on separator — find the last segment that ends at or before byte_pos.
+  let mut best = None;
+  for (ei, &si) in editable.iter().enumerate() {
+    let s = &segments[si];
+    if s.byte_start + s.byte_len <= byte_pos {
+      best = Some(ei);
+    }
+  }
+  best
+}
+
 /// Jump to the next editable segment. Returns (byte_start, byte_end) of the
 /// next segment, or the current one if already at the last.
 pub fn next_segment(segments: &[DateSegment], byte_pos: usize) -> (usize, usize) {
   let editable = editable_segment_indices(segments);
-  let cur = editable.iter().position(|&i| {
-    let s = &segments[i];
-    byte_pos >= s.byte_start && byte_pos < s.byte_start + s.byte_len
-  });
+  if editable.is_empty() { return (0, 0); }
+  let cur = find_current_editable(segments, byte_pos);
   let next_idx = match cur {
     Some(c) if c + 1 < editable.len() => editable[c + 1],
-    _ if !editable.is_empty() => *editable.last().unwrap(),
-    _ => return (0, 0),
+    _ => *editable.last().unwrap(),
   };
   let s = &segments[next_idx];
   (s.byte_start, s.byte_start + s.byte_len)
@@ -199,14 +275,11 @@ pub fn next_segment(segments: &[DateSegment], byte_pos: usize) -> (usize, usize)
 /// Jump to the previous editable segment.
 pub fn prev_segment(segments: &[DateSegment], byte_pos: usize) -> (usize, usize) {
   let editable = editable_segment_indices(segments);
-  let cur = editable.iter().position(|&i| {
-    let s = &segments[i];
-    byte_pos >= s.byte_start && byte_pos < s.byte_start + s.byte_len
-  });
+  if editable.is_empty() { return (0, 0); }
+  let cur = find_current_editable(segments, byte_pos);
   let prev_idx = match cur {
     Some(c) if c > 0 => editable[c - 1],
-    _ if !editable.is_empty() => editable[0],
-    _ => return (0, 0),
+    _ => editable[0],
   };
   let s = &segments[prev_idx];
   (s.byte_start, s.byte_start + s.byte_len)
@@ -284,8 +357,6 @@ pub fn date_overwrite_char(
   };
 
   let seg = &segments[seg_idx];
-  let offset_in_seg = pos - seg.byte_start;
-
   // Replace the character at `pos` in the text.
   let mut chars: Vec<u8> = text.bytes().collect();
   while chars.len() < seg.byte_start + seg.byte_len {
@@ -326,7 +397,7 @@ pub fn date_backspace(
   // Walk backwards to find the nearest editable character position.
   let mut target = cursor_pos - 1;
   loop {
-    if let Some(seg_idx) = segment_at(segments, target) {
+    if segment_at(segments, target).is_some() {
       let mut chars: Vec<u8> = text.bytes().collect();
       if target < chars.len() {
         chars[target] = b'0';
@@ -595,6 +666,64 @@ mod tests {
     assert_eq!(parse_formatted_date("13/09/2025", "mm/dd/yyyy"), None); // month 13
     assert_eq!(parse_formatted_date("02/30/2025", "mm/dd/yyyy"), None); // feb 30
     assert_eq!(parse_formatted_date("xx/09/2025", "mm/dd/yyyy"), None); // non-numeric
+  }
+
+  // ── Datetime pattern ──
+
+  #[test]
+  fn segments_datetime() {
+    let segs = parse_pattern_segments("mm/dd/yyyy HH:MM");
+    assert_eq!(segs.len(), 9);
+    assert_eq!(segs[0].kind, DateSegmentKind::Month);   // 0..2
+    assert_eq!(segs[1].kind, DateSegmentKind::Separator); // 2 '/'
+    assert_eq!(segs[2].kind, DateSegmentKind::Day);      // 3..5
+    assert_eq!(segs[3].kind, DateSegmentKind::Separator); // 5 '/'
+    assert_eq!(segs[4].kind, DateSegmentKind::Year);     // 6..10
+    assert_eq!(segs[5].kind, DateSegmentKind::Separator); // 10 ' '
+    assert_eq!(segs[6].kind, DateSegmentKind::Hour);     // 11..13
+    assert_eq!(segs[7].kind, DateSegmentKind::Separator); // 13 ':'
+    assert_eq!(segs[8].kind, DateSegmentKind::Minute);   // 14..16
+  }
+
+  #[test]
+  fn format_datetime_pattern_roundtrip() {
+    let pattern = "mm/dd/yyyy HH:MM";
+    let formatted = format_datetime_pattern(pattern, 2025, 5, 9, 14, 30);
+    assert_eq!(formatted, "05/09/2025 14:30");
+    assert_eq!(parse_formatted_datetime(&formatted, pattern), Some((2025, 5, 9, 14, 30)));
+  }
+
+  #[test]
+  fn parse_formatted_datetime_invalid_hour() {
+    assert_eq!(parse_formatted_datetime("05/09/2025 24:30", "mm/dd/yyyy HH:MM"), None);
+  }
+
+  #[test]
+  fn parse_formatted_datetime_invalid_minute() {
+    assert_eq!(parse_formatted_datetime("05/09/2025 14:60", "mm/dd/yyyy HH:MM"), None);
+  }
+
+  #[test]
+  fn validate_datetime_formatted() {
+    let segs = parse_pattern_segments("mm/dd/yyyy HH:MM");
+    assert!(validate_formatted("05/09/2025 14:30", &segs));
+    assert!(!validate_formatted("05/09/2025 25:30", &segs)); // hour 25
+    assert!(!validate_formatted("05/09/2025 14:60", &segs)); // minute 60
+    assert!(!validate_formatted("13/09/2025 14:30", &segs)); // month 13
+  }
+
+  #[test]
+  fn datetime_tab_navigation() {
+    let segs = parse_pattern_segments("mm/dd/yyyy HH:MM");
+    // month → day → year → hour → minute
+    assert_eq!(next_segment(&segs, 0), (3, 5));   // month → day
+    assert_eq!(next_segment(&segs, 3), (6, 10));  // day → year
+    assert_eq!(next_segment(&segs, 7), (11, 13)); // year → hour
+    assert_eq!(next_segment(&segs, 11), (14, 16)); // hour → minute
+    assert_eq!(next_segment(&segs, 14), (14, 16)); // minute → stays
+    // reverse
+    assert_eq!(prev_segment(&segs, 14), (11, 13)); // minute → hour
+    assert_eq!(prev_segment(&segs, 11), (6, 10));  // hour → year
   }
 
   // ── Phase 3: Overwrite mode ──

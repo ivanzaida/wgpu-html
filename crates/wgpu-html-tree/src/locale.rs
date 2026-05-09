@@ -40,6 +40,9 @@ pub trait Locale: Send + Sync + std::fmt::Debug {
   fn date_placeholder(&self) -> String {
     self.date_pattern().to_string()
   }
+  fn datetime_pattern(&self) -> String {
+    format!("{} HH:MM", self.date_pattern())
+  }
   fn datetime_placeholder(&self) -> String {
     format!("{} hh:mm", self.date_pattern())
   }

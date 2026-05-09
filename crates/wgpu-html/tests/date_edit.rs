@@ -178,3 +178,124 @@ fn tab_selects_next_segment() {
   assert_eq!(start, 3); // day segment start
   assert_eq!(end, 5);   // day segment end
 }
+
+// ── Datetime-local (HH:MM) ──
+
+#[test]
+fn datetime_focus_shows_formatted_with_time() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+  let dv = tree.interaction.date_display_value.as_deref().unwrap();
+  assert_eq!(dv, "05/09/2025 14:30");
+}
+
+#[test]
+fn datetime_type_into_hour_segment() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // "05/09/2025 14:30" — hour starts at position 11
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(11));
+  assert!(text_input(&mut tree, "2"));
+  let dv = tree.interaction.date_display_value.as_deref().unwrap();
+  assert_eq!(&dv[11..13], "24");
+}
+
+#[test]
+fn datetime_type_into_minute_segment() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // "05/09/2025 14:30" — minute starts at position 14
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(14));
+  assert!(text_input(&mut tree, "4"));
+  let dv = tree.interaction.date_display_value.as_deref().unwrap();
+  assert_eq!(&dv[14..16], "40");
+}
+
+#[test]
+fn datetime_tab_through_all_segments() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Start at month (pos 0), tab through all 5 segments
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
+
+  // Tab 1: month → day
+  tree.key_down("Tab", "Tab", false);
+  let ec = tree.interaction.edit_cursor.as_ref().unwrap();
+  assert_eq!(ec.selection_range(), (3, 5));
+
+  // Tab 2: day → year
+  tree.key_down("Tab", "Tab", false);
+  let ec = tree.interaction.edit_cursor.as_ref().unwrap();
+  assert_eq!(ec.selection_range(), (6, 10));
+
+  // Tab 3: year → hour
+  tree.key_down("Tab", "Tab", false);
+  let ec = tree.interaction.edit_cursor.as_ref().unwrap();
+  assert_eq!(ec.selection_range(), (11, 13));
+
+  // Tab 4: hour → minute
+  tree.key_down("Tab", "Tab", false);
+  let ec = tree.interaction.edit_cursor.as_ref().unwrap();
+  assert_eq!(ec.selection_range(), (14, 16));
+}
+
+#[test]
+fn datetime_blur_valid_writes_iso() {
+  let mut tree = make_datetime_tree("2025-01-01T00:00");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Type "05" into month, "09" into day
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(0));
+  text_input(&mut tree, "0");
+  text_input(&mut tree, "5");
+  text_input(&mut tree, "0");
+  text_input(&mut tree, "9");
+  // Skip year (leave as 2025), type "14" into hour
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(11));
+  text_input(&mut tree, "1");
+  text_input(&mut tree, "4");
+  // Type "30" into minute
+  text_input(&mut tree, "3");
+  text_input(&mut tree, "0");
+
+  tree.focus(None);
+  assert_eq!(input_value(&tree), "2025-05-09T14:30");
+}
+
+#[test]
+fn datetime_blur_invalid_hour_reverts() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Overwrite hour to "25" (invalid)
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(11));
+  text_input(&mut tree, "2");
+  text_input(&mut tree, "5");
+
+  tree.focus(None);
+  assert_eq!(input_value(&tree), "2025-05-09T14:30"); // reverted
+}
+
+#[test]
+fn datetime_blur_invalid_minute_reverts() {
+  let mut tree = make_datetime_tree("2025-05-09T14:30");
+  let path = input_path(&tree);
+  tree.focus(Some(&path));
+
+  // Overwrite minute to "60" (invalid)
+  tree.interaction.edit_cursor = Some(wgpu_html_tree::EditCursor::collapsed(14));
+  text_input(&mut tree, "6");
+  text_input(&mut tree, "0");
+
+  tree.focus(None);
+  assert_eq!(input_value(&tree), "2025-05-09T14:30"); // reverted
+}
