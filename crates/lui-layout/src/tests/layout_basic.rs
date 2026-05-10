@@ -656,6 +656,45 @@ fn vertical_align_sub_element_renders() {
   assert!(para.text_run.is_some(), "paragraph should have a text run");
 }
 
+// ── transforms ────────────────────────────────────────────────────────
+
+#[test]
+fn transform_translate_stored_on_layout_box() {
+  let tree = make(r#"<body style="margin:0"><div style="transform:translate(10px,20px);width:100px;height:50px"></div></body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let div = &root.children[0];
+  let t = div.transform.as_ref().expect("transform should be set");
+  assert!(t.is_translate_only());
+  assert_eq!(t.tx, 10.0);
+  assert_eq!(t.ty, 20.0);
+}
+
+#[test]
+fn transform_percentage_translate_resolves_against_border_box() {
+  let tree = make(r#"<body style="margin:0"><div style="transform:translate(-50%,-50%);width:200px;height:100px"></div></body>"#);
+  let root = layout(&tree, 400.0, 400.0).unwrap();
+  let div = &root.children[0];
+  let t = div.transform.as_ref().expect("transform should be set");
+  assert_eq!(t.tx, -100.0);
+  assert_eq!(t.ty, -50.0);
+}
+
+#[test]
+fn transform_none_is_none() {
+  let tree = make(r#"<body style="margin:0"><div style="transform:none;width:100px;height:50px"></div></body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let div = &root.children[0];
+  assert!(div.transform.is_none());
+}
+
+#[test]
+fn transform_origin_defaults_to_center() {
+  let tree = make(r#"<body style="margin:0"><div style="transform:scale(2);width:100px;height:50px"></div></body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let div = &root.children[0];
+  assert_eq!(div.transform_origin, (50.0, 25.0));
+}
+
 // ── margin collapsing ─────────────────────────────────────────────────
 
 #[test]

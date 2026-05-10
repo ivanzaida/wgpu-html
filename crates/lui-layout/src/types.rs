@@ -189,6 +189,12 @@ pub struct LayoutBox {
   pub overflow: OverflowAxes,
   pub resize: Resize,
   pub text_overflow: Option<TextOverflow>,
+  /// Computed CSS 2D transform, composed into a single affine matrix.
+  /// `None` means no transform (identity). Paint applies this to all
+  /// rects emitted for this box and its descendants.
+  pub transform: Option<crate::transform::Transform2D>,
+  /// Transform origin in pixels relative to the border-box top-left.
+  pub transform_origin: (f32, f32),
   /// Computed CSS opacity for this element. Paint multiplies this
   /// into the inherited opacity for the whole subtree.
   pub opacity: f32,

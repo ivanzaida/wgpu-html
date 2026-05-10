@@ -272,12 +272,17 @@ fn paint_box_in_clip(
   parent_opacity: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
 ) {
-  let paint_offset_x = if b.is_fixed { 0.0 } else { paint_offset_x };
-  let paint_offset_y = if b.is_fixed {
+  let mut paint_offset_x = if b.is_fixed { 0.0 } else { paint_offset_x };
+  let mut paint_offset_y = if b.is_fixed {
     paint_offset_y + viewport_scroll_y
   } else {
     paint_offset_y
   };
+
+  if let Some(ref t) = b.transform {
+    paint_offset_x += t.tx;
+    paint_offset_y += t.ty;
+  }
   let selection_colors = SelectionColors {
     background: b.selection_bg.unwrap_or(selection_colors.background),
     foreground: b.selection_fg.unwrap_or(selection_colors.foreground),
