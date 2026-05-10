@@ -110,6 +110,8 @@ pub struct ImageQuad {
   pub data: Arc<Vec<u8>>,
   pub width: u32,
   pub height: u32,
+  pub transform: [f32; 4],
+  pub transform_origin: [f32; 2],
 }
 
 /// One scissor-tagged run inside a `DisplayList`. The list's quads
@@ -506,6 +508,8 @@ impl DisplayList {
       data,
       width,
       height,
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Image,

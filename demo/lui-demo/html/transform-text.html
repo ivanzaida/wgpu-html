@@ -217,6 +217,44 @@
 </div>
 
 <div class="section">
+  <h2>Images in transformed containers</h2>
+  <div class="row">
+    <div>
+      <p class="label">rotate(15deg) + SVG</p>
+      <div class="card rot-15" style="display:flex;align-items:center;gap:12px">
+        <svg width="48" height="48" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="20" fill="#e94560"/>
+          <circle cx="18" cy="20" r="3" fill="white"/>
+          <circle cx="30" cy="20" r="3" fill="white"/>
+          <path d="M16 30 Q24 38 32 30" stroke="white" stroke-width="2" fill="none"/>
+        </svg>
+        <p style="margin:0">Icon + text rotated together</p>
+      </div>
+    </div>
+    <div>
+      <p class="label">scale(1.3) + SVG</p>
+      <div class="card" style="transform:scale(1.3);transform-origin:left top;display:flex;align-items:center;gap:12px">
+        <svg width="40" height="40" viewBox="0 0 40 40">
+          <rect x="4" y="4" width="32" height="32" rx="6" fill="#48c774"/>
+          <path d="M12 20 L18 26 L28 14" stroke="white" stroke-width="3" fill="none"/>
+        </svg>
+        <p style="margin:0">Scaled card with check icon</p>
+      </div>
+    </div>
+    <div>
+      <p class="label">skewX(10deg) + SVG</p>
+      <div class="card skew-x" style="display:flex;align-items:center;gap:12px">
+        <svg width="36" height="36" viewBox="0 0 36 36">
+          <polygon points="18,2 34,34 2,34" fill="#ffdd57"/>
+          <text x="18" y="28" text-anchor="middle" font-size="18" fill="#1a1a2e">!</text>
+        </svg>
+        <p style="margin:0">Warning skewed</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
   <h2>Practical patterns</h2>
   <div class="row">
     <div>

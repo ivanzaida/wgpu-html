@@ -30,6 +30,9 @@ struct ImageInstance {
   pos: [f32; 2],
   size: [f32; 2],
   opacity: [f32; 4],
+  transform: [f32; 4],
+  transform_origin: [f32; 2],
+  _pad: [f32; 2],
 }
 
 impl From<&ImageQuad> for ImageInstance {
@@ -38,6 +41,9 @@ impl From<&ImageQuad> for ImageInstance {
       pos: [q.rect.x, q.rect.y],
       size: [q.rect.w, q.rect.h],
       opacity: [q.opacity, 0.0, 0.0, 0.0],
+      transform: q.transform,
+      transform_origin: q.transform_origin,
+      _pad: [0.0; 2],
     }
   }
 }
@@ -166,6 +172,16 @@ impl ImagePipeline {
                 format: wgpu::VertexFormat::Float32x4,
                 offset: 16,
                 shader_location: 3,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 32,
+                shader_location: 4,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 48,
+                shader_location: 5,
               },
             ],
           },

@@ -1,7 +1,7 @@
 # Engine Gaps
 
 Status of CSS/HTML features relative to browser engines.
-Updated 2026-05-10.
+Updated 2026-05-11.
 
 Legend: **Parsed** = CSS parser recognizes the property.
 **Typed** = stored as a Rust enum/struct (not a raw string).
@@ -59,8 +59,9 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Impact: hover effects, loading spinners, fade-ins, slide-outs all missing.
 
 ### `text-overflow: ellipsis`
-- Parsed: yes (typed enum). Stored on `Style` and `LayoutBox`.
-- Layout: not consumed. Paint: no truncation or ellipsis glyph rendered.
+- Parsed: yes (typed enum `TextOverflow::Clip` / `Ellipsis`). Stored on `Style` and `LayoutBox`.
+- Layout: stored on LayoutBox, not yet consumed for truncation.
+- Paint: no truncation or ellipsis glyph rendered.
 
 ### Filters (`filter`, `backdrop-filter`)
 - Not parsed (listed in `DEFERRED_LONGHANDS`).
@@ -86,9 +87,10 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Paint: rendered as solid. Only `solid`, `dashed`, `dotted` have distinct rendering.
 
 ### Form validation
-- No `:valid`/`:invalid` pseudo-class tracking.
-- No HTML5 `pattern` attribute validation (except date locale patterns).
-- No `type=email`/`type=url`/`type=number` input validation.
+- `:valid` / `:invalid` pseudo-classes implemented in query engine (`query_selector`, `query_selector_all`).
+- Validation checks: `required`, `minlength`, `maxlength`, `min`/`max`/`step` (number/range).
+- Missing: `pattern` (regex) validation, cascade integration (no dynamic restyle on value change).
+- Missing: `type=email`/`type=url` specific validation, `minlength`/`maxlength` on textarea.
 
 ## Implemented (previously reported as gaps)
 
@@ -111,8 +113,9 @@ Legend: **Parsed** = CSS parser recognizes the property.
 | Scroll snap | Not parsed |
 | `writing-mode` / vertical text | Not parsed |
 | Hyphenation (`hyphens`) | Not parsed |
-| `word-break: break-word` | Parsed but `break-word` value not in enum |
-| `overflow-wrap` | Parsed, limited line-breaking behavior |
+| `word-break: break-all` | ✅ Implemented — inserts U+200B between characters for any-char breaks |
+| `word-break: keep-all` | ✅ Parsed |
+| `overflow-wrap: break-word` | ✅ Consumed from deferred longhands — enables wrapping |
 | Counters (`counter-increment`, `content: counter()`) | Not parsed |
 | `border-image` | Not parsed |
 | Text-shadow | Parsed (raw string), not painted |

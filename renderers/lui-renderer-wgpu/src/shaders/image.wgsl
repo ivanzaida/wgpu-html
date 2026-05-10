@@ -45,6 +45,8 @@ struct VsIn {
     @location(1) pos: vec2<f32>,
     @location(2) size: vec2<f32>,
     @location(3) opacity: vec4<f32>,
+    @location(4) transform: vec4<f32>,  // 2x2 matrix: a, b, c, d
+    @location(5) xf_origin: vec2<f32>,  // transform origin relative to rect top-left
 }
 
 struct VsOut {
@@ -55,7 +57,13 @@ struct VsOut {
 
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
-    let world = in.pos + in.corner * in.size;
+    let local_px = in.corner * in.size;
+    let centered = local_px - in.xf_origin;
+    let rotated = vec2<f32>(
+        in.transform.x * centered.x + in.transform.z * centered.y,
+        in.transform.y * centered.x + in.transform.w * centered.y,
+    );
+    let world = in.pos + rotated + in.xf_origin;
     let viewport = globals.viewport.xy;
     let ndc_x = (world.x / viewport.x) * 2.0 - 1.0;
     let ndc_y = 1.0 - (world.y / viewport.y) * 2.0;
