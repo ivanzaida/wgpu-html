@@ -35,14 +35,16 @@ struct Globals {
 @group(0) @binding(0) var<uniform> globals: Globals;
 
 struct VsIn {
-    @location(0) corner:  vec2<f32>,
-    @location(1) pos:     vec2<f32>,
-    @location(2) size:    vec2<f32>,
-    @location(3) color:   vec4<f32>,
-    @location(4) radii_h: vec4<f32>,  // TL, TR, BR, BL
-    @location(5) radii_v: vec4<f32>,  // TL, TR, BR, BL
-    @location(6) stroke:  vec4<f32>,  // top, right, bottom, left
-    @location(7) pattern: vec4<f32>,  // kind, dash, gap, _
+    @location(0) corner:     vec2<f32>,
+    @location(1) pos:        vec2<f32>,
+    @location(2) size:       vec2<f32>,
+    @location(3) color:      vec4<f32>,
+    @location(4) radii_h:    vec4<f32>,  // TL, TR, BR, BL
+    @location(5) radii_v:    vec4<f32>,  // TL, TR, BR, BL
+    @location(6) stroke:     vec4<f32>,  // top, right, bottom, left
+    @location(7) pattern:    vec4<f32>,  // kind, dash, gap, _
+    @location(8) transform:  vec4<f32>,  // 2x2 matrix: a, b, c, d
+    @location(9) xf_origin:  vec2<f32>,  // transform origin relative to rect top-left
 };
 
 struct VsOut {
@@ -59,7 +61,16 @@ struct VsOut {
 
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
-    let px = in.pos + in.corner * in.size;
+    // Local position within the quad (before transform).
+    let local_px = in.corner * in.size;
+    // Apply 2x2 transform around xf_origin.
+    let centered = local_px - in.xf_origin;
+    let rotated = vec2<f32>(
+        in.transform.x * centered.x + in.transform.z * centered.y,
+        in.transform.y * centered.x + in.transform.w * centered.y,
+    );
+    let px = in.pos + rotated + in.xf_origin;
+
     let viewport = globals.viewport.xy;
     let ndc = vec2<f32>(
         (px.x / viewport.x) * 2.0 - 1.0,
@@ -70,6 +81,7 @@ fn vs_main(in: VsIn) -> VsOut {
     out.clip      = vec4<f32>(ndc, 0.0, 1.0);
     out.color     = in.color;
     out.half_size = in.size * 0.5;
+    // SDF local coords stay in un-rotated quad space.
     out.local     = (in.corner - vec2<f32>(0.5, 0.5)) * in.size;
     out.radii_h   = in.radii_h;
     out.radii_v   = in.radii_v;

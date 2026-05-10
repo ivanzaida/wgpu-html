@@ -51,6 +51,11 @@ struct QuadInstance {
   /// Stroke pattern: (kind, dash, gap, _). `kind == 0` (solid) is the
   /// default and ignores the rest.
   pattern: [f32; 4],
+  /// 2x2 rotation/scale matrix [a, b, c, d]. Identity = [1, 0, 0, 1].
+  transform: [f32; 4],
+  /// Transform origin relative to rect top-left, in pixels.
+  transform_origin: [f32; 2],
+  _pad: [f32; 2],
 }
 
 impl From<&Quad> for QuadInstance {
@@ -63,6 +68,9 @@ impl From<&Quad> for QuadInstance {
       radii_v: q.radii_v,
       stroke: q.stroke,
       pattern: q.pattern,
+      transform: q.transform,
+      transform_origin: q.transform_origin,
+      _pad: [0.0; 2],
     }
   }
 }
@@ -190,6 +198,16 @@ impl QuadPipeline {
                 format: wgpu::VertexFormat::Float32x4,
                 offset: 80,
                 shader_location: 7,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 96,
+                shader_location: 8,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 112,
+                shader_location: 9,
               },
             ],
           },

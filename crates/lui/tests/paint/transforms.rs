@@ -37,9 +37,10 @@ fn translate_percentage_shifts_by_own_size() {
 }
 
 // ── scale ─────────────────────────────────────────────────────────────
+// Scale is applied in the GPU vertex shader via the 2x2 matrix.
 
 #[test]
-fn scale_doubles_quad_size_around_center() {
+fn scale_sets_matrix_on_quad() {
   let list = paint_tree(
     &lui_parser::parse(r#"<body style="margin:0">
       <div style="transform:scale(2);width:100px;height:50px;background:red"></div>
@@ -48,34 +49,22 @@ fn scale_doubles_quad_size_around_center() {
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  assert!(approx(q.rect.w, 200.0), "width should double: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 100.0), "height should double: got {}", q.rect.h);
-  // origin is center (50, 25), so the quad expands outward:
-  // new_x = 50 - 100 = -50,  new_y = 25 - 50 = -25
-  assert!(approx(q.rect.x, -50.0), "x should shift to -50: got {}", q.rect.x);
-  assert!(approx(q.rect.y, -25.0), "y should shift to -25: got {}", q.rect.y);
+  // Rect is untransformed.
+  assert!(approx(q.rect.w, 100.0), "w untransformed: got {}", q.rect.w);
+  assert!(approx(q.rect.h, 50.0), "h untransformed: got {}", q.rect.h);
+  // 2x2 scale matrix: [2, 0, 0, 2]
+  let [a, b, c, d] = q.transform;
+  assert!(approx(a, 2.0), "a = 2: got {a}");
+  assert!(approx(b, 0.0), "b = 0: got {b}");
+  assert!(approx(c, 0.0), "c = 0: got {c}");
+  assert!(approx(d, 2.0), "d = 2: got {d}");
+  // Origin at center
+  assert!(approx(q.transform_origin[0], 50.0), "origin x = 50: got {}", q.transform_origin[0]);
+  assert!(approx(q.transform_origin[1], 25.0), "origin y = 25: got {}", q.transform_origin[1]);
 }
 
 #[test]
-fn scale_half_shrinks_quad() {
-  let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
-      <div style="transform:scale(0.5);width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
-  );
-  assert_eq!(list.quads.len(), 1);
-  let q = &list.quads[0];
-  assert!(approx(q.rect.w, 50.0), "width should halve: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 25.0), "height should halve: got {}", q.rect.h);
-  // origin is center (50, 25), scale 0.5:
-  // new_x = 50 - 25 = 25,  new_y = 25 - 12.5 = 12.5
-  assert!(approx(q.rect.x, 25.0), "x should shift to 25: got {}", q.rect.x);
-  assert!(approx(q.rect.y, 12.5), "y should shift to 12.5: got {}", q.rect.y);
-}
-
-#[test]
-fn scale_with_origin_top_left() {
+fn scale_with_origin_top_left_sets_origin() {
   let list = paint_tree(
     &lui_parser::parse(r#"<body style="margin:0">
       <div style="transform:scale(2);transform-origin:left top;width:100px;height:50px;background:red"></div>
@@ -84,70 +73,16 @@ fn scale_with_origin_top_left() {
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  // origin top-left: position stays at (0,0), size doubles
-  assert!(approx(q.rect.x, 0.0), "x stays at 0 with top-left origin: got {}", q.rect.x);
-  assert!(approx(q.rect.y, 0.0), "y stays at 0 with top-left origin: got {}", q.rect.y);
-  assert!(approx(q.rect.w, 200.0), "width doubles: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 100.0), "height doubles: got {}", q.rect.h);
-}
-
-#[test]
-fn scale_xy_non_uniform() {
-  let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
-      <div style="transform:scale(2,0.5);transform-origin:left top;width:100px;height:100px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
-  );
-  assert_eq!(list.quads.len(), 1);
-  let q = &list.quads[0];
-  assert!(approx(q.rect.w, 200.0), "width scaled 2x: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 50.0), "height scaled 0.5x: got {}", q.rect.h);
-}
-
-#[test]
-fn scale_affects_child_quads() {
-  let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
-      <div style="transform:scale(2);transform-origin:left top;width:100px;height:100px">
-        <div style="width:50px;height:25px;background:blue"></div>
-      </div>
-    </body>"#),
-    400.0, 400.0,
-  );
-  assert_eq!(list.quads.len(), 1);
-  let q = &list.quads[0];
-  assert!(approx(q.rect.w, 100.0), "child width 50 * scale 2 = 100: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 50.0), "child height 25 * scale 2 = 50: got {}", q.rect.h);
+  assert!(approx(q.transform_origin[0], 0.0), "origin x = 0: got {}", q.transform_origin[0]);
+  assert!(approx(q.transform_origin[1], 0.0), "origin y = 0: got {}", q.transform_origin[1]);
 }
 
 // ── rotate ────────────────────────────────────────────────────────────
-// Rotation produces an axis-aligned bounding box (AABB) around the
-// rotated rectangle. The GPU pipeline renders axis-aligned rects, so
-// the paint pass computes the AABB of the 4 transformed corners.
+// Rotation is applied in the GPU vertex shader. The paint pass emits
+// the untransformed rect with the 2x2 rotation matrix set on the Quad.
 
 #[test]
-fn rotate_180_preserves_aabb() {
-  // 180deg around center flips the box but the AABB is identical.
-  let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
-      <div style="transform:rotate(180deg);width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
-  );
-  assert_eq!(list.quads.len(), 1);
-  let q = &list.quads[0];
-  assert!(approx(q.rect.x, 0.0), "x unchanged after 180 rotate: got {}", q.rect.x);
-  assert!(approx(q.rect.y, 0.0), "y unchanged after 180 rotate: got {}", q.rect.y);
-  assert!(approx(q.rect.w, 100.0), "w unchanged: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 50.0), "h unchanged: got {}", q.rect.h);
-}
-
-#[test]
-fn rotate_90_swaps_width_height() {
-  // 90deg around center of 100x50: AABB becomes 50x100
-  // center = (50, 25)
-  // AABB: x=25, y=-25, w=50, h=100
+fn rotate_sets_matrix_on_quad() {
   let list = paint_tree(
     &lui_parser::parse(r#"<body style="margin:0">
       <div style="transform:rotate(90deg);width:100px;height:50px;background:red"></div>
@@ -156,17 +91,34 @@ fn rotate_90_swaps_width_height() {
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  assert!(approx(q.rect.w, 50.0), "w should be ~50 (height swapped): got {}", q.rect.w);
-  assert!(approx(q.rect.h, 100.0), "h should be ~100 (width swapped): got {}", q.rect.h);
-  assert!(approx(q.rect.x, 25.0), "x = center_x - new_w/2 = 25: got {}", q.rect.x);
-  assert!(approx(q.rect.y, -25.0), "y = center_y - new_h/2 = -25: got {}", q.rect.y);
+  // Rect is untransformed.
+  assert!(approx(q.rect.w, 100.0), "w untransformed: got {}", q.rect.w);
+  assert!(approx(q.rect.h, 50.0), "h untransformed: got {}", q.rect.h);
+  // 2x2 rotation matrix for 90deg: [cos, sin, -sin, cos] = [0, 1, -1, 0]
+  let [a, b, c, d] = q.transform;
+  assert!(approx(a, 0.0), "a ~ 0: got {a}");
+  assert!(approx(b, 1.0), "b ~ 1: got {b}");
+  assert!(approx(c, -1.0), "c ~ -1: got {c}");
+  assert!(approx(d, 0.0), "d ~ 0: got {d}");
 }
 
 #[test]
-fn rotate_with_origin_top_left() {
-  // 90deg around top-left (0,0) of 100x50: corners rotate to
-  // (0,0)→(0,0), (100,0)→(0,100), (100,50)→(-50,100), (0,50)→(-50,0)
-  // AABB: x=-50, y=0, w=50, h=100
+fn rotate_origin_defaults_to_center() {
+  let list = paint_tree(
+    &lui_parser::parse(r#"<body style="margin:0">
+      <div style="transform:rotate(45deg);width:100px;height:50px;background:red"></div>
+    </body>"#),
+    400.0, 400.0,
+  );
+  assert_eq!(list.quads.len(), 1);
+  let q = &list.quads[0];
+  // Origin relative to rect top-left = center = (50, 25)
+  assert!(approx(q.transform_origin[0], 50.0), "origin x = 50: got {}", q.transform_origin[0]);
+  assert!(approx(q.transform_origin[1], 25.0), "origin y = 25: got {}", q.transform_origin[1]);
+}
+
+#[test]
+fn rotate_with_custom_origin() {
   let list = paint_tree(
     &lui_parser::parse(r#"<body style="margin:0">
       <div style="transform:rotate(90deg);transform-origin:left top;width:100px;height:50px;background:red"></div>
@@ -175,32 +127,28 @@ fn rotate_with_origin_top_left() {
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  assert!(approx(q.rect.x, -50.0), "x = -50: got {}", q.rect.x);
-  assert!(approx(q.rect.y, 0.0), "y = 0: got {}", q.rect.y);
-  assert!(approx(q.rect.w, 50.0), "w = 50: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 100.0), "h = 100: got {}", q.rect.h);
+  // Origin relative to rect top-left = (0, 0)
+  assert!(approx(q.transform_origin[0], 0.0), "origin x = 0: got {}", q.transform_origin[0]);
+  assert!(approx(q.transform_origin[1], 0.0), "origin y = 0: got {}", q.transform_origin[1]);
 }
 
 #[test]
-fn rotate_45_grows_aabb() {
-  // 45deg around center of 100x100 box: AABB grows to ~141x141
+fn no_transform_keeps_identity_matrix() {
   let list = paint_tree(
     &lui_parser::parse(r#"<body style="margin:0">
-      <div style="transform:rotate(45deg);width:100px;height:100px;background:red"></div>
+      <div style="width:100px;height:50px;background:red"></div>
     </body>"#),
     400.0, 400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  let diag = 100.0 * std::f32::consts::SQRT_2; // ~141.4
-  assert!((q.rect.w - diag).abs() < 1.0, "w should be ~141.4: got {}", q.rect.w);
-  assert!((q.rect.h - diag).abs() < 1.0, "h should be ~141.4: got {}", q.rect.h);
+  assert_eq!(q.transform, [1.0, 0.0, 0.0, 1.0], "identity matrix when no transform");
 }
 
 // ── combined ──────────────────────────────────────────────────────────
 
 #[test]
-fn translate_then_scale() {
+fn translate_then_scale_sets_both() {
   let list = paint_tree(
     &lui_parser::parse(r#"<body style="margin:0">
       <div style="transform:translate(10px,10px) scale(2);transform-origin:left top;width:50px;height:50px;background:red"></div>
@@ -209,11 +157,12 @@ fn translate_then_scale() {
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  // translate(10,10) then scale(2) from top-left:
-  // matrix: a=2, d=2, tx=10, ty=10
-  // position = (10, 10), size = (100, 100)
-  assert!(approx(q.rect.x, 10.0), "x = 10: got {}", q.rect.x);
-  assert!(approx(q.rect.y, 10.0), "y = 10: got {}", q.rect.y);
-  assert!(approx(q.rect.w, 100.0), "w = 50*2 = 100: got {}", q.rect.w);
-  assert!(approx(q.rect.h, 100.0), "h = 50*2 = 100: got {}", q.rect.h);
+  // Rect untransformed at (0, 0, 50, 50) — translate(10,10) adds to paint_offset
+  // via layout's Transform2D.tx/ty, not via the 2x2 matrix.
+  assert!(approx(q.rect.w, 50.0), "w untransformed: got {}", q.rect.w);
+  assert!(approx(q.rect.h, 50.0), "h untransformed: got {}", q.rect.h);
+  // 2x2 matrix carries the scale
+  let [a, _, _, d] = q.transform;
+  assert!(approx(a, 2.0), "a = 2: got {a}");
+  assert!(approx(d, 2.0), "d = 2: got {d}");
 }

@@ -14,42 +14,29 @@ use lui_tree::{ScrollOffset, SelectionColors, TextCursor, TextSelection, Tree};
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 const SCROLLBAR_MIN_THUMB: f32 = 18.0;
 
-use lui_layout::transform::Transform2D;
-
 #[derive(Debug, Clone, Copy)]
 struct PaintTransform {
-  matrix: Transform2D,
+  matrix_2x2: [f32; 4],
+  origin_x: f32,
+  origin_y: f32,
 }
 
 impl PaintTransform {
-  const IDENTITY: Self = Self { matrix: Transform2D::IDENTITY };
+  const IDENTITY: Self = Self {
+    matrix_2x2: [1.0, 0.0, 0.0, 1.0],
+    origin_x: 0.0,
+    origin_y: 0.0,
+  };
 
-  fn is_identity(&self) -> bool {
-    self.matrix.is_identity()
+  fn has_rotation(&self) -> bool {
+    self.matrix_2x2 != [1.0, 0.0, 0.0, 1.0]
   }
 
-  fn apply_rect(&self, r: Rect) -> Rect {
-    if self.is_identity() {
-      return r;
+  fn set_on_quad(&self, q: &mut lui_renderer_wgpu::Quad) {
+    if self.has_rotation() {
+      q.transform = self.matrix_2x2;
+      q.transform_origin = [self.origin_x - q.rect.x, self.origin_y - q.rect.y];
     }
-    let (x0, y0) = (r.x, r.y);
-    let (x1, y1) = (r.x + r.w, r.y + r.h);
-    let c0 = self.matrix.apply(x0, y0);
-    let c1 = self.matrix.apply(x1, y0);
-    let c2 = self.matrix.apply(x1, y1);
-    let c3 = self.matrix.apply(x0, y1);
-    let min_x = c0.0.min(c1.0).min(c2.0).min(c3.0);
-    let max_x = c0.0.max(c1.0).max(c2.0).max(c3.0);
-    let min_y = c0.1.min(c1.1).min(c2.1).min(c3.1);
-    let max_y = c0.1.max(c1.1).max(c2.1).max(c3.1);
-    Rect::new(min_x, min_y, max_x - min_x, max_y - min_y)
-  }
-
-  fn then(&self, origin_x: f32, origin_y: f32, t: &Transform2D) -> Self {
-    let to_origin = Transform2D::translate(-origin_x, -origin_y);
-    let from_origin = Transform2D::translate(origin_x, origin_y);
-    let around_origin = from_origin.then(t).then(&to_origin);
-    Self { matrix: self.matrix.then(&around_origin) }
   }
 }
 fn apply_opacity(mut color: lui_renderer_wgpu::Color, opacity: f32) -> lui_renderer_wgpu::Color {
@@ -322,20 +309,24 @@ fn paint_box_in_clip(
     paint_offset_y
   };
 
-  let paint_xform = if let Some(ref t) = b.transform {
+  let (paint_offset_x, paint_offset_y, paint_xform) = if let Some(ref t) = b.transform {
     let (ox, oy) = b.transform_origin;
-    let anchor_x = b.border_rect.x + paint_offset_x + ox;
-    let anchor_y = b.border_rect.y + paint_offset_y + oy;
-    parent_xform.then(anchor_x, anchor_y, t)
+    let pox = paint_offset_x + t.tx;
+    let poy = paint_offset_y + t.ty;
+    (pox, poy, PaintTransform {
+      matrix_2x2: [t.a, t.b, t.c, t.d],
+      origin_x: b.border_rect.x + pox + ox,
+      origin_y: b.border_rect.y + poy + oy,
+    })
   } else {
-    parent_xform
+    (paint_offset_x, paint_offset_y, parent_xform)
   };
   let selection_colors = SelectionColors {
     background: b.selection_bg.unwrap_or(selection_colors.background),
     foreground: b.selection_fg.unwrap_or(selection_colors.foreground),
   };
   let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
-  let rect = paint_xform.apply_rect(to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y));
+  let rect = to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y);
   let (rh, rv) = corner_radii(b);
   let rounded = has_any_radius(&rh) || has_any_radius(&rv);
 
@@ -353,13 +344,16 @@ fn paint_box_in_clip(
   // (border-box by default; padding-box / content-box also supported).
   if let Some(color) = b.background.filter(|_| !suppress_box_paint) {
     let color = apply_opacity(color, opacity);
-    let bg = paint_xform.apply_rect(to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y));
+    let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
     if bg.w > 0.0 && bg.h > 0.0 {
       let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
       if has_any_radius(&bg_h) || has_any_radius(&bg_v) {
         out.push_quad_rounded_ellipse(bg, color, bg_h, bg_v);
       } else {
         out.push_quad(bg, color);
+      }
+      if let Some(q) = out.last_quad_mut() {
+        paint_xform.set_on_quad(q);
       }
     }
   }
@@ -372,7 +366,7 @@ fn paint_box_in_clip(
   // rounded shape — otherwise the rectangular tiles would paint
   // outside the rounded background.
   if let Some(ref bgi) = b.background_image {
-    let bg = paint_xform.apply_rect(to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y));
+    let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
     if bg.w > 0.0 && bg.h > 0.0 && !bgi.tiles.is_empty() {
       let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
       let needs_round_clip = has_any_radius(&bg_h) || has_any_radius(&bg_v);

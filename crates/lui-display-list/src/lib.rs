@@ -72,6 +72,13 @@ pub struct Quad {
   /// is a one-sided rounded ring (`stroke` has exactly one positive
   /// component); other configurations render solid.
   pub pattern: Pattern,
+  /// 2x2 rotation/scale matrix `[a, b, c, d]` applied in the vertex
+  /// shader. Identity is `[1, 0, 0, 1]`. The shader rotates vertices
+  /// around `transform_origin`.
+  pub transform: [f32; 4],
+  /// Transform origin relative to the rect's top-left corner, in pixels.
+  /// Default is the rect center: `[w/2, h/2]`.
+  pub transform_origin: [f32; 2],
 }
 
 /// One glyph quad. The renderer's glyph pipeline samples a single
@@ -315,6 +322,8 @@ impl DisplayList {
       radii_v: [0.0; 4],
       stroke: [0.0; 4],
       pattern: [0.0; 4],
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Quad,
@@ -333,6 +342,8 @@ impl DisplayList {
       radii_v: radii,
       stroke: [0.0; 4],
       pattern: [0.0; 4],
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Quad,
@@ -357,6 +368,8 @@ impl DisplayList {
       radii_v,
       stroke: [0.0; 4],
       pattern: [0.0; 4],
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Quad,
@@ -375,6 +388,8 @@ impl DisplayList {
       radii_v: radii,
       stroke,
       pattern: [0.0; 4],
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Quad,
@@ -400,6 +415,8 @@ impl DisplayList {
       radii_v,
       stroke,
       pattern: [0.0; 4],
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Quad,
@@ -426,6 +443,8 @@ impl DisplayList {
       radii_v,
       stroke,
       pattern,
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Quad,
@@ -433,6 +452,10 @@ impl DisplayList {
       clip_index: self.current_clip_index(),
     });
     self
+  }
+
+  pub fn last_quad_mut(&mut self) -> Option<&mut Quad> {
+    self.quads.last_mut()
   }
 
   pub fn push_glyph(&mut self, rect: Rect, color: Color, uv_min: [f32; 2], uv_max: [f32; 2]) -> &mut Self {
