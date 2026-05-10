@@ -47,8 +47,8 @@ lui supports **96 HTML tags** with typed element structs. Unknown tags are silen
 | `thead`, `tbody`, `tfoot` | `table-header-group`/`row-group`/`footer-group` | — |
 | `colgroup`, `col` | Parsed with `span` | Column styling not propagated |
 | `input` | See [Forms and Inputs](forms-and-inputs) for type breakdown | Varies by type |
-| `textarea` | Multiline editing, placeholder, resize | No form submission |
-| `button` | Focusable, styled as button | No form submission |
+| `textarea` | Multiline editing, placeholder, resize, form data collection | — |
+| `button` | Focusable, styled as button, submit triggers form submission | — |
 | `select`, `option` | Parsed, styled | No popup list |
 | `form` | Parsed with attributes | No submission/validation |
 | `fieldset`, `legend` | Block layout, border | Limited native behavior |

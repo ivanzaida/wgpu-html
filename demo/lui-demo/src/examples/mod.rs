@@ -34,6 +34,7 @@ mod text_wrapping;
 mod styled_pickers;
 mod table;
 mod transform_demo;
+mod transform_text;
 
 pub fn get_example_tree(name: &str) -> Option<Tree> {
   match name {
@@ -71,6 +72,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "styled_pickers" => Some(styled_pickers::build()),
     "table" => Some(table::build()),
     "transform_demo" => Some(transform_demo::build()),
+    "transform_text" => Some(transform_text::build()),
     _ => None,
   }
 }
@@ -110,5 +112,6 @@ pub fn list_examples() -> Vec<&'static str> {
     "text_wrapping",
     "table",
     "transform_demo",
+    "transform_text",
   ]
 }
