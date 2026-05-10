@@ -18,8 +18,8 @@ pub mod tree_builder;
 pub use css_parser::{
   CssWideKeyword, StyleDecls, apply_css_property, parse_css_color, parse_inline_style, parse_inline_style_decls,
   resolve_lui_calendar_style, resolve_lui_color_picker_style, resolve_lui_popup_style,
-  resolve_var_references,
 };
+pub use css_parser::var::resolve_var_references;
 pub use style_props::{apply_keyword, clear_value_for, is_inherited, merge_values_clearing_keywords};
 // Re-export query-engine types through the stylesheet module.
 pub use stylesheet::{
