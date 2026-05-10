@@ -117,15 +117,16 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
           }
         }
         if matches!(fc.kind, FormControlKind::File { .. }) {
-          let cr = lb.content_rect;
-          let btn_w = crate::paint::file_button_width(lb);
-          if pos.0 <= cr.x + btn_w {
+          let pad = crate::paint::file_button_padding(lb);
+          let btn_x = lb.content_rect.x - pad[3];
+          let btn_w = pad[3] + crate::paint::file_button_width(lb) + pad[1];
+          if pos.0 >= btn_x && pos.0 <= btn_x + btn_w {
             let btn_cursor = lb.file_button.as_ref()
               .map(|f| f.cursor.clone())
               .unwrap_or(Cursor::Pointer);
             css_cursor = btn_cursor;
           } else {
-            css_cursor = Cursor::Auto;
+            css_cursor = Cursor::Default;
           }
         }
       }
@@ -468,9 +469,10 @@ pub fn mouse_down_with_click_count(
             }
             FormControlKind::File { disabled, .. } => {
               if !disabled {
-                let cr = lb.content_rect;
-                let btn_w = crate::paint::file_button_width(lb);
-                if pos.0 <= cr.x + btn_w {
+                let pad = crate::paint::file_button_padding(lb);
+                let btn_x = lb.content_rect.x - pad[3];
+                let btn_w = pad[3] + crate::paint::file_button_width(lb) + pad[1];
+                if pos.0 >= btn_x && pos.0 <= btn_x + btn_w {
                   open_file_dialog(tree, target_path);
                 }
               }

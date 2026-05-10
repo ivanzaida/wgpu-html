@@ -30,6 +30,7 @@ mod gradient;
 mod grid;
 mod length;
 mod svg;
+mod table;
 
 pub use wgpu_html_assets::{current_frame, AssetIo, Fetcher, ImageData, ImageFrame};
 
@@ -547,8 +548,9 @@ pub struct FileButtonStyle {
   pub color: Option<Color>,
   pub border_color: Option<Color>,
   pub border_radius: f32,
-  pub padding_x: f32,
+  pub padding: [f32; 4],
   pub cursor: Cursor,
+  pub text_run: Option<wgpu_html_text::ShapedRun>,
 }
 
 impl Default for FileButtonStyle {
@@ -558,8 +560,9 @@ impl Default for FileButtonStyle {
       color: Some([0.0, 0.0, 0.0, 1.0]),
       border_color: Some([0.6, 0.6, 0.6, 1.0]),
       border_radius: 3.0,
-      padding_x: 8.0,
+      padding: [4.0, 6.0, 4.0, 6.0],
       cursor: Cursor::Pointer,
+      text_run: None,
     }
   }
 }
@@ -1064,6 +1067,7 @@ fn needs_full_relayout(node: &CascadedNode) -> bool {
   use wgpu_html_models::common::css_enums::FlexDirection;
   let style = &node.style;
   match style.display.as_ref() {
+    Some(Display::Table) => true,
     Some(Display::Grid | Display::InlineGrid) => true,
     Some(Display::Flex | Display::InlineFlex) => {
       if matches!(
@@ -1362,9 +1366,11 @@ fn file_button_from_pseudo(node: &CascadedNode) -> Option<FileButtonStyle> {
   if let Some(r) = resolve_border_radius_single(s.border_top_left_radius.as_ref()) {
     fb.border_radius = r;
   }
-  if let Some(px) = resolve_length_px(s.padding_left.as_ref(), 16.0) {
-    fb.padding_x = px;
-  }
+  let fs = 16.0;
+  if let Some(v) = resolve_length_px(s.padding_top.as_ref(), fs) { fb.padding[0] = v; }
+  if let Some(v) = resolve_length_px(s.padding_right.as_ref(), fs) { fb.padding[1] = v; }
+  if let Some(v) = resolve_length_px(s.padding_bottom.as_ref(), fs) { fb.padding[2] = v; }
+  if let Some(v) = resolve_length_px(s.padding_left.as_ref(), fs) { fb.padding[3] = v; }
   if let Some(c) = s.cursor.clone() {
     fb.cursor = c;
   }
@@ -1539,6 +1545,7 @@ pub(crate) mod layout_profile {
     pub block_calls: u32,
     pub flex_calls: u32,
     pub grid_calls: u32,
+    pub table_calls: u32,
     pub inline_para_calls: u32,
     pub text_shape_calls: u32,
     pub para_shape_calls: u32,
@@ -1552,11 +1559,12 @@ pub(crate) mod layout_profile {
 
     pub fn dump(&self) {
       eprintln!(
-        "[layout-profile] nodes={} block_calls={} | flex_calls={} | grid_calls={} | inline_para_calls={} | text_shape_calls={} | para_shape_calls={}",
+        "[layout-profile] nodes={} block_calls={} | flex_calls={} | grid_calls={} | table_calls={} | inline_para_calls={} | text_shape_calls={} | para_shape_calls={}",
         self.total_nodes,
         self.block_calls,
         self.flex_calls,
         self.grid_calls,
+        self.table_calls,
         self.inline_para_calls,
         self.text_shape_calls,
         self.para_shape_calls,
@@ -1582,6 +1590,12 @@ pub(crate) mod layout_profile {
   pub fn count_grid(p: &mut Option<LayoutProfiler>) {
     if let Some(p) = p {
       p.grid_calls += 1;
+    }
+  }
+  #[inline(always)]
+  pub fn count_table(p: &mut Option<LayoutProfiler>) {
+    if let Some(p) = p {
+      p.table_calls += 1;
     }
   }
   #[inline(always)]
@@ -1911,6 +1925,19 @@ fn layout_block(
         );
         (kids, content_h_used)
       }
+      Display::Table => {
+        layout_profile::count_table(&mut ctx.profiler);
+        let (kids, _content_w_used, content_h_used) = table::layout_table_children(
+          node,
+          style,
+          content_x,
+          content_y_top,
+          inner_width,
+          inner_height_explicit,
+          ctx,
+        );
+        (kids, content_h_used)
+      }
       _ => {
         // Inline formatting context: when every child of this
         // block is inline-level (text, <strong>, <em>, …), pack
@@ -2093,7 +2120,7 @@ fn layout_block(
   let fc = form_control_info(node);
   let text_color = placeholder_color.or_else(|| if fc.is_some() { Some(fg) } else { None });
 
-  LayoutBox {
+  let mut lb = LayoutBox {
     margin_rect,
     border_rect,
     content_rect,
@@ -2131,7 +2158,16 @@ fn layout_block(
     children,
     is_fixed: false,
     form_control: fc,
+  };
+
+  if matches!(lb.form_control.as_ref(), Some(FormControlInfo { kind: FormControlKind::File { .. } })) {
+    let btn_label = ctx.locale.file_browse_label();
+    let (btn_run, _) = shape_input_text(btn_label, false, content_rect, node, ctx);
+    let fb = lb.file_button.get_or_insert_with(FileButtonStyle::default);
+    fb.text_run = btn_run;
   }
+
+  lb
 }
 
 fn shape_input_text(
@@ -2187,8 +2223,7 @@ fn compute_value_run(
         } else {
           ctx.locale.file_no_file_label().to_string()
         };
-        let composite = format!("{}  {}", ctx.locale.file_browse_label(), label);
-        return shape_input_text(&composite, false, content_rect, node, ctx);
+        return shape_input_text(&label, false, content_rect, node, ctx);
       }
       // Date inputs: show locale-formatted value (or display value while editing).
       if matches!(inp.r#type, Some(InputType::Date) | Some(InputType::DatetimeLocal)) {

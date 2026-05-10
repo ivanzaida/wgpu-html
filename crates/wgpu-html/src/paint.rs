@@ -435,6 +435,18 @@ fn paint_box_in_clip(
       .filter(|_| edit_caret.is_some_and(|c| path.as_slice() == c.focus_path))
       .map(|(sb, eb)| (byte_offset_to_glyph_index(run, sb), byte_offset_to_glyph_index(run, eb)));
 
+    if let Some(fb) = &b.file_button {
+      if b.form_control.as_ref().is_some_and(|fc| matches!(fc.kind, FormControlKind::File { .. })) {
+        let o = Rect::new(origin.x, origin.y, origin.w, origin.h);
+        paint_file_input(b, fb, run, &o, text_scroll_x, opacity, out, paint_offset_x, paint_offset_y);
+        // Skip normal glyph loop — file input paints its own glyphs.
+        if let Some(ref fc) = b.form_control {
+          paint_form_control(fc, b, out, paint_offset_x, paint_offset_y, opacity);
+        }
+        return;
+      }
+    }
+
     // Right edge of the text box — glyphs past this are clipped.
     // Without this, when a flex item shrinks below its text content
     // width, overflowing glyphs bleed into adjacent items.
@@ -886,27 +898,76 @@ fn paint_form_control(
         out.push_quad_rounded(Rect::new(r2x, ring_y, ring_w, ring_h), c, [rr; 4]);
       }
     }
-    FormControlKind::File { disabled, .. } => {
-      if cw > 0.0 && ch > 0.0 {
-        let fb = b.file_button.as_ref();
-        let btn_h = (ch - 4.0).max(0.0).min(22.0);
-        let btn_w = file_button_width(b);
-        let btn_y = cy + (ch - btn_h) / 2.0;
-        let btn_r = fb.map(|f| f.border_radius).unwrap_or(3.0);
-        let default_bg = if *disabled {
-          [0.85, 0.85, 0.85, 1.0]
-        } else {
-          [0.93, 0.93, 0.93, 1.0]
-        };
-        let btn_bg = apply_opacity(fb.and_then(|f| f.background).unwrap_or(default_bg), opacity);
-        let btn_border = apply_opacity(
-          fb.and_then(|f| f.border_color).unwrap_or([0.6, 0.6, 0.6, 1.0]),
-          opacity,
-        );
-        out.push_quad_rounded(Rect::new(cx, btn_y, btn_w, btn_h), btn_bg, [btn_r; 4]);
-        out.push_quad_stroke(Rect::new(cx, btn_y, btn_w, btn_h), btn_border, [btn_r; 4], [1.0; 4]);
-      }
+    FormControlKind::File { .. } => {}
+  }
+}
+
+fn paint_file_input(
+  b: &LayoutBox,
+  fb: &wgpu_html_layout::FileButtonStyle,
+  label_run: &wgpu_html_text::ShapedRun,
+  origin: &Rect,
+  text_scroll_x: f32,
+  opacity: f32,
+  out: &mut DisplayList,
+  paint_offset_x: f32,
+  paint_offset_y: f32,
+) {
+  let cr = b.content_rect;
+  let br = b.border_rect;
+  if br.w <= 0.0 || br.h <= 0.0 { return; }
+
+  let pad = fb.padding;
+  let btn_text_w = fb.text_run.as_ref().map(|r| r.width).unwrap_or(0.0);
+  let btn_text_h = fb.text_run.as_ref().map(|r| r.height).unwrap_or(0.0);
+  let btn_w = pad[3] + btn_text_w + pad[1];
+  let btn_h = pad[0] + btn_text_h + pad[2];
+  let btn_x = cr.x + paint_offset_x;
+  let btn_y = br.y + paint_offset_y + (br.h - btn_h).max(0.0) / 2.0;
+  let btn_r = fb.border_radius;
+
+  let btn_bg = apply_opacity(fb.background.unwrap_or([0.93, 0.93, 0.93, 1.0]), opacity);
+  let btn_border = apply_opacity(fb.border_color.unwrap_or([0.6, 0.6, 0.6, 1.0]), opacity);
+  out.push_quad_rounded(Rect::new(btn_x, btn_y, btn_w, btn_h), btn_bg, [btn_r; 4]);
+  out.push_quad_stroke(Rect::new(btn_x, btn_y, btn_w, btn_h), btn_border, [btn_r; 4], [1.0; 4]);
+
+  let btn_color = apply_opacity(fb.color.unwrap_or([0.0, 0.0, 0.0, 1.0]), opacity);
+  if let Some(btn_run) = &fb.text_run {
+    let glyph_origin_x = btn_x + pad[3];
+    let glyph_origin_y = btn_y + pad[0];
+    for g in &btn_run.glyphs {
+      out.push_glyph(
+        Rect::new(
+          (glyph_origin_x + g.x).round(),
+          (glyph_origin_y + g.y).round(),
+          g.w,
+          g.h,
+        ),
+        btn_color,
+        g.uv_min,
+        g.uv_max,
+      );
     }
+  }
+
+  let gap = 8.0;
+  let label_offset_x = btn_w + gap;
+  let label_color = apply_opacity(
+    b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]),
+    opacity,
+  );
+  let label_origin_x = cr.x + paint_offset_x + label_offset_x;
+  let label_origin_y = origin.y;
+  let box_right = origin.x + origin.w;
+  for g in &label_run.glyphs {
+    let gx = (label_origin_x + g.x).round();
+    if gx + g.w < origin.x || gx > box_right { continue; }
+    out.push_glyph(
+      Rect::new(gx, (label_origin_y + g.y).round(), g.w, g.h),
+      label_color,
+      g.uv_min,
+      g.uv_max,
+    );
   }
 }
 
@@ -1611,19 +1672,17 @@ fn paint_edge(
 }
 
 /// Convert a byte offset in a value string to a glyph index in the
+pub fn file_button_padding(b: &wgpu_html_layout::LayoutBox) -> [f32; 4] {
+  let defaults = wgpu_html_layout::FileButtonStyle::default();
+  b.file_button.as_ref().unwrap_or(&defaults).padding
+}
+
 pub fn file_button_width(b: &wgpu_html_layout::LayoutBox) -> f32 {
-  if let Some(run) = &b.text_run {
-    if let Some(sep) = run.text.find("  ") {
-      let char_idx = run.text[..sep].chars().count();
-      let glyph_idx = run.char_to_glyph_index(char_idx);
-      if glyph_idx > 0 && glyph_idx <= run.glyphs.len() {
-        let g = &run.glyphs[glyph_idx - 1];
-        let pad = b.file_button.as_ref().map(|f| f.padding_x).unwrap_or(4.0);
-        return g.x + g.w + pad;
-      }
-    }
-  }
-  (b.content_rect.w * 0.35).min(80.0).max(40.0).min(b.content_rect.w)
+  let defaults = wgpu_html_layout::FileButtonStyle::default();
+  let fb = b.file_button.as_ref().unwrap_or(&defaults);
+  let pad = fb.padding;
+  let text_w = fb.text_run.as_ref().map(|r| r.width).unwrap_or(0.0);
+  pad[3] + text_w + pad[1]
 }
 
 /// shaped run. Uses the run's `byte_boundaries` to map byte positions
