@@ -68,9 +68,10 @@ sidebar_position: 2
 | `text-transform` | ✅ | uppercase, lowercase, capitalize |
 | `text-decoration` | ✅ | underline, line-through, overline |
 | `white-space` | ✅ | normal, pre, nowrap, pre-wrap, pre-line |
+| `word-break` | ✅ | normal, break-all, keep-all |
+| `vertical-align` | ✅ | baseline, sub, super, top, middle, bottom, text-top, text-bottom, length |
 | `text-indent` | ❌ | Deferred |
 | `word-spacing` | ❌ | Deferred |
-| `word-break` | ❌ | Not implemented |
 | `@font-face` | ❌ | Not implemented |
 
 ## Flexbox
@@ -137,6 +138,7 @@ CSS Grid Level 1 is mostly supported:
 | Property | Support | Notes |
 |---|---|---|
 | `overflow`, `overflow-x`, `overflow-y` | ✅ | visible, hidden, scroll, auto |
+| `text-overflow` | ✅ | clip, ellipsis |
 | `scrollbar-color` | ✅ | Track/thumb colors |
 | `scrollbar-width` | ✅ | Thin/normal |
 | `scroll-behavior` | ❌ | Not implemented |

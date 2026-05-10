@@ -8,7 +8,7 @@
 
 use lui_models::{
     common::css_enums::{
-        BoxSizing, CssColor, CssLength, Cursor, Display, PointerEvents, Resize, UserSelect,
+        BoxSizing, CssColor, CssLength, Cursor, Display, PointerEvents, Resize, UserSelect, VerticalAlign,
     },
     Style,
 };
@@ -184,6 +184,7 @@ struct InlineLayout {
   width: f32,
   ascent: f32,
   descent: f32,
+  vertical_align: Option<VerticalAlign>,
 }
 
 /// Lay out one inline-level subtree starting at `(origin_x, origin_y)`.
@@ -211,6 +212,7 @@ fn layout_inline_subtree(
       width: 0.0,
       ascent: 0.0,
       descent: 0.0,
+      vertical_align: node.style.vertical_align.clone(),
     };
   }
 
@@ -227,6 +229,7 @@ fn layout_inline_subtree(
       width: w,
       ascent,
       descent,
+      vertical_align: node.style.vertical_align.clone(),
     };
   }
 
@@ -241,6 +244,7 @@ fn layout_inline_subtree(
         width: 0.0,
         ascent: 0.0,
         descent: 0.0,
+        vertical_align: node.style.vertical_align.clone(),
       };
     }
     let box_ = layout_block(
@@ -260,6 +264,7 @@ fn layout_inline_subtree(
       width,
       ascent: height,
       descent: 0.0,
+      vertical_align: node.style.vertical_align.clone(),
     };
   }
 
@@ -290,9 +295,20 @@ fn layout_inline_subtree(
   let line_h = max_ascent + max_descent;
   let baseline_y = origin_y + max_ascent;
   let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
-  for cl in child_layouts {
+  for (child, cl) in node.children.iter().zip(child_layouts.into_iter()) {
     let cur_top = cl.box_.margin_rect.y;
-    let target_top = baseline_y - cl.ascent;
+    let font_size = font_size_px(&child.style).unwrap_or(16.0) * ctx.scale;
+    let va_dy = vertical_align_dy(
+      &child.style.vertical_align,
+      cl.ascent,
+      cl.descent,
+      max_ascent,
+      max_descent,
+      line_h,
+      font_size,
+      ctx.scale,
+    );
+    let target_top = baseline_y - cl.ascent - va_dy;
     let dy = target_top - cur_top;
     let mut b = cl.box_;
     translate_box_y_in_place(&mut b, dy);
@@ -349,6 +365,7 @@ fn layout_inline_subtree(
     width: cursor_x,
     ascent: max_ascent,
     descent: max_descent,
+    vertical_align: node.style.vertical_align.clone(),
   }
 }
 
@@ -403,18 +420,9 @@ fn layout_atomic_inline_subtree(
   }
 
   if inner_height > measured_h && max_ascent > 0.0 {
-    let baseline_y = content_y + max_ascent + (inner_height - measured_h);
+    let shift = inner_height - measured_h;
     for child in &mut children {
-      let child_ascent = child
-        .text_run
-        .as_ref()
-        .map(|run| run.ascent)
-        .unwrap_or(child.margin_rect.h);
-      let target_top = baseline_y - child_ascent;
-      let dy = target_top - child.margin_rect.y;
-      if dy != 0.0 {
-        translate_box_y_in_place(child, dy);
-      }
+      translate_box_y_in_place(child, shift);
     }
   }
 
@@ -547,6 +555,7 @@ fn layout_atomic_inline_subtree(
     width: margin_rect.w,
     ascent: inline_ascent,
     descent: inline_descent,
+    vertical_align: node.style.vertical_align.clone(),
   }
 }
 
@@ -572,8 +581,19 @@ fn layout_inline_children_no_wrap(
   let line_h = max_ascent + max_descent;
   let baseline_y = origin_y + max_ascent;
   let mut final_children: Vec<LayoutBox> = Vec::with_capacity(child_layouts.len());
-  for cl in child_layouts {
-    let target_top = baseline_y - cl.ascent;
+  for (child, cl) in node.children.iter().zip(child_layouts.into_iter()) {
+    let font_size = font_size_px(&child.style).unwrap_or(16.0) * ctx.scale;
+    let va_dy = vertical_align_dy(
+      &child.style.vertical_align,
+      cl.ascent,
+      cl.descent,
+      max_ascent,
+      max_descent,
+      line_h,
+      font_size,
+      ctx.scale,
+    );
+    let target_top = baseline_y - cl.ascent - va_dy;
     let dy = target_top - cl.box_.margin_rect.y;
     let mut b = cl.box_;
     if dy != 0.0 {
@@ -686,11 +706,12 @@ fn layout_inline_mixed_children(
       width: w,
       ascent,
       descent,
+      vertical_align: style.vertical_align.clone(),
     }
   }
 
   struct Line {
-    items: Vec<InlineLayout>,
+    items: Vec<(InlineLayout, f32)>,
     width: f32,
     ascent: f32,
     descent: f32,
@@ -711,6 +732,7 @@ fn layout_inline_mixed_children(
   let mut cursor_y = origin_y;
 
   for child in &node.children {
+    let child_font_size = font_size_px(&child.style).unwrap_or(16.0) * ctx.scale;
     if matches!(&child.element, Element::Br(_)) {
       let line_h = (current.ascent + current.descent).max(hard_break_height);
       cursor_y += line_h;
@@ -766,7 +788,7 @@ fn layout_inline_mixed_children(
             current.width += head_cl.width;
             current.ascent = current.ascent.max(head_cl.ascent);
             current.descent = current.descent.max(head_cl.descent);
-            current.items.push(head_cl);
+            current.items.push((head_cl, child_font_size));
             kept_head_on_line = true;
             if !tail.trim().is_empty() {
               let line_h = (current.ascent + current.descent).max(hard_break_height);
@@ -817,7 +839,7 @@ fn layout_inline_mixed_children(
     current.width += cl.width;
     current.ascent = current.ascent.max(cl.ascent);
     current.descent = current.descent.max(cl.descent);
-    current.items.push(cl);
+    current.items.push((cl, child_font_size));
   }
   lines.push(current);
 
@@ -830,8 +852,18 @@ fn layout_inline_mixed_children(
     total_h = (line.y - origin_y) + line_h;
     let baseline_y = line.y + line.ascent;
     let align_dx = horizontal_align_offset(node.style.text_align.as_ref(), container_w, line.width);
-    for cl in line.items {
-      let target_top = baseline_y - cl.ascent;
+    for (cl, font_size) in line.items {
+      let va_dy = vertical_align_dy(
+        &cl.vertical_align,
+        cl.ascent,
+        cl.descent,
+        line.ascent,
+        line.descent,
+        line_h,
+        font_size,
+        ctx.scale,
+      );
+      let target_top = baseline_y - cl.ascent - va_dy;
       let dy = target_top - cl.box_.margin_rect.y;
       let mut b = cl.box_;
       if dy != 0.0 {
@@ -866,6 +898,46 @@ fn is_empty_inline_img(node: &CascadedNode) -> bool {
     }
     _ => false,
   }
+}
+
+/// Compute the vertical offset (dy) for CSS `vertical-align` relative to
+/// the baseline. A positive return value shifts the box **up** (decreases
+/// its y coordinate). The caller subtracts this from the baseline-aligned
+/// target position.
+///
+/// All length parameters (`font_size`, `line_ascent`, etc.) must be in
+/// physical pixels (CSS px × scale).
+fn vertical_align_dy(
+    va: &Option<VerticalAlign>,
+    child_ascent: f32,
+    child_descent: f32,
+    line_ascent: f32,
+    line_descent: f32,
+    line_h: f32,
+    font_size: f32,
+    scale: f32,
+) -> f32 {
+    let va = match va {
+        Some(v) => v,
+        None => return 0.0,
+    };
+    match va {
+        VerticalAlign::Baseline => 0.0,
+        VerticalAlign::Sub => -font_size * 0.2,
+        VerticalAlign::Super => font_size * 0.4,
+        VerticalAlign::Top => line_ascent - child_ascent,
+        VerticalAlign::Bottom => child_descent - line_descent,
+        VerticalAlign::Middle => child_ascent * 0.5 - font_size * 0.25,
+        VerticalAlign::TextTop => font_size - child_ascent,
+        VerticalAlign::TextBottom => line_descent - child_descent,
+        VerticalAlign::Length(len) => match len {
+            CssLength::Px(v) => *v * scale,
+            CssLength::Em(v) => *v * font_size,
+            CssLength::Rem(v) => *v * 16.0 * scale,
+            CssLength::Percent(v) => *v * 0.01 * line_h,
+            _ => 0.0,
+        },
+    }
 }
 
 // ---------------------------------------------------------------------------

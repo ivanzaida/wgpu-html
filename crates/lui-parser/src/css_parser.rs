@@ -305,6 +305,7 @@ fn overlay(dst: &mut Style, src: &Style) {
     text_decoration,
     text_transform,
     white_space,
+    word_break,
     vertical_align,
     text_overflow,
     overflow,

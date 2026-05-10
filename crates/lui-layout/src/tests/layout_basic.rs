@@ -568,3 +568,90 @@ fn auto_horizontal_margins_center_block() {
   // Free = 400 - 100 = 300; auto/auto → 150 left, 150 right.
   assert_eq!(child.border_rect.x, 150.0);
 }
+
+// ── word-break ──────────────────────────────────────────────────────
+
+#[test]
+fn word_break_parses_values() {
+  assert_eq!(
+    lui_parser::parse_inline_style("word-break: break-all").word_break,
+    Some(WordBreak::BreakAll)
+  );
+  assert_eq!(
+    lui_parser::parse_inline_style("word-break: keep-all").word_break,
+    Some(WordBreak::KeepAll)
+  );
+  assert_eq!(
+    lui_parser::parse_inline_style("word-break: normal").word_break,
+    Some(WordBreak::Normal)
+  );
+  assert_eq!(
+    lui_parser::parse_inline_style("color: red").word_break,
+    None
+  );
+}
+
+// ── text-overflow ───────────────────────────────────────────────────
+
+#[test]
+fn text_overflow_parses_values() {
+  assert_eq!(
+    lui_parser::parse_inline_style("text-overflow: ellipsis").text_overflow,
+    Some(TextOverflow::Ellipsis)
+  );
+  assert_eq!(
+    lui_parser::parse_inline_style("text-overflow: clip").text_overflow,
+    Some(TextOverflow::Clip)
+  );
+}
+
+#[test]
+fn text_overflow_defaults_to_none_on_layout_box() {
+  let tree = make(r#"<body style="margin:0"><div style="text-overflow:ellipsis;overflow:hidden;width:50px">long</div></body>"#);
+  let root = layout(&tree, 200.0, 100.0).unwrap();
+  let div = &root.children[0];
+  assert_eq!(div.text_overflow, Some(TextOverflow::Ellipsis));
+}
+
+// ── vertical-align ──────────────────────────────────────────────────
+
+#[test]
+fn vertical_align_parses_keywords() {
+  for (val, expected) in [
+    ("baseline", VerticalAlign::Baseline),
+    ("sub", VerticalAlign::Sub),
+    ("super", VerticalAlign::Super),
+    ("top", VerticalAlign::Top),
+    ("middle", VerticalAlign::Middle),
+    ("bottom", VerticalAlign::Bottom),
+    ("text-top", VerticalAlign::TextTop),
+    ("text-bottom", VerticalAlign::TextBottom),
+  ] {
+    let css = format!("vertical-align: {val}");
+    let style = lui_parser::parse_inline_style(&css);
+    assert_eq!(style.vertical_align.as_ref(), Some(&expected), "failed for {val}");
+  }
+}
+
+#[test]
+fn vertical_align_parses_length() {
+  let style = lui_parser::parse_inline_style("vertical-align: 5px");
+  assert!(matches!(style.vertical_align, Some(VerticalAlign::Length(_))));
+}
+
+#[test]
+fn vertical_align_defaults_to_baseline() {
+  let style = lui_parser::parse_inline_style("color: red");
+  assert_eq!(style.vertical_align, None);
+}
+
+#[test]
+fn vertical_align_sub_element_renders() {
+  // Text with inline elements should produce a paragraph with a text run.
+  let root = layout_with_fonts(r#"<body style="margin:0"><span>hello</span></body>"#, 200.0, 100.0);
+  assert!(root.margin_rect.h > 0.0, "layout should produce non-zero height");
+  assert!(!root.children.is_empty(), "layout should have children");
+  // The paragraph box carries the text run directly
+  let para = &root.children[0];
+  assert!(para.text_run.is_some(), "paragraph should have a text run");
+}

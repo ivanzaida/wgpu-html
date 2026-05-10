@@ -15,7 +15,7 @@ pub use lui_assets::{current_frame, AssetIo, Fetcher, ImageData, ImageFrame};
 pub type ImageCache = AssetIo<lui_assets::blocking::BlockingFetcher>;
 
 pub use color::{resolve_color, resolve_with_current, Color};
-pub use lui_models::common::css_enums::{Cursor, PointerEvents, Resize, UserSelect};
+pub use lui_models::common::css_enums::{Cursor, PointerEvents, Resize, TextOverflow, UserSelect, VerticalAlign, WordBreak};
 pub use lui_models::Style;
 pub use lui_models::common::css_enums::WhiteSpace;
 pub use lui_text::{PositionedGlyph, ShapedRun};
