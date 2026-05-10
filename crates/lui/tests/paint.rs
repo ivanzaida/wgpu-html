@@ -14,3 +14,5 @@ mod transforms;
 mod box_shadow;
 #[path = "paint/shadow_transform.rs"]
 mod shadow_transform;
+#[path = "paint/text_in_transforms.rs"]
+mod text_in_transforms;
