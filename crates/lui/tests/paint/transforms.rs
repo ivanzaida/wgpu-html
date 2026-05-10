@@ -121,6 +121,82 @@ fn scale_affects_child_quads() {
   assert!(approx(q.rect.h, 50.0), "child height 25 * scale 2 = 50: got {}", q.rect.h);
 }
 
+// ── rotate ────────────────────────────────────────────────────────────
+// Rotation produces an axis-aligned bounding box (AABB) around the
+// rotated rectangle. The GPU pipeline renders axis-aligned rects, so
+// the paint pass computes the AABB of the 4 transformed corners.
+
+#[test]
+fn rotate_180_preserves_aabb() {
+  // 180deg around center flips the box but the AABB is identical.
+  let list = paint_tree(
+    &lui_parser::parse(r#"<body style="margin:0">
+      <div style="transform:rotate(180deg);width:100px;height:50px;background:red"></div>
+    </body>"#),
+    400.0, 400.0,
+  );
+  assert_eq!(list.quads.len(), 1);
+  let q = &list.quads[0];
+  assert!(approx(q.rect.x, 0.0), "x unchanged after 180 rotate: got {}", q.rect.x);
+  assert!(approx(q.rect.y, 0.0), "y unchanged after 180 rotate: got {}", q.rect.y);
+  assert!(approx(q.rect.w, 100.0), "w unchanged: got {}", q.rect.w);
+  assert!(approx(q.rect.h, 50.0), "h unchanged: got {}", q.rect.h);
+}
+
+#[test]
+fn rotate_90_swaps_width_height() {
+  // 90deg around center of 100x50: AABB becomes 50x100
+  // center = (50, 25)
+  // AABB: x=25, y=-25, w=50, h=100
+  let list = paint_tree(
+    &lui_parser::parse(r#"<body style="margin:0">
+      <div style="transform:rotate(90deg);width:100px;height:50px;background:red"></div>
+    </body>"#),
+    400.0, 400.0,
+  );
+  assert_eq!(list.quads.len(), 1);
+  let q = &list.quads[0];
+  assert!(approx(q.rect.w, 50.0), "w should be ~50 (height swapped): got {}", q.rect.w);
+  assert!(approx(q.rect.h, 100.0), "h should be ~100 (width swapped): got {}", q.rect.h);
+  assert!(approx(q.rect.x, 25.0), "x = center_x - new_w/2 = 25: got {}", q.rect.x);
+  assert!(approx(q.rect.y, -25.0), "y = center_y - new_h/2 = -25: got {}", q.rect.y);
+}
+
+#[test]
+fn rotate_with_origin_top_left() {
+  // 90deg around top-left (0,0) of 100x50: corners rotate to
+  // (0,0)→(0,0), (100,0)→(0,100), (100,50)→(-50,100), (0,50)→(-50,0)
+  // AABB: x=-50, y=0, w=50, h=100
+  let list = paint_tree(
+    &lui_parser::parse(r#"<body style="margin:0">
+      <div style="transform:rotate(90deg);transform-origin:left top;width:100px;height:50px;background:red"></div>
+    </body>"#),
+    400.0, 400.0,
+  );
+  assert_eq!(list.quads.len(), 1);
+  let q = &list.quads[0];
+  assert!(approx(q.rect.x, -50.0), "x = -50: got {}", q.rect.x);
+  assert!(approx(q.rect.y, 0.0), "y = 0: got {}", q.rect.y);
+  assert!(approx(q.rect.w, 50.0), "w = 50: got {}", q.rect.w);
+  assert!(approx(q.rect.h, 100.0), "h = 100: got {}", q.rect.h);
+}
+
+#[test]
+fn rotate_45_grows_aabb() {
+  // 45deg around center of 100x100 box: AABB grows to ~141x141
+  let list = paint_tree(
+    &lui_parser::parse(r#"<body style="margin:0">
+      <div style="transform:rotate(45deg);width:100px;height:100px;background:red"></div>
+    </body>"#),
+    400.0, 400.0,
+  );
+  assert_eq!(list.quads.len(), 1);
+  let q = &list.quads[0];
+  let diag = 100.0 * std::f32::consts::SQRT_2; // ~141.4
+  assert!((q.rect.w - diag).abs() < 1.0, "w should be ~141.4: got {}", q.rect.w);
+  assert!((q.rect.h - diag).abs() < 1.0, "h should be ~141.4: got {}", q.rect.h);
+}
+
 // ── combined ──────────────────────────────────────────────────────────
 
 #[test]

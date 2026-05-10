@@ -15,12 +15,13 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Paint: no
 - Impact: cards, modals, dropdowns all lose depth/elevation.
 
-### Transforms (`transform`, `transform-origin`) (partially implemented)
+### ~~Transforms~~ (`transform`, `transform-origin`) (implemented)
 - Parsed: yes, into typed `Transform2D` affine matrix (translate, scale, rotate, skew, matrix).
 - Percentage translate resolves against border-box dimensions.
 - Transform-origin parsed (keywords, %, px) and stored on LayoutBox.
-- Paint: translate component applied to paint offsets (children move correctly).
-- Not yet: rotate/scale visual effect (requires per-vertex GPU transforms), transformed hit-testing.
+- Paint: full affine AABB transform applied to background/border rects and propagated to children.
+  Translate, scale, rotate, and skew all produce correct axis-aligned bounding boxes.
+- Not yet: transformed hit-testing (pointer events ignore transforms).
 
 ### ~~Margin collapsing~~ (implemented)
 - Adjacent sibling margins collapse in block flow (CSS 2.2 section 8.3.1).
