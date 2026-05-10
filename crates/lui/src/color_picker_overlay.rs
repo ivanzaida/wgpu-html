@@ -4,7 +4,7 @@ use lui_layout::LayoutBox;
 use lui_renderer::{DisplayList, Rect};
 use lui_text::TextContext;
 use lui_tree::{ColorPickerField, ColorPickerState, EditCursor, Element, Tree};
-use lui_models::{ArcStr, Div, Span};
+use lui_models::{ArcStr, Div};
 use lui_models::common::css_enums::*;
 use lui_style::{CascadedNode, CascadedTree};
 
@@ -136,10 +136,6 @@ fn cn(element: Element, style: lui_models::Style, children: Vec<CascadedNode>) -
     before: None, after: None, first_line: None, first_letter: None,
     placeholder: None, selection: None, marker: None, lui_pseudo: vec![],
   }
-}
-
-fn text_node(text: &str) -> CascadedNode {
-  cn(Element::Text(ArcStr::from(text)), lui_models::Style::default(), vec![])
 }
 
 fn text_node_colored(text: &str, color: &CssColor) -> CascadedNode {

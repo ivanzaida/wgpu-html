@@ -907,7 +907,7 @@ fn paint_file_input(
   fb: &lui_layout::FileButtonStyle,
   label_run: &lui_text::ShapedRun,
   origin: &Rect,
-  text_scroll_x: f32,
+  _text_scroll_x: f32,
   opacity: f32,
   out: &mut DisplayList,
   paint_offset_x: f32,
