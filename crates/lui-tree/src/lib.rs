@@ -694,8 +694,8 @@ impl Tree {
 /// Name-value pair collected from a form field during submission.
 #[derive(Debug, Clone)]
 pub struct FormField {
-  pub name: String,
-  pub value: String,
+  pub name: lui_models::ArcStr,
+  pub value: lui_models::ArcStr,
 }
 
 #[derive(Debug, Clone, Copy)]

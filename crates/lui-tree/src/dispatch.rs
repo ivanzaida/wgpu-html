@@ -853,7 +853,7 @@ pub fn dispatch_mouse_up(
       }
       // Check if click landed on a submit button inside a form.
       if let Some((form_path, submitter_path)) = submit_button_in_form(tree, click_target) {
-        bubble_submit_event(tree, &form_path, Some(submitter_path));
+        submit_form(tree, &form_path, Some(submitter_path));
       }
 
       // Checkbox / radio toggle on click.
@@ -1436,7 +1436,7 @@ pub fn key_down(tree: &mut Tree, key: &str, code: &str, repeat: bool) -> bool {
   if key == "Enter" || key == " " {
     if key == "Enter" {
       if let Some((form_path, submitter_path)) = enter_in_form_input(tree) {
-        bubble_submit_event(tree, &form_path, Some(submitter_path));
+        submit_form(tree, &form_path, Some(submitter_path));
       }
     }
     handle_activation_key(tree);
@@ -1472,7 +1472,7 @@ fn handle_activation_key(tree: &mut Tree) {
     bubble(tree, &focus_path, (0.0, 0.0), Some(MouseButton::Primary), Slot::Click);
     toggle_checkable(tree, &focus_path);
     if let Some((form_path, submitter_path)) = submit_button_in_form(tree, &focus_path) {
-      bubble_submit_event(tree, &form_path, Some(submitter_path));
+      submit_form(tree, &form_path, Some(submitter_path));
     }
   }
 }
@@ -2423,41 +2423,38 @@ fn collect_form_data(tree: &Tree, form_path: &[usize]) -> Vec<crate::FormField> 
 fn collect_form_fields(node: &Node, fields: &mut Vec<crate::FormField>) {
   match &node.element {
     Element::Input(inp) => {
-      let name = inp.name.as_deref().unwrap_or("").to_string();
+      let Some(name) = inp.name.clone() else { return };
       if name.is_empty() {
         return;
       }
       let r#type = inp.r#type.as_ref();
-      // Skip no-value types
       if matches!(r#type, Some(InputType::Submit | InputType::Reset | InputType::Button | InputType::Image)) {
         return;
       }
-      // Skip unchecked checkboxes/radios
       if matches!(r#type, Some(InputType::Checkbox | InputType::Radio)) && !inp.checked.unwrap_or(false) {
         return;
       }
-      let value = inp.value.as_deref().unwrap_or("").to_string();
+      let value = inp.value.clone().unwrap_or_else(|| m::ArcStr::from(""));
       fields.push(crate::FormField { name, value });
     }
     Element::Textarea(ta) => {
-      let name = ta.name.as_deref().unwrap_or("").to_string();
+      let Some(name) = ta.name.clone() else { return };
       if name.is_empty() {
         return;
       }
-      // textarea value is in its text content (children), NOT the value attribute
-      let value = ta.value.as_deref().map(|s| s.to_string()).unwrap_or_else(|| {
-        node
+      let value = ta.value.clone().unwrap_or_else(|| {
+        let text: String = node
           .children
           .iter()
           .filter_map(|n| {
             if let Element::Text(s) = &n.element {
-              Some(s.to_string())
+              Some(&**s)
             } else {
               None
             }
           })
-          .collect::<Vec<_>>()
-          .join("")
+          .collect();
+        m::ArcStr::from(text)
       });
       fields.push(crate::FormField { name, value });
     }
