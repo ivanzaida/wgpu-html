@@ -3,7 +3,7 @@
 //!
 //! Scope (T2):
 //! - `Atlas` — CPU-side R8 glyph atlas with a shelf packer and a pending dirty-rect list. `flush_dirty` drains those
-//!   into a caller-supplied sink; `upload` is a thin wgpu wrapper.
+//!   into a caller-supplied sink for GPU upload via `RenderBackend::upload_atlas_region`.
 //! - `FontDb` — registry-keyed cache placeholder. Built from a `&FontRegistry`; remembers which `Arc<[u8]>` payloads it
 //!   has already ingested so a re-cascade against the same registry doesn't reload anything. The actual cosmic-text
 //!   bridge lands in T3 — the cache shape is set up here so adding it doesn't shift the public API.

@@ -4,9 +4,8 @@
 //! of dirty rectangles. Glyph rasterisers call `insert(w, h, src)` to
 //! reserve space and copy a coverage mask; each insert appends a dirty
 //! rect. Per frame, `flush_dirty` drains those rects so a caller can
-//! upload only the changed regions to the GPU. A convenience method,
-//! `upload(&Queue, &Texture)`, wires that drain to `wgpu::Queue::
-//! write_texture` directly.
+//! upload only the changed regions to the GPU via `RenderBackend::
+//! upload_atlas_region`.
 //!
 //! Packing strategy (T2): a simple shelf packer.
 //! - Glyphs are placed into horizontal "shelves" stacked top-to-bottom.
@@ -141,37 +140,6 @@ impl Atlas {
       let bytes = self.read_rect(rect);
       sink(rect, &bytes);
     }
-  }
-
-  /// Convenience: flush all pending dirty rects directly to a
-  /// `wgpu::Texture` via `Queue::write_texture`. The texture must be
-  /// `R8Unorm` and at least the atlas's dimensions.
-  pub fn upload(&mut self, queue: &wgpu::Queue, texture: &wgpu::Texture) {
-    self.flush_dirty(|rect, bytes| {
-      queue.write_texture(
-        wgpu::TexelCopyTextureInfo {
-          texture,
-          mip_level: 0,
-          origin: wgpu::Origin3d {
-            x: rect.x,
-            y: rect.y,
-            z: 0,
-          },
-          aspect: wgpu::TextureAspect::All,
-        },
-        bytes,
-        wgpu::TexelCopyBufferLayout {
-          offset: 0,
-          bytes_per_row: Some(rect.w),
-          rows_per_image: Some(rect.h),
-        },
-        wgpu::Extent3d {
-          width: rect.w,
-          height: rect.h,
-          depth_or_array_layers: 1,
-        },
-      );
-    });
   }
 
   /// Wipe pixels and packer state. Doesn't shrink the backing
