@@ -10,7 +10,7 @@ members = [
     "crates/lui-models",
     "crates/lui-parser",
     "crates/lui-render-api",
-    "crates/lui-renderer",
+    "renderers/lui-renderer",
     "crates/lui-style",
     "crates/lui-text",
     "crates/lui-tree",
@@ -33,7 +33,7 @@ lui-models = { path = "crates/lui-models" }
 lui-parser = { path = "crates/lui-parser" }
 lui-display-list = { path = "crates/lui-display-list" }
 lui-render-api = { path = "crates/lui-render-api" }
-lui-renderer = { path = "crates/lui-renderer" }
+lui-renderer = { path = "renderers/lui-renderer" }
 lui-style = { path = "crates/lui-style" }
 lui-text = { path = "crates/lui-text" }
 lui-tree = { path = "crates/lui-tree" }
