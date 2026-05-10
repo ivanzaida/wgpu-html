@@ -1,5 +1,5 @@
 ---
-title: What is wgpu-html?
+sidebar_position: 1
 ---
 
 # What is wgpu-html?
@@ -12,61 +12,64 @@ wgpu-html is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes 
 - A **style engine** that runs the CSS cascade — UA defaults, author rules, inline styles, selector matching, inheritance, and `!important`
 - A **text renderer** shaped by HarfBuzz (via cosmic-text), rasterised into a GPU glyph atlas
 - A **GPU renderer** with custom WGSL shaders for SDF-rounded quads, alpha-tested glyphs, and textured images
-- A **component framework** with Elm-architecture state management, scoped CSS, and render caching
 
 ## What It Is NOT
 
 - **Not a web browser** — no tab management, no address bar, no history, no web platform APIs
-- **Not an Electron alternative** — you embed wgpu-html inside your Rust application, and you control the window, input, and event loop via winit
+- **Not an Electron alternative** — you embed wgpu-html inside your Rust application, controlling window, input, and the event loop via winit
 - **No JavaScript** — this is permanent. There is no `<script>` execution, no JS engine, no `eval`, no `addEventListener`. All logic lives in Rust.
-- **Not a full CSS engine** — many CSS3/4 features are intentionally out of scope. See the [Status page](../status) for what is and isn't supported.
+- **Not a full CSS engine** — many CSS3/4 features are intentionally out of scope. See the [Supported CSS](../features/supported-css) page.
 
 ## Core Design Philosophy
 
-wgpu-html is built around three principles:
+1. **Keep the HTML/CSS pipeline intact** — the parser, cascade, layout, and paint stages mirror a real browser's internal pipeline. CSS properties behave the way web developers expect: margins collapse, flex items grow and shrink, grid tracks distribute `fr` space.
 
-1. **Keep the HTML/CSS pipeline intact** — the parser, cascade, layout, and paint stages mirror a real browser's internal pipeline. This means CSS properties behave the way web developers expect: margins collapse (mostly), flex items grow and shrink, grid tracks distribute `fr` space.
-
-2. **No JavaScript — ever** — script execution is permanently excluded. Instead, you wire interactivity through Rust closures and the component framework. `on_click`, `on_mouse_enter`, `on_event` — all typed Rust callbacks. The component framework provides reactive state management without a runtime scripting language.
+2. **No JavaScript — ever** — script execution is permanently excluded. Instead, you wire interactivity through Rust closures. `on_click`, `on_mouse_enter`, `on_event` — all typed Rust callbacks.
 
 3. **GPU-first** — the renderer owns a wgpu device, surface, and three GPU pipelines. Rendering is not a bolt-on; every draw command goes through display lists → quad/glyph/image pipelines → GPU frame.
 
-## The 14 Crates
+## Workspace Crates
 
-wgpu-html is organised into 14 crates, each with a focused responsibility:
+### Core Pipeline
 
 | Crate | Role |
 |---|---|
 | `wgpu-html-parser` | HTML tokenizer, tree builder, CSS declaration parser, stylesheet parser |
-| `wgpu-html-models` | `Style` struct (~80 fields), CSS enums, ~100 HTML element structs |
-| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, interaction state, focus, DOM-style query helpers |
-| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching, field merge, CSS-wide keywords, inheritance, color handling |
-| `wgpu-html-text` | Font database, text shaping (cosmic-text), glyph atlas (rasterisation + GPU upload) |
-| `wgpu-html-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, event phases, bubbling semantics |
-| `wgpu-html-layout` | Block flow, Flexbox, Grid, inline formatting context, hit testing, image loading/cache, scroll geometry, placeholder shaping |
-| `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF), glyph pipeline, image pipeline, scissor clipping, screenshot |
-| `wgpu-html` | Façade: `parse → cascade → layout → paint`, interactivity wrappers, `PipelineTimings`, text selection, scroll utilities |
-| `wgpu-html-winit` | winit ↔ engine glue: type translators, input forwarders, batteries-included `WgpuHtmlWindow` harness |
-| `wgpu-html-ui` | Elm-architecture component framework: `Component` trait, `El` builder DSL, reactive `Store<T>`, render caching |
-| `wgpu-html-devtools` | Visual devtools panel (component tree browser, styles inspector, breadcrumb bar) |
-| `wgpu-html-egui` | Alternative `egui` / `eframe` integration backend |
-| `wgpu-html-demo` | Thin shell over `wgpu-html-winit` for running demo HTML files |
+| `wgpu-html-models` | `Style` struct (~100 fields), CSS enums, ~100 HTML element structs |
+| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, interaction state, focus, DOM-style queries, tree hooks |
+| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching, CSS-wide keywords, inheritance, `var()`, `@media` |
+| `wgpu-html-layout` | Block flow, Flexbox, Grid, IFC, table, hit testing, image loading, scroll geometry, gradient rasterization |
+| `wgpu-html-text` | Font database, cosmic-text shaping, glyph atlas (rasterisation + GPU upload) |
+| `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF), glyph pipeline, image pipeline, scissor clipping, screenshots |
+| `wgpu-html` | Façade: parse → cascade → layout → paint, `PipelineCache`, interactivity, text selection, scroll utilities |
+| `wgpu-html-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, etc. |
+| `wgpu-html-assets` | Asset management: image caching, font loading, preload queue |
+
+### Optional Crates
+
+| Crate | Role |
+|---|---|
+| `wgpu-html-ui` | Component framework: `Component` trait, `El` builder DSL, reactive `Store<T>`, render caching |
+| `wgpu-html-devtools` | Visual devtools panel (component tree browser, styles inspector, breadcrumb bar, pick mode) |
+
+### Driver Crates (in `drivers/`)
+
+| Crate | Role |
+|---|---|
+| `wgpu-html-driver` | `Driver` trait + `Runtime<D>` abstraction for connecting any windowing system |
+| `wgpu-html-driver-winit` | winit window driver: `WinitDriver::bind(window, tree)` |
+| `wgpu-html-driver-egui` | egui/eframe driver: `EguiRunner::show(ui, tree, size)` |
+| `wgpu-html-driver-bevy` | Bevy plugin: `WgpuHtmlPlugin`, `HtmlOverlay` resource |
 
 ## Use Cases
 
-wgpu-html is designed for **Rust applications** that need rich, styled UI without a web browser dependency:
-
-- **Game UI** — inventory screens, HUDs, settings menus, dialogue boxes. GPU-native rendering integrates with existing wgpu pipelines.
+- **Game UI** — inventory screens, HUDs, settings menus. GPU-native rendering integrates with existing wgpu pipelines.
 - **Desktop applications** — tools, editors, and dashboards that benefit from HTML/CSS layout with native Rust backends.
-- **Developer tools** — property inspectors, log viewers, profiler panels. Embeddable alongside egui.
-- **Kiosk / embedded displays** — fixed-layout information screens driven by Rust logic and styled with CSS.
-
-## Comparison to Web Browsers vs RmlUI
-
-wgpu-html sits between a full browser engine and RmlUI. Compared to **web browsers** (Servo, WebKit, Blink), wgpu-html is far smaller (no JavaScript, no Web APIs, no networking stack beyond image loading) and targets embedded UI rather than general web content. Compared to **RmlUI**, wgpu-html matches HTML/CSS semantics more closely (CSS Grid, custom properties, `calc()`/`var()`, the full CSS cascade) but lacks RmlUI's advanced visual features (animations, transforms, gradients, decorators, table/float layout). See the [full comparison](../comparison-wgpu-html-vs-rmlui) for details.
+- **Developer tools** — property inspectors, log viewers, profiler panels.
+- **Embedded displays** — fixed-layout information screens driven by Rust logic and styled with CSS.
 
 ## Next Steps
 
 - [Installation](./installation) — add wgpu-html to your `Cargo.toml`
-- [Quick Start](./quick-start) — get "Hello World" on screen in minutes
-- [Implementation Status](../status) — see what's done and what's in progress
+- [Quick Start](./quick-start) — get "Hello World" on screen
+- [Engine Architecture](../engine/architecture) — understand the pipeline

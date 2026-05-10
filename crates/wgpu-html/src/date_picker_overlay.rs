@@ -1,21 +1,28 @@
 use wgpu_html_layout::LayoutBox;
-use wgpu_html_renderer::{DisplayList, Rect};
-use wgpu_html_text::TextContext;
-use wgpu_html_tree::{DatePickerState, Element, Tree};
-use wgpu_html_tree::date;
-use wgpu_html_models::{ArcStr, Div, Span};
 use wgpu_html_models::common::css_enums::*;
+use wgpu_html_models::{ArcStr, Div, Span};
+use wgpu_html_renderer::{DisplayList, Rect};
 use wgpu_html_style::{CascadedNode, CascadedTree};
+use wgpu_html_text::TextContext;
+use wgpu_html_tree::date;
+use wgpu_html_tree::{DatePickerState, Element, Tree};
 
 const CELL_SIZE: f32 = 30.0;
-const SELECTED_BG: [f32; 4] = [0.23, 0.51, 0.96, 1.0];
-const TODAY_BORDER: [f32; 4] = [0.4, 0.6, 1.0, 1.0];
+
 
 fn cn(element: Element, style: wgpu_html_models::Style, children: Vec<CascadedNode>) -> CascadedNode {
   CascadedNode {
-    element, style, children,
-    before: None, after: None, first_line: None, first_letter: None,
-    placeholder: None, selection: None, marker: None, lui_pseudo: vec![],
+    element,
+    style,
+    children,
+    before: None,
+    after: None,
+    first_line: None,
+    first_letter: None,
+    placeholder: None,
+    selection: None,
+    marker: None,
+    lui_pseudo: vec![],
   }
 }
 
@@ -455,8 +462,13 @@ pub fn resolve_day_cell(dp: &DatePickerState, row: u8, col: u8, first_dow: u8) -
 
 #[derive(Debug, Clone, Copy)]
 pub enum DatePickerHit {
-  PrevMonth, NextMonth, DayCell(u8, u8),
-  HourField, MinuteField, Reset, Background,
+  PrevMonth,
+  NextMonth,
+  DayCell(u8, u8),
+  HourField,
+  MinuteField,
+  Reset,
+  Background,
 }
 
 pub fn today_ymd_pub() -> (i32, u8, u8) { today_ymd() }

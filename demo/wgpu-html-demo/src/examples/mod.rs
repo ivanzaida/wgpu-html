@@ -31,6 +31,7 @@ mod text_selection;
 mod text_shrink;
 mod text_wrapping;
 mod styled_pickers;
+mod table;
 
 pub fn get_example_tree(name: &str) -> Option<Tree> {
   match name {
@@ -65,6 +66,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "text_shrink" => Some(text_shrink::build()),
     "text_wrapping" => Some(text_wrapping::build()),
     "styled_pickers" => Some(styled_pickers::build()),
+    "table" => Some(table::build()),
     _ => None,
   }
 }
@@ -101,5 +103,6 @@ pub fn list_examples() -> Vec<&'static str> {
     "text_selection",
     "text_shrink",
     "text_wrapping",
+    "table"
   ]
 }

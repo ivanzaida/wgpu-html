@@ -4,7 +4,7 @@ GPU-accelerated HTML/CSS renderer for Rust, built on [wgpu](https://github.com/g
 
 ## Status
 
-Active development. Core pipeline is functional: full HTML5 parsing, CSS cascade with `@media`, Flexbox + Grid layout, inline text with shaping, GPU rendering (quads, glyphs, images, gradients), mouse+keyboard interactivity, text editing, text selection, scrolling, and a component framework (`wgpu-html-ui`). Some CSS features are missing (see [implementation status](https://ivanzaida.github.io/wgpu-html/docs/status)).
+Active development. Core pipeline is functional: full HTML5 parsing, CSS cascade with `@media`, Flexbox + Grid layout, inline text with shaping, GPU rendering (quads, glyphs, images, gradients), mouse+keyboard interactivity, text editing, text selection, scrolling, and a component framework (`wgpu-html-ui`). Some CSS features are missing (see [Supported CSS](https://ivanzaida.github.io/wgpu-html/docs/features/supported-css)).
 
 ## What it tries to do
 

@@ -226,6 +226,30 @@ fn table_colspan_full_width() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn table_rowspan_cell_height_covers_all_spanned_rows() {
+  let c = cell(30);
+  let tree = make(&format!(
+    r#"<body style="margin: 0; width: 200px;">
+      <table style="{RESET}">
+        <tr>
+          <td style="height: 30px; border: none; padding: 0;"></td>
+          <td rowspan="2" style="border: none; padding: 0;"></td>
+        </tr>
+        <tr>{c}</tr>
+      </table>
+    </body>"#));
+  let body = layout(&tree, 800.0, 600.0).unwrap();
+  let table = &body.children[0];
+  // The rowspan=2 cell is the second child (after the first row's first cell).
+  let rowspan_cell = table.children.iter()
+    .find(|c| c.margin_rect.h > 31.0)
+    .expect("should find a cell taller than one row");
+  assert!((rowspan_cell.margin_rect.h - 60.0).abs() < 1.0,
+    "rowspan=2 cell should be 60px tall (2 × 30px rows), got {}",
+    rowspan_cell.margin_rect.h);
+}
+
+#[test]
 fn table_rowspan_cell_spans_multiple_rows() {
   let c = cell(30);
   let tree = make(&format!(

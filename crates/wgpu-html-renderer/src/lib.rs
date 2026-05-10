@@ -410,7 +410,7 @@ impl Renderer {
   }
 
   /// Render one frame from a display list.
-  pub fn render(&mut self, list: &DisplayList) -> FrameOutcome {
+  pub fn render(&mut self, list: &Disit playList) -> FrameOutcome {
     let Some(ref surface) = self.surface else {
       return FrameOutcome::Skipped;
     };

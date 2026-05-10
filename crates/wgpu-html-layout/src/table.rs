@@ -146,10 +146,18 @@ pub(crate) fn layout_table_children(
     }
   }
 
+  // Compute cumulative row Y offsets for positioning.
+  let mut row_y_offsets: Vec<f32> = Vec::with_capacity(num_rows);
+  {
+    let mut y = 0.0_f32;
+    for ri in 0..num_rows {
+      row_y_offsets.push(y);
+      y += row_heights[ri] + spacing;
+    }
+  }
+
   // Position cells at their final coordinates.
   for ri in 0..num_rows {
-    let row_y = cursor_y;
-
     for ci in 0..num_cols {
       let cell_info = &grid.cells[ri][ci];
       if cell_info.origin_row != ri || cell_info.origin_col != ci {
@@ -159,13 +167,32 @@ pub(crate) fn layout_table_children(
 
       let cell_x = col_x_offset(&col_widths, ci, spacing);
       translate_box_x_in_place(&mut b, content_x + cell_x);
-      translate_box_y_in_place(&mut b, content_y + row_y);
+      translate_box_y_in_place(&mut b, content_y + cursor_y + row_y_offsets[ri]);
+
+      // Stretch rowspan cells to cover all spanned rows.
+      let rowspan = cell_info.rowspan;
+      if rowspan > 1 {
+        let span_end = (ri + rowspan).min(num_rows);
+        let spanned_h: f32 = (ri..span_end)
+          .map(|r| row_heights[r])
+          .sum::<f32>()
+          + spacing * (span_end - ri).saturating_sub(1) as f32;
+        let dh = spanned_h - b.margin_rect.h;
+        if dh > 0.0 {
+          b.margin_rect.h = spanned_h;
+          b.border_rect.h += dh;
+          b.content_rect.h += dh;
+          b.background_rect.h += dh;
+        }
+      }
 
       all_boxes.push(b);
     }
-
-    cursor_y += row_heights[ri] + spacing;
   }
+
+  let total_rows_h = row_y_offsets.last().copied().unwrap_or(0.0)
+    + row_heights.last().copied().unwrap_or(0.0);
+  cursor_y += total_rows_h;
 
   // Remove trailing spacing.
   if num_rows > 0 {
