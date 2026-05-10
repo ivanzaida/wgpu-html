@@ -15,20 +15,6 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Paint: no
 - Impact: cards, modals, dropdowns all lose depth/elevation.
 
-### ~~Transforms~~ (`transform`, `transform-origin`) (implemented)
-- Parsed: yes, into typed `Transform2D` affine matrix (translate, scale, rotate, skew, matrix).
-- Percentage translate resolves against border-box dimensions.
-- Transform-origin parsed (keywords, %, px) and stored on LayoutBox.
-- Paint: full affine AABB transform applied to background/border rects and propagated to children.
-  Translate, scale, rotate, and skew all produce correct axis-aligned bounding boxes.
-- Not yet: transformed hit-testing (pointer events ignore transforms).
-
-### ~~Margin collapsing~~ (implemented)
-- Adjacent sibling margins collapse in block flow (CSS 2.2 section 8.3.1).
-- Handles positive+positive (max), negative+negative (most negative), and mixed (sum).
-- Out-of-flow children are correctly skipped.
-- Not yet implemented: parent-child collapsing, empty-block collapsing.
-
 ### `@font-face`
 - Parsed: no (`@`-rules not handled by the CSS parser)
 - Impact: web fonts don't load. Only host-registered `.ttf`/`.otf` files work.
@@ -86,17 +72,35 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Parsed and stored (typed enum).
 - Paint: rendered as solid. Only `solid`, `dashed`, `dotted` have distinct rendering.
 
-### Form validation
-- `:valid` / `:invalid` pseudo-classes implemented in query engine AND CSS cascade.
-- PseudoClassUsage tracks `:valid`/`:invalid` for incremental cascade optimization.
-- Validation checks: `required`, `minlength`, `maxlength`, `min`/`max`/`step` (number/range).
-- Missing: `pattern` (regex) validation, `type=email`/`type=url` specific validation, `minlength`/`maxlength` on textarea.
-- Note: cascade already re-evaluates on value changes (FullPipeline), so CSS like `input:invalid { border: red; }` works.
+### Transform-aware hit-testing
+- Pointer events ignore transforms. Clicking a rotated/scaled element
+  uses the original untransformed rect for hit detection.
 
-## Implemented (previously reported as gaps)
+## Implemented
+
+### Transforms (`transform`, `transform-origin`)
+- Parsed: yes, into typed `Transform2D` affine matrix.
+- All 2D functions: `translate(X/Y)`, `scale(X/Y)`, `rotate`, `skew(X/Y)`, `matrix`.
+- Percentage `translate(-50%, -50%)` resolves against border-box.
+- `transform-origin`: keywords (`left`, `center`, `right`), `%`, `px`.
+- GPU vertex-shader transforms on all three pipelines (quad, glyph, image).
+- `fwidth()`-based SDF anti-aliasing adapts to rotation/scale.
+- Children inherit parent transform matrix.
+- 18 paint tests covering quads, glyphs, images, child inheritance.
+
+### Margin collapsing (adjacent siblings)
+- Adjacent sibling margins collapse in block flow (CSS 2.2 §8.3.1).
+- Positive+positive: `max(a, b)`. Negative+negative: `min(a, b)`. Mixed: `a + b`.
+- Out-of-flow children correctly skipped. 5 layout tests.
+- Not yet: parent-child collapsing, empty-block collapsing.
+
+### Form validation
+- `:valid` / `:invalid` pseudo-classes in query engine AND CSS cascade.
+- Validation: `required`, `minlength`, `maxlength`, `min`/`max`/`step` (number/range).
+- Missing: `pattern` regex, `type=email`/`type=url` specific validation.
 
 ### List markers (`list-style-type`, `list-style-position`)
-- Fully implemented. Typed enums, `::marker` pseudo-element generated during cascade, ordinals computed, text painted via shaped runs.
+- `::marker` pseudo-element generated during cascade, ordinals computed.
 - Supports: `disc`, `circle`, `square`, `decimal`, `lower-alpha`, `upper-alpha`, `lower-roman`, `upper-roman`, `none`.
 
 ### CSS selectors
@@ -104,6 +108,12 @@ Legend: **Parsed** = CSS parser recognizes the property.
 
 ### CSS variables
 - Full `var()` support with fallbacks, recursive substitution, and cycle detection.
+
+### Render backend abstraction
+- `RenderBackend` trait in `lui-render-api`. `lui-renderer-wgpu` is the reference impl.
+- `DisplayList` IR in `lui-display-list` — zero GPU types.
+- `Runtime<D: Driver, B: RenderBackend>` — driver and backend are independent.
+- `lui-text` has no wgpu dependency.
 
 ## Nice to have
 
@@ -114,9 +124,9 @@ Legend: **Parsed** = CSS parser recognizes the property.
 | Scroll snap | Not parsed |
 | `writing-mode` / vertical text | Not parsed |
 | Hyphenation (`hyphens`) | Not parsed |
-| `word-break: break-all` | ✅ Implemented — inserts U+200B between characters for any-char breaks |
-| `word-break: keep-all` | ✅ Parsed |
-| `overflow-wrap: break-word` | ✅ Consumed from deferred longhands — enables wrapping |
+| `word-break: break-all` | Implemented — inserts U+200B between characters |
+| `word-break: keep-all` | Parsed |
+| `overflow-wrap: break-word` | Consumed, enables wrapping |
 | Counters (`counter-increment`, `content: counter()`) | Not parsed |
 | `border-image` | Not parsed |
 | Text-shadow | Parsed (raw string), not painted |
