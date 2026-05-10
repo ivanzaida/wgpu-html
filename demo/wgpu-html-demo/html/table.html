@@ -1,0 +1,95 @@
+<style>
+    body {
+        margin: 0;
+        font-family: sans-serif;
+        background-color: #1a1a1a;
+        color: white;
+    }
+
+    table {
+        border-collapse: separate;
+        border-spacing: 2px;
+        margin: 12px;
+        width: calc(100% - 24px);
+        background-color: #2a2a2a;
+    }
+    th, td {
+        padding: 8px 12px;
+        text-align: left;
+    }
+    th {
+        background-color: #4a8fe7;
+        font-weight: 600;
+    }
+    td {
+        background-color: #333;
+    }
+    tr:nth-child(even) td {
+        background-color: #3a3a3a;
+    }
+
+    caption {
+        padding: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #aaa;
+        text-align: left;
+    }
+
+    .highlight {
+        background-color: #4ae78f;
+        color: #1a1a1a;
+    }
+</style>
+
+<table>
+    <caption>Basic Table</caption>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Alice</td>
+            <td>Engineer</td>
+            <td>Active</td>
+        </tr>
+        <tr>
+            <td>Bob</td>
+            <td>Designer</td>
+            <td>Away</td>
+        </tr>
+        <tr>
+            <td>Carol</td>
+            <td>Manager</td>
+            <td class="highlight">Online</td>
+        </tr>
+    </tbody>
+</table>
+
+<table>
+    <caption>Colspan / Rowspan</caption>
+    <thead>
+        <tr>
+            <th colspan="2">Name</th>
+            <th>Score</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>First</td>
+            <td>Last</td>
+            <td rowspan="2" class="highlight">95</td>
+        </tr>
+        <tr>
+            <td>Jane</td>
+            <td>Doe</td>
+        </tr>
+        <tr>
+            <td colspan="3" style="text-align:center; background-color:#4a8fe7;">Footer spanning all columns</td>
+        </tr>
+    </tbody>
+</table>

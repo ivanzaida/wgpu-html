@@ -1,6 +1,6 @@
 use wgpu_html_layout::LayoutBox;
 use wgpu_html_models::common::{
-  AlignItems, CssLength, Display, FontWeight,
+  AlignItems, CssLength, Display, FontWeight, GridTrackSize,
 };
 use wgpu_html_ui::{
   el::{self, div},
@@ -68,15 +68,16 @@ impl Component for LayoutSection {
         .display(Display::Flex)
         .prop("justify-content", "center")
         .padding(px(16)),
-      // Band (each colored layer)
       style::rule(".band")
         .display(Display::Flex)
-        .prop("flex-direction", "column"),
+        .prop("flex-direction", "column")
+        .width(style::pct(100)),
       style::rule(".band-top")
         .display(Display::Flex)
         .prop("justify-content", "space-between")
         .align_items(AlignItems::Center)
-        .padding_vh(px(4), px(8)),
+        .padding_vh(px(0), px(8))
+        .height(px(20)),
       style::rule(".band-mid")
         .display(Display::Flex)
         .align_items(AlignItems::Center)
@@ -86,7 +87,8 @@ impl Component for LayoutSection {
         .display(Display::Flex)
         .prop("justify-content", "center")
         .align_items(AlignItems::Center)
-        .padding_vh(px(4), px(8)),
+        .padding_vh(px(0), px(8))
+        .height(px(20)),
       style::rule(".band-inner")
         .flex_grow(1.0)
         .margin_vh(px(0), px(4)),
@@ -105,8 +107,7 @@ impl Component for LayoutSection {
         .display(Display::Flex)
         .align_items(AlignItems::Center)
         .prop("justify-content", "center")
-        .flex_grow(1.0)
-        .padding(px(8))
+        .height(px(40))
         .font_family("monospace")
         .font_size(px(11))
         .font_weight(FontWeight::Weight(600))
@@ -181,6 +182,12 @@ impl Component for LayoutSection {
         if let Some(fi) = &extracted.flex {
           children.push(build_flex_info(fi, ctx));
         }
+        if let Some(gi) = &extracted.grid {
+          children.push(build_grid_info(gi, ctx));
+        }
+        if let Some(ti) = &extracted.table {
+          children.push(build_table_info(ti, ctx));
+        }
       }
     }
 
@@ -199,15 +206,37 @@ struct ExtractedFlex {
   align_items: Option<String>,
 }
 
+struct ExtractedGrid {
+  template_columns: Option<Vec<GridTrackSize>>,
+  template_rows: Option<Vec<GridTrackSize>>,
+  auto_flow: Option<String>,
+  auto_columns: Option<String>,
+  auto_rows: Option<String>,
+  gap: Option<CssLength>,
+  row_gap: Option<CssLength>,
+  col_gap: Option<CssLength>,
+  justify_items: Option<String>,
+  justify_content: Option<String>,
+  align_items: Option<String>,
+  align_content: Option<String>,
+}
+
+struct ExtractedTable {
+  display_type: String,
+  properties: Vec<(String, String)>,
+}
+
 struct ExtractedStyle {
   margin_auto: [bool; 4],
   flex: Option<ExtractedFlex>,
+  grid: Option<ExtractedGrid>,
+  table: Option<ExtractedTable>,
 }
 
 impl ExtractedStyle {
   fn from_cascaded(cn: Option<&wgpu_html_style::CascadedNode>) -> Self {
     let Some(cn) = cn else {
-      return Self { margin_auto: [false; 4], flex: None };
+      return Self { margin_auto: [false; 4], flex: None, grid: None, table: None };
     };
     let s = &cn.style;
     let is_auto = |specific: &Option<CssLength>, shorthand: &Option<CssLength>| -> bool {
@@ -236,7 +265,58 @@ impl ExtractedStyle {
     } else {
       None
     };
-    Self { margin_auto, flex }
+    let is_grid = matches!(s.display, Some(Display::Grid) | Some(Display::InlineGrid));
+    let grid = if is_grid {
+      Some(ExtractedGrid {
+        template_columns: s.grid_template_columns.clone(),
+        template_rows: s.grid_template_rows.clone(),
+        auto_flow: s.grid_auto_flow.as_ref().map(|v| v.as_css_str().to_string()),
+        auto_columns: s.grid_auto_columns.as_ref().map(|v| format!("{v}")),
+        auto_rows: s.grid_auto_rows.as_ref().map(|v| format!("{v}")),
+        gap: s.gap.clone(),
+        row_gap: s.row_gap.clone(),
+        col_gap: s.column_gap.clone(),
+        justify_items: s.justify_items.as_ref().map(|v| v.as_css_str().to_string()),
+        justify_content: s.justify_content.as_ref().map(|v| v.as_css_str().to_string()),
+        align_items: s.align_items.as_ref().map(|v| v.as_css_str().to_string()),
+        align_content: s.align_content.as_ref().map(|v| v.as_css_str().to_string()),
+      })
+    } else {
+      None
+    };
+
+    let is_table = matches!(
+      s.display,
+      Some(Display::Table)
+        | Some(Display::TableCaption)
+        | Some(Display::TableHeaderGroup)
+        | Some(Display::TableRowGroup)
+        | Some(Display::TableFooterGroup)
+        | Some(Display::TableRow)
+        | Some(Display::TableCell)
+        | Some(Display::TableColumn)
+        | Some(Display::TableColumnGroup)
+    );
+    let table = if is_table {
+      let display_type = s.display.as_ref().map(|d| d.as_css_str().to_string()).unwrap_or_default();
+      let table_props: &[&str] = &[
+        "border-collapse", "border-spacing", "table-layout",
+        "caption-side", "empty-cells", "vertical-align",
+      ];
+      let properties: Vec<(String, String)> = table_props
+        .iter()
+        .filter_map(|&key| {
+          s.deferred_longhands
+            .get(key)
+            .map(|v| (key.to_string(), v.to_string()))
+        })
+        .collect();
+      Some(ExtractedTable { display_type, properties })
+    } else {
+      None
+    };
+
+    Self { margin_auto, flex, grid, table }
   }
 }
 
@@ -290,7 +370,9 @@ fn build_box_model(
     border_band, ctx,
   );
 
-  div().class(ctx.scoped("bm-area")).children([margin_band])
+  div().class(ctx.scoped("bm-area")).children([
+    div().style("width:340px").children([margin_band])
+  ])
 }
 
 fn band(
@@ -389,6 +471,81 @@ fn fi_gap_row(gap: &CssLength, same: bool, ctx: &Ctx<LayoutSectionMsg>) -> El {
   }
 
   div().class(ctx.scoped("fi-row")).children(children)
+}
+
+// ── Grid info ───────────────────────────────────────────────────────
+
+fn build_grid_info(gi: &ExtractedGrid, ctx: &Ctx<LayoutSectionMsg>) -> El {
+  let mut rows: Vec<El> = Vec::new();
+  rows.push(el::span().class(ctx.scoped("fi-title")).text("Grid Container"));
+
+  if let Some(cols) = &gi.template_columns {
+    let val = fmt_track_list(cols);
+    rows.push(fi_row("grid-template-columns:", &val, ctx));
+  }
+  if let Some(template_rows) = &gi.template_rows {
+    let val = fmt_track_list(template_rows);
+    rows.push(fi_row("grid-template-rows:", &val, ctx));
+  }
+  if let Some(flow) = &gi.auto_flow {
+    rows.push(fi_row("grid-auto-flow:", flow, ctx));
+  }
+  if let Some(ac) = &gi.auto_columns {
+    rows.push(fi_row("grid-auto-columns:", ac, ctx));
+  }
+  if let Some(ar) = &gi.auto_rows {
+    rows.push(fi_row("grid-auto-rows:", ar, ctx));
+  }
+
+  let gap = gi.gap.as_ref().or(gi.row_gap.as_ref()).or(gi.col_gap.as_ref());
+  if let Some(gap_val) = gap {
+    let rg = gi.row_gap.as_ref().or(gi.gap.as_ref());
+    let cg = gi.col_gap.as_ref().or(gi.gap.as_ref());
+    let same = match (rg, cg) {
+      (Some(a), Some(b)) => format!("{a}") == format!("{b}"),
+      (None, None) => true,
+      _ => false,
+    };
+    rows.push(fi_gap_row(gap_val, same, ctx));
+  }
+
+  if let Some(ji) = &gi.justify_items {
+    rows.push(fi_row("justify-items:", ji, ctx));
+  }
+  if let Some(jc) = &gi.justify_content {
+    rows.push(fi_row("justify-content:", jc, ctx));
+  }
+  if let Some(ai) = &gi.align_items {
+    rows.push(fi_row("align-items:", ai, ctx));
+  }
+  if let Some(ac) = &gi.align_content {
+    rows.push(fi_row("align-content:", ac, ctx));
+  }
+
+  div().class(ctx.scoped("fi")).children(rows)
+}
+
+fn fmt_track_list(tracks: &[GridTrackSize]) -> String {
+  tracks
+    .iter()
+    .map(|t| format!("{t}"))
+    .collect::<Vec<_>>()
+    .join(" ")
+}
+
+// ── Table info ──────────────────────────────────────────────────────
+
+fn build_table_info(ti: &ExtractedTable, ctx: &Ctx<LayoutSectionMsg>) -> El {
+  let mut rows: Vec<El> = Vec::new();
+  rows.push(el::span().class(ctx.scoped("fi-title")).text("Table Layout"));
+
+  rows.push(fi_row("display:", &ti.display_type, ctx));
+
+  for (prop, val) in &ti.properties {
+    rows.push(fi_row(&format!("{prop}:"), val, ctx));
+  }
+
+  div().class(ctx.scoped("fi")).children(rows)
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

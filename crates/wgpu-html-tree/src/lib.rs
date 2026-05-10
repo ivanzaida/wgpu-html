@@ -1632,6 +1632,12 @@ impl Element {
       ("open", Element::Dialog(e)) => flag(e.open),
       ("open", Element::Details(e)) => flag(e.open),
 
+      // colspan / rowspan
+      ("colspan", Element::Td(e)) => e.colspan.map(|v| ArcStr::from(v.to_string())),
+      ("colspan", Element::Th(e)) => e.colspan.map(|v| ArcStr::from(v.to_string())),
+      ("rowspan", Element::Td(e)) => e.rowspan.map(|v| ArcStr::from(v.to_string())),
+      ("rowspan", Element::Th(e)) => e.rowspan.map(|v| ArcStr::from(v.to_string())),
+
       // width / height
       ("width", Element::Img(e)) => e.width.map(|v| ArcStr::from(v.to_string())),
       ("height", Element::Img(e)) => e.height.map(|v| ArcStr::from(v.to_string())),

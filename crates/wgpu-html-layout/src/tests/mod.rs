@@ -12,3 +12,4 @@ mod layout_pseudo;
 mod layout_incremental;
 mod layout_inputs;
 mod layout_svg;
+mod layout_table;
