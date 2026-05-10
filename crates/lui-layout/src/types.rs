@@ -428,9 +428,10 @@ impl LayoutBox {
       return None;
     }
     let run = text_box.text_run.as_ref()?;
+    let local_point = self.inverse_transform_through_path(point, &path);
     Some(TextCursor {
       path,
-      glyph_index: hit_test::hit_glyph_boundary(text_box, run, point),
+      glyph_index: hit_test::hit_glyph_boundary(text_box, run, local_point),
     })
   }
 
@@ -478,15 +479,14 @@ impl LayoutBox {
   pub fn hit_text_cursor(&self, point: (f32, f32)) -> Option<TextCursor> {
     let path = self.hit_path(point)?;
     let text_box = self.box_at_path(&path)?;
-    // Form control internal text (placeholder / value) and elements
-    // with user-select: none are excluded from drag-to-select.
     if text_box.text_unselectable || text_box.user_select == UserSelect::None {
       return None;
     }
     let run = text_box.text_run.as_ref()?;
+    let local_point = self.inverse_transform_through_path(point, &path);
     Some(TextCursor {
       path,
-      glyph_index: hit_test::hit_glyph_boundary(text_box, run, point),
+      glyph_index: hit_test::hit_glyph_boundary(text_box, run, local_point),
     })
   }
 
@@ -503,6 +503,35 @@ impl LayoutBox {
     }
     let b = self.box_at_path(path)?;
     Some((pos.0 - b.border_rect.x, pos.1 - b.border_rect.y))
+  }
+
+  /// Walk the ancestor chain along `path` and inverse-transform `point`
+  /// through every transform encountered. Returns the point in the
+  /// local coordinate space of the element at `path`.
+  fn inverse_transform_through_path(&self, point: (f32, f32), path: &[usize]) -> (f32, f32) {
+    let (mut x, mut y) = point;
+    let mut cursor = self;
+    if let Some(ref t) = cursor.transform {
+      let ox = cursor.border_rect.x + cursor.transform_origin.0;
+      let oy = cursor.border_rect.y + cursor.transform_origin.1;
+      let (lx, ly) = t.apply_inverse(x - ox, y - oy);
+      x = lx + ox;
+      y = ly + oy;
+    }
+    for &i in path {
+      cursor = match cursor.children.get(i) {
+        Some(c) => c,
+        None => break,
+      };
+      if let Some(ref t) = cursor.transform {
+        let ox = cursor.border_rect.x + cursor.transform_origin.0;
+        let oy = cursor.border_rect.y + cursor.transform_origin.1;
+        let (lx, ly) = t.apply_inverse(x - ox, y - oy);
+        x = lx + ox;
+        y = ly + oy;
+      }
+    }
+    (x, y)
   }
 
   /// Return the box at `path` (empty path means `self`).

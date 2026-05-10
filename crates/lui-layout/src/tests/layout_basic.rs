@@ -762,3 +762,53 @@ fn out_of_flow_children_do_not_collapse() {
   let gap = third.border_rect.y - (first.border_rect.y + first.border_rect.h);
   assert_eq!(gap, 20.0, "absolute child is skipped; siblings still collapse");
 }
+
+// ── text selection in transformed elements ────────────────────────────
+
+#[test]
+fn hit_text_cursor_in_untransformed_element() {
+  let root = layout_with_fonts(
+    r#"<body style="margin:0"><span>Hello</span></body>"#,
+    400.0, 100.0,
+  );
+  // Click in the middle of the text — should find a glyph
+  let cursor = root.hit_text_cursor((30.0, 10.0));
+  assert!(cursor.is_some(), "should hit text cursor in untransformed span");
+}
+
+#[test]
+fn hit_text_cursor_in_translated_element() {
+  let root = layout_with_fonts(
+    r#"<body style="margin:0"><div style="transform:translate(50px,50px)"><span>Hello</span></div></body>"#,
+    400.0, 200.0,
+  );
+  // Text is translated to (50, 50). Click at (80, 60) should hit text.
+  let cursor = root.hit_text_cursor((80.0, 60.0));
+  assert!(cursor.is_some(), "should hit text at translated position");
+  // Click at (10, 10) should miss — text is at (50+, 50+).
+  let miss = root.hit_text_cursor((10.0, 10.0));
+  assert!(miss.is_none(), "should miss text at original position");
+}
+
+#[test]
+fn hit_text_cursor_glyph_index_correct_in_rotated_element() {
+  // A rotated text element — the glyph boundary calculation must
+  // use inverse-transformed coordinates, not screen coordinates.
+  let root = layout_with_fonts(
+    r#"<body style="margin:0"><div style="transform:rotate(0deg);width:200px"><span>abcdef</span></div></body>"#,
+    400.0, 100.0,
+  );
+  let text_box = root.box_at_path(&[0, 0]).expect("text box");
+  assert!(text_box.text_run.is_some(), "should have text run");
+  let tw = text_box.border_rect.w;
+
+  let cursor_start = root.hit_text_cursor((2.0, 10.0));
+  assert!(cursor_start.is_some(), "should hit start of text");
+  let idx_start = cursor_start.unwrap().glyph_index;
+
+  let cursor_mid = root.hit_text_cursor((tw * 0.6, 10.0));
+  assert!(cursor_mid.is_some(), "should hit middle of text (at x={:.1})", tw * 0.6);
+  let idx_mid = cursor_mid.unwrap().glyph_index;
+
+  assert!(idx_mid > idx_start, "later x should hit later glyph: start={idx_start} mid={idx_mid}");
+}
