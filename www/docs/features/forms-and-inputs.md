@@ -142,4 +142,4 @@ let fields: Vec<FormField> = tree.take_form_data(form_data_id).unwrap();
 // fields[0].name, fields[0].value — ArcStr
 ```
 
-**Not yet implemented:** `pattern` validation, `min`/`max`/`step`/`minlength`/`maxlength` constraint checking, `form.action`/`method` URL construction, `multipart/form-data` encoding.
+**Not yet implemented:** `pattern` regex validation, `form.action`/`method` URL construction, `multipart/form-data` encoding.
