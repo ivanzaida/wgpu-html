@@ -539,17 +539,14 @@ fn collect_style_declarations(style: &Style) -> Vec<(String, String)> {
 /// pseudo-class state change requires re-cascade at all.
 #[derive(Debug, Clone, Default)]
 struct PseudoClassUsage {
-  /// Any selector uses `:hover` on the subject compound.
   has_hover_subject: bool,
-  /// Any selector uses `:hover` on an ancestor compound (descendant
-  /// combinator, e.g. `.nav:hover .link { … }`).
   has_hover_ancestor: bool,
-  /// Same for `:active`.
   has_active_subject: bool,
   has_active_ancestor: bool,
-  /// Same for `:focus`.
   has_focus_subject: bool,
   has_focus_ancestor: bool,
+  has_valid_subject: bool,
+  has_valid_ancestor: bool,
   /// True when ALL pseudo-class rules in this stylesheet only declare
   /// paint-affecting properties (background-color, color, opacity, etc.)
   /// and never layout-affecting ones (width, padding, display, etc.).
@@ -568,10 +565,14 @@ impl PseudoClassUsage {
     self.has_focus_subject || self.has_focus_ancestor
   }
   fn has_any_ancestor(&self) -> bool {
-    self.has_hover_ancestor || self.has_active_ancestor || self.has_focus_ancestor
+    self.has_hover_ancestor || self.has_active_ancestor || self.has_focus_ancestor || self.has_valid_ancestor
   }
   fn has_any(&self) -> bool {
     self.has_hover() || self.has_active() || self.has_focus()
+      || self.has_valid()
+  }
+  fn has_valid(&self) -> bool {
+    self.has_valid_subject || self.has_valid_ancestor
   }
 }
 
@@ -639,16 +640,17 @@ impl PreparedStylesheet {
             PseudoClass::Hover => pseudo_usage.has_hover_subject = true,
             PseudoClass::Active => pseudo_usage.has_active_subject = true,
             PseudoClass::Focus => pseudo_usage.has_focus_subject = true,
+            PseudoClass::Valid | PseudoClass::Invalid => pseudo_usage.has_valid_subject = true,
             _ => {}
           }
         }
-        // Scan ancestor compounds for pseudo-class usage.
         for anc in selector.ancestor_compounds() {
           for pc in &anc.pseudo_classes {
             match pc {
               PseudoClass::Hover => pseudo_usage.has_hover_ancestor = true,
               PseudoClass::Active => pseudo_usage.has_active_ancestor = true,
               PseudoClass::Focus => pseudo_usage.has_focus_ancestor = true,
+              PseudoClass::Valid | PseudoClass::Invalid => pseudo_usage.has_valid_ancestor = true,
               _ => {}
             }
           }

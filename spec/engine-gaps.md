@@ -87,10 +87,11 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Paint: rendered as solid. Only `solid`, `dashed`, `dotted` have distinct rendering.
 
 ### Form validation
-- `:valid` / `:invalid` pseudo-classes implemented in query engine (`query_selector`, `query_selector_all`).
+- `:valid` / `:invalid` pseudo-classes implemented in query engine AND CSS cascade.
+- PseudoClassUsage tracks `:valid`/`:invalid` for incremental cascade optimization.
 - Validation checks: `required`, `minlength`, `maxlength`, `min`/`max`/`step` (number/range).
-- Missing: `pattern` (regex) validation, cascade integration (no dynamic restyle on value change).
-- Missing: `type=email`/`type=url` specific validation, `minlength`/`maxlength` on textarea.
+- Missing: `pattern` (regex) validation, `type=email`/`type=url` specific validation, `minlength`/`maxlength` on textarea.
+- Note: cascade already re-evaluates on value changes (FullPipeline), so CSS like `input:invalid { border: red; }` works.
 
 ## Implemented (previously reported as gaps)
 
