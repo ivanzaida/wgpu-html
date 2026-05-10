@@ -1,6 +1,7 @@
 use lui_tree::Tree;
 
 mod bg_image;
+mod box_shadow_demo;
 mod click_demo;
 mod custom_elements;
 mod css_vars;
@@ -39,6 +40,7 @@ mod transform_text;
 pub fn get_example_tree(name: &str) -> Option<Tree> {
   match name {
     "bg_image" => Some(bg_image::build()),
+    "box_shadow_demo" => Some(box_shadow_demo::build()),
     "click_demo" => Some(click_demo::build()),
     "custom_elements" => Some(custom_elements::build()),
     "css_vars" => Some(css_vars::build()),
@@ -80,6 +82,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
 pub fn list_examples() -> Vec<&'static str> {
   vec![
     "bg_image",
+    "box_shadow_demo",
     "click_demo",
     "custom_elements",
     "css_vars",

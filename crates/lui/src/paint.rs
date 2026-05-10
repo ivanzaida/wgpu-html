@@ -351,6 +351,30 @@ fn paint_box_in_clip(
     )
   });
 
+  // Box shadows paint behind the background.
+  if !suppress_box_paint {
+    for shadow in &b.box_shadows {
+      if shadow.inset {
+        continue;
+      }
+      let expand = shadow.blur + shadow.spread;
+      let shadow_rect = Rect::new(
+        rect.x + shadow.offset_x - expand,
+        rect.y + shadow.offset_y - expand,
+        rect.w + expand * 2.0,
+        rect.h + expand * 2.0,
+      );
+      if shadow_rect.w > 0.0 && shadow_rect.h > 0.0 {
+        let shadow_rh = rh.map(|r| r + expand);
+        let shadow_rv = rv.map(|r| r + expand);
+        out.push_quad_rounded_ellipse(shadow_rect, apply_opacity(shadow.color, opacity), shadow_rh, shadow_rv);
+        if let Some(q) = out.last_quad_mut() {
+          q.shadow_sigma = shadow.blur.max(0.5);
+        }
+      }
+    }
+  }
+
   // Background paints into the rectangle picked by `background-clip`
   // (border-box by default; padding-box / content-box also supported).
   if let Some(color) = b.background.filter(|_| !suppress_box_paint) {

@@ -49,6 +49,7 @@ mod length;
 mod svg;
 mod table;
 mod hit_test;
+pub mod shadow;
 pub mod transform;
 
 mod incremental;

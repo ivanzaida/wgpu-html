@@ -9,11 +9,15 @@ Legend: **Parsed** = CSS parser recognizes the property.
 
 ## Critical — pages look broken without these
 
-### Box-shadow
-- Parsed: yes (raw `ArcStr`)
-- Layout: no
-- Paint: no
-- Impact: cards, modals, dropdowns all lose depth/elevation.
+### ~~Box-shadow~~ (implemented)
+- Parsed: yes, into typed `BoxShadow` struct (offset, blur, spread, color, inset).
+- Multiple shadows supported (comma-separated).
+- Stored on `LayoutBox` as `Vec<BoxShadow>`.
+- Paint: expanded SDF quads with `shadow_sigma` for Gaussian-like blur falloff.
+- Shader uses smoothstep on SDF distance for soft edges.
+- Border-radius is respected (shadow radii expand with blur).
+- Inset shadows: parsed but not rendered yet.
+- 8 paint tests + 6 parser unit tests.
 
 ### `@font-face`
 - Parsed: no (`@`-rules not handled by the CSS parser)

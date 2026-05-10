@@ -141,6 +141,8 @@ pub struct LayoutBox {
   pub border_rect: Rect,
   /// The rect children are laid out into (margin + border + padding excluded).
   pub content_rect: Rect,
+  /// Parsed box-shadow list. Empty means no shadows.
+  pub box_shadows: Vec<crate::shadow::BoxShadow>,
   /// Resolved background color, if any.
   pub background: Option<Color>,
   /// Rectangle the background fills. Driven by `background-clip`:

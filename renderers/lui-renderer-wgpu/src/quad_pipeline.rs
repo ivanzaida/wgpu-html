@@ -55,7 +55,9 @@ struct QuadInstance {
   transform: [f32; 4],
   /// Transform origin relative to rect top-left, in pixels.
   transform_origin: [f32; 2],
-  _pad: [f32; 2],
+  /// Shadow blur sigma. 0 = sharp edge.
+  shadow_sigma: f32,
+  _pad: f32,
 }
 
 impl From<&Quad> for QuadInstance {
@@ -70,7 +72,8 @@ impl From<&Quad> for QuadInstance {
       pattern: q.pattern,
       transform: q.transform,
       transform_origin: q.transform_origin,
-      _pad: [0.0; 2],
+      shadow_sigma: q.shadow_sigma,
+      _pad: 0.0,
     }
   }
 }
@@ -208,6 +211,11 @@ impl QuadPipeline {
                 format: wgpu::VertexFormat::Float32x2,
                 offset: 112,
                 shader_location: 9,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32,
+                offset: 120,
+                shader_location: 10,
               },
             ],
           },

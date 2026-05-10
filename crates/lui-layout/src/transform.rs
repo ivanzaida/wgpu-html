@@ -65,6 +65,27 @@ impl Transform2D {
   pub fn is_translate_only(&self) -> bool {
     self.a == 1.0 && self.b == 0.0 && self.c == 0.0 && self.d == 1.0
   }
+
+  /// Apply the inverse transform: given screen-space (x, y), return
+  /// the corresponding local-space coordinates before the transform.
+  /// Used for hit-testing against transformed elements.
+  pub fn apply_inverse(&self, x: f32, y: f32) -> (f32, f32) {
+    let det = self.a * self.d - self.b * self.c;
+    if det.abs() < 1e-12 {
+      return (x, y); // degenerate — fall back to identity
+    }
+    // Inverse of [a c tx; b d ty; 0 0 1]
+    let inv_a = self.d / det;
+    let inv_b = -self.b / det;
+    let inv_c = -self.c / det;
+    let inv_d = self.a / det;
+    let inv_tx = (self.c * self.ty - self.d * self.tx) / det;
+    let inv_ty = (self.b * self.tx - self.a * self.ty) / det;
+    (
+      inv_a * x + inv_c * y + inv_tx,
+      inv_b * x + inv_d * y + inv_ty,
+    )
+  }
 }
 
 /// Parse a CSS `transform` value into a composed 2D matrix.

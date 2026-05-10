@@ -43,8 +43,9 @@ struct VsIn {
     @location(5) radii_v:    vec4<f32>,  // TL, TR, BR, BL
     @location(6) stroke:     vec4<f32>,  // top, right, bottom, left
     @location(7) pattern:    vec4<f32>,  // kind, dash, gap, _
-    @location(8) transform:  vec4<f32>,  // 2x2 matrix: a, b, c, d
-    @location(9) xf_origin:  vec2<f32>,  // transform origin relative to rect top-left
+    @location(8) transform:     vec4<f32>,  // 2x2 matrix: a, b, c, d
+    @location(9) xf_origin:    vec2<f32>,  // transform origin relative to rect top-left
+    @location(10) shadow_sigma: f32,
 };
 
 struct VsOut {
@@ -55,8 +56,9 @@ struct VsOut {
     @location(2)       half_size: vec2<f32>,
     @location(3)       radii_h:   vec4<f32>,
     @location(4)       radii_v:   vec4<f32>,
-    @location(5)       stroke:    vec4<f32>,
-    @location(6)       pattern:   vec4<f32>,
+    @location(5)       stroke:       vec4<f32>,
+    @location(6)       pattern:      vec4<f32>,
+    @location(7)       shadow_sigma: f32,
 };
 
 @vertex
@@ -85,8 +87,9 @@ fn vs_main(in: VsIn) -> VsOut {
     out.local     = (in.corner - vec2<f32>(0.5, 0.5)) * in.size;
     out.radii_h   = in.radii_h;
     out.radii_v   = in.radii_v;
-    out.stroke    = in.stroke;
-    out.pattern   = in.pattern;
+    out.stroke       = in.stroke;
+    out.pattern      = in.pattern;
+    out.shadow_sigma = in.shadow_sigma;
     return out;
 }
 
@@ -232,6 +235,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let max_stroke = max(max(in.stroke.x, in.stroke.y), max(in.stroke.z, in.stroke.w));
 
     if (max_stroke <= 0.0) {
+        // Shadow mode: soft Gaussian-like falloff.
+        let sigma = in.shadow_sigma;
+        if (sigma > 0.0) {
+            let t = clamp(-outer_dist / sigma, 0.0, 1.0);
+            let alpha = t * t * (3.0 - 2.0 * t) * in.color.a;
+            if (alpha <= 0.001) { discard; }
+            return vec4<f32>(in.color.rgb, alpha);
+        }
         // Filled mode.
         let alpha = clamp(0.5 - outer_dist / aa, 0.0, 1.0);
         if (alpha <= 0.0) { discard; }

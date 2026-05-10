@@ -10,3 +10,5 @@ mod quads;
 mod selection;
 #[path = "paint/transforms.rs"]
 mod transforms;
+#[path = "paint/box_shadow.rs"]
+mod box_shadow;

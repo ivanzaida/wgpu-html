@@ -1,0 +1,118 @@
+<style>
+  body {
+    background-color: #0f0f1a;
+    padding: 40px;
+    font-family: DemoSans, sans-serif;
+    color: #e0e0e0;
+  }
+  h1 { text-align: center; margin: 0 0 40px 0; color: #00d4ff; }
+  h2 { margin: 0 0 20px 0; color: #ffa726; font-size: 16px; }
+  .section { margin: 0 0 48px 0; }
+  .row {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin: 0 0 24px 0;
+  }
+  .label { font-size: 11px; color: #666; margin: 0 0 12px 0; }
+
+  .card {
+    width: 180px;
+    height: 100px;
+    background: #1e293b;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e0e0e0;
+    font-size: 13px;
+  }
+
+  .shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .shadow-md { box-shadow: 0 4px 6px rgba(0,0,0,0.4); }
+  .shadow-lg { box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+  .shadow-xl { box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+
+  .shadow-color-blue { box-shadow: 0 4px 20px rgba(59,130,246,0.5); }
+  .shadow-color-red { box-shadow: 0 4px 20px rgba(239,68,68,0.5); }
+  .shadow-color-green { box-shadow: 0 4px 20px rgba(34,197,94,0.5); }
+  .shadow-color-purple { box-shadow: 0 4px 20px rgba(168,85,247,0.5); }
+
+  .shadow-offset { box-shadow: 8px 8px 0 rgba(0,0,0,0.3); }
+  .shadow-spread { box-shadow: 0 0 0 4px rgba(59,130,246,0.6); }
+  .shadow-multi {
+    box-shadow:
+      0 0 0 2px rgba(59,130,246,0.4),
+      0 4px 12px rgba(0,0,0,0.3),
+      0 8px 30px rgba(59,130,246,0.15);
+  }
+  .shadow-sharp { box-shadow: 4px 4px 0 0 #e94560; }
+</style>
+
+<h1>Box Shadow</h1>
+
+<div class="section">
+  <h2>Elevation levels</h2>
+  <div class="row">
+    <div>
+      <p class="label">Small</p>
+      <div class="card shadow-sm">shadow-sm</div>
+    </div>
+    <div>
+      <p class="label">Medium</p>
+      <div class="card shadow-md">shadow-md</div>
+    </div>
+    <div>
+      <p class="label">Large</p>
+      <div class="card shadow-lg">shadow-lg</div>
+    </div>
+    <div>
+      <p class="label">Extra Large</p>
+      <div class="card shadow-xl">shadow-xl</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Colored shadows</h2>
+  <div class="row">
+    <div>
+      <p class="label">Blue glow</p>
+      <div class="card shadow-color-blue">Blue</div>
+    </div>
+    <div>
+      <p class="label">Red glow</p>
+      <div class="card shadow-color-red">Red</div>
+    </div>
+    <div>
+      <p class="label">Green glow</p>
+      <div class="card shadow-color-green">Green</div>
+    </div>
+    <div>
+      <p class="label">Purple glow</p>
+      <div class="card shadow-color-purple">Purple</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Special effects</h2>
+  <div class="row">
+    <div>
+      <p class="label">Offset (no blur)</p>
+      <div class="card shadow-offset">Hard offset</div>
+    </div>
+    <div>
+      <p class="label">Spread (ring)</p>
+      <div class="card shadow-spread">Outline ring</div>
+    </div>
+    <div>
+      <p class="label">Multiple shadows</p>
+      <div class="card shadow-multi">Layered</div>
+    </div>
+    <div>
+      <p class="label">Sharp colored</p>
+      <div class="card shadow-sharp">Retro</div>
+    </div>
+  </div>
+</div>

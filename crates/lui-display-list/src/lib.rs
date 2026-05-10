@@ -72,6 +72,9 @@ pub struct Quad {
   /// is a one-sided rounded ring (`stroke` has exactly one positive
   /// component); other configurations render solid.
   pub pattern: Pattern,
+  /// Shadow blur sigma in pixels. `0.0` = sharp edge (normal quad).
+  /// Non-zero values produce a soft-edge shadow via SDF falloff.
+  pub shadow_sigma: f32,
   /// 2x2 rotation/scale matrix `[a, b, c, d]` applied in the vertex
   /// shader. Identity is `[1, 0, 0, 1]`. The shader rotates vertices
   /// around `transform_origin`.
@@ -326,6 +329,7 @@ impl DisplayList {
       radii_v: [0.0; 4],
       stroke: [0.0; 4],
       pattern: [0.0; 4],
+      shadow_sigma: 0.0,
       transform: [1.0, 0.0, 0.0, 1.0],
       transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
@@ -346,6 +350,7 @@ impl DisplayList {
       radii_v: radii,
       stroke: [0.0; 4],
       pattern: [0.0; 4],
+      shadow_sigma: 0.0,
       transform: [1.0, 0.0, 0.0, 1.0],
       transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
@@ -372,6 +377,7 @@ impl DisplayList {
       radii_v,
       stroke: [0.0; 4],
       pattern: [0.0; 4],
+      shadow_sigma: 0.0,
       transform: [1.0, 0.0, 0.0, 1.0],
       transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
@@ -392,6 +398,7 @@ impl DisplayList {
       radii_v: radii,
       stroke,
       pattern: [0.0; 4],
+      shadow_sigma: 0.0,
       transform: [1.0, 0.0, 0.0, 1.0],
       transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
@@ -419,6 +426,7 @@ impl DisplayList {
       radii_v,
       stroke,
       pattern: [0.0; 4],
+      shadow_sigma: 0.0,
       transform: [1.0, 0.0, 0.0, 1.0],
       transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
@@ -447,6 +455,7 @@ impl DisplayList {
       radii_v,
       stroke,
       pattern,
+      shadow_sigma: 0.0,
       transform: [1.0, 0.0, 0.0, 1.0],
       transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });

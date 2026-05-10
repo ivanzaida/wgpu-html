@@ -56,6 +56,7 @@ fn simple_body_with_glyphs() -> LayoutBox {
     text_overflow: None,
     transform: None,
     transform_origin: (0.0, 0.0),
+    box_shadows: Vec::new(),
     opacity: 1.0,
     pointer_events: lui_models::common::PointerEvents::Auto,
     user_select: lui_models::common::UserSelect::Auto,

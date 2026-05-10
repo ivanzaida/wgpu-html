@@ -558,6 +558,7 @@ pub(crate) fn layout_block(
     margin_rect,
     border_rect,
     content_rect,
+    box_shadows: crate::shadow::parse_box_shadows(style.box_shadow.as_deref().unwrap_or("")),
     background,
     background_rect,
     background_radii,
