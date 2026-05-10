@@ -655,3 +655,71 @@ fn vertical_align_sub_element_renders() {
   let para = &root.children[0];
   assert!(para.text_run.is_some(), "paragraph should have a text run");
 }
+
+// ── margin collapsing ─────────────────────────────────────────────────
+
+#[test]
+fn adjacent_sibling_margins_collapse() {
+  let tree = make(r#"<body style="margin:0">
+    <div style="margin-bottom:20px;height:10px"></div>
+    <div style="margin-top:15px;height:10px"></div>
+  </body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let first = &root.children[0];
+  let second = &root.children[1];
+  let gap = second.border_rect.y - (first.border_rect.y + first.border_rect.h);
+  assert_eq!(gap, 20.0, "collapsed margin should be max(20, 15) = 20");
+}
+
+#[test]
+fn equal_sibling_margins_collapse_to_single() {
+  let tree = make(r#"<body style="margin:0">
+    <div style="margin-bottom:10px;height:10px"></div>
+    <div style="margin-top:10px;height:10px"></div>
+  </body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let first = &root.children[0];
+  let second = &root.children[1];
+  let gap = second.border_rect.y - (first.border_rect.y + first.border_rect.h);
+  assert_eq!(gap, 10.0, "equal margins collapse to a single margin");
+}
+
+#[test]
+fn negative_margins_collapse_most_negative() {
+  let tree = make(r#"<body style="margin:0">
+    <div style="margin-bottom:-5px;height:20px"></div>
+    <div style="margin-top:-10px;height:20px"></div>
+  </body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let first = &root.children[0];
+  let second = &root.children[1];
+  let gap = second.border_rect.y - (first.border_rect.y + first.border_rect.h);
+  assert_eq!(gap, -10.0, "both negative: use the most negative (-10)");
+}
+
+#[test]
+fn mixed_positive_negative_margins_sum() {
+  let tree = make(r#"<body style="margin:0">
+    <div style="margin-bottom:20px;height:10px"></div>
+    <div style="margin-top:-5px;height:10px"></div>
+  </body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let first = &root.children[0];
+  let second = &root.children[1];
+  let gap = second.border_rect.y - (first.border_rect.y + first.border_rect.h);
+  assert_eq!(gap, 15.0, "mixed: max(positive) + min(negative) = 20 + (-5) = 15");
+}
+
+#[test]
+fn out_of_flow_children_do_not_collapse() {
+  let tree = make(r#"<body style="margin:0;position:relative">
+    <div style="margin-bottom:20px;height:10px"></div>
+    <div style="position:absolute;margin-top:100px;height:10px"></div>
+    <div style="margin-top:15px;height:10px"></div>
+  </body>"#);
+  let root = layout(&tree, 200.0, 200.0).unwrap();
+  let first = &root.children[0];
+  let third = &root.children[2];
+  let gap = third.border_rect.y - (first.border_rect.y + first.border_rect.h);
+  assert_eq!(gap, 20.0, "absolute child is skipped; siblings still collapse");
+}

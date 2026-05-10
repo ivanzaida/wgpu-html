@@ -43,6 +43,20 @@ use crate::{
 };
 
 // ---------------------------------------------------------------------------
+// Margin collapsing (CSS 2.2 section 8.3.1)
+// ---------------------------------------------------------------------------
+
+fn collapsed_margin(a: f32, b: f32) -> f32 {
+  if a >= 0.0 && b >= 0.0 {
+    a.max(b)
+  } else if a < 0.0 && b < 0.0 {
+    a.min(b)
+  } else {
+    a + b
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Block overrides
 // ---------------------------------------------------------------------------
 
@@ -355,9 +369,21 @@ pub(crate) fn layout_block(
           let effective = effective_children(node);
           let mut children = Vec::with_capacity(effective.len());
           let mut cursor = 0.0_f32;
+          let mut prev_margin_bottom = 0.0_f32;
+          let mut have_prev = false;
           for child in &effective {
             let child_position = child.style.position.clone().unwrap_or(Position::Static);
-            let mut child_box = if is_out_of_flow_position(child_position.clone()) {
+            let in_flow = !is_out_of_flow_position(child_position.clone());
+
+            if in_flow && have_prev {
+              let child_margin_top = resolve_insets_margin(&child.style, inner_width, ctx).top;
+              let collapse = collapsed_margin(prev_margin_bottom, child_margin_top)
+                - prev_margin_bottom
+                - child_margin_top;
+              cursor += collapse;
+            }
+
+            let mut child_box = if !in_flow {
               layout_out_of_flow_block(
                 child,
                 content_x,
@@ -382,8 +408,12 @@ pub(crate) fn layout_block(
             if matches!(child_position, Position::Relative | Position::Sticky) {
               apply_relative_position(&mut child_box, &child.style, inner_width, container_h, ctx);
             }
-            if !is_out_of_flow_position(child_position) {
+            if in_flow {
+              prev_margin_bottom =
+                (child_box.margin_rect.y + child_box.margin_rect.h)
+                - (child_box.border_rect.y + child_box.border_rect.h);
               cursor += child_box.margin_rect.h;
+              have_prev = true;
             }
             children.push(child_box);
           }
