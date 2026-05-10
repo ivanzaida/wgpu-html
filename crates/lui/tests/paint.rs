@@ -8,3 +8,5 @@ mod glyphs;
 mod quads;
 #[path = "paint/selection.rs"]
 mod selection;
+#[path = "paint/transforms.rs"]
+mod transforms;

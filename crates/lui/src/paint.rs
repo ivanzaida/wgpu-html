@@ -13,6 +13,34 @@ use lui_tree::{ScrollOffset, SelectionColors, TextCursor, TextSelection, Tree};
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 const SCROLLBAR_MIN_THUMB: f32 = 18.0;
+
+#[derive(Debug, Clone, Copy)]
+struct PaintScale {
+  sx: f32,
+  sy: f32,
+  origin_x: f32,
+  origin_y: f32,
+}
+
+impl PaintScale {
+  const IDENTITY: Self = Self { sx: 1.0, sy: 1.0, origin_x: 0.0, origin_y: 0.0 };
+
+  fn is_identity(&self) -> bool {
+    self.sx == 1.0 && self.sy == 1.0
+  }
+
+  fn apply_rect(&self, r: Rect) -> Rect {
+    if self.is_identity() {
+      return r;
+    }
+    Rect::new(
+      self.origin_x + (r.x - self.origin_x) * self.sx,
+      self.origin_y + (r.y - self.origin_y) * self.sy,
+      r.w * self.sx,
+      r.h * self.sy,
+    )
+  }
+}
 fn apply_opacity(mut color: lui_renderer_wgpu::Color, opacity: f32) -> lui_renderer_wgpu::Color {
   color[3] *= opacity.clamp(0.0, 1.0);
   color
@@ -76,6 +104,7 @@ pub fn paint_tree_with_text(
       viewport_scroll_y,
       1.0,
       None,
+      PaintScale::IDENTITY,
     );
   }
   list.finalize();
@@ -128,6 +157,7 @@ pub fn paint_layout_with_selection(
     viewport_scroll_y,
     1.0,
     None,
+    PaintScale::IDENTITY,
   );
 }
 
@@ -181,6 +211,7 @@ pub fn paint_layout_full(
     viewport_scroll_y,
     1.0,
     edit_caret,
+    PaintScale::IDENTITY,
   );
 }
 
@@ -271,6 +302,7 @@ fn paint_box_in_clip(
   viewport_scroll_y: f32,
   parent_opacity: f32,
   edit_caret: Option<&EditCaretInfo<'_>>,
+  parent_scale: PaintScale,
 ) {
   let mut paint_offset_x = if b.is_fixed { 0.0 } else { paint_offset_x };
   let mut paint_offset_y = if b.is_fixed {
@@ -279,16 +311,26 @@ fn paint_box_in_clip(
     paint_offset_y
   };
 
+  let mut paint_scale = parent_scale;
   if let Some(ref t) = b.transform {
     paint_offset_x += t.tx;
     paint_offset_y += t.ty;
+    if t.a != 1.0 || t.d != 1.0 {
+      let (ox, oy) = b.transform_origin;
+      paint_scale = PaintScale {
+        sx: parent_scale.sx * t.a,
+        sy: parent_scale.sy * t.d,
+        origin_x: b.border_rect.x + paint_offset_x + ox,
+        origin_y: b.border_rect.y + paint_offset_y + oy,
+      };
+    }
   }
   let selection_colors = SelectionColors {
     background: b.selection_bg.unwrap_or(selection_colors.background),
     foreground: b.selection_fg.unwrap_or(selection_colors.foreground),
   };
   let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
-  let rect = to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y);
+  let rect = paint_scale.apply_rect(to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y));
   let (rh, rv) = corner_radii(b);
   let rounded = has_any_radius(&rh) || has_any_radius(&rv);
 
@@ -306,7 +348,7 @@ fn paint_box_in_clip(
   // (border-box by default; padding-box / content-box also supported).
   if let Some(color) = b.background.filter(|_| !suppress_box_paint) {
     let color = apply_opacity(color, opacity);
-    let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
+    let bg = paint_scale.apply_rect(to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y));
     if bg.w > 0.0 && bg.h > 0.0 {
       let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
       if has_any_radius(&bg_h) || has_any_radius(&bg_v) {
@@ -325,7 +367,7 @@ fn paint_box_in_clip(
   // rounded shape — otherwise the rectangular tiles would paint
   // outside the rounded background.
   if let Some(ref bgi) = b.background_image {
-    let bg = to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y);
+    let bg = paint_scale.apply_rect(to_renderer_rect_xy(b.background_rect, paint_offset_x, paint_offset_y));
     if bg.w > 0.0 && bg.h > 0.0 && !bgi.tiles.is_empty() {
       let (bg_h, bg_v) = corner_radii_from(&b.background_radii);
       let needs_round_clip = has_any_radius(&bg_h) || has_any_radius(&bg_v);
@@ -634,6 +676,7 @@ fn paint_box_in_clip(
       viewport_scroll_y,
       opacity,
       edit_caret,
+      paint_scale,
     );
     path.pop();
   }
