@@ -24,7 +24,7 @@ The core pipeline is complete and functional: HTML parsing, CSS cascade, Flexbox
 | M9 — flexbox | ✅ | Complete CSS Flexbox Level 1 |
 | M10 — grid | ✅ | CSS Grid with `fr`, `repeat()`, placement, alignment |
 | M11 — clipping & overflow | ✅ | Scissor + SDF rounded clipping, scroll containers |
-| M12 — interactivity | ✅ | Hover/click/focus chain, form controls, text selection, scroll |
+| M12 — interactivity | ✅ | Hover/click/focus chain, form controls, text selection, scroll, form submission, form data collection, `:valid`/`:invalid` |
 
 ## In Progress / Planned
 
@@ -32,6 +32,7 @@ The core pipeline is complete and functional: HTML parsing, CSS cascade, Flexbox
 |---|---|---|
 | **Table layout** | High | Implemented: `display: table` variants work with colspan/rowspan, column distribution. Refining edge cases. |
 | **z-index stacking contexts** | High | Sibling sort done; cross-branch stacking contexts needed |
+| **Form validation** | High | `required`, `minlength`, `maxlength`, `min`/`max`/`step` done; `pattern` (regex) not yet |
 | **Floats** | Medium | `float: left/right` not yet parsed |
 | **Baseline alignment** | Medium | Needed for flex/grid baseline alignment |
 | **`@font-face`** | Medium | Generic family fallback works; web font loading not yet |
@@ -39,7 +40,6 @@ The core pipeline is complete and functional: HTML parsing, CSS cascade, Flexbox
 | **Transforms** | Medium | Parsed but stored raw; need layout + hit-test impact |
 | **`position: sticky`** | Medium | Currently degrades to `relative` |
 | **`box-shadow`** | Medium | Parsed as raw string; needs paint implementation |
-| **`text-overflow`** | Low | Ellipsis not rendered |
 | **`<select>` dropdown** | Low | Parser + styling exist; popup interaction missing |
 | **`:focus-visible`** | Low | Keyboard vs pointer focus not tracked |
 | **Smooth scrolling** | Low | `scroll-behavior` not implemented |

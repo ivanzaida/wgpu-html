@@ -69,6 +69,16 @@ sidebar_position: 2
 
 **Cause:** The popup menu rendering and interaction system for `<select>` is not yet implemented.
 
+### Form Validation Gaps
+**Symptom:** `:valid`/`:invalid` work in the query engine but don't participate in the CSS cascade for dynamic restyling. `pattern` (regex) validation is not implemented.
+
+**Cause:** `:valid`/`:invalid` pseudo-classes are only consumed by `query_selector`; the incremental cascade does not track validity state changes per-element. Regex engine not bundled.
+
+### `:valid`/`:invalid` Cascade
+**Symptom:** CSS rules like `input:invalid { border-color: red; }` in stylesheets won't update when the field value changes.
+
+**Cause:** The incremental cascade only tracks `:hover`, `:active`, and `:focus` state pseudo-classes. Validity state (`:valid`/`:invalid`) is not yet wired into `PseudoClassUsage` or `InteractionState`.
+
 ### Wheel Events on Element Callbacks
 **Symptom:** Mouse wheel events scroll the element but are not forwarded to element `on_event` callbacks.
 
