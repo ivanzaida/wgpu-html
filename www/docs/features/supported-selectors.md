@@ -83,6 +83,8 @@ All operators with optional case sensitivity flags:
 | `:read-only` | ✅ | In query engine |
 | `:read-write` | ✅ | In query engine |
 | `:placeholder-shown` | ✅ | In query engine |
+| `:valid` | ✅ | In query engine — checks required, minlength, maxlength, min/max/step |
+| `:invalid` | ✅ | In query engine — checks required, minlength, maxlength, min/max/step |
 | `:default` | ✅ | In query engine |
 
 ## Other Pseudo-classes
