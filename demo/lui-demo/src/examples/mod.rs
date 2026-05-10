@@ -10,6 +10,7 @@ mod events_test;
 mod flex_browser_like;
 mod flex_grow;
 mod form;
+mod form_validation;
 mod forms_demo;
 mod gif;
 mod gradient_test;
@@ -32,6 +33,7 @@ mod text_shrink;
 mod text_wrapping;
 mod styled_pickers;
 mod table;
+mod transform_demo;
 
 pub fn get_example_tree(name: &str) -> Option<Tree> {
   match name {
@@ -45,6 +47,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "flex_browser_like" => Some(flex_browser_like::build()),
     "flex_grow" => Some(flex_grow::build()),
     "form" => Some(form::build()),
+    "form_validation" => Some(form_validation::build()),
     "forms_demo" => Some(forms_demo::build()),
     "gif" => Some(gif::build()),
     "gradient_test" => Some(gradient_test::build()),
@@ -67,6 +70,7 @@ pub fn get_example_tree(name: &str) -> Option<Tree> {
     "text_wrapping" => Some(text_wrapping::build()),
     "styled_pickers" => Some(styled_pickers::build()),
     "table" => Some(table::build()),
+    "transform_demo" => Some(transform_demo::build()),
     _ => None,
   }
 }
@@ -83,6 +87,7 @@ pub fn list_examples() -> Vec<&'static str> {
     "flex_browser_like",
     "flex_grow",
     "form",
+    "form_validation",
     "forms_demo",
     "gif",
     "gradient_test",

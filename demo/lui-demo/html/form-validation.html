@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    font-family: sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+  }
+  h1 { font-size: 22px; }
+  h2 { font-size: 16px; margin-top: 24px; }
+  label { display: block; margin-top: 12px; font-size: 13px; color: #aaa; }
+  input, textarea {
+    display: block;
+    margin-top: 4px;
+    padding: 8px 10px;
+    font-size: 14px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #16213e;
+    color: #eee;
+    width: 260px;
+  }
+  /* Valid/invalid states */
+  input:valid, textarea:valid {
+    border-color: #2ecc71;
+    background: #1a3026;
+  }
+  input:invalid, textarea:invalid {
+    border-color: #e74c3c;
+    background: #301a1a;
+  }
+  .invalid-msg {
+    font-size: 12px;
+    color: #e74c3c;
+    margin-top: 2px;
+    display: none;
+  }
+  input:invalid + .invalid-msg {
+    display: block;
+  }
+  button {
+    margin-top: 16px;
+    padding: 8px 20px;
+    font-size: 14px;
+    border: none;
+    border-radius: 4px;
+    background: #0f3460;
+    color: #eee;
+    cursor: pointer;
+  }
+  button:hover { background: #1a5080; }
+  .note { font-size: 12px; color: #888; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>Form Validation Demo</h1>
+  <p style="font-size:14px;color:#888;">:valid / :invalid pseudo-classes</p>
+
+  <h2>Text Fields</h2>
+  <label>Name (required)</label>
+  <input type="text" name="name" placeholder="Enter your name" required>
+  <span class="invalid-msg">Name is required</span>
+
+  <label>Email (required)</label>
+  <input type="email" name="email" placeholder="you@example.com" required>
+  <span class="invalid-msg">Email is required</span>
+
+  <label>Optional comment</label>
+  <input type="text" name="comment" placeholder="Optional...">
+
+  <h2>Password (required)</h2>
+  <label>Password</label>
+  <input type="password" name="password" placeholder="At least 4 chars" required minlength="4">
+  <span class="invalid-msg">Password is required</span>
+
+  <h2>Checkboxes</h2>
+  <label style="display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" name="agree" required style="width:auto;">
+    I agree to the terms (required)
+  </label>
+  <span class="invalid-msg">You must agree</span>
+
+  <h2>Textarea (required)</h2>
+  <label>Message</label>
+  <textarea name="message" placeholder="Type something..." required></textarea>
+  <span class="invalid-msg">Message is required</span>
+
+  <button type="submit">Submit</button>
+  <p class="note">Required fields show red border (:invalid) until filled. Fill them to see green (:valid).<br>Non-required fields are always :valid.</p>
+</body>
+</html>

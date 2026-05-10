@@ -1,0 +1,271 @@
+<style>
+  body {
+    background-color: #1a1a2e;
+    padding: 32px;
+    font-family: DemoSans, sans-serif;
+    color: #e0e0e0;
+  }
+  h1 {
+    text-align: center;
+    margin: 0 0 32px 0;
+    color: #00d4ff;
+  }
+  h2 {
+    margin: 0 0 16px 0;
+    color: #ffa726;
+    font-size: 16px;
+  }
+  .section {
+    margin: 0 0 40px 0;
+  }
+  .row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin: 0 0 24px 0;
+  }
+  .demo-card {
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 16px;
+    width: 200px;
+    min-height: 120px;
+    position: relative;
+  }
+  .label {
+    font-size: 11px;
+    color: #888;
+    margin: 0 0 8px 0;
+  }
+  .box {
+    width: 60px;
+    height: 60px;
+    background-color: #e94560;
+    border-radius: 4px;
+  }
+  .box-small {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+  }
+
+  /* ── translate demos ── */
+  .translate-basic {
+    transform: translate(20px, 10px);
+  }
+  .translate-pct {
+    width: 120px;
+    height: 80px;
+    background-color: #533483;
+    border-radius: 8px;
+    position: relative;
+  }
+  .translate-pct-inner {
+    width: 40px;
+    height: 40px;
+    background-color: #00d4ff;
+    border-radius: 4px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .translate-neg {
+    transform: translate(-10px, -10px);
+  }
+
+  /* ── scale demos ── */
+  .scale-up {
+    transform: scale(1.5);
+  }
+  .scale-down {
+    transform: scale(0.5);
+  }
+  .scale-xy {
+    transform: scale(2, 0.75);
+  }
+
+  /* ── rotate demos ── */
+  .rotate-45 {
+    transform: rotate(45deg);
+  }
+  .rotate-90 {
+    transform: rotate(90deg);
+  }
+  .rotate-180 {
+    transform: rotate(180deg);
+  }
+
+  /* ── combined demos ── */
+  .combo-1 {
+    transform: translate(10px, 10px) scale(1.2);
+  }
+  .combo-2 {
+    transform: translate(30px, 0) rotate(15deg);
+  }
+
+  /* ── centered modal pattern ── */
+  .modal-backdrop {
+    width: 100%;
+    height: 200px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .modal-dialog {
+    width: 200px;
+    height: 100px;
+    background-color: #2d3a4a;
+    border: 2px solid #00d4ff;
+    border-radius: 12px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-dialog p {
+    margin: 0;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  /* ── skew demos ── */
+  .skew-x {
+    transform: skewX(15deg);
+  }
+  .skew-y {
+    transform: skewY(10deg);
+  }
+
+  /* ── transform-origin demos ── */
+  .origin-top-left {
+    transform: rotate(30deg);
+    transform-origin: left top;
+  }
+  .origin-bottom-right {
+    transform: rotate(30deg);
+    transform-origin: right bottom;
+  }
+  .origin-center {
+    transform: rotate(30deg);
+    transform-origin: center center;
+  }
+</style>
+
+<h1>CSS Transforms</h1>
+
+<div class="section">
+  <h2>translate()</h2>
+  <div class="row">
+    <div class="demo-card">
+      <p class="label">translate(20px, 10px)</p>
+      <div class="box translate-basic"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">translate(-50%, -50%) centering</p>
+      <div class="translate-pct">
+        <div class="translate-pct-inner"></div>
+      </div>
+    </div>
+    <div class="demo-card">
+      <p class="label">translate(-10px, -10px)</p>
+      <div class="box translate-neg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>scale()</h2>
+  <div class="row">
+    <div class="demo-card">
+      <p class="label">scale(1.5)</p>
+      <div class="box-small scale-up" style="background-color: #48c774;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">scale(0.5)</p>
+      <div class="box-small scale-down" style="background-color: #48c774;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">scale(2, 0.75)</p>
+      <div class="box-small scale-xy" style="background-color: #48c774;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>rotate()</h2>
+  <div class="row">
+    <div class="demo-card">
+      <p class="label">rotate(45deg)</p>
+      <div class="box-small rotate-45" style="background-color: #ffdd57;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">rotate(90deg)</p>
+      <div class="box-small rotate-90" style="background-color: #ffdd57;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">rotate(180deg)</p>
+      <div class="box-small rotate-180" style="background-color: #ffdd57;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>skew()</h2>
+  <div class="row">
+    <div class="demo-card">
+      <p class="label">skewX(15deg)</p>
+      <div class="box-small skew-x" style="background-color: #b794f6;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">skewY(10deg)</p>
+      <div class="box-small skew-y" style="background-color: #b794f6;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Combined transforms</h2>
+  <div class="row">
+    <div class="demo-card">
+      <p class="label">translate + scale</p>
+      <div class="box-small combo-1" style="background-color: #ff6b6b;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">translate + rotate</p>
+      <div class="box-small combo-2" style="background-color: #ff6b6b;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Centered modal (translate -50% -50%)</h2>
+  <div class="modal-backdrop">
+    <div class="modal-dialog">
+      <p>Centered!</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>transform-origin</h2>
+  <div class="row">
+    <div class="demo-card">
+      <p class="label">origin: left top</p>
+      <div class="box-small origin-top-left" style="background-color: #63e6be;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">origin: right bottom</p>
+      <div class="box-small origin-bottom-right" style="background-color: #63e6be;"></div>
+    </div>
+    <div class="demo-card">
+      <p class="label">origin: center (default)</p>
+      <div class="box-small origin-center" style="background-color: #63e6be;"></div>
+    </div>
+  </div>
+</div>
