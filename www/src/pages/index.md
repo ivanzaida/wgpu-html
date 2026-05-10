@@ -8,16 +8,16 @@ hide_table_of_contents: true
 GPU-accelerated HTML/CSS renderer for Rust.
 
 <div style={{ textAlign: 'center', margin: '3rem 0' }}>
-<a href="/lui/docs/intro" className="button button--primary button--lg">
+<a href="/docs/intro" className="button button--primary button--lg">
   Read the Documentation
 </a>
 </div>
 
 :::tip Quick Links
 
-- **[Quick Start Guide](/lui/docs/getting-started/quick-start)** — get a window on screen in 30 lines
-- **[Supported CSS](/lui/docs/features/supported-css)** — all supported CSS properties
-- **[Getting Started](/lui/docs/getting-started/overview)** — learn what lui is
+- **[Quick Start Guide](/docs/getting-started/quick-start)** — get a window on screen in 30 lines
+- **[Supported CSS](/docs/features/supported-css)** — all supported CSS properties
+- **[Getting Started](/docs/getting-started/overview)** — learn what lui is
 - **[GitHub](https://github.com/ivanzaida/lui)**
 
 :::
