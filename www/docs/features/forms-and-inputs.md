@@ -103,3 +103,43 @@ lui supports `<input>` (22 types), `<textarea>`, `<button>`, and `<select>`, wit
 - Styled as inline-block with border and padding
 - **No popup/list interaction yet** — rendered as static box showing text content
 - `selected`, `value`, `label` attributes parsed
+
+## Form Submission
+
+Forms with a submit button or text input support the standard submission flow:
+
+```html
+<form id="login" method="post">
+  <input type="text" name="username" value="alice">
+  <input type="password" name="password">
+  <input type="checkbox" name="remember" checked>
+  <input type="submit" value="Log in">
+</form>
+```
+
+**Triggers:**
+- Click on `<input type="submit">` or `<button type="submit">`
+- Enter key in a text/password/email input inside a form
+- Space/Enter on a focused submit button
+
+**Flow:**
+1. `SubmitEvent` fires on the form with capture → target → bubble phases
+2. If `preventDefault()` is called, form data collection is skipped
+3. Otherwise, `collect_form_data` walks the form subtree and collects `name` + `value` pairs from:
+   - `<input>` (text, password, email, number, search, tel, url, checkbox checked, radio checked, date, datetime-local, color, range, hidden, file)
+   - `<textarea>` (text content)
+   - Excludes: unchecked checkboxes/radios, submit/reset/button inputs, image inputs
+4. `FormDataEvent` fires on the form with a `FormDataId` handle
+5. Host retrieves data via `Tree::take_form_data(FormDataId)` → `Vec<FormField>`
+
+**Rust API:**
+```rust
+// Programmatic submission
+lui_tree::submit_form(&mut tree, form_path, Some(submitter_path));
+
+// Retrieve collected data
+let fields: Vec<FormField> = tree.take_form_data(form_data_id).unwrap();
+// fields[0].name, fields[0].value — ArcStr
+```
+
+**Not yet implemented:** form validation (`required`, `pattern`, `min`/`max`), `form.action`/`method` URL construction, `multipart/form-data` encoding.

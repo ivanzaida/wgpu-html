@@ -214,3 +214,128 @@ fn wheel_event_with_no_hover_dispatches_to_root() {
   let evs = received.lock().unwrap().clone();
   assert!(evs.contains(&"wheel".into()), "expected wheel event, got {evs:?}");
 }
+
+// ── Form submission ─────────────────────────────────────────────
+
+#[test]
+fn submit_form_collects_input_values() {
+  let mut form = m::Form::default();
+  let mut input = m::Input::default();
+  input.r#type = Some(InputType::Text);
+  input.name = Some("username".into());
+  input.value = Some("alice".into());
+  let mut tree = Tree::new(Node::new(m::Body::default()));
+  if let Some(body) = tree.root.as_mut() {
+    let mut form_node = Node::new(form);
+    form_node.children.push(Node::new(input));
+    body.children.push(form_node);
+  }
+  tree.interaction.selection_colors = SelectionColors::default();
+
+  // Directly call submit_form to verify data collection
+  lui_tree::submit_form(&mut tree, &[0], Some(vec![0, 0]));
+
+  let fields = tree.pending_form_data.values().next();
+  assert!(fields.is_some(), "form data should be collected");
+  let fields = fields.unwrap();
+  assert_eq!(fields.len(), 1);
+  assert_eq!(&*fields[0].name, "username");
+  assert_eq!(&*fields[0].value, "alice");
+}
+
+#[test]
+fn prevent_default_stops_form_data_collection() {
+  let r = Arc::new(Mutex::new(false));
+  let prevented = r.clone();
+  let mut form = m::Form::default();
+  let mut input = m::Input::default();
+  input.r#type = Some(InputType::Text);
+  input.name = Some("q".into());
+  let mut tree = Tree::new(Node::new(m::Body::default()));
+  if let Some(body) = tree.root.as_mut() {
+    let mut form_node = Node::new(form);
+    form_node.children.push(Node::new(input));
+    form_node.on_event.push(Arc::new(move |ev| {
+      ev.prevent_default();
+      *prevented.lock().unwrap() = true;
+    }));
+    body.children.push(form_node);
+  }
+  tree.interaction.selection_colors = SelectionColors::default();
+
+  tree.focus(Some(&[0, 0]));  // focus the input inside the form
+  tree.key_down("Enter", "Enter", false);
+
+  assert!(*r.lock().unwrap(), "preventDefault should have been called");
+  assert!(tree.pending_form_data.is_empty());
+}
+
+#[test]
+fn collect_form_data_skips_unchecked_checkbox() {
+  let mut form = m::Form::default();
+  let mut cb = m::Input::default();
+  cb.r#type = Some(InputType::Checkbox);
+  cb.name = Some("opt".into());
+  cb.checked = Some(false);
+  let mut tree = Tree::new(Node::new(m::Body::default()));
+  if let Some(body) = tree.root.as_mut() {
+    let mut form_node = Node::new(form);
+    form_node.children.push(Node::new(cb));
+    body.children.push(form_node);
+  }
+  tree.interaction.selection_colors = SelectionColors::default();
+
+  tree.focus(Some(&[0, 0]));  // focus the input inside the form
+  tree.key_down("Enter", "Enter", false);
+
+  // Unchecked checkbox should be skipped entirely;
+  // no form data stored since the only field was excluded.
+  assert!(tree.pending_form_data.is_empty(), "unchecked checkbox should produce no form data");
+}
+
+#[test]
+fn collect_form_data_includes_checked_checkbox() {
+  let mut form = m::Form::default();
+  let mut cb = m::Input::default();
+  cb.r#type = Some(InputType::Checkbox);
+  cb.name = Some("opt".into());
+  cb.value = Some("on".into());
+  cb.checked = Some(true);
+  let mut tree = Tree::new(Node::new(m::Body::default()));
+  if let Some(body) = tree.root.as_mut() {
+    let mut form_node = Node::new(form);
+    form_node.children.push(Node::new(cb));
+    body.children.push(form_node);
+  }
+  tree.interaction.selection_colors = SelectionColors::default();
+
+  // Checked checkbox should be included in form data
+  lui_tree::submit_form(&mut tree, &[0], Some(vec![0, 0]));
+
+  let fields = tree.pending_form_data.values().next().unwrap();
+  assert_eq!(fields.len(), 1);
+  assert_eq!(&*fields[0].name, "opt");
+  assert_eq!(&*fields[0].value, "on");
+}
+
+#[test]
+fn collect_form_data_skips_submit_button() {
+  let mut form = m::Form::default();
+  let mut btn = m::Input::default();
+  btn.r#type = Some(InputType::Submit);
+  btn.name = Some("action".into());
+  btn.value = Some("Send".into());
+  let mut tree = Tree::new(Node::new(m::Body::default()));
+  if let Some(body) = tree.root.as_mut() {
+    let mut form_node = Node::new(form);
+    form_node.children.push(Node::new(btn));
+    body.children.push(form_node);
+  }
+  tree.interaction.selection_colors = SelectionColors::default();
+
+  tree.focus(Some(&[0, 0]));  // focus the input inside the form
+  tree.key_down("Enter", "Enter", false);
+
+  // Submit button value should be excluded; no form data stored.
+  assert!(tree.pending_form_data.is_empty(), "submit button should produce no form data");
+}

@@ -2373,9 +2373,9 @@ fn dispatch_submit_phase(
 
 /// Perform the full form submission sequence: fire `submit` event,
 /// and if not prevented, collect form data and fire `formdata` event.
-fn submit_form(tree: &mut Tree, form_path: &[usize], submitter_path: Option<Vec<usize>>) {
-  let prevented = bubble_submit_event(tree, form_path, submitter_path);
-  if !prevented {
+pub fn submit_form(tree: &mut Tree, form_path: &[usize], submitter_path: Option<Vec<usize>>) {
+  let proceed = bubble_submit_event(tree, form_path, submitter_path);
+  if proceed {
     let fields = collect_form_data(tree, form_path);
     if !fields.is_empty() {
       let form_data_id = tree.next_form_data_id();
@@ -3245,6 +3245,14 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
     tree.interaction.edit_cursor = Some(new_cursor);
     tree.interaction.caret_blink_epoch = std::time::Instant::now();
     return true;
+  }
+
+  // Enter in a non-textarea form input: trigger form submission.
+  if key == "Enter" && !is_textarea {
+    if let Some((form_path, submitter_path)) = enter_in_form_input(tree) {
+      submit_form(tree, &form_path, Some(submitter_path));
+      return true;
+    }
   }
 
   false
