@@ -197,15 +197,6 @@ fn parse_length_or_pct(args: &[String], idx: usize, reference: f32) -> f32 {
   num.trim().parse::<f32>().unwrap_or(0.0)
 }
 
-fn parse_px_or_zero(args: &[String], idx: usize) -> f32 {
-  let s = match args.get(idx) {
-    Some(s) => s.trim(),
-    None => return 0.0,
-  };
-  let num = s.strip_suffix("px").unwrap_or(s);
-  num.trim().parse::<f32>().unwrap_or(0.0)
-}
-
 fn parse_angle(args: &[String], idx: usize) -> f32 {
   let s = match args.get(idx) {
     Some(s) => s.trim(),

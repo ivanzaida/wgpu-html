@@ -108,6 +108,7 @@ pub fn list_examples() -> Vec<&'static str> {
     "text_selection",
     "text_shrink",
     "text_wrapping",
-    "table"
+    "table",
+    "transform_demo",
   ]
 }
