@@ -1640,21 +1640,66 @@ fn el_can_be_valid(el: &Element) -> bool {
 }
 
 /// `:invalid` — true when a form control has a constraint violation.
-/// Currently only checks `required` fields with empty values.
+/// Checks `required`, `minlength`/`maxlength`, `min`/`max`/`step`
+/// (number/range), and type-based validity.
 fn el_is_invalid_helper(el: &Element) -> bool {
   match el {
     Element::Input(e) => {
-      // Required and empty → invalid
-      if e.required == Some(true) {
-        let val = e.value.as_deref().unwrap_or("");
-        if val.is_empty() { return true; }
+      let val = e.value.as_deref().unwrap_or("");
+
+      // ── required ──
+      if e.required == Some(true) && val.is_empty() {
+        return true;
       }
-      // Could add more checks: pattern, min/max, type validation, etc.
+
+      if val.is_empty() {
+        return false; // empty non-required is valid
+      }
+
+      // ── minlength / maxlength ──
+      let chars = val.chars().count();
+      if let Some(min) = e.minlength {
+        if chars < min as usize { return true; }
+      }
+      if let Some(max) = e.maxlength {
+        if chars > max as usize { return true; }
+      }
+
+      // ── min / max / step for number-like inputs ──
+      if let Ok(v) = val.parse::<f64>() {
+        use lui_models::common::html_enums::InputType;
+        let applies = matches!(e.r#type, Some(InputType::Number | InputType::Range));
+        if applies {
+          if let Some(min_str) = e.min.as_deref() {
+            if let Ok(min) = min_str.parse::<f64>() {
+              if v < min { return true; }
+            }
+          }
+          if let Some(max_str) = e.max.as_deref() {
+            if let Ok(max) = max_str.parse::<f64>() {
+              if v > max { return true; }
+            }
+          }
+          if let Some(step_str) = e.step.as_deref() {
+            if let Ok(step) = step_str.parse::<f64>() {
+              if step > 0.0 {
+                let base = e.min.as_deref().and_then(|m| m.parse::<f64>().ok()).unwrap_or(0.0);
+                let rem = (v - base) % step;
+                if rem.abs() > 1e-9 && (rem.abs() - step).abs() > 1e-9 {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+
       false
     }
     Element::Textarea(e) => {
       if e.required == Some(true) {
-        if e.value.as_deref().is_none_or(|v| v.is_empty()) { return true; }
+        let val = e.value.as_deref().unwrap_or("");
+        if val.is_empty() { return true; }
       }
       false
     }

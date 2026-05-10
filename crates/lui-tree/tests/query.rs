@@ -364,6 +364,101 @@ fn valid_and_invalid_pseudo_classes() {
 }
 
 #[test]
+fn invalid_minlength_violation() {
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("short".into()),
+      value: Some("ab".into()),
+      minlength: Some(3),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("ok".into()),
+      value: Some("abc".into()),
+      minlength: Some(3),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let inv = tree.query_selector(":invalid").unwrap();
+  assert_eq!(inv.element.id(), Some("short"), "below minlength should be :invalid");
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("ok"), "meeting minlength should be :valid");
+}
+
+#[test]
+fn invalid_maxlength_violation() {
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("long".into()),
+      value: Some("abcd".into()),
+      maxlength: Some(3),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("ok".into()),
+      value: Some("abc".into()),
+      maxlength: Some(3),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let inv = tree.query_selector(":invalid").unwrap();
+  assert_eq!(inv.element.id(), Some("long"), "above maxlength should be :invalid");
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("ok"), "within maxlength should be :valid");
+}
+
+#[test]
+fn invalid_range_min_max() {
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("low".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Range),
+      value: Some("3".into()),
+      min: Some("5".into()),
+      max: Some("10".into()),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("high".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Range),
+      value: Some("12".into()),
+      min: Some("5".into()),
+      max: Some("10".into()),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("ok".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Range),
+      value: Some("7".into()),
+      min: Some("5".into()),
+      max: Some("10".into()),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let invalids = tree.query_selector_all(":invalid");
+  assert_eq!(invalids.len(), 2, "low and high should be :invalid");
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("ok"), "within range should be :valid");
+}
+
+#[test]
+fn empty_non_required_is_valid() {
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("empty".into()),
+      value: Some("".into()),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("empty"), "empty non-required should be :valid");
+}
+
+#[test]
 fn read_only_and_read_write_pseudo_classes() {
   let body = Node::new(m::Body::default()).with_children(vec![
     Node::new(m::Input {
