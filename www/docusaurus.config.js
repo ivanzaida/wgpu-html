@@ -3,15 +3,15 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-    title: 'wgpu-html',
+    title: 'lui',
     tagline: 'GPU-accelerated HTML/CSS renderer for Rust',
     favicon: 'img/favicon.ico',
 
     url: 'https://ivanzaida.github.io',
-    baseUrl: '/wgpu-html/',
+    baseUrl: '/lui/',
 
     organizationName: 'ivanzaida',
-    projectName: 'wgpu-html',
+    projectName: 'lui',
 
     onBrokenLinks: 'warn',
 
@@ -35,7 +35,7 @@ const config = {
                     path: 'docs',
                     routeBasePath: 'docs',
                     sidebarPath: require.resolve('./sidebars.js'),
-                    editUrl: 'https://github.com/ivanzaida/wgpu-html/tree/master/www/',
+                    editUrl: 'https://github.com/ivanzaida/lui/tree/master/www/',
                     showLastUpdateTime: true,
                 },
                 blog: false,
@@ -69,9 +69,9 @@ const config = {
                 respectPrefersColorScheme: true,
             },
             navbar: {
-                title: 'wgpu-html',
+                title: 'lui',
                 logo: {
-                    alt: 'wgpu-html logo',
+                    alt: 'lui logo',
                     src: 'img/logo.svg',
                 },
                 items: [
@@ -82,7 +82,7 @@ const config = {
                         label: 'Docs',
                     },
                     {
-                        href: 'https://github.com/wgpu-html/wgpu-html',
+                        href: 'https://github.com/lui/lui',
                         label: 'GitHub',
                         position: 'right',
                     },
@@ -103,7 +103,7 @@ const config = {
                     {
                         title: 'Community',
                         items: [
-                            {label: 'GitHub', href: 'https://github.com/wgpu-html/wgpu-html'},
+                            {label: 'GitHub', href: 'https://github.com/lui'},
                         ],
                     },
                     {
@@ -114,7 +114,7 @@ const config = {
                         ],
                     },
                 ],
-                copyright: `Copyright © ${new Date().getFullYear()} wgpu-html contributors. Built with Docusaurus.`,
+                copyright: `Copyright © ${new Date().getFullYear()} lui contributors. Built with Docusaurus.`,
             },
             prism: {
                 theme: prismThemes.github,
