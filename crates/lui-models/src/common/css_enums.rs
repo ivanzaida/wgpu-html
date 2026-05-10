@@ -2,7 +2,7 @@ use std::{fmt, str::FromStr};
 
 use crate::ArcStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CssLength {
   Px(f32),
   Percent(f32),
@@ -25,7 +25,7 @@ pub enum CssLength {
   Raw(ArcStr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CssMathExpr {
   Length(CssLength),
   Number(f32),
@@ -175,6 +175,19 @@ pub enum TextTransform {
   Lowercase,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerticalAlign {
+  Baseline,
+  Sub,
+  Super,
+  Top,
+  TextTop,
+  Middle,
+  Bottom,
+  TextBottom,
+  Length(CssLength),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WhiteSpace {
   Normal,
@@ -183,6 +196,13 @@ pub enum WhiteSpace {
   PreWrap,
   PreLine,
   BreakSpaces,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WordBreak {
+  Normal,
+  BreakAll,
+  KeepAll,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,6 +226,12 @@ pub enum ScrollbarWidth {
 pub enum ScrollbarColor {
   Auto,
   Custom { thumb: CssColor, track: CssColor },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextOverflow {
+  Clip,
+  Ellipsis,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -693,12 +719,23 @@ css_keyword_enum!(WhiteSpace {
   WhiteSpace::BreakSpaces => "break-spaces",
 });
 
+css_keyword_enum!(WordBreak {
+  WordBreak::Normal => "normal",
+  WordBreak::BreakAll => "break-all",
+  WordBreak::KeepAll => "keep-all",
+});
+
 css_keyword_enum!(Overflow {
   Overflow::Visible => "visible",
   Overflow::Hidden => "hidden",
   Overflow::Clip => "clip",
   Overflow::Scroll => "scroll",
   Overflow::Auto => "auto",
+});
+
+css_keyword_enum!(TextOverflow {
+  TextOverflow::Clip => "clip",
+  TextOverflow::Ellipsis => "ellipsis",
 });
 
 impl fmt::Display for ScrollbarWidth {

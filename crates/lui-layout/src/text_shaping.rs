@@ -4,7 +4,7 @@
 
 use lui_models::{
     common::css_enums::{
-        CssLength, FontWeight, FontStyle, TextTransform, WhiteSpace,
+        CssLength, FontWeight, FontStyle, TextTransform, WhiteSpace, WordBreak,
         Cursor, PointerEvents, Resize, UserSelect,
     },
     Style,
@@ -64,6 +64,28 @@ pub(crate) fn shape_text_run(
     let display_text: &str = match transformed.as_ref() {
         Some(s) => s.as_str(),
         None => &normalized,
+    };
+
+    // CSS `word-break: break-all`: insert U+200B between every
+    // character so the shaper treats every boundary as a break opportunity.
+    let break_all_buf;
+    if style_breaks_all(style) && display_text.len() > 1 {
+        let mut buf = String::with_capacity(display_text.len() * 2);
+        let mut chars = display_text.chars();
+        if let Some(first) = chars.next() {
+            buf.push(first);
+            for ch in chars {
+                buf.push('\u{200B}');
+                buf.push(ch);
+            }
+        }
+        break_all_buf = Some(buf);
+    } else {
+        break_all_buf = None;
+    }
+    let display_text: &str = match break_all_buf.as_ref() {
+        Some(s) => s.as_str(),
+        None => display_text,
     };
 
     // Family / weight / style come from the cascaded style. The text
@@ -244,7 +266,17 @@ pub(crate) fn style_wraps_text(style: &Style) -> bool {
             _ => {}
         }
     }
+    if let Some(mode) = style.deferred_longhands.get("overflow-wrap") {
+        match mode.trim().to_ascii_lowercase().as_str() {
+            "break-word" | "anywhere" => return true,
+            _ => {}
+        }
+    }
     !matches!(style_white_space(style), WhiteSpace::Nowrap | WhiteSpace::Pre)
+}
+
+pub(crate) fn style_breaks_all(style: &Style) -> bool {
+    matches!(style.word_break, Some(WordBreak::BreakAll))
 }
 
 pub(crate) fn normalize_text_for_style(text: &str, style: &Style, prev_space: Option<&mut bool>) -> String {
@@ -325,6 +357,7 @@ pub(crate) fn empty_box(origin_x: f32, origin_y: f32) -> LayoutBox {
         text_decorations: Vec::new(),
         overflow: OverflowAxes::visible(),
         resize: Resize::None,
+        text_overflow: None,
         opacity: 1.0,
         pointer_events: PointerEvents::Auto,
         user_select: UserSelect::Auto,
@@ -408,6 +441,7 @@ pub(crate) fn make_text_leaf(
         text_decorations: decorations,
         overflow: OverflowAxes::visible(),
         resize: Resize::None,
+        text_overflow: None,
         opacity: resolved_opacity(style),
         pointer_events: PointerEvents::Auto,
         user_select: resolved_user_select(style),

@@ -3515,6 +3515,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "lui-display-list"
+version = "0.1.0"
+
+[[package]]
 name = "lui-driver"
 version = "0.1.0"
 dependencies = [
@@ -3591,12 +3595,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "lui-render-api"
+version = "0.1.0"
+dependencies = [
+ "lui-display-list",
+]
+
+[[package]]
 name = "lui-renderer"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
  "image",
+ "lui-display-list",
  "lui-models",
+ "lui-render-api",
  "pollster",
  "wgpu 29.0.1",
 ]

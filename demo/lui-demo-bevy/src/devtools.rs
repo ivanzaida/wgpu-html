@@ -6,6 +6,7 @@ use bevy::{
     window::CursorMoved,
 };
 use lui_devtools::Devtools;
+use lui_renderer::RenderBackend;
 use lui_driver_bevy::{HtmlOverlay, logical_key_to_dom_key, key_code_to_dom_code};
 
 #[derive(Component)]
@@ -154,7 +155,7 @@ fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u3
         let mut borrow = cell.borrow_mut();
         if borrow.is_none() {
             let mut r = pollster::block_on(lui_renderer::Renderer::headless());
-            r.clear_color = lui_renderer::wgpu::Color { r: 0.12, g: 0.12, b: 0.14, a: 1.0 };
+            lui_renderer::RenderBackend::set_clear_color(&mut r, [0.12, 0.12, 0.14, 1.0]);
             let tc = lui_text::TextContext::new(lui_renderer::GLYPH_ATLAS_SIZE);
             *borrow = Some((r, tc));
         }
@@ -174,7 +175,9 @@ fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u3
         );
         list.finalize();
 
-        text_ctx.atlas.upload(&renderer.queue, renderer.glyph_atlas_texture());
+        text_ctx.atlas.flush_dirty(|rect, data| {
+            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        });
 
         let Ok(rgba) = renderer.render_to_rgba(&list, phys_w, phys_h) else { return };
 

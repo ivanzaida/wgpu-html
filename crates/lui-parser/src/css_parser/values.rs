@@ -548,6 +548,42 @@ pub(crate) fn parse_white_space(value: &str) -> Option<WhiteSpace> {
   value.parse().ok()
 }
 
+pub(crate) fn parse_word_break(value: &str) -> Option<WordBreak> {
+  let v = value.trim().to_ascii_lowercase();
+  match v.as_str() {
+    "normal" => Some(WordBreak::Normal),
+    "break-all" => Some(WordBreak::BreakAll),
+    "keep-all" => Some(WordBreak::KeepAll),
+    _ => None,
+  }
+}
+
+pub(crate) fn parse_vertical_align(value: &str) -> Option<VerticalAlign> {
+  let t = value.trim().to_ascii_lowercase();
+  match t.as_str() {
+    "baseline" => Some(VerticalAlign::Baseline),
+    "sub" => Some(VerticalAlign::Sub),
+    "super" => Some(VerticalAlign::Super),
+    "top" => Some(VerticalAlign::Top),
+    "text-top" => Some(VerticalAlign::TextTop),
+    "middle" => Some(VerticalAlign::Middle),
+    "bottom" => Some(VerticalAlign::Bottom),
+    "text-bottom" => Some(VerticalAlign::TextBottom),
+    _ => {
+      // Try length value
+      parse_css_length(&t).map(VerticalAlign::Length)
+    }
+  }
+}
+
+pub(crate) fn parse_text_overflow(value: &str) -> Option<TextOverflow> {
+  match value.trim().to_ascii_lowercase().as_str() {
+    "clip" => Some(TextOverflow::Clip),
+    "ellipsis" => Some(TextOverflow::Ellipsis),
+    _ => None,
+  }
+}
+
 pub(crate) fn parse_overflow(value: &str) -> Option<Overflow> {
   value.parse().ok()
 }

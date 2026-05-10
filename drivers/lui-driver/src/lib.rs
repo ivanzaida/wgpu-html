@@ -44,7 +44,7 @@ use std::{
 
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use lui::{
-  events as ev, interactivity, layout::{Cursor, LayoutBox}, renderer::{DisplayList, FrameOutcome, Rect, Renderer, GLYPH_ATLAS_SIZE},
+  events as ev, interactivity, layout::{Cursor, LayoutBox}, renderer::{DisplayList, FrameOutcome, RenderBackend, Rect, Renderer, GLYPH_ATLAS_SIZE},
   scroll::{
     clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at, translate_display_list_x
     , translate_display_list_y, viewport_to_document,
@@ -482,13 +482,8 @@ impl<D: Driver> Runtime<D> {
     if let Some(layout) = layout {
       lui::update_edit_scroll(tree, layout);
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
-      if let Some([r, g, b, a]) = layout.background {
-        self.renderer.clear_color = wgpu::Color {
-          r: r as f64,
-          g: g as f64,
-          b: b as f64,
-          a: a as f64,
-        };
+      if let Some(bg) = layout.background {
+        self.renderer.set_clear_color(bg);
       }
     } else {
       self.scroll_y = 0.0;
@@ -617,10 +612,9 @@ impl<D: Driver> Runtime<D> {
       self.profiling.draw_bars(&mut list, w as f32, h as f32);
     }
 
-    self
-      .text_ctx
-      .atlas
-      .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
+    self.text_ctx.atlas.flush_dirty(|rect, data| {
+      self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+    });
 
     let render_t0 = Instant::now();
     match self.renderer.render(&list) {
@@ -681,13 +675,8 @@ impl<D: Driver> Runtime<D> {
 
     if let Some(layout) = layout {
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
-      if let Some([r, g, b, a]) = layout.background {
-        self.renderer.clear_color = wgpu::Color {
-          r: r as f64,
-          g: g as f64,
-          b: b as f64,
-          a: a as f64,
-        };
+      if let Some(bg) = layout.background {
+        self.renderer.set_clear_color(bg);
       }
     } else {
       self.scroll_y = 0.0;
@@ -702,7 +691,9 @@ impl<D: Driver> Runtime<D> {
     self
       .text_ctx
       .atlas
-      .upload(&self.renderer.queue, self.renderer.glyph_atlas_texture());
+      .flush_dirty(|rect, data| {
+        self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+      });
   }
 
   /// Submit a pre-built [`DisplayList`] to the GPU and present.

@@ -305,6 +305,8 @@ fn overlay(dst: &mut Style, src: &Style) {
     text_decoration,
     text_transform,
     white_space,
+    vertical_align,
+    text_overflow,
     overflow,
     overflow_x,
     overflow_y,
@@ -482,6 +484,9 @@ pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {
     "text-decoration" => apply_text_decoration_shorthand(value, style),
     "text-transform" => style.text_transform = parse_text_transform(value),
     "white-space" => apply_white_space_property(value, style),
+    "word-break" => { style.word_break = parse_word_break(value); }
+    "vertical-align" => { style.vertical_align = parse_vertical_align(value); }
+    "text-overflow" => style.text_overflow = parse_text_overflow(value),
     "overflow" => apply_overflow_shorthand(value, style),
     "overflow-x" => style.overflow_x = parse_overflow(value),
     "overflow-y" => style.overflow_y = parse_overflow(value),

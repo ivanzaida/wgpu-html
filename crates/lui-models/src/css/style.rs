@@ -6,7 +6,8 @@ use crate::common::css_enums::{
   AlignContent, AlignItems, AlignSelf, BackgroundClip, BackgroundRepeat, BorderStyle, BoxSizing, CssColor, CssContent,
   CssImage, CssLength, Cursor, Display, FlexDirection, FlexWrap, FontStyle, FontWeight, GridAutoFlow, GridLine,
   GridTrackSize, JustifyContent, JustifyItems, JustifySelf, ListStylePosition, ListStyleType, Overflow, PointerEvents,
-  Position, Resize, ScrollbarColor, ScrollbarWidth, TextAlign, TextTransform, UserSelect, Visibility, WhiteSpace,
+  Position, Resize, ScrollbarColor, ScrollbarWidth, TextAlign, TextOverflow, TextTransform, UserSelect,
+  VerticalAlign, Visibility, WhiteSpace, WordBreak,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -116,6 +117,12 @@ pub struct Style {
   pub text_transform: Option<TextTransform>,
   // css property: white-space
   pub white_space: Option<WhiteSpace>,
+  // css property: vertical-align
+  pub vertical_align: Option<VerticalAlign>,
+  // css property: word-break
+  pub word_break: Option<WordBreak>,
+  // css property: text-overflow
+  pub text_overflow: Option<TextOverflow>,
   pub overflow: Option<Overflow>,
   // css property: overflow-x
   pub overflow_x: Option<Overflow>,

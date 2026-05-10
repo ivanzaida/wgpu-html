@@ -44,7 +44,7 @@ use crate::{
     layout_block, line_height_px, make_text_leaf, normalize_text_for_style,
     parse_family_list, resolve_text_decorations,
     split_collapsed_first_word_prefix_and_tail,
-    style_collapses_whitespace, style_wraps_text,
+    style_collapses_whitespace, style_wraps_text, style_breaks_all,
     trim_collapsed_whitespace_edges,
 };
 
@@ -322,6 +322,7 @@ fn layout_inline_subtree(
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     resize: Resize::None,
+    text_overflow: None,
     opacity: resolved_opacity(&node.style),
     pointer_events: resolved_pointer_events(&node.style),
     user_select: resolved_user_select(&node.style),
@@ -521,6 +522,7 @@ fn layout_atomic_inline_subtree(
       text_decorations: Vec::new(),
       overflow: OverflowAxes::visible(),
       resize: Resize::None,
+      text_overflow: None,
       opacity: resolved_opacity(style),
       pointer_events: resolved_pointer_events(style),
       user_select: resolved_user_select(style),
@@ -987,7 +989,20 @@ fn collect_paragraph_spans(
       Some(t) => t,
       None => normalized,
     };
-    push_paragraph_span(node, display, plan, ctx, opacity);
+    if style_breaks_all(&node.style) && display.len() > 1 {
+      let mut buf = String::with_capacity(display.len() * 2);
+      let mut cs = display.chars();
+      if let Some(first) = cs.next() {
+        buf.push(first);
+        for ch in cs {
+          buf.push('\u{200B}');
+          buf.push(ch);
+        }
+      }
+      push_paragraph_span(node, buf, plan, ctx, opacity);
+    } else {
+      push_paragraph_span(node, display, plan, ctx, opacity);
+    }
     return;
   }
 
@@ -1051,6 +1066,7 @@ fn make_anon_bg_box(rect: Rect, color: Color, opacity: f32) -> LayoutBox {
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     resize: Resize::None,
+    text_overflow: None,
     opacity: opacity.clamp(0.0, 1.0),
     pointer_events: PointerEvents::Auto,
     user_select: UserSelect::Auto,
@@ -1287,6 +1303,7 @@ fn layout_inline_paragraph(
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
     resize: Resize::None,
+    text_overflow: None,
     opacity: resolved_opacity(&node.style),
     pointer_events: PointerEvents::Auto,
     user_select: resolved_user_select(&node.style),

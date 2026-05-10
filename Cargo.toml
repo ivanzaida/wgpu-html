@@ -3,11 +3,13 @@ resolver = "2"
 members = [
     "crates/lui",
     "crates/lui-devtools",
+    "crates/lui-display-list",
     "crates/lui-events",
     "crates/lui-assets",
     "crates/lui-layout",
     "crates/lui-models",
     "crates/lui-parser",
+    "crates/lui-render-api",
     "crates/lui-renderer",
     "crates/lui-style",
     "crates/lui-text",
@@ -29,6 +31,8 @@ lui-events = { path = "crates/lui-events" }
 lui-layout = { path = "crates/lui-layout" }
 lui-models = { path = "crates/lui-models" }
 lui-parser = { path = "crates/lui-parser" }
+lui-display-list = { path = "crates/lui-display-list" }
+lui-render-api = { path = "crates/lui-render-api" }
 lui-renderer = { path = "crates/lui-renderer" }
 lui-style = { path = "crates/lui-style" }
 lui-text = { path = "crates/lui-text" }

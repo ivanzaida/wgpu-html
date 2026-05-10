@@ -63,6 +63,7 @@ fn synthetic_text_layout() -> LayoutBox {
     text_decorations: Vec::new(),
     overflow: lui_layout::OverflowAxes::visible(),
     resize: lui_layout::Resize::None,
+    text_overflow: None,
     opacity: 1.0,
     pointer_events: lui_models::common::PointerEvents::Auto,
     user_select: lui_models::common::UserSelect::Auto,

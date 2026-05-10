@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use lui_assets::ImageData;
-use lui_models::common::css_enums::{BorderStyle, Cursor, Overflow, PointerEvents, Resize, UserSelect};
+use lui_models::common::css_enums::{BorderStyle, Cursor, Overflow, PointerEvents, Resize, TextOverflow, UserSelect};
 use lui_text::{ShapedRun, TextContext};
 use lui_tree::{Node, ScrollOffset, TextCursor, Tree};
 
@@ -188,6 +188,7 @@ pub struct LayoutBox {
   /// hit testing to constrain descendants on the matching axis.
   pub overflow: OverflowAxes,
   pub resize: Resize,
+  pub text_overflow: Option<TextOverflow>,
   /// Computed CSS opacity for this element. Paint multiplies this
   /// into the inherited opacity for the whole subtree.
   pub opacity: f32,

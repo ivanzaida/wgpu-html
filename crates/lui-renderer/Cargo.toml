@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+lui-display-list.workspace = true
+lui-render-api.workspace = true
 lui-models.workspace = true
 wgpu.workspace             = true
 pollster.workspace         = true

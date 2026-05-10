@@ -376,6 +376,9 @@ style_props! {
     text_decoration => "text-decoration" ,inherited;
     text_transform => "text-transform" ,inherited;
     white_space => "white-space" ,inherited;
+    word_break => "word-break" ,inherited;
+    vertical_align => "vertical-align";
+    text_overflow => "text-overflow";
 
     // Visibility / cursor (also inherit) -----------------------------
     visibility => "visibility" ,inherited;

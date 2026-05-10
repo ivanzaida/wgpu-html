@@ -57,53 +57,39 @@ Driver (Runtime<B: RenderBackend>)
 
 ## Phases
 
-### Phase 0: Preparation (1 day)
+### Phase 0: Preparation (1 day) ✓
 
-- [ ] Change `wgpu::Backends::DX12` to configurable (immediate win, one-line)
+- [x] Change `wgpu::Backends::DX12` to `Backends::PRIMARY`
 - [ ] Audit all `pub use wgpu` re-exports and wgpu type leaks
 
-### Phase 1: Extract DisplayList crate (1 day)
+### Phase 1: Extract DisplayList crate (1 day) ✓
 
-- [ ] Create `lui-display-list` crate
-- [ ] Move from `lui-renderer/src/paint.rs`:
+- [x] Create `lui-display-list` crate
+- [x] Move from `lui-renderer/src/paint.rs`:
   - `DisplayList`, `Quad`, `GlyphQuad`, `ImageQuad`, `ClipRange`
   - `DisplayCommand`, `DisplayCommandKind`
   - `Rect`, `Color`, `FrameOutcome`
-- [ ] Re-export from `lui-renderer` for backward compat
-- [ ] Update all imports across the workspace
+- [x] Re-export from `lui-renderer` for backward compat
+- [x] Update all imports across the workspace
 
-### Phase 2: Define RenderBackend trait (2-3 days)
+### Phase 2: Define RenderBackend trait (2-3 days) ✓
 
-- [ ] Create `lui-render-api` crate
-- [ ] Define trait:
+- [x] Create `lui-render-api` crate
+- [x] Define `RenderBackend` trait (resize, set_clear_color, upload_atlas_region,
+      render, render_to_rgba, capture_to, capture_next_frame_to, glyph_atlas_size)
+- [x] Atlas upload folded into `RenderBackend` (no separate `AtlasUploader`)
+- [x] Define `RenderError` enum
 
-```rust
-pub trait RenderBackend {
-    fn resize(&mut self, width: u32, height: u32);
-    fn set_clear_color(&mut self, color: [f32; 4]);
-    fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]);
-    fn render(&mut self, list: &DisplayList) -> FrameOutcome;
-    fn render_to_rgba(
-        &mut self, list: &DisplayList, w: u32, h: u32,
-    ) -> Result<Vec<u8>, RenderError>;
-    fn capture_to(
-        &mut self, list: &DisplayList, w: u32, h: u32, path: &Path,
-    ) -> Result<(), RenderError>;
-}
-```
+### Phase 3: Refactor wgpu renderer (2-3 days) ✓
 
-- [ ] Define `AtlasUploader` callback trait or fold into `RenderBackend`
-- [ ] Define `RenderError` enum
-
-### Phase 3: Refactor wgpu renderer (2-3 days)
-
-- [ ] `WgpuRenderer: RenderBackend`
-- [ ] Move atlas upload into renderer (remove `glyph_atlas_texture()` from public API)
-- [ ] Replace `atlas.upload(&queue, &texture)` in drivers with
+- [x] `Renderer: RenderBackend` impl
+- [x] Move atlas upload into renderer via `upload_atlas_region` trait method
+- [x] Replace `atlas.upload(&queue, &texture)` in all drivers with
       `atlas.flush_dirty(|r, data| backend.upload_atlas_region(...))`
-- [ ] Remove `pub use wgpu` re-export
-- [ ] Convert `clear_color` from `wgpu::Color` to `[f32; 4]`
-- [ ] All existing tests/drivers keep working
+- [x] Convert `clear_color` assignments to `set_clear_color([f32; 4])`
+- [ ] Remove `pub use wgpu` re-export (deferred: still needed for Driver trait's rwh bounds)
+- [ ] Remove `glyph_atlas_texture()` from public API (deferred: no callers remain, can remove anytime)
+- [x] All existing tests/drivers keep working
 
 ### Phase 4: Genericize Driver (2-3 days)
 

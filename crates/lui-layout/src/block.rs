@@ -542,6 +542,7 @@ pub(crate) fn layout_block(
     text_decorations: Vec::new(),
     overflow: effective_overflow(style),
     resize: style.resize.unwrap_or(Resize::None),
+    text_overflow: style.text_overflow,
     opacity: resolved_opacity(style),
     pointer_events: resolved_pointer_events(style),
     user_select: resolved_user_select(style),

@@ -18,7 +18,11 @@ mod screenshot;
 
 pub use glyph_pipeline::GlyphPipeline;
 pub use image_pipeline::ImagePipeline;
-pub use paint::{Color, DisplayCommand, DisplayCommandKind, DisplayList, GlyphQuad, ImageQuad, Quad, Rect};
+pub use lui_display_list::{
+  Color, ClipRange, CornerRadii, DisplayCommand, DisplayCommandKind, DisplayList,
+  FrameOutcome, GlyphQuad, ImageQuad, Pattern, Quad, Rect, StrokeWidths,
+};
+pub use lui_render_api::{RenderBackend, RenderError};
 pub use quad_pipeline::QuadPipeline;
 pub use screenshot::ScreenshotError;
 
@@ -52,7 +56,7 @@ impl Renderer {
     W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
   {
     let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
-    idesc.backends = wgpu::Backends::DX12;
+    idesc.backends = wgpu::Backends::PRIMARY;
     let instance = wgpu::Instance::new(idesc);
 
     let surface = instance.create_surface(window).expect("failed to create surface");
@@ -313,7 +317,7 @@ impl Renderer {
   pub fn capture_rect_to(
     &mut self,
     list: &DisplayList,
-    region: paint::Rect,
+    region: Rect,
     path: impl AsRef<std::path::Path>,
   ) -> Result<(), ScreenshotError> {
     let width = region.w.max(1.0).ceil() as u32;
@@ -674,11 +678,74 @@ impl Renderer {
   }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum FrameOutcome {
-  Presented,
-  /// Surface lost or outdated; caller should resize/reconfigure.
-  Reconfigure,
-  /// Skipped (timeout/occluded/validation); just try again next frame.
-  Skipped,
+impl RenderBackend for Renderer {
+  fn resize(&mut self, width: u32, height: u32) {
+    self.resize(width, height);
+  }
+
+  fn set_clear_color(&mut self, color: [f32; 4]) {
+    self.clear_color = wgpu::Color {
+      r: color[0] as f64,
+      g: color[1] as f64,
+      b: color[2] as f64,
+      a: color[3] as f64,
+    };
+  }
+
+  fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]) {
+    self.queue.write_texture(
+      wgpu::TexelCopyTextureInfo {
+        texture: self.glyphs.atlas_texture(),
+        mip_level: 0,
+        origin: wgpu::Origin3d { x, y, z: 0 },
+        aspect: wgpu::TextureAspect::All,
+      },
+      data,
+      wgpu::TexelCopyBufferLayout {
+        offset: 0,
+        bytes_per_row: Some(w),
+        rows_per_image: Some(h),
+      },
+      wgpu::Extent3d {
+        width: w,
+        height: h,
+        depth_or_array_layers: 1,
+      },
+    );
+  }
+
+  fn render(&mut self, list: &DisplayList) -> FrameOutcome {
+    self.render(list)
+  }
+
+  fn render_to_rgba(
+    &mut self,
+    list: &DisplayList,
+    width: u32,
+    height: u32,
+  ) -> Result<Vec<u8>, RenderError> {
+    self
+      .render_to_rgba(list, width, height)
+      .map_err(|e| RenderError::Backend(Box::new(e)))
+  }
+
+  fn capture_to(
+    &mut self,
+    list: &DisplayList,
+    width: u32,
+    height: u32,
+    path: &std::path::Path,
+  ) -> Result<(), RenderError> {
+    self
+      .capture_to(list, width, height, path)
+      .map_err(|e| RenderError::Backend(Box::new(e)))
+  }
+
+  fn capture_next_frame_to(&mut self, path: PathBuf) {
+    self.pending_capture = Some(path);
+  }
+
+  fn glyph_atlas_size(&self) -> u32 {
+    self.glyphs.atlas_size()
+  }
 }
