@@ -90,6 +90,8 @@ pub struct GlyphQuad {
   pub color: Color,
   pub uv_min: [f32; 2],
   pub uv_max: [f32; 2],
+  pub transform: [f32; 4],
+  pub transform_origin: [f32; 2],
 }
 
 /// One image quad. The renderer creates a GPU texture from the
@@ -465,6 +467,8 @@ impl DisplayList {
       color,
       uv_min,
       uv_max,
+      transform: [1.0, 0.0, 0.0, 1.0],
+      transform_origin: [rect.w * 0.5, rect.h * 0.5],
     });
     self.commands.push(DisplayCommand {
       kind: DisplayCommandKind::Glyph,

@@ -34,6 +34,9 @@ struct GlyphInstance {
   color: [f32; 4],
   uv_min: [f32; 2],
   uv_max: [f32; 2],
+  transform: [f32; 4],
+  transform_origin: [f32; 2],
+  _pad: [f32; 2],
 }
 
 impl From<&GlyphQuad> for GlyphInstance {
@@ -44,6 +47,9 @@ impl From<&GlyphQuad> for GlyphInstance {
       color: g.color,
       uv_min: g.uv_min,
       uv_max: g.uv_max,
+      transform: g.transform,
+      transform_origin: g.transform_origin,
+      _pad: [0.0; 2],
     }
   }
 }
@@ -207,6 +213,16 @@ impl GlyphPipeline {
                 format: wgpu::VertexFormat::Float32x2,
                 offset: 40,
                 shader_location: 5,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 48,
+                shader_location: 6,
+              },
+              wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 64,
+                shader_location: 7,
               },
             ],
           },

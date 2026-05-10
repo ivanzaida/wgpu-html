@@ -50,12 +50,14 @@ fn sd_rounded_box(p: vec2<f32>, half_size: vec2<f32>, r: vec2<f32>) -> f32 {
 }
 
 struct VsIn {
-    @location(0) corner: vec2<f32>, // unit-quad corner in [0,1]
-    @location(1) pos: vec2<f32>,    // top-left in physical pixels
+    @location(0) corner: vec2<f32>,    // unit-quad corner in [0,1]
+    @location(1) pos: vec2<f32>,       // top-left in physical pixels
     @location(2) size: vec2<f32>,
     @location(3) color: vec4<f32>,
     @location(4) uv_min: vec2<f32>,
     @location(5) uv_max: vec2<f32>,
+    @location(6) transform: vec4<f32>, // 2x2 matrix: a, b, c, d
+    @location(7) xf_origin: vec2<f32>, // transform origin relative to rect top-left
 }
 
 struct VsOut {
@@ -66,7 +68,13 @@ struct VsOut {
 
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
-    let world = in.pos + in.corner * in.size;
+    let local_px = in.corner * in.size;
+    let centered = local_px - in.xf_origin;
+    let rotated = vec2<f32>(
+        in.transform.x * centered.x + in.transform.z * centered.y,
+        in.transform.y * centered.x + in.transform.w * centered.y,
+    );
+    let world = in.pos + rotated + in.xf_origin;
     let viewport = globals.viewport.xy;
     let ndc_x = (world.x / viewport.x) * 2.0 - 1.0;
     let ndc_y = 1.0 - (world.y / viewport.y) * 2.0;

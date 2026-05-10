@@ -459,6 +459,145 @@ fn empty_non_required_is_valid() {
 }
 
 #[test]
+fn invalid_step_violation() {
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("bad-step".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Number),
+      value: Some("7".into()),
+      min: Some("0".into()),
+      step: Some("5".into()),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("ok-step".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Number),
+      value: Some("10".into()),
+      min: Some("0".into()),
+      step: Some("5".into()),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let inv = tree.query_selector(":invalid").unwrap();
+  assert_eq!(inv.element.id(), Some("bad-step"), "non-multiple should be :invalid");
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("ok-step"), "multiple of step should be :valid");
+}
+
+#[test]
+fn textarea_required_empty_is_invalid() {
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Textarea {
+      id: Some("req-empty".into()),
+      required: Some(true),
+      ..m::Textarea::default()
+    }),
+    Node::new(m::Textarea {
+      id: Some("req-filled".into()),
+      required: Some(true),
+      value: Some("hello".into()),
+      ..m::Textarea::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let inv = tree.query_selector(":invalid").unwrap();
+  assert_eq!(inv.element.id(), Some("req-empty"), "empty required textarea should be :invalid");
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("req-filled"), "filled required textarea should be :valid");
+}
+
+#[test]
+fn combined_required_and_minlength() {
+  // Required AND below minlength → invalid
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("bad".into()),
+      required: Some(true),
+      value: Some("ab".into()),
+      minlength: Some(5),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("ok".into()),
+      required: Some(true),
+      value: Some("abcde".into()),
+      minlength: Some(5),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let inv = tree.query_selector(":invalid").unwrap();
+  assert_eq!(inv.element.id(), Some("bad"), "required + below minlength → invalid");
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("ok"), "required + meeting minlength → valid");
+}
+
+#[test]
+fn body_is_not_valid_or_invalid() {
+  let body = Node::new(m::Body::default()).with_children(vec![]);
+  let mut tree = Tree::new(body);
+  assert!(tree.query_selector(":valid").is_none(), "body should not match :valid");
+  assert!(tree.query_selector(":invalid").is_none(), "body should not match :invalid");
+}
+
+#[test]
+fn non_input_elements_do_not_match_valid_invalid() {
+  // Divs, spans, paragraphs — should not match :valid/:invalid
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Div::default()),
+    Node::new(m::P::default()),
+  ]);
+  let mut tree = Tree::new(body);
+  assert!(tree.query_selector(":valid").is_none(), "non-form elements should not match :valid");
+  assert!(tree.query_selector(":invalid").is_none(), "non-form elements should not match :invalid");
+}
+
+#[test]
+fn number_input_min_max_applies_type_specific() {
+  // min/max only applied for Number and Range types
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("text-below".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Text),
+      value: Some("3".into()),
+      min: Some("5".into()),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("num-below".into()),
+      r#type: Some(lui_models::common::html_enums::InputType::Number),
+      value: Some("3".into()),
+      min: Some("5".into()),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  // Text input with value "3" and min=5 — min/max don't apply to text type
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("text-below"), "min/max should not apply to text inputs");
+  // Number input with value "3" and min=5 — should be invalid
+  let inv = tree.query_selector(":invalid");
+  assert!(inv.is_some(), "number input below min should be :invalid");
+}
+
+#[test]
+fn select_element_is_never_invalid_currently() {
+  // <select> is a form control but we don't implement validation for it yet
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Select {
+      id: Some("sel".into()),
+      required: Some(true),
+      ..m::Select::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  // Select with required is currently always valid (no children checking)
+  let val = tree.query_selector(":valid").unwrap();
+  assert_eq!(val.element.id(), Some("sel"), "select is always valid for now");
+}
+
+#[test]
 fn read_only_and_read_write_pseudo_classes() {
   let body = Node::new(m::Body::default()).with_children(vec![
     Node::new(m::Input {

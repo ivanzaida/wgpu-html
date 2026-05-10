@@ -33,10 +33,13 @@ impl PaintTransform {
   }
 
   fn set_on_quad(&self, q: &mut lui_renderer_wgpu::Quad) {
-    if self.has_rotation() {
-      q.transform = self.matrix_2x2;
-      q.transform_origin = [self.origin_x - q.rect.x, self.origin_y - q.rect.y];
-    }
+    q.transform = self.matrix_2x2;
+    q.transform_origin = [self.origin_x - q.rect.x, self.origin_y - q.rect.y];
+  }
+
+  fn set_on_glyph(&self, g: &mut lui_renderer_wgpu::GlyphQuad) {
+    g.transform = self.matrix_2x2;
+    g.transform_origin = [self.origin_x - g.rect.x, self.origin_y - g.rect.y];
   }
 }
 fn apply_opacity(mut color: lui_renderer_wgpu::Color, opacity: f32) -> lui_renderer_wgpu::Color {
@@ -326,6 +329,8 @@ fn paint_box_in_clip(
     foreground: b.selection_fg.unwrap_or(selection_colors.foreground),
   };
   let opacity = (parent_opacity * b.opacity).clamp(0.0, 1.0);
+  let quads_before = out.quads.len();
+  let glyphs_before = out.glyphs.len();
   let rect = to_renderer_rect_xy(b.border_rect, paint_offset_x, paint_offset_y);
   let (rh, rv) = corner_radii(b);
   let rounded = has_any_radius(&rh) || has_any_radius(&rv);
@@ -351,9 +356,6 @@ fn paint_box_in_clip(
         out.push_quad_rounded_ellipse(bg, color, bg_h, bg_v);
       } else {
         out.push_quad(bg, color);
-      }
-      if let Some(q) = out.last_quad_mut() {
-        paint_xform.set_on_quad(q);
       }
     }
   }
@@ -651,6 +653,16 @@ fn paint_box_in_clip(
   let scroll_y = element_scroll_y(b, path, scroll_offsets);
   let child_offset_x = paint_offset_x - scroll_x;
   let child_offset_y = paint_offset_y - scroll_y;
+
+  // Apply transform to all quads/glyphs emitted by this box (not children).
+  if paint_xform.has_rotation() {
+    for q in &mut out.quads[quads_before..] {
+      paint_xform.set_on_quad(q);
+    }
+    for g in &mut out.glyphs[glyphs_before..] {
+      paint_xform.set_on_glyph(g);
+    }
+  }
 
   // Sort children by CSS z-index for paint order.
   let mut child_order: Vec<usize> = (0..b.children.len()).collect();
