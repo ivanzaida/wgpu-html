@@ -77,8 +77,10 @@ Legend: **Parsed** = CSS parser recognizes the property.
 - Paint: rendered as solid. Only `solid`, `dashed`, `dotted` have distinct rendering.
 
 ### Transform-aware hit-testing
-- Pointer events ignore transforms. Clicking a rotated/scaled element
-  uses the original untransformed rect for hit detection.
+- ✅ Implemented. Inverse transform applied to pointer coordinates for
+  correct picking of rotated/scaled elements. Children of transformed
+  parents also use inverse-transformed coordinates.
+- `Transform2D::apply_inverse()` added for hit-test use.
 
 ## Implemented
 

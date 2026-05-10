@@ -12,6 +12,20 @@ use lui_tree::ScrollOffset;
 
 use crate::{LayoutBox, Rect};
 
+/// If `b` has a CSS transform, apply the inverse to `(x, y)` so
+/// hit-testing uses the element's untransformed local coordinates.
+fn untransform_point(b: &LayoutBox, x: f32, y: f32) -> (f32, f32) {
+  if let Some(ref t) = b.transform {
+    // Translate origin before inverse (transform is relative to origin)
+    let ox = b.border_rect.x + b.transform_origin.0;
+    let oy = b.border_rect.y + b.transform_origin.1;
+    let (lx, ly) = t.apply_inverse(x - ox, y - oy);
+    (lx + ox, ly + oy)
+  } else {
+    (x, y)
+  }
+}
+
 /// Axis-aligned padding box of `b` in physical pixels.
 fn padding_box_rect(b: &LayoutBox) -> Rect {
   Rect::new(
@@ -98,19 +112,28 @@ pub(crate) fn collect_hit_path(b: &LayoutBox, x: f32, y: f32, active_clip: Optio
   }
 
   let next_clip = overflow_hit_clip(b, active_clip);
+
+  // If this element has a transform, inverse-transform the point
+  // for children — they're laid out in the local coordinate space.
+  let (child_x, child_y) = if b.transform.is_some() {
+    untransform_point(b, x, y)
+  } else {
+    (x, y)
+  };
+
   for (i, child) in b.children.iter().enumerate().rev() {
-    if let Some(mut path) = collect_hit_path(child, x, y, next_clip) {
+    if let Some(mut path) = collect_hit_path(child, child_x, child_y, next_clip) {
       path.insert(0, i);
       return Some(path);
     }
   }
 
-  // pointer-events: none — the element itself is invisible to
-  // hit-testing but children with `auto` can still be hit.
   if b.pointer_events == PointerEvents::None {
     return None;
   }
-  b.border_rect.contains(x, y).then(Vec::new)
+  // For the element itself, also apply inverse transform.
+  let (lx, ly) = untransform_point(b, x, y);
+  b.border_rect.contains(lx, ly).then(Vec::new)
 }
 
 /// Scroll-aware variant of [`collect_hit_path`].  For each element
@@ -160,6 +183,15 @@ pub(crate) fn collect_hit_path_scrolled(
 
   let child_x = x + own_scroll_x;
   let child_y = y + own_scroll_y;
+
+  // If this element has a transform, inverse-transform for children.
+  let (child_x, child_y) = if b.transform.is_some() {
+    let (lx, ly) = untransform_point(b, child_x, child_y);
+    (lx, ly)
+  } else {
+    (child_x, child_y)
+  };
+
   let child_clip = if own_scroll_x != 0.0 || own_scroll_y != 0.0 {
     next_clip.map(|c| Rect::new(c.x + own_scroll_x, c.y + own_scroll_y, c.w, c.h))
   } else {
@@ -178,7 +210,8 @@ pub(crate) fn collect_hit_path_scrolled(
   if b.pointer_events == PointerEvents::None {
     return None;
   }
-  if b.border_rect.contains(x, y) {
+  let (lx, ly) = untransform_point(b, x, y);
+  if b.border_rect.contains(lx, ly) {
     Some(path.clone())
   } else {
     None

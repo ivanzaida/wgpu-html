@@ -1,5 +1,6 @@
 use super::helpers::synthetic_text_layout;
 use crate::*;
+use crate::hit_test::collect_hit_path;
 
 // ---------------------------------------------------------------------------
 // Hit testing
@@ -120,4 +121,35 @@ fn hit_text_cursor_maps_point_to_glyph_boundary() {
 fn hit_text_cursor_outside_returns_none() {
   let lay = synthetic_text_layout();
   assert!(lay.hit_text_cursor((200.0, 24.0)).is_none());
+}
+
+// ── Transform-aware hit-testing ─────────────────────────────────────
+
+#[test]
+fn hit_path_uses_transform_inverse() {
+  // A 100×50 div at (200, 100), rotated 90° clockwise.
+  // After 90° rotation around its top-left, the visual box spans
+  // from x=200 to x=250 (the original Y becomes X), and y=100 down.
+  let r = Rect::new(200.0, 100.0, 100.0, 50.0);
+  let rot = crate::transform::Transform2D::rotate(std::f32::consts::FRAC_PI_2);
+  let bx = LayoutBox {
+    margin_rect: r,
+    border_rect: r,
+    content_rect: r,
+    transform: Some(rot),
+    transform_origin: (0.0, 0.0),
+    ..synthetic_text_layout()
+  };
+
+  // The center of the original rect is (250, 125).
+  // After 90° CW rotation around top-left (200, 100):
+  // (50, 25) in local → (-25, 50) + (200, 100) = (175, 150)
+  // A point at (175, 150) should be inside the rotated rect.
+  let path = collect_hit_path(&bx, 175.0, 150.0, None);
+  assert!(path.is_some(), "point inside rotated rect should hit");
+
+  // A point far outside (e.g. the original untransformed rect center
+  // but NOT in the rotated area) should NOT hit.
+  let path = collect_hit_path(&bx, 250.0, 125.0, None);
+  assert!(path.is_none(), "point at original center but outside rotated area should miss");
 }

@@ -231,7 +231,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let outer_r = pick_radius(in.local, in.radii_h, in.radii_v);
     let outer_dist = sd_rounded_box(in.local, in.half_size, outer_r);
 
-    let aa = max(fwidth(outer_dist), 0.001);
+    let fw = length(vec2<f32>(fwidth(in.local.x), fwidth(in.local.y)));
+    let aa = max(fw * 0.7, 0.001);
     let max_stroke = max(max(in.stroke.x, in.stroke.y), max(in.stroke.z, in.stroke.w));
 
     if (max_stroke <= 0.0) {
