@@ -9,8 +9,8 @@ members = [
     "crates/lui-layout",
     "crates/lui-models",
     "crates/lui-parser",
-    "crates/lui-render-api",
-    "renderers/lui-renderer",
+    "renderers/lui-render-api",
+    "renderers/lui-renderer-wgpu",
     "crates/lui-style",
     "crates/lui-text",
     "crates/lui-tree",
@@ -32,8 +32,8 @@ lui-layout = { path = "crates/lui-layout" }
 lui-models = { path = "crates/lui-models" }
 lui-parser = { path = "crates/lui-parser" }
 lui-display-list = { path = "crates/lui-display-list" }
-lui-render-api = { path = "crates/lui-render-api" }
-lui-renderer = { path = "renderers/lui-renderer" }
+lui-render-api = { path = "renderers/lui-render-api" }
+lui-renderer-wgpu = { path = "renderers/lui-renderer-wgpu" }
 lui-style = { path = "crates/lui-style" }
 lui-text = { path = "crates/lui-text" }
 lui-tree = { path = "crates/lui-tree" }
@@ -68,7 +68,7 @@ opt-level = 2
 opt-level = 2
 [profile.dev.package.lui]
 opt-level = 2
-[profile.dev.package.lui-renderer]
+[profile.dev.package.lui-renderer-wgpu]
 opt-level = 2
 [profile.dev.package.cosmic-text]
 opt-level = 2

@@ -32,7 +32,7 @@ use lui::{
   renderer::{DisplayList, Rect},
 };
 use lui_driver::{Driver, Runtime};
-use lui_renderer::Renderer;
+use lui_renderer_wgpu::Renderer;
 use lui_tree::{Modifier, MouseButton, Tree};
 
 // ── Driver ──────────────────────────────────────────────────────────────────

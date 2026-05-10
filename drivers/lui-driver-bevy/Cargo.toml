@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 lui.workspace       = true
 lui-driver           = { path = "../lui-driver" }
-lui-renderer         = { path = "../../renderers/lui-renderer" }
+lui-renderer-wgpu    = { path = "../../renderers/lui-renderer-wgpu" }
 lui-text             = { path = "../../crates/lui-text" }
 lui-tree             = { path = "../../crates/lui-tree" }
 lui-parser           = { path = "../../crates/lui-parser" }

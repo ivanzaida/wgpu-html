@@ -1,7 +1,7 @@
 use lui_layout::LayoutBox;
 use lui_models::common::css_enums::*;
 use lui_models::{ArcStr, Div, Span};
-use lui_renderer::{DisplayList, Rect};
+use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_style::{CascadedNode, CascadedTree};
 use lui_text::TextContext;
 use lui_tree::date;

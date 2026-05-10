@@ -9,7 +9,7 @@ pub use lui_events as events;
 pub use lui_layout as layout;
 pub use lui_models as models;
 pub use lui_parser as parser;
-pub use lui_renderer as renderer;
+pub use lui_renderer_wgpu as renderer;
 pub use lui_style as style;
 pub use lui_text as text;
 pub use lui_tree as tree;
@@ -22,7 +22,7 @@ pub mod paint;
 pub mod scroll;
 pub use paint::{paint_tree, paint_tree_with_text};
 use lui_layout::{LayoutBox, UserSelect};
-use lui_renderer::{DisplayList, Renderer, ScreenshotError};
+use lui_renderer_wgpu::{DisplayList, Renderer, ScreenshotError};
 use lui_style::MediaContext;
 use lui_text::TextContext;
 use lui_tree::{InteractionSnapshot, TextCursor, TextSelection, Tree};
@@ -704,7 +704,7 @@ pub fn screenshot_node_to(
     return Err(NodeScreenshotError::EmptyRect);
   }
 
-  let region = lui_renderer::Rect::new(r.x, r.y, r.w, r.h);
+  let region = lui_renderer_wgpu::Rect::new(r.x, r.y, r.w, r.h);
   renderer.capture_rect_to(&list, region, out_path)?;
   Ok(())
 }

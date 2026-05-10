@@ -20,7 +20,7 @@ use bevy::{
     window::CursorMoved,
 };
 use lui::interactivity;
-use lui_renderer::{RenderBackend, Renderer};
+use lui_renderer_wgpu::{RenderBackend, Renderer};
 use lui_text::TextContext;
 use lui_tree::{MouseButton as HtmlMouseButton, Modifier, Node as HtmlNode, Tree};
 
@@ -32,7 +32,7 @@ impl Plugin for LuiPlugin {
     fn build(&self, app: &mut App) {
         let mut renderer = pollster::block_on(Renderer::headless());
         renderer.set_clear_color([0.0, 0.0, 0.0, 0.0]);
-        let text_ctx = TextContext::new(lui_renderer::GLYPH_ATLAS_SIZE);
+        let text_ctx = TextContext::new(lui_renderer_wgpu::GLYPH_ATLAS_SIZE);
 
         let image = Image::new_fill(
             Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },

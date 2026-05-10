@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use lui_layout::LayoutBox;
-use lui_renderer::{DisplayList, Rect};
+use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_text::TextContext;
 use lui_tree::{Node, ScrollOffset, Tree};
 

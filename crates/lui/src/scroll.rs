@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use lui_layout::LayoutBox;
-use lui_renderer::{DisplayList, Rect};
+use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_tree::{ScrollOffset, Tree};
 
 // ── Geometry ────────────────────────────────────────────────────────────────

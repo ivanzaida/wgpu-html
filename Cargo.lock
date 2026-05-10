@@ -3454,7 +3454,7 @@ dependencies = [
  "lui-layout",
  "lui-models",
  "lui-parser",
- "lui-renderer",
+ "lui-renderer-wgpu",
  "lui-style",
  "lui-text",
  "lui-tree",
@@ -3496,7 +3496,7 @@ dependencies = [
  "lui",
  "lui-devtools",
  "lui-driver-bevy",
- "lui-renderer",
+ "lui-renderer-wgpu",
  "lui-text",
  "pollster",
 ]
@@ -3536,7 +3536,7 @@ dependencies = [
  "lui",
  "lui-driver",
  "lui-parser",
- "lui-renderer",
+ "lui-renderer-wgpu",
  "lui-text",
  "lui-tree",
  "pollster",
@@ -3549,7 +3549,7 @@ dependencies = [
  "egui",
  "lui",
  "lui-driver",
- "lui-renderer",
+ "lui-renderer-wgpu",
  "lui-tree",
  "pollster",
  "wgpu 29.0.1",
@@ -3562,7 +3562,7 @@ dependencies = [
  "arboard",
  "lui",
  "lui-driver",
- "lui-renderer",
+ "lui-renderer-wgpu",
  "lui-tree",
  "pollster",
  "winit",
@@ -3605,7 +3605,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lui-renderer"
+name = "lui-renderer-wgpu"
 version = "0.1.0"
 dependencies = [
  "bytemuck",

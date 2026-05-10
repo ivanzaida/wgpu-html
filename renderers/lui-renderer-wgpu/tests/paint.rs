@@ -1,4 +1,4 @@
-use lui_renderer::{DisplayCommand, DisplayCommandKind, DisplayList, Rect};
+use lui_renderer_wgpu::{DisplayCommand, DisplayCommandKind, DisplayList, Rect};
 
 #[test]
 fn translated_shifts_quads_glyphs_images_and_clips() {

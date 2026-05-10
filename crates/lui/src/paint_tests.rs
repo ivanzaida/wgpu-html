@@ -649,7 +649,7 @@ fn svg_test_demo_paints_svg_images() {
     list
       .commands
       .iter()
-      .filter(|cmd| cmd.kind == lui_renderer::DisplayCommandKind::Image)
+      .filter(|cmd| cmd.kind == lui_renderer_wgpu::DisplayCommandKind::Image)
       .count()
       == 8,
     "every SVG image should have an ordered image command"
@@ -1235,9 +1235,9 @@ fn absolute_z_neg1_child_paints_behind_normal_flow_sibling_with_margins() {
 /// Assert that every glyph quad in the display list fits inside
 /// its clip rect's Y bounds.  If a clip has no rect (full viewport)
 /// the check is skipped.
-fn assert_glyphs_fit_clips(list: &lui_renderer::DisplayList) {
+fn assert_glyphs_fit_clips(list: &lui_renderer_wgpu::DisplayList) {
   for cmd in &list.commands {
-    if cmd.kind != lui_renderer::DisplayCommandKind::Glyph {
+    if cmd.kind != lui_renderer_wgpu::DisplayCommandKind::Glyph {
       continue;
     }
     let g = &list.glyphs[cmd.index as usize];

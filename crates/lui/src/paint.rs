@@ -7,13 +7,13 @@ use std::collections::BTreeMap;
 
 use lui_layout::{FormControlInfo, FormControlKind, LayoutBox, Resize, UserSelect};
 use lui_models::common::css_enums::Overflow;
-use lui_renderer::{DisplayList, Rect};
+use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_text::TextContext;
 use lui_tree::{ScrollOffset, SelectionColors, TextCursor, TextSelection, Tree};
 
 const OVERFLOW_VISIBLE_EXTENT: f32 = 1_000_000.0;
 const SCROLLBAR_MIN_THUMB: f32 = 18.0;
-fn apply_opacity(mut color: lui_renderer::Color, opacity: f32) -> lui_renderer::Color {
+fn apply_opacity(mut color: lui_renderer_wgpu::Color, opacity: f32) -> lui_renderer_wgpu::Color {
   color[3] *= opacity.clamp(0.0, 1.0);
   color
 }
@@ -1016,7 +1016,7 @@ fn paint_selection_background_clipped(
   origin: lui_layout::Rect,
   start: usize,
   end: usize,
-  color: lui_renderer::Color,
+  color: lui_renderer_wgpu::Color,
   clip_left: f32,
   clip_right: f32,
   out: &mut DisplayList,
@@ -1067,7 +1067,7 @@ fn paint_selection_background(
   origin: lui_layout::Rect,
   start: usize,
   end: usize,
-  color: lui_renderer::Color,
+  color: lui_renderer_wgpu::Color,
   out: &mut DisplayList,
 ) {
   if run.glyphs.is_empty() || start >= end || start >= run.glyphs.len() {
@@ -1306,13 +1306,13 @@ fn subtree_right(b: &LayoutBox) -> f32 {
 /// width and colour are present), return that colour. Non-solid styles
 /// like dashed/dotted force a fall-back to per-side edge segments
 /// because the ring shader can only render solid strokes.
-fn uniform_border_color(b: &LayoutBox) -> Option<lui_renderer::Color> {
+fn uniform_border_color(b: &LayoutBox) -> Option<lui_renderer_wgpu::Color> {
   use lui_models::common::css_enums::BorderStyle;
 
   let bd = b.border;
   let bc = b.border_colors;
   let bs = &b.border_styles;
-  let mut chosen: Option<lui_renderer::Color> = None;
+  let mut chosen: Option<lui_renderer_wgpu::Color> = None;
   let pairs = [
     (bd.top, bc.top, &bs.top),
     (bd.right, bc.right, &bs.right),
@@ -1369,7 +1369,7 @@ fn paint_rounded_per_side_borders(
   let bc = b.border_colors;
   let bs = &b.border_styles;
 
-  let sides: [(Side, f32, Option<lui_renderer::Color>, &Option<BorderStyle>); 4] = [
+  let sides: [(Side, f32, Option<lui_renderer_wgpu::Color>, &Option<BorderStyle>); 4] = [
     (Side::Top, bd.top, bc.top, &bs.top),
     (Side::Right, bd.right, bc.right, &bs.right),
     (Side::Bottom, bd.bottom, bc.bottom, &bs.bottom),
@@ -1646,7 +1646,7 @@ fn paint_edge(
   axis: Axis,
   thickness: f32,
   kind: EdgeKind,
-  color: lui_renderer::Color,
+  color: lui_renderer_wgpu::Color,
   out: &mut DisplayList,
 ) {
   match kind {
@@ -1701,7 +1701,7 @@ pub fn byte_offset_to_glyph_index(run: &lui_text::ShapedRun, byte_offset: usize)
 
 /// Emit a sequence of `on`-length segments with `off`-length gaps along
 /// `axis` inside `rect`. Final segment is clipped if it would overflow.
-fn paint_segments(rect: Rect, axis: Axis, on: f32, off: f32, color: lui_renderer::Color, out: &mut DisplayList) {
+fn paint_segments(rect: Rect, axis: Axis, on: f32, off: f32, color: lui_renderer_wgpu::Color, out: &mut DisplayList) {
   let stride = on + off;
   if stride <= 0.0 {
     return;

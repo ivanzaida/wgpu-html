@@ -6,7 +6,7 @@ use bevy::{
     window::CursorMoved,
 };
 use lui_devtools::Devtools;
-use lui_renderer::RenderBackend;
+use lui_renderer_wgpu::RenderBackend;
 use lui_driver_bevy::{HtmlOverlay, logical_key_to_dom_key, key_code_to_dom_code};
 
 #[derive(Component)]
@@ -147,16 +147,16 @@ pub fn update_system(
 
 fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u32, phys_h: u32, scale: f32) {
     thread_local! {
-        static DT_RENDERER: std::cell::RefCell<Option<(lui_renderer::Renderer, lui_text::TextContext)>> =
+        static DT_RENDERER: std::cell::RefCell<Option<(lui_renderer_wgpu::Renderer, lui_text::TextContext)>> =
             std::cell::RefCell::new(None);
     }
 
     DT_RENDERER.with(|cell| {
         let mut borrow = cell.borrow_mut();
         if borrow.is_none() {
-            let mut r = pollster::block_on(lui_renderer::Renderer::headless());
-            lui_renderer::RenderBackend::set_clear_color(&mut r, [0.12, 0.12, 0.14, 1.0]);
-            let tc = lui_text::TextContext::new(lui_renderer::GLYPH_ATLAS_SIZE);
+            let mut r = pollster::block_on(lui_renderer_wgpu::Renderer::headless());
+            lui_renderer_wgpu::RenderBackend::set_clear_color(&mut r, [0.12, 0.12, 0.14, 1.0]);
+            let tc = lui_text::TextContext::new(lui_renderer_wgpu::GLYPH_ATLAS_SIZE);
             *borrow = Some((r, tc));
         }
         let (renderer, text_ctx) = borrow.as_mut().unwrap();
