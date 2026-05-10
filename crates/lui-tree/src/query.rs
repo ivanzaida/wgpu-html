@@ -82,6 +82,8 @@ pub enum PseudoClass {
   ReadOnly,
   ReadWrite,
   PlaceholderShown,
+  Valid,
+  Invalid,
   Hover,
   Focus,
   Active,
@@ -584,6 +586,8 @@ fn parse_pseudo_class(s: &str, pos: usize) -> Result<(PseudoOrElement, usize), S
     "read-only" => Some(PseudoClass::ReadOnly),
     "read-write" => Some(PseudoClass::ReadWrite),
     "placeholder-shown" => Some(PseudoClass::PlaceholderShown),
+    "valid" => Some(PseudoClass::Valid),
+    "invalid" => Some(PseudoClass::Invalid),
     "hover" => Some(PseudoClass::Hover),
     "focus" => Some(PseudoClass::Focus),
     "active" => Some(PseudoClass::Active),
@@ -1398,6 +1402,8 @@ fn match_pseudo_class(pc: &PseudoClass, root: &Node, path: &[usize], node: &Node
     PseudoClass::ReadOnly => el_is_read_only(node),
     PseudoClass::ReadWrite => el_is_read_write(node),
     PseudoClass::PlaceholderShown => el_placeholder_shown(node),
+    PseudoClass::Valid => el_can_be_valid(&node.element) && !el_is_invalid_helper(&node.element),
+    PseudoClass::Invalid => el_can_be_valid(&node.element) && el_is_invalid_helper(&node.element),
 
     // ── Interaction ──
     PseudoClass::Hover => {
@@ -1622,6 +1628,35 @@ fn el_placeholder_shown(node: &Node) -> bool {
           .children
           .iter()
           .any(|c| matches!(&c.element, Element::Text(t) if !t.is_empty()))
+    }
+    _ => false,
+  }
+}
+
+/// `:valid` and `:invalid` only apply to elements that can be
+/// checked for validity (form controls).
+fn el_can_be_valid(el: &Element) -> bool {
+  matches!(el, Element::Input(_) | Element::Textarea(_) | Element::Select(_))
+}
+
+/// `:invalid` — true when a form control has a constraint violation.
+/// Currently only checks `required` fields with empty values.
+fn el_is_invalid_helper(el: &Element) -> bool {
+  match el {
+    Element::Input(e) => {
+      // Required and empty → invalid
+      if e.required == Some(true) {
+        let val = e.value.as_deref().unwrap_or("");
+        if val.is_empty() { return true; }
+      }
+      // Could add more checks: pattern, min/max, type validation, etc.
+      false
+    }
+    Element::Textarea(e) => {
+      if e.required == Some(true) {
+        if e.value.as_deref().is_none_or(|v| v.is_empty()) { return true; }
+      }
+      false
     }
     _ => false,
   }

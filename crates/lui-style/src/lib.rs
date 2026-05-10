@@ -389,6 +389,8 @@ fn compound_to_string(c: &CompoundSelector, s: &mut String) {
       PseudoClass::Scope => s.push_str("scope"),
       PseudoClass::Empty => s.push_str("empty"),
       PseudoClass::PlaceholderShown => s.push_str("placeholder-shown"),
+      PseudoClass::Valid => s.push_str("valid"),
+      PseudoClass::Invalid => s.push_str("invalid"),
       PseudoClass::Lang(l) => { s.push_str(&format!("lang({l})")); }
       PseudoClass::Dir(d) => { s.push_str(&format!("dir({d})")); }
       PseudoClass::Not(inner) => {

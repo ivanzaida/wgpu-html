@@ -334,6 +334,36 @@ fn required_and_optional_pseudo_classes() {
 }
 
 #[test]
+fn valid_and_invalid_pseudo_classes() {
+  // :invalid — matches required empty inputs
+  // :valid — matches required filled inputs (or non-required inputs that aren't invalid)
+  let body = Node::new(m::Body::default()).with_children(vec![
+    Node::new(m::Input {
+      id: Some("req-empty".into()),
+      required: Some(true),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("req-filled".into()),
+      required: Some(true),
+      value: Some("hello".into()),
+      ..m::Input::default()
+    }),
+    Node::new(m::Input {
+      id: Some("opt-empty".into()),
+      ..m::Input::default()
+    }),
+  ]);
+  let mut tree = Tree::new(body);
+  let inv = tree.query_selector(":invalid").unwrap();
+  assert_eq!(inv.element.id(), Some("req-empty"), "required empty should be :invalid");
+  let valid_nodes = tree.query_selector_all(":valid");
+  assert_eq!(valid_nodes.len(), 2, "expected 2 valid nodes");
+  let valid_ids: Vec<Option<&str>> = valid_nodes.iter().map(|n| n.element.id()).collect();
+  assert!(valid_ids.contains(&Some("req-filled")), "required filled should be :valid");
+}
+
+#[test]
 fn read_only_and_read_write_pseudo_classes() {
   let body = Node::new(m::Body::default()).with_children(vec![
     Node::new(m::Input {
