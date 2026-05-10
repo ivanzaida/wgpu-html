@@ -4,12 +4,12 @@ sidebar_position: 4
 
 # egui Integration
 
-The `wgpu-html-driver-egui` crate lets you embed wgpu-html inside an egui or eframe application.
+The `lui-driver-egui` crate lets you embed lui inside an egui or eframe application.
 
 ## Basic Usage
 
 ```rust
-use wgpu_html_driver_egui::EguiRunner;
+use lui_driver_egui::EguiRunner;
 
 // Window must implement HasWindowHandle + HasDisplayHandle
 let mut runner = EguiRunner::new(window, 800, 600);
@@ -50,13 +50,13 @@ forward_key(&mut tree, egui::Key::Enter, true, false); // key press
 ## Pointer Translation
 
 ```rust
-use wgpu_html_driver_egui::pointer_button;
+use lui_driver_egui::pointer_button;
 
 let mouse_button: MouseButton = pointer_button(egui::PointerButton::Primary);
 ```
 
 ## Limitations
 
-- The egui driver renders wgpu-html content into a texture that egui draws as an image widget. There's one extra texture copy compared to native winit rendering.
-- Focus management requires explicit forwarding since egui and wgpu-html have separate focus systems.
+- The egui driver renders lui content into a texture that egui draws as an image widget. There's one extra texture copy compared to native winit rendering.
+- Focus management requires explicit forwarding since egui and lui have separate focus systems.
 - The egui driver does not handle OS-level clipboard directly; use the tree's clipboard events instead.

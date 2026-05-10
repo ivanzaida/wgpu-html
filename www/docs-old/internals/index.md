@@ -4,7 +4,7 @@ title: Engine Internals
 
 # Engine Internals
 
-Developer documentation for the wgpu-html rendering engine. These docs describe the internal architecture with code references for contributors.
+Developer documentation for the lui rendering engine. These docs describe the internal architecture with code references for contributors.
 
 ## Pipeline Overview
 
@@ -12,14 +12,14 @@ Every frame follows this path:
 
 ```
 HTML string
-  -> Parse (wgpu-html-parser)        -> Tree (DOM nodes)
-  -> Cascade (wgpu-html-style)       -> CascadedTree (Style per node)
-  -> Layout (wgpu-html-layout)       -> LayoutBox tree (positioned boxes)
-  -> Paint (wgpu-html/paint.rs)      -> DisplayList (quads, images, glyphs)
-  -> Render (wgpu-html-renderer)     -> GPU frame
+  -> Parse (lui-parser)        -> Tree (DOM nodes)
+  -> Cascade (lui-style)       -> CascadedTree (Style per node)
+  -> Layout (lui-layout)       -> LayoutBox tree (positioned boxes)
+  -> Paint (lui/paint.rs)      -> DisplayList (quads, images, glyphs)
+  -> Render (lui-renderer)     -> GPU frame
 ```
 
-The top-level orchestration lives in `crates/wgpu-html/src/lib.rs`:
+The top-level orchestration lives in `crates/lui/src/lib.rs`:
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -34,11 +34,11 @@ The cached path (`paint_tree_cached`) uses `PipelineCache` and dirty flags to sk
 
 | Crate | Responsibility |
 |---|---|
-| `wgpu-html-parser` | HTML tokenizer, CSS parser, stylesheet parser |
-| `wgpu-html-tree` | DOM tree, `Element` types, selector query engine |
-| `wgpu-html-models` | Shared types: `Style`, `CssLength`, `CssColor`, enums |
-| `wgpu-html-style` | CSS cascade, specificity, inheritance, `var()` resolution |
-| `wgpu-html-layout` | Block/flex/grid/inline/positioned layout algorithms |
-| `wgpu-html-text` | cosmic-text integration, glyph shaping, atlas packing |
-| `wgpu-html-renderer` | wgpu pipelines (quad/image/glyph), GPU render passes |
-| `wgpu-html` | Top-level orchestration, paint, interactivity |
+| `lui-parser` | HTML tokenizer, CSS parser, stylesheet parser |
+| `lui-tree` | DOM tree, `Element` types, selector query engine |
+| `lui-models` | Shared types: `Style`, `CssLength`, `CssColor`, enums |
+| `lui-style` | CSS cascade, specificity, inheritance, `var()` resolution |
+| `lui-layout` | Block/flex/grid/inline/positioned layout algorithms |
+| `lui-text` | cosmic-text integration, glyph shaping, atlas packing |
+| `lui-renderer` | wgpu pipelines (quad/image/glyph), GPU render passes |
+| `lui` | Top-level orchestration, paint, interactivity |

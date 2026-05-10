@@ -68,7 +68,7 @@ title: Implementation Status
 | var() / custom properties (`--foo`) | ✅ Done (parsed, inherited, recursive substitution, cycle detection) |
 | `<link>` stylesheet loading | ❌ Not done |
 | Devtools | ⚠️ Partial (component tree browser, styles inspector, breadcrumb bar) |
-| Component framework (`wgpu-html-ui`) | ✅ Done (Elm architecture, reactive Store, render caching, scoped CSS) |
+| Component framework (`lui-ui`) | ✅ Done (Elm architecture, reactive Store, render caching, scoped CSS) |
 | Profiler | ✅ Done (ring-buffer frame history, scopes, counters, summary_string, trace export planned) |
 | JavaScript | 🚫 Permanently out of scope |
 
@@ -158,7 +158,7 @@ title: Implementation Status
 - **`PipelineCache`:** Three-level frame classification (`FullPipeline` / `PartialCascade` / `RepaintOnly`) with incremental re-cascade and paint-only pseudo-class fast path
 - **Backward compat:** `clear()` / `record()` / `flush()` shims preserved
 
-### Component Framework (`wgpu-html-ui`)
+### Component Framework (`lui-ui`)
 
 - **Elm architecture:** `Component` trait with `create` / `update` / `view` / `props_changed` lifecycle
 - **`El` builder DSL:** 73 element constructors, global attributes, callbacks, child/content projection
@@ -167,11 +167,11 @@ title: Implementation Status
 - **Three-path render model:** clean fast-path / skeleton patch-path / full render; per-component render caching
 - **Lifecycle hooks:** `mounted`, `updated`, `destroyed`
 
-### Devtools (`wgpu-html-devtools`)
+### Devtools (`lui-devtools`)
 
 - **Component tree browser** with expand/collapse, selection, and breadcrumb bar
 - **Styles inspector** showing computed properties for the selected element
-- **Self-hosted:** Built with `wgpu-html-ui`; renders in its own window alongside the page
+- **Self-hosted:** Built with `lui-ui`; renders in its own window alongside the page
 - **Attach via:** `Devtools::attach(&mut tree, open: bool)`
 
 ## ❌ What Is NOT Done

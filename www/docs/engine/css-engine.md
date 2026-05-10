@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # CSS Engine
 
-The CSS engine converts raw stylesheets and inline styles into a fully resolved `Style` on every DOM element. It lives in `crates/wgpu-html-style`.
+The CSS engine converts raw stylesheets and inline styles into a fully resolved `Style` on every DOM element. It lives in `crates/lui-style`.
 
 ## Pipeline
 
@@ -21,7 +21,7 @@ CSS text (inline + <style> blocks)
 
 ## Stylesheet Parsing
 
-Located in `crates/wgpu-html-parser/src/stylesheet.rs`. Parses `<style>` block content into `Vec<Rule>`:
+Located in `crates/lui-parser/src/stylesheet.rs`. Parses `<style>` block content into `Vec<Rule>`:
 
 ```rust
 struct Rule {

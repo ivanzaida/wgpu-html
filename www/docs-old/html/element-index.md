@@ -4,7 +4,7 @@ title: Element Index
 
 # Element Index
 
-This page lists every HTML element type recognized by wgpu-html. Each element is parsed into a typed Rust struct with per-element attribute parsing. Unknown tags are silently dropped.
+This page lists every HTML element type recognized by lui. Each element is parsed into a typed Rust struct with per-element attribute parsing. Unknown tags are silently dropped.
 
 > **Total:** 98 element types (plus `Text` for text nodes). `<script>` and `<noscript>` are parsed but entirely ignored at runtime.
 

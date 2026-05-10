@@ -8,7 +8,7 @@ The GPU rendering stage is the final step in the pipeline. It consumes a `Displa
 
 ## Renderer Setup
 
-The renderer (`crates/wgpu-html-renderer/src/lib.rs`) is created with:
+The renderer (`crates/lui-renderer/src/lib.rs`) is created with:
 
 ```rust
 let renderer = Renderer::new(window, width, height, scale_factor);

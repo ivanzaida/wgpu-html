@@ -4,7 +4,7 @@ title: CSS Grid Layout
 
 # CSS Grid Properties
 
-wgpu-html implements a substantial subset of CSS Grid Layout Module Level 1. The grid system supports explicit track definitions with flexible `fr` units, implicit tracks, named line placement, spanning, auto-placement, and full alignment.
+lui implements a substantial subset of CSS Grid Layout Module Level 1. The grid system supports explicit track definitions with flexible `fr` units, implicit tracks, named line placement, spanning, auto-placement, and full alignment.
 
 ## `display: grid`
 

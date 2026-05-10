@@ -1,7 +1,7 @@
 # Clone Audit — Layout Phase
 
 This document catalogues redundant `.clone()` calls found in the layout crate
-(`wgpu-html-layout`, `wgpu-html-models`, `wgpu-html-style`) and ranks them by
+(`lui-layout`, `lui-models`, `lui-style`) and ranks them by
 impact. Most fall into three root causes:
 
 1. **Pure enums missing `Copy`** — cloning a `Display` or `BoxSizing` is heap-free
@@ -48,7 +48,7 @@ replaces `Clone::clone` with an integer copy / register move).
 | `UserSelect` | 4 unit variants | cascade — per inherited node |
 
 **Change:** add `Copy, PartialEq, Eq` (or `Copy` alone for the numeric-variant
-enums) to each `#[derive(…)]` in `crates/wgpu-html-models/src/common/css_enums.rs`.
+enums) to each `#[derive(…)]` in `crates/lui-models/src/common/css_enums.rs`.
 
 **Cannot be `Copy`:**
 - `CssLength` — contains `Box<CssMathExpr>` and `Vec<CssLength>`
@@ -128,7 +128,7 @@ This eliminates the deep clone regardless of whether `ShapedRun` becomes an `Arc
 
 ### What gets cloned
 
-During cascade inheritance (`wgpu-html-style/src/lib.rs:939`), the `inherit!`
+During cascade inheritance (`lui-style/src/lib.rs:939`), the `inherit!`
 macro runs:
 
 ```rust
@@ -204,7 +204,7 @@ is implemented for `Arc<str>`.
 let run = ShapedRun {
     // ...
     text: visible_text.clone(),                       // ← clone
-    byte_boundaries: wgpu_html_text::utf8_boundaries(&visible_text),
+    byte_boundaries: lui_text::utf8_boundaries(&visible_text),
     // ...
 };
 ```
@@ -213,7 +213,7 @@ let run = ShapedRun {
 the `ShapedRun`, it is not used again. The clone is entirely avoidable:
 
 ```rust
-let byte_boundaries = wgpu_html_text::utf8_boundaries(&visible_text);
+let byte_boundaries = lui_text::utf8_boundaries(&visible_text);
 let run = ShapedRun {
     text: visible_text,   // move
     byte_boundaries,

@@ -4,7 +4,7 @@ title: Input Types
 
 # Input Types
 
-wgpu-html parses all 22 HTML input types into the `InputType` enum (`wgpu-html-models::common::html_enums`). Each type is recognized, focusable, and participates in the event system — but not all types have full visual/interactive fidelity yet.
+lui parses all 22 HTML input types into the `InputType` enum (`lui-models::common::html_enums`). Each type is recognized, focusable, and participates in the event system — but not all types have full visual/interactive fidelity yet.
 
 ## Status Table
 

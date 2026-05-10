@@ -8,7 +8,7 @@ Input handling bridges OS-level events (from winit, egui, etc.) to DOM-style eve
 
 ## Mouse Input
 
-### Core Functions (in `wgpu-html/src/interactivity.rs`)
+### Core Functions (in `lui/src/interactivity.rs`)
 
 ```rust
 // Hit-tests and updates hover path. Returns true if hover changed.

@@ -1,0 +1,16 @@
+[package]
+name = "lui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-assets.workspace   = true
+lui-events.workspace   = true
+lui-layout.workspace   = true
+lui-models.workspace   = true
+lui-parser.workspace   = true
+lui-renderer.workspace = true
+lui-style.workspace    = true
+lui-text.workspace     = true
+lui-tree.workspace     = true
+rfd.workspace                = true

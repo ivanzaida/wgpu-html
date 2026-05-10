@@ -9,7 +9,7 @@ title: Observable — Reactive Shared State
 ## Creating
 
 ```rust
-use wgpu_html_ui::Observable;
+use lui_ui::Observable;
 
 // From a value
 let theme = Observable::new("dark");
@@ -72,7 +72,7 @@ let sub = theme.subscribe(|value| {
 `Subscriptions` is a type-erased bag that holds any `Subscription<T>`. Used by the runtime to manage component subscriptions, but can also be used standalone:
 
 ```rust
-use wgpu_html_ui::Subscriptions;
+use lui_ui::Subscriptions;
 
 let mut subs = Subscriptions::new();
 subs.add(theme.subscribe(|v| println!("{}", v)));
@@ -99,8 +99,8 @@ el::input()
 ## Complete Example
 
 ```rust
-use wgpu_html_ui::{Component, Ctx, El, MsgSender, Observable, ShouldRender, Subscriptions, el};
-use wgpu_html_models::ArcStr;
+use lui_ui::{Component, Ctx, El, MsgSender, Observable, ShouldRender, Subscriptions, el};
+use lui_models::ArcStr;
 
 struct ThemeToggle {
     theme: Observable<ArcStr>,

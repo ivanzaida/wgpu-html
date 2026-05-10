@@ -4,7 +4,7 @@ title: Text Shaping
 
 # Text Shaping
 
-Text shaping converts a string + CSS font properties into positioned, atlas-packed glyphs. The pipeline lives in `wgpu-html-text::shape.rs`.
+Text shaping converts a string + CSS font properties into positioned, atlas-packed glyphs. The pipeline lives in `lui-text::shape.rs`.
 
 ## Shaping Pipeline
 

@@ -1,4 +1,4 @@
-# wgpu-html — Profiler Design & Roadmap
+# lui — Profiler Design & Roadmap
 
 > **Date:** 2026-05-04
 > **Status:** Design phase. No profiler crate exists yet — infrastructure lives inline.
@@ -12,9 +12,9 @@ Three profiler pieces exist inline across the codebase:
 
 | Piece | Location | What it does |
 |-------|----------|-------------|
-| `Profiler` | `crates/wgpu-html-tree/src/profiler.rs` | `Mutex<Vec<ProfileEntry>>`, `clear()` / `record()` / `flush()` — prints per-stage ms to stderr each frame |
-| `PipelineTimings` | `crates/wgpu-html/src/lib.rs` | `{cascade_ms, layout_ms, paint_ms}` struct returned by `_profiled` entry points |
-| `Profiler` (demo) | `crates/wgpu-html-demo/src/winit.rs` | Rolling 1-second accumulators per stage (avg+max), printed once/sec. Toggled with F9. |
+| `Profiler` | `crates/lui-tree/src/profiler.rs` | `Mutex<Vec<ProfileEntry>>`, `clear()` / `record()` / `flush()` — prints per-stage ms to stderr each frame |
+| `PipelineTimings` | `crates/lui/src/lib.rs` | `{cascade_ms, layout_ms, paint_ms}` struct returned by `_profiled` entry points |
+| `Profiler` (demo) | `crates/lui-demo/src/winit.rs` | Rolling 1-second accumulators per stage (avg+max), printed once/sec. Toggled with F9. |
 
 **What works today:** per-frame stage timing (cascade, layout, paint, render) with
 rolling stats via F9 in the demo. The `tree::Profiler` is already plumbed through
@@ -40,7 +40,7 @@ counters, GPU timestamp queries, trace export, overlay HUD, or budget assertions
   DisplayList — zero text dependency.
 - **Trace export**: dump the ring buffer to Chrome Trace Event Format JSON for
   `chrome://tracing` / `ui.perfetto.dev`.
-- **Self-hosted panel**: a wgpu-html document (HTML+CSS templates) rendered by the
+- **Self-hosted panel**: a lui document (HTML+CSS templates) rendered by the
   same engine, docked alongside the page. Timeline + hot-stages table + counter
   sparklines. (Gated on engine text maturity — Phase 7.)
 - **Budget assertions**: `assert_under(stage, max_us)` in tests to catch regressions
@@ -75,16 +75,16 @@ Rationale:
   with zero changes to call-site signatures.
 - Engine crates (parser, style, layout) have zero new dependencies — they continue
   instrumenting through the same `tree.profiler` field.
-- `wgpu-html-tree` has no `wgpu` dependency, which is correct for CPU-only profiling.
+- `lui-tree` has no `wgpu` dependency, which is correct for CPU-only profiling.
 
-**Phase 4 (GPU timing): introduce `wgpu-html-profiler` crate.**
+**Phase 4 (GPU timing): introduce `lui-profiler` crate.**
 
-This is the natural boundary. `wgpu-html-tree` cannot depend on `wgpu` types
+This is the natural boundary. `lui-tree` cannot depend on `wgpu` types
 (`Device`, `Queue`, `QuerySet`). The new crate wraps the upgraded tree profiler:
 
 ```
-wgpu-html-profiler::Profiler {
-    inner: wgpu_html_tree::Profiler,   // ring buffer, scopes, counters
+lui-profiler::Profiler {
+    inner: lui_tree::Profiler,   // ring buffer, scopes, counters
     gpu: Option<GpuTimer>,             // wgpu::QuerySet + readback buffer
 }
 ```
@@ -95,7 +95,7 @@ Hosts that don't need GPU timing continue using the tree profiler directly
 ### 3.2 Three instrumentation layers
 
 ```
-Layer 1: Pipeline stages (top-level spans)        ← wgpu-html/src/lib.rs
+Layer 1: Pipeline stages (top-level spans)        ← lui/src/lib.rs
   cascade, layout, paint
   Already instrumented via tree.profiler
 
@@ -103,7 +103,7 @@ Layer 2: Sub-stage spans (nested, per-crate)       ← parser/style/layout crate
   tokenize, gather_rules, match, merge, block, flex, measure, repos
   Added via prof_scope!() macros
 
-Layer 3: Frame lifecycle (harness-level)            ← wgpu-html-winit / demo
+Layer 3: Frame lifecycle (harness-level)            ← lui-winit / demo
   build_buffers, submit_cpu, gpu_render_pass, present
   Ring buffer ownership + summary_string() + trace export
 ```
@@ -239,7 +239,7 @@ frame_end()                               ← prof.frame_end()
 ```
 
 Top-level stages (`parse`, `cascade`, `layout`, `paint`) are emitted by
-`crates/wgpu-html/src/lib.rs` (the facade entry points). Per-frame lifecycle
+`crates/lui/src/lib.rs` (the facade entry points). Per-frame lifecycle
 stages (`build_buffers`, `submit_cpu`, `present`) are emitted by the winit
 harness. Sub-spans are emitted inside each engine crate.
 
@@ -247,15 +247,15 @@ harness. Sub-spans are emitted inside each engine crate.
 
 | Stage | Where emitted | Sub-spans (Phase 6) |
 |-------|--------------|---------------------|
-| `parse` | `wgpu-html/src/lib.rs` | `tokenize`, `build_tree` |
-| `cascade` | `wgpu-html/src/lib.rs` | `gather_rules`, `match`, `merge` |
-| `layout` | `wgpu-html/src/lib.rs` | `block`, `flex`, `grid`, `measure`, `repos` |
-| `paint` | `wgpu-html/src/lib.rs` | `backgrounds`, `borders`, `glyphs`, `images` |
-| `build_buffers` | `wgpu-html-winit` harness | — |
-| `submit_cpu` | `wgpu-html-winit` harness | — |
+| `parse` | `lui/src/lib.rs` | `tokenize`, `build_tree` |
+| `cascade` | `lui/src/lib.rs` | `gather_rules`, `match`, `merge` |
+| `layout` | `lui/src/lib.rs` | `block`, `flex`, `grid`, `measure`, `repos` |
+| `paint` | `lui/src/lib.rs` | `backgrounds`, `borders`, `glyphs`, `images` |
+| `build_buffers` | `lui-winit` harness | — |
+| `submit_cpu` | `lui-winit` harness | — |
 | `render_pass_cpu` | renderer `record_ordered_commands` | — |
 | `gpu_render_pass` | GPU timestamp query (P4) | — |
-| `present` | `wgpu-html-winit` harness | — |
+| `present` | `lui-winit` harness | — |
 
 ## 5. What gets measured — counters
 
@@ -315,7 +315,7 @@ All geometry is single `push_quad()` calls — no text shaping, no atlas upload.
 ### 6.3 Self-hosted panel (Phase 7)
 
 Gated on engine text maturity (the panel needs rendered text for labels and
-tables). Modeled on `devtools.md` §3: the panel is a wgpu-html document (static
+tables). Modeled on `devtools.md` §3: the panel is a lui document (static
 HTML+CSS templates inside the crate), the profiler patches dynamic regions per
 frame via element mutation.
 
@@ -400,7 +400,7 @@ delivered together because counters are trivial once the `FrameRecord` exists.
 
 ### Phase 1 — Ring buffer + scopes + summary_string
 
-**Crate:** Upgrade `wgpu-html-tree::Profiler` in-place.
+**Crate:** Upgrade `lui-tree::Profiler` in-place.
 
 Deliverables:
 - `RingBuffer<FrameRecord, 240>` with `push()`, `iter()`, `len()`.
@@ -415,16 +415,16 @@ Deliverables:
   the new API internally.
 
 Changes to existing code:
-- `crates/wgpu-html/src/lib.rs`: wrap cascade/layout/paint in `scope!()` (replaces
+- `crates/lui/src/lib.rs`: wrap cascade/layout/paint in `scope!()` (replaces
   manual `Instant::now()` + `prof.record()` calls).
-- `crates/wgpu-html-winit/src/window.rs`: call `prof.frame_begin()` / `frame_end()`
+- `crates/lui-winit/src/window.rs`: call `prof.frame_begin()` / `frame_end()`
   around the redraw loop. Print `summary_string()` in the F9 path.
 
 No changes to parser, style, or layout crates in Phase 1.
 
 ### Phase 2 — Counters
 
-**Crate:** `wgpu-html-tree` (same Profiler).
+**Crate:** `lui-tree` (same Profiler).
 
 Deliverables:
 - `Profiler::counter(name, value: i64)` — records a scalar on the current frame.
@@ -443,7 +443,7 @@ Counter emission points:
 
 ### Phase 3 — Overlay HUD
 
-**Crate:** `wgpu-html-tree` (same Profiler).
+**Crate:** `lui-tree` (same Profiler).
 
 Deliverables:
 - `Profiler::paint_overlay(&self, viewport: Rect, &mut DisplayList)`.
@@ -456,10 +456,10 @@ Deliverables:
 
 ### Phase 4 — GPU timing
 
-**Crate:** New `wgpu-html-profiler` (wraps the upgraded tree profiler, adds `wgpu` dep).
+**Crate:** New `lui-profiler` (wraps the upgraded tree profiler, adds `wgpu` dep).
 
 Deliverables:
-- `wgpu-html-profiler::Profiler` wraps `wgpu_html_tree::Profiler`.
+- `lui-profiler::Profiler` wraps `lui_tree::Profiler`.
 - `GpuTimer` struct: manages `wgpu::QuerySet` + readback buffer + timestamp
   resolution calculation.
 - `Profiler::enable_gpu(device, queue)` — attempts to enable GPU timing,
@@ -478,7 +478,7 @@ avoids stalling on `Queue::on_submitted_work_done`.
 
 ### Phase 5 — Trace export
 
-**Crate:** `wgpu-html-tree` (no new deps — pure serialisation).
+**Crate:** `lui-tree` (no new deps — pure serialisation).
 
 Deliverables:
 - `Profiler::write_trace(&self, writer: impl Write) -> io::Result<()>`.
@@ -494,8 +494,8 @@ Deliverables:
 
 ### Phase 6 — Sub-stage breakdowns
 
-**Crates:** `wgpu-html-parser`, `wgpu-html-style`, `wgpu-html-layout`,
-  `crates/wgpu-html/src/paint.rs`.
+**Crates:** `lui-parser`, `lui-style`, `lui-layout`,
+  `crates/lui/src/paint.rs`.
 
 Deliverables:
 - `parser`: `prof_scope!("tokenize")` around tokenizer, `prof_scope!("build_tree")`
@@ -517,7 +517,7 @@ time range.
 
 ### Phase 7 — Self-hosted panel
 
-**Crate:** `wgpu-html-profiler` with `panel` feature flag.
+**Crate:** `lui-profiler` with `panel` feature flag.
 
 Gated on engine text maturity. Same architecture as `devtools` §3: the panel
 is a `Tree` built from static HTML+CSS templates, then the profiler mutates
@@ -544,15 +544,15 @@ page_list.append(panel_list.translated(panel_x, panel_y));
 
 ### Phase 8 — Budget assertions for tests
 
-**Crate:** `wgpu-html-tree` (the profiler is already a dev-dependency of
-  `wgpu-html` tests).
+**Crate:** `lui-tree` (the profiler is already a dev-dependency of
+  `lui` tests).
 
 Deliverables:
 - `Profiler::assert_under(stage: &str, max_us: u64)` — panics if the named
   span in the last frame exceeded the budget.
 - `Profiler::assert_total_under(max_us: u64)` — panics if total frame time
   exceeded the budget.
-- Used in `wgpu-html` integration tests:
+- Used in `lui` integration tests:
 
 ```rust
 #[test]
@@ -566,12 +566,12 @@ fn layout_1000_nodes_under_2ms() {
 }
 ```
 
-- Optional `"strict"` feature on `wgpu-html` flips selected budgets to hard
+- Optional `"strict"` feature on `lui` flips selected budgets to hard
   CI failures.
 
 ### Phase 9 — Headless capture mode
 
-**Crate:** `wgpu-html-tree` (no new deps).
+**Crate:** `lui-tree` (no new deps).
 
 Deliverables:
 - `Profiler::run_for(frames: usize, f: impl FnMut(usize)) -> RingBuffer<FrameRecord>`.
@@ -624,7 +624,7 @@ Phase 3 (next):       Overlay HUD bars + stripe chart
                       → 8-10 push_quad calls in paint_overlay()
 
 Phase 4 (later):      GPU timing
-                      → new wgpu-html-profiler crate (wgpu dep)
+                      → new lui-profiler crate (wgpu dep)
                       → QuerySet + one-frame-lag readback
 
 Phase 5:              Chrome trace JSON export

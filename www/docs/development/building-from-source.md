@@ -13,8 +13,8 @@ sidebar_position: 1
 ## Clone and Build
 
 ```bash
-git clone https://github.com/ivanzaida/wgpu-html.git
-cd wgpu-html
+git clone https://github.com/ivanzaida/lui.git
+cd lui
 cargo build --workspace
 ```
 
@@ -54,10 +54,10 @@ cargo build --workspace
 cargo build --workspace --release
 
 # Build only the core library
-cargo build -p wgpu-html
+cargo build -p lui
 
 # Build with a specific driver
-cargo build -p wgpu-html-driver-winit
+cargo build -p lui-driver-winit
 ```
 
 ## Development Build
@@ -66,11 +66,11 @@ For faster iteration during development:
 
 ```bash
 # Debug build with default optimizations
-cargo build -p wgpu-html-demo
+cargo build -p lui-demo
 
 # Run tests for all crates
 cargo test --workspace
 
 # Run tests for a specific crate
-cargo test -p wgpu-html-layout
+cargo test -p lui-layout
 ```

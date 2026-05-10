@@ -4,7 +4,7 @@ title: Interactivity Overview
 
 # Interactivity Overview
 
-Interactivity in wgpu-html is driven by `Tree::interaction` (`InteractionState`), which holds the live interaction state. All dispatch logic lives in `wgpu-html-tree` (re-exported through `wgpu-html::interactivity`).
+Interactivity in lui is driven by `Tree::interaction` (`InteractionState`), which holds the live interaction state. All dispatch logic lives in `lui-tree` (re-exported through `lui::interactivity`).
 
 ## InteractionState
 
@@ -104,7 +104,7 @@ Focused `<input>` and `<textarea>` elements receive keyboard text input. An `Edi
 
 ## Scrolling
 
-`InteractionState::scroll_offsets_y` maps element paths to their current vertical scroll offset. Mouse wheel events scroll the viewport and nested `overflow: scroll` / `overflow: auto` containers. Scrollbar paint (10px track, drag-to-scroll) is in `wgpu-html::scroll`.
+`InteractionState::scroll_offsets_y` maps element paths to their current vertical scroll offset. Mouse wheel events scroll the viewport and nested `overflow: scroll` / `overflow: auto` containers. Scrollbar paint (10px track, drag-to-scroll) is in `lui::scroll`.
 
 ## Sub-Pages
 

@@ -1,20 +1,20 @@
 ---
-title: Winit Harness (WgpuHtmlWindow)
+title: Winit Harness (LuiWindow)
 ---
 
-# Winit Harness (WgpuHtmlWindow)
+# Winit Harness (LuiWindow)
 
-The `wgpu-html-winit` crate provides a batteries-included window harness. It handles window setup, input forwarding, focus management, scrolling, clipboard, and screenshots.
+The `lui-winit` crate provides a batteries-included window harness. It handles window setup, input forwarding, focus management, scrolling, clipboard, and screenshots.
 
 ## One-Call Setup
 
 ```rust
-use wgpu_html_winit::create_window;
+use lui_winit::create_window;
 
 let mut tree = Tree::new(root_node);
 
 create_window(&mut tree)
-    .with_title("My wgpu-html App")
+    .with_title("My lui App")
     .with_size(1280, 720)
     .with_exit_on_escape(true)
     .with_clipboard_enabled(true)
@@ -24,13 +24,13 @@ create_window(&mut tree)
     .unwrap();
 ```
 
-## WgpuHtmlWindow
+## LuiWindow
 
 Wraps `&mut Tree` and provides chainable configuration:
 
 | Method | Default | Description |
 |---|---|---|
-| `with_title(s)` | `"wgpu-html"` | Window title |
+| `with_title(s)` | `"lui"` | Window title |
 | `with_size(w, h)` | `(1280, 720)` | Logical size |
 | `with_exit_on_escape(b)` | `true` | Esc closes the window |
 | `with_clipboard_enabled(b)` | `true` | Ctrl+A/Ctrl+C support |
@@ -96,18 +96,18 @@ pub struct FrameTimings {
 ## Type Translators
 
 ```rust
-pub fn mouse_button(button: WinitMouseButton) -> wgpu_html_tree::MouseButton;
+pub fn mouse_button(button: WinitMouseButton) -> lui_tree::MouseButton;
 pub fn key_to_dom_key(key: &str) -> String;
 pub fn keycode_to_dom_code(code: KeyCode) -> String;
 pub fn keycode_to_modifier(code: KeyCode) -> Option<Modifier>;
 ```
 
-These map winit's key/mouse types to wgpu-html's internal types.
+These map winit's key/mouse types to lui's internal types.
 
 ## System Font Discovery
 
 ```rust
-use wgpu_html_winit::discover_system_fonts;
+use lui_winit::discover_system_fonts;
 
 let variants = discover_system_fonts();  // Vec<SystemFontVariant>
 ```
@@ -117,11 +117,11 @@ Convenience wrappers around `system_font_variants()` and `register_system_fonts(
 ## Complete Example
 
 ```rust
-use wgpu_html::{parser, tree::{Tree, Node, Element}};
-use wgpu_html_winit::create_window;
+use lui::{parser, tree::{Tree, Node, Element}};
+use lui_winit::create_window;
 
 let html = r#"<html><body>
-    <h1>Hello from wgpu-html!</h1>
+    <h1>Hello from lui!</h1>
     <button id="btn">Click me</button>
 </body></html>"#;
 
@@ -129,12 +129,12 @@ let document = parser::parse(html);
 let mut tree = Tree::new(Node::root(document));
 
 // Register fonts
-wgpu_html::tree::register_system_fonts(&mut tree, "sans-serif");
+lui::tree::register_system_fonts(&mut tree, "sans-serif");
 
 // Hook to handle custom logic
 struct MyApp;
-impl wgpu_html_winit::AppHook for MyApp {
-    fn on_frame(&mut self, ctx: wgpu_html_winit::HookContext<'_>, t: &wgpu_html_winit::FrameTimings) {
+impl lui_winit::AppHook for MyApp {
+    fn on_frame(&mut self, ctx: lui_winit::HookContext<'_>, t: &lui_winit::FrameTimings) {
         // Called every frame — access tree, renderer, layout
     }
 }

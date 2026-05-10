@@ -4,7 +4,7 @@ title: CSS Property Index
 
 # CSS Property Index
 
-This is the complete index of all supported CSS properties in wgpu-html, formatted as a property table. Columns:
+This is the complete index of all supported CSS properties in lui, formatted as a property table. Columns:
 
 - **Property** — CSS property name (kebab-case)
 - **Values** — accepted syntax
@@ -189,7 +189,7 @@ Standard CSS properties that affect form control rendering:
 
 ### `::lui-*` Popup Pseudo-Elements
 
-wgpu-html provides `::lui-*` pseudo-elements for styling overlay popup sub-parts. These use **standard CSS properties** with full cascade, specificity, and media query support.
+lui provides `::lui-*` pseudo-elements for styling overlay popup sub-parts. These use **standard CSS properties** with full cascade, specificity, and media query support.
 
 #### `::lui-popup` — Popup container (shared)
 
@@ -259,7 +259,7 @@ input[type="date"]::lui-calendar-weekday { color: #6c7086; }
 
 ## Grid Track Size Units
 
-wgpu-html supports the following track sizing types within `grid-template-columns` and `grid-template-rows`:
+lui supports the following track sizing types within `grid-template-columns` and `grid-template-rows`:
 
 | Unit | Description | Example |
 |---|---|---|

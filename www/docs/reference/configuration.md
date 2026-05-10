@@ -75,7 +75,7 @@ Set resource limits via tree options:
 
 No compile-time feature flags are currently used. All functionality is always available. Driver selection is done by depending on the desired driver crate:
 
-- `wgpu-html-driver-winit` for winit windows
-- `wgpu-html-driver-egui` for egui integration
-- `wgpu-html-driver-bevy` for Bevy integration
+- `lui-driver-winit` for winit windows
+- `lui-driver-egui` for egui integration
+- `lui-driver-bevy` for Bevy integration
 - Custom `Driver` trait implementation for anything else

@@ -1,44 +1,44 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/wgpu-html",
-    "crates/wgpu-html-devtools",
-    "crates/wgpu-html-events",
-    "crates/wgpu-html-assets",
-    "crates/wgpu-html-layout",
-    "crates/wgpu-html-models",
-    "crates/wgpu-html-parser",
-    "crates/wgpu-html-renderer",
-    "crates/wgpu-html-style",
-    "crates/wgpu-html-text",
-    "crates/wgpu-html-tree",
-    "crates/wgpu-html-ui",
-    "drivers/wgpu-html-driver",
-    "drivers/wgpu-html-driver-bevy",
-    "drivers/wgpu-html-driver-egui",
-    "drivers/wgpu-html-driver-winit",
-    "demo/wgpu-html-demo",
-    "demo/wgpu-html-demo-bevy",
-    "demo/wgpu-html-ui-demo",
+    "crates/lui",
+    "crates/lui-devtools",
+    "crates/lui-events",
+    "crates/lui-assets",
+    "crates/lui-layout",
+    "crates/lui-models",
+    "crates/lui-parser",
+    "crates/lui-renderer",
+    "crates/lui-style",
+    "crates/lui-text",
+    "crates/lui-tree",
+    "crates/lui-ui",
+    "drivers/lui-driver",
+    "drivers/lui-driver-bevy",
+    "drivers/lui-driver-egui",
+    "drivers/lui-driver-winit",
+    "demo/lui-demo",
+    "demo/lui-demo-bevy",
+    "demo/lui-ui-demo",
 ]
 
 [workspace.dependencies]
-wgpu-html = { path = "crates/wgpu-html" }
-wgpu-html-devtools = { path = "crates/wgpu-html-devtools" }
-wgpu-html-events = { path = "crates/wgpu-html-events" }
-wgpu-html-layout = { path = "crates/wgpu-html-layout" }
-wgpu-html-models = { path = "crates/wgpu-html-models" }
-wgpu-html-parser = { path = "crates/wgpu-html-parser" }
-wgpu-html-renderer = { path = "crates/wgpu-html-renderer" }
-wgpu-html-style = { path = "crates/wgpu-html-style" }
-wgpu-html-text = { path = "crates/wgpu-html-text" }
-wgpu-html-tree = { path = "crates/wgpu-html-tree" }
-wgpu-html-driver = { path = "drivers/wgpu-html-driver" }
-wgpu-html-assets = { path = "crates/wgpu-html-assets" }
-wgpu-html-driver-bevy = { path = "drivers/wgpu-html-driver-bevy" }
-wgpu-html-driver-egui = { path = "drivers/wgpu-html-driver-egui" }
-wgpu-html-driver-winit = { path = "drivers/wgpu-html-driver-winit" }
-wgpu-html-ui = { path = "crates/wgpu-html-ui" }
+lui = { path = "crates/lui" }
+lui-devtools = { path = "crates/lui-devtools" }
+lui-events = { path = "crates/lui-events" }
+lui-layout = { path = "crates/lui-layout" }
+lui-models = { path = "crates/lui-models" }
+lui-parser = { path = "crates/lui-parser" }
+lui-renderer = { path = "crates/lui-renderer" }
+lui-style = { path = "crates/lui-style" }
+lui-text = { path = "crates/lui-text" }
+lui-tree = { path = "crates/lui-tree" }
+lui-driver = { path = "drivers/lui-driver" }
+lui-assets = { path = "crates/lui-assets" }
+lui-driver-bevy = { path = "drivers/lui-driver-bevy" }
+lui-driver-egui = { path = "drivers/lui-driver-egui" }
+lui-driver-winit = { path = "drivers/lui-driver-winit" }
+lui-ui = { path = "crates/lui-ui" }
 
 wgpu = "29"
 winit = "0.30"
@@ -56,15 +56,15 @@ rfd = "0.17.2"
 # ── Dev profile: optimize hot crates for usable FPS during development ──
 # The demo/app code stays at opt-level 0 for fast incremental compiles,
 # but the engine hot path gets opt-level 2 so layout/text/paint run fast.
-[profile.dev.package.wgpu-html-layout]
+[profile.dev.package.lui-layout]
 opt-level = 2
-[profile.dev.package.wgpu-html-text]
+[profile.dev.package.lui-text]
 opt-level = 2
-[profile.dev.package.wgpu-html-style]
+[profile.dev.package.lui-style]
 opt-level = 2
-[profile.dev.package.wgpu-html]
+[profile.dev.package.lui]
 opt-level = 2
-[profile.dev.package.wgpu-html-renderer]
+[profile.dev.package.lui-renderer]
 opt-level = 2
 [profile.dev.package.cosmic-text]
 opt-level = 2

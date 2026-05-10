@@ -4,14 +4,14 @@ title: egui Backend
 
 # egui Backend
 
-The `wgpu-html-egui` crate provides an alternative integration path for embedding wgpu-html content inside egui/eframe applications.
+The `lui-egui` crate provides an alternative integration path for embedding lui content inside egui/eframe applications.
 
 ## Overview
 
-Instead of owning a window and event loop (like `wgpu-html-winit`), the egui backend runs inside an existing egui frame. It allocates an egui region, forwards pointer/key events into a `Tree`, and produces a `DisplayList` that can be consumed by either:
+Instead of owning a window and event loop (like `lui-winit`), the egui backend runs inside an existing egui frame. It allocates an egui region, forwards pointer/key events into a `Tree`, and produces a `DisplayList` that can be consumed by either:
 
 1. A lightweight egui painter (CSS box quads only).
-2. The full `wgpu-html-renderer` pipelines (for GPU-accurate glyph and image rendering).
+2. The full `lui-renderer` pipelines (for GPU-accurate glyph and image rendering).
 
 ## HtmlState
 
@@ -58,23 +58,23 @@ fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
 ## --renderer=egui Flag
 
-The demo crate (`wgpu-html-demo`) supports an `--renderer=egui` CLI flag that switches the rendering backend:
+The demo crate (`lui-demo`) supports an `--renderer=egui` CLI flag that switches the rendering backend:
 
 ```bash
-cargo run -p wgpu-html-demo -- --renderer=egui
+cargo run -p lui-demo -- --renderer=egui
 ```
 
 This uses the egui backend to render in an eframe window rather than the native winit harness.
 
 ## Use Cases
 
-- **Developer tools**: Embed wgpu-html as a property inspector or log viewer alongside egui controls.
-- **Game UI**: Use egui for debug overlays and wgpu-html for styled game menus in the same window.
-- **Mixed UI**: egui handles immediate-mode controls (sliders, buttons) while wgpu-html handles document-style UI (help pages, settings panels).
+- **Developer tools**: Embed lui as a property inspector or log viewer alongside egui controls.
+- **Game UI**: Use egui for debug overlays and lui for styled game menus in the same window.
+- **Mixed UI**: egui handles immediate-mode controls (sliders, buttons) while lui handles document-style UI (help pages, settings panels).
 
 ## Limitations
 
-- **Glyph rendering**: The built-in egui painter draws only box quads. For accurate text, consume `HtmlState::display_list()` with your own `wgpu-html-renderer`.
+- **Glyph rendering**: The built-in egui painter draws only box quads. For accurate text, consume `HtmlState::display_list()` with your own `lui-renderer`.
 - **Image rendering**: Same limitation — images need the full renderer pipeline.
 - **No viewport scroll**: The egui region is sized to the content; overflow behavior is up to the host.
 - **Single document**: `HtmlState` holds one `Tree` and one `LayoutBox`. Multiple documents need multiple `HtmlState` instances.

@@ -1,12 +1,12 @@
 ---
-title: Welcome to wgpu-html
+title: Welcome to lui
 ---
 
-# wgpu-html
+# lui
 
 **GPU-accelerated HTML/CSS renderer for Rust, built on wgpu.**
 
-wgpu-html is a complete HTML/CSS rendering engine that runs directly on the GPU via wgpu (Vulkan, Metal, DX12). It parses real HTML5, applies CSS styling (Flexbox + Grid), lays out page geometry, and renders through custom GPU pipelines — all from a single Rust binary. **No web browser. No JavaScript. Ever.**
+lui is a complete HTML/CSS rendering engine that runs directly on the GPU via wgpu (Vulkan, Metal, DX12). It parses real HTML5, applies CSS styling (Flexbox + Grid), lays out page geometry, and renders through custom GPU pipelines — all from a single Rust binary. **No web browser. No JavaScript. Ever.**
 
 ## Key Features
 
@@ -22,22 +22,22 @@ wgpu-html is a complete HTML/CSS rendering engine that runs directly on the GPU 
 ```
 HTML/CSS string
    │
-   ▼  wgpu-html-parser           Tokenizer + tree builder + CSS parser
+   ▼  lui-parser           Tokenizer + tree builder + CSS parser
 Tree<Node<Element>>
    │
-   ▼  wgpu-html-style            UA defaults + selector match + cascade + inheritance
+   ▼  lui-style            UA defaults + selector match + cascade + inheritance
 CascadedTree<CascadedNode>
    │
-   ▼  wgpu-html-layout           Block flow + Flex + Grid + Inline (IFC) + text shaping
+   ▼  lui-layout           Block flow + Flex + Grid + Inline (IFC) + text shaping
 LayoutBox tree
    │
-   ▼  wgpu-html (paint.rs)       LayoutBox → DisplayList (quads + glyphs + clip ranges)
+   ▼  lui (paint.rs)       LayoutBox → DisplayList (quads + glyphs + clip ranges)
 DisplayList
    │
-   ▼  wgpu-html-renderer         Quad pipeline (SDF) + Glyph pipeline + scissor/clip
+   ▼  lui-renderer         Quad pipeline (SDF) + Glyph pipeline + scissor/clip
 Frame on wgpu surface
 ```
 
 ## First Steps
 
-New to wgpu-html? Start with the [Getting Started overview](getting-started/overview) to understand what wgpu-html is, then follow the [Quick Start guide](getting-started/quick-start) to get your first window on screen.
+New to lui? Start with the [Getting Started overview](getting-started/overview) to understand what lui is, then follow the [Quick Start guide](getting-started/quick-start) to get your first window on screen.

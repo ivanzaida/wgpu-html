@@ -105,7 +105,7 @@ fn subscribe(&self, sender: &MsgSender<Msg>, subs: &mut Subscriptions) {
 
 ```rust
 use std::sync::Arc;
-use wgpu_html_ui::{Component, Ctx, El, ShouldRender, el};
+use lui_ui::{Component, Ctx, El, ShouldRender, el};
 
 // ── Context types ──────────────────────────────────────────────
 

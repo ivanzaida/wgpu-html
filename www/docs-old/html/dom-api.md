@@ -4,7 +4,7 @@ title: DOM-style API
 
 # DOM-style API
 
-wgpu-html exposes a browser-inspired DOM API on the `Tree` and `Node` types. All query methods are synchronous and walk the in-memory tree.
+lui exposes a browser-inspired DOM API on the `Tree` and `Node` types. All query methods are synchronous and walk the in-memory tree.
 
 ## Tree-level Query Methods
 
@@ -100,7 +100,7 @@ Paths are useful for passing to `at_path()`, `at_path_mut()`, `node_to_html(path
 
 ## CSS Selector Queries
 
-The `query` module (`wgpu-html-tree/src/query.rs`) provides full CSS selector support for runtime queries:
+The `query` module (`lui-tree/src/query.rs`) provides full CSS selector support for runtime queries:
 
 ### `query_selector(sel: &str) -> Option<&Node>`
 
@@ -298,11 +298,11 @@ if let Some(range) = tree.append_template_content_to_id("row-tmpl", "table-body"
 
 ```rust
 // Focus management
-wgpu_html_tree::focus(&mut tree, &[0, 1, 3]);  // Focus a specific path
-wgpu_html_tree::focus(&mut tree, &[]);          // Focus root
-wgpu_html_tree::blur(&mut tree);                // Clear focus
-wgpu_html_tree::focus_next(&mut tree, false);    // Tab forward
-wgpu_html_tree::focus_next(&mut tree, true);     // Shift+Tab backward
+lui_tree::focus(&mut tree, &[0, 1, 3]);  // Focus a specific path
+lui_tree::focus(&mut tree, &[]);          // Focus root
+lui_tree::blur(&mut tree);                // Clear focus
+lui_tree::focus_next(&mut tree, false);    // Tab forward
+lui_tree::focus_next(&mut tree, true);     // Shift+Tab backward
 
 // Read active element
 if let Some(active) = tree.active_element() {
@@ -333,8 +333,8 @@ if let Some((x, y)) = tree.cursor_position() {
 ## DOM Walking Example
 
 ```rust
-use wgpu_html_parser::parse;
-use wgpu_html_tree::{Element, Node};
+use lui_parser::parse;
+use lui_tree::{Element, Node};
 
 let mut tree = parse(r#"
 <!DOCTYPE html>

@@ -14,25 +14,25 @@ cargo test --workspace
 
 ```bash
 # Parser tests (HTML tokenizer, CSS parser)
-cargo test -p wgpu-html-parser
+cargo test -p lui-parser
 
 # Style/cascade tests
-cargo test -p wgpu-html-style
+cargo test -p lui-style
 
 # Layout tests (block, flex, grid, IFC, positioning)
-cargo test -p wgpu-html-layout
+cargo test -p lui-layout
 
 # Paint and facade tests
-cargo test -p wgpu-html
+cargo test -p lui
 
 # Renderer tests
-cargo test -p wgpu-html-renderer
+cargo test -p lui-renderer
 
 # Tree/event tests
-cargo test -p wgpu-html-tree
+cargo test -p lui-tree
 
 # Component framework tests
-cargo test -p wgpu-html-ui
+cargo test -p lui-ui
 ```
 
 ## Test Patterns
@@ -78,8 +78,8 @@ fn my_paint_test() {
 cargo test --workspace -- --ignored
 
 # Run with stdout shown (for println! debugging)
-cargo test -p wgpu-html-layout -- --nocapture
+cargo test -p lui-layout -- --nocapture
 
 # Run a specific test
-cargo test -p wgpu-html-layout flex_grow
+cargo test -p lui-layout flex_grow
 ```

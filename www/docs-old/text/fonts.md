@@ -4,13 +4,13 @@ title: Font System
 
 # Font System
 
-Fonts are per-document assets registered on `Tree::fonts` (`FontRegistry`). The `wgpu-html-text` crate consumes `&FontRegistry` to build its shaping-side database.
+Fonts are per-document assets registered on `Tree::fonts` (`FontRegistry`). The `lui-text` crate consumes `&FontRegistry` to build its shaping-side database.
 
 ## Font Registration
 
 ```rust
 use std::sync::Arc;
-use wgpu_html_tree::{FontFace, FontStyleAxis, Tree};
+use lui_tree::{FontFace, FontStyleAxis, Tree};
 
 let mut tree = Tree::new(root_node);
 
@@ -63,7 +63,7 @@ The matching algorithm:
 System fonts can be enumerated and registered automatically:
 
 ```rust
-use wgpu_html_tree::system_font_variants;
+use lui_tree::system_font_variants;
 
 let variants: Vec<SystemFontVariant> = system_font_variants();
 for v in &variants {
@@ -86,7 +86,7 @@ The `system_font_variants()` function works on:
 A convenience helper registers all system fonts for a specific family:
 
 ```rust
-use wgpu_html_tree::register_system_fonts;
+use lui_tree::register_system_fonts;
 
 register_system_fonts(&mut tree, "Arial");
 ```

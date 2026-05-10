@@ -4,11 +4,11 @@ title: Screenshots
 
 # Screenshots
 
-wgpu-html supports capturing rendered output to PNG files, both from the live surface and off-screen.
+lui supports capturing rendered output to PNG files, both from the live surface and off-screen.
 
 ## F12 → PNG Screenshot
 
-In the winit harness (`WgpuHtmlWindow`), pressing F12 saves a PNG of the full viewport:
+In the winit harness (`LuiWindow`), pressing F12 saves a PNG of the full viewport:
 
 ```rust
 create_window(&mut tree)
@@ -22,7 +22,7 @@ The file is written to `screenshot_0001.png` (incrementing counter) in the curre
 ## Off-Screen Capture (Full)
 
 ```rust
-use wgpu_html::renderer::Renderer;
+use lui::renderer::Renderer;
 
 renderer.capture_to(
     &display_list,
@@ -37,7 +37,7 @@ renderer.capture_to(
 ## Off-Screen Capture (Region)
 
 ```rust
-use wgpu_html::renderer::Rect;
+use lui::renderer::Rect;
 
 let region = Rect::new(100.0, 50.0, 400.0, 300.0);
 renderer.capture_rect_to(
@@ -52,7 +52,7 @@ renderer.capture_rect_to(
 ## Single-Element Screenshot
 
 ```rust
-use wgpu_html::screenshot_node_to;
+use lui::screenshot_node_to;
 
 screenshot_node_to(
     &tree,
@@ -110,7 +110,7 @@ Inside an `AppHook::on_key`:
 fn on_key(&mut self, ctx: HookContext<'_>, event: &KeyEvent) -> EventResponse {
     if event.logical_key == "F12" {
         if let Some(layout) = ctx.last_layout {
-            let list = wgpu_html::paint::paint_tree_with_text(
+            let list = lui::paint::paint_tree_with_text(
                 ctx.tree, ctx.text_ctx, ctx.image_cache,
                 ctx.window.inner_size().width as f32,
                 ctx.window.inner_size().height as f32,

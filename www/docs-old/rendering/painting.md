@@ -4,7 +4,7 @@ title: Paint Translation
 
 # Paint Translation (LayoutBox → DisplayList)
 
-The paint stage (`wgpu-html::paint`) walks the `LayoutBox` tree depth-first and emits a backend-agnostic `DisplayList`. The renderer consumes the display list without any knowledge of CSS or layout.
+The paint stage (`lui::paint`) walks the `LayoutBox` tree depth-first and emits a backend-agnostic `DisplayList`. The renderer consumes the display list without any knowledge of CSS or layout.
 
 ## Entry Points
 

@@ -4,7 +4,7 @@ title: Overflow Properties
 
 # Overflow Properties
 
-wgpu-html implements CSS overflow handling with per-axis independent clipping, rectangular scissor clips, rounded SDF (Signed Distance Field) clipping, and a clip stack with rectangle intersection for nested overflow containers.
+lui implements CSS overflow handling with per-axis independent clipping, rectangular scissor clips, rounded SDF (Signed Distance Field) clipping, and a clip stack with rectangle intersection for nested overflow containers.
 
 ## `overflow`, `overflow-x`, `overflow-y`
 
@@ -137,7 +137,7 @@ Scroll containers are interactive:
 
 ```rust
 // Scroll API
-use wgpu_html::scroll;
+use lui::scroll;
 
 let geometry = scroll::scrollbar_geometry(&layout_root, path);
 let y_offset = scroll::scroll_y_from_thumb_top(&geometry, thumb_top);
@@ -157,7 +157,7 @@ When both are set, clipping respects the rounded corners:
 
 The SDF quad shader uses the corner radii from the `LayoutBox` to evaluate per-pixel coverage. Content outside the rounded rectangle is discarded, creating smooth anti-aliased rounded clipping.
 
-> **Note:** There was a known bug where `overflow: auto` elements with no painted children (like `<textarea>` with UA default `overflow: auto`) could cause clip index shifting that made subsequent glyphs invisible. This was fixed by remapping `clip_index` values after empty clip ranges were dropped during `finalize()`. See `wgpu-html-renderer/src/paint.rs` for the fix.
+> **Note:** There was a known bug where `overflow: auto` elements with no painted children (like `<textarea>` with UA default `overflow: auto`) could cause clip index shifting that made subsequent glyphs invisible. This was fixed by remapping `clip_index` values after empty clip ranges were dropped during `finalize()`. See `lui-renderer/src/paint.rs` for the fix.
 
 ## Code Examples
 

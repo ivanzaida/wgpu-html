@@ -8,7 +8,7 @@ How CSS selectors are parsed, represented, and matched against elements.
 
 ## Data Structures
 
-**File:** `crates/wgpu-html-tree/src/query.rs`
+**File:** `crates/lui-tree/src/query.rs`
 
 ### Selector Types (lines 60-153)
 
@@ -128,7 +128,7 @@ Handles relative selector syntax:
 
 ## Query API
 
-**File:** `crates/wgpu-html-tree/src/query.rs` lines 2040-2151
+**File:** `crates/lui-tree/src/query.rs` lines 2040-2151
 
 | Method | Line | Purpose |
 |---|---|---|
@@ -141,7 +141,7 @@ Handles relative selector syntax:
 
 ## Cascade Integration
 
-**File:** `crates/wgpu-html-style/src/lib.rs`
+**File:** `crates/lui-style/src/lib.rs`
 
 The cascade uses a separate `MatchContext` (line 31) with boolean fields (`is_hover`, `is_active`, `is_focus`) rather than full paths. `MatchContext::for_path()` (line 74) computes these from `InteractionState`.
 

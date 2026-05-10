@@ -1,28 +1,28 @@
 ---
-title: wgpu-html
+title: lui
 hide_table_of_contents: true
 ---
 
-# wgpu-html
+# lui
 
 GPU-accelerated HTML/CSS renderer for Rust.
 
 <div style={{ textAlign: 'center', margin: '3rem 0' }}>
-<a href="/wgpu-html/docs/intro" className="button button--primary button--lg">
+<a href="/lui/docs/intro" className="button button--primary button--lg">
   Read the Documentation
 </a>
 </div>
 
 :::tip Quick Links
 
-- **[Quick Start Guide](/wgpu-html/docs/getting-started/quick-start)** — get a window on screen in 30 lines
-- **[Supported CSS](/wgpu-html/docs/features/supported-css)** — all supported CSS properties
-- **[Getting Started](/wgpu-html/docs/getting-started/overview)** — learn what wgpu-html is
-- **[GitHub](https://github.com/ivanzaida/wgpu-html)**
+- **[Quick Start Guide](/lui/docs/getting-started/quick-start)** — get a window on screen in 30 lines
+- **[Supported CSS](/lui/docs/features/supported-css)** — all supported CSS properties
+- **[Getting Started](/lui/docs/getting-started/overview)** — learn what lui is
+- **[GitHub](https://github.com/ivanzaida/lui)**
 
 :::
 
-## What is wgpu-html?
+## What is lui?
 
 A Rust library that parses HTML and CSS, computes layout (block, flexbox, grid), shapes text, and paints everything to a GPU-backed display list via wgpu. Zero JavaScript — ever.
 

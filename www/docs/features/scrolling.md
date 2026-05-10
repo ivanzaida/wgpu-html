@@ -42,7 +42,7 @@ Scroll offsets are tracked per layout path in `BTreeMap<Vec<usize>, ScrollOffset
 
 ## Scroll Utilities
 
-Public API in `wgpu-html/src/scroll.rs`:
+Public API in `lui/src/scroll.rs`:
 
 ```rust
 // Viewport scroll

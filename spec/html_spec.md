@@ -11,7 +11,7 @@
 These directly affect visual output — wrong or missing paint means the page looks broken.
 
 ### P0-1: Per-glyph clipping fix
-Lines changed: ~15 in `crates/wgpu-html/src/paint.rs`
+Lines changed: ~15 in `crates/lui/src/paint.rs`
 
 | Item | Status |
 |---|---|
@@ -43,7 +43,7 @@ Lines changed: ~200 spread across layout + paint
 ---
 
 ### P0-3: `border-color: currentColor` and default border color
-Lines changed: ~10 in `crates/wgpu-html-layout/src/lib.rs`
+Lines changed: ~10 in `crates/lui-layout/src/lib.rs`
 
 | Item | Status |
 |---|---|
@@ -59,7 +59,7 @@ Lines changed: ~10 in `crates/wgpu-html-layout/src/lib.rs`
 ## P1 — Layout Gaps (missing layout modes)
 
 ### P1-1: Float layout (`float: left/right`, `clear`)
-Lines changed: ~500 new file `crates/wgpu-html-layout/src/float.rs`
+Lines changed: ~500 new file `crates/lui-layout/src/float.rs`
 
 | Item | Status |
 |---|---|
@@ -77,7 +77,7 @@ Lines changed: ~500 new file `crates/wgpu-html-layout/src/float.rs`
 ---
 
 ### P1-2: Table layout (`display: table`, `table-row`, `table-cell`)
-Lines changed: ~800 new file `crates/wgpu-html-layout/src/table.rs`
+Lines changed: ~800 new file `crates/lui-layout/src/table.rs`
 
 | Item | Status |
 |---|---|
@@ -96,7 +96,7 @@ Lines changed: ~800 new file `crates/wgpu-html-layout/src/table.rs`
 ---
 
 ### P1-3: Sticky positioning
-Lines changed: ~50 in `crates/wgpu-html-layout/src/lib.rs`
+Lines changed: ~50 in `crates/lui-layout/src/lib.rs`
 
 | Item | Status |
 |---|---|
@@ -113,7 +113,7 @@ Lines changed: ~50 in `crates/wgpu-html-layout/src/lib.rs`
 ## P2 — CSS Selector & Cascade Gaps
 
 ### P2-1: Stylesheet selectors — combinators + pseudo-classes
-Lines changed: ~200 in `crates/wgpu-html-style/src/`
+Lines changed: ~200 in `crates/lui-style/src/`
 
 | Item | Status |
 |---|---|
@@ -124,14 +124,14 @@ Lines changed: ~200 in `crates/wgpu-html-style/src/`
 | `:first-child`, `:last-child`, `:nth-child()` structural pseudo-classes in cascade | ❌ |
 | `:not()` negation pseudo-class in cascade | ❌ |
 
-**Why:** The query engine (`wgpu-html-tree/src/query.rs`) already implements ALL of these for `querySelector`/`matches`/`closest`. The stylesheet parser and cascade matcher need to be updated to use the same machinery. This is largely a wiring task, not a rewrite.
+**Why:** The query engine (`lui-tree/src/query.rs`) already implements ALL of these for `querySelector`/`matches`/`closest`. The stylesheet parser and cascade matcher need to be updated to use the same machinery. This is largely a wiring task, not a rewrite.
 
 **Depends on:** none — the parsing/matching logic already exists in the query engine.
 
 ---
 
 ### P2-2: `:focus-visible`, `:focus-within`, `:disabled` in cascade
-Lines changed: ~50 in `crates/wgpu-html-style/src/`
+Lines changed: ~50 in `crates/lui-style/src/`
 
 | Item | Status |
 |---|---|
@@ -146,7 +146,7 @@ Lines changed: ~50 in `crates/wgpu-html-style/src/`
 ---
 
 ### P2-3: At-rules — `@media` support
-Lines changed: ~100 in `crates/wgpu-html-style/src/`, ~100 in `crates/wgpu-html-parser/src/`
+Lines changed: ~100 in `crates/lui-style/src/`, ~100 in `crates/lui-parser/src/`
 
 | Item | Status |
 |---|---|
@@ -161,7 +161,7 @@ Lines changed: ~100 in `crates/wgpu-html-style/src/`, ~100 in `crates/wgpu-html-
 ## P3 — Form Control Gaps
 
 ### P3-1: Checkbox / radio click-to-toggle
-Lines changed: ~40 in `crates/wgpu-html-tree/src/dispatch.rs`
+Lines changed: ~40 in `crates/lui-tree/src/dispatch.rs`
 
 | Item | Status |
 |---|---|
@@ -194,7 +194,7 @@ Lines changed: ~500 across tree + layout + paint
 ---
 
 ### P3-3: Form submission
-Lines changed: ~80 in `crates/wgpu-html-tree/src/dispatch.rs`
+Lines changed: ~80 in `crates/lui-tree/src/dispatch.rs`
 
 | Item | Status |
 |---|---|
@@ -218,12 +218,12 @@ Lines changed: ~80 in `crates/wgpu-html-tree/src/dispatch.rs`
 | Layout: rasterize gradient to RGBA texture, feed into image pipeline | ✅ |
 | Render: CPU rasterization → existing image pipeline (no shader changes) | ✅ |
 
-All three gradient types + `repeating-*` variants. ~500 lines in `crates/wgpu-html-layout/src/gradient.rs`.
+All three gradient types + `repeating-*` variants. ~500 lines in `crates/lui-layout/src/gradient.rs`.
 
 ---
 
 ### P4-2: `box-shadow`
-Lines changed: ~200 in `crates/wgpu-html-renderer/src/`
+Lines changed: ~200 in `crates/lui-renderer/src/`
 
 | Item | Status |
 |---|---|
@@ -238,7 +238,7 @@ Lines changed: ~200 in `crates/wgpu-html-renderer/src/`
 ---
 
 ### P4-3: `transform` (2D)
-Lines changed: ~150 in `crates/wgpu-html-layout/src/`, ~50 in `crates/wgpu-html-renderer/src/`
+Lines changed: ~150 in `crates/lui-layout/src/`, ~50 in `crates/lui-renderer/src/`
 
 | Item | Status |
 |---|---|
@@ -270,7 +270,7 @@ Lines changed: ~50 parser, ~100 renderer
 ## P5 — HTML Parsing Gaps
 
 ### P5-1: Unknown tags — keep subtree
-Lines changed: ~20 in `crates/wgpu-html-parser/src/tree_builder.rs`
+Lines changed: ~20 in `crates/lui-parser/src/tree_builder.rs`
 
 | Item | Status |
 |---|---|
@@ -283,7 +283,7 @@ Lines changed: ~20 in `crates/wgpu-html-parser/src/tree_builder.rs`
 ---
 
 ### P5-2: Whitespace-only text preservation
-Lines changed: ~20 in `crates/wgpu-html-parser/src/tree_builder.rs`
+Lines changed: ~20 in `crates/lui-parser/src/tree_builder.rs`
 
 | Item | Status |
 |---|---|
@@ -296,7 +296,7 @@ Lines changed: ~20 in `crates/wgpu-html-parser/src/tree_builder.rs`
 ---
 
 ### P5-3: `<link rel="stylesheet">` loading
-Lines changed: ~100 in `crates/wgpu-html-tree/src/`, ~50 in `crates/wgpu-html-parser/src/`
+Lines changed: ~100 in `crates/lui-tree/src/`, ~50 in `crates/lui-parser/src/`
 
 | Item | Status |
 |---|---|
@@ -313,7 +313,7 @@ Lines changed: ~100 in `crates/wgpu-html-tree/src/`, ~50 in `crates/wgpu-html-pa
 ## P6 — Interactivity Gaps
 
 ### P6-1: Cursor styling
-Lines changed: ~30 in `crates/wgpu-html-winit/src/`
+Lines changed: ~30 in `crates/lui-winit/src/`
 
 | Item | Status |
 |---|---|
@@ -328,7 +328,7 @@ Lines changed: ~30 in `crates/wgpu-html-winit/src/`
 ---
 
 ### P6-2: `preventDefault` / `stopPropagation`
-Lines changed: ~100 in `crates/wgpu-html-tree/src/dispatch.rs`
+Lines changed: ~100 in `crates/lui-tree/src/dispatch.rs`
 
 | Item | Status |
 |---|---|
@@ -343,7 +343,7 @@ Lines changed: ~100 in `crates/wgpu-html-tree/src/dispatch.rs`
 ---
 
 ### P6-3: Double-click / triple-click / context-menu synthesis
-Lines changed: ~50 in `crates/wgpu-html-winit/src/`
+Lines changed: ~50 in `crates/lui-winit/src/`
 
 | Item | Status |
 |---|---|
@@ -360,7 +360,7 @@ Lines changed: ~50 in `crates/wgpu-html-winit/src/`
 ## P7 — Infrastructure
 
 ### P7-1: `em`/`rem` against actual inherited font-size
-Lines changed: ~30 in `crates/wgpu-html-layout/src/length.rs`
+Lines changed: ~30 in `crates/lui-layout/src/length.rs`
 
 | Item | Status |
 |---|---|
@@ -374,7 +374,7 @@ Lines changed: ~30 in `crates/wgpu-html-layout/src/length.rs`
 ---
 
 ### P7-2: Flex baseline alignment
-Lines changed: ~100 in `crates/wgpu-html-layout/src/flex.rs`
+Lines changed: ~100 in `crates/lui-layout/src/flex.rs`
 
 | Item | Status |
 |---|---|

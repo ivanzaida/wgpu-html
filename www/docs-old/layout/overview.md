@@ -4,7 +4,7 @@ title: Layout Engine Overview
 
 # Layout Engine Overview
 
-The layout engine (`wgpu-html-layout`) converts a fully-cascaded style tree into a **`LayoutBox`** tree — a positioned, sized, shaped representation of every element in physical pixels. The renderer consumes `LayoutBox` directly; it never re-resolves CSS.
+The layout engine (`lui-layout`) converts a fully-cascaded style tree into a **`LayoutBox`** tree — a positioned, sized, shaped representation of every element in physical pixels. The renderer consumes `LayoutBox` directly; it never re-resolves CSS.
 
 ## LayoutBox Tree
 

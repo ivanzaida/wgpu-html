@@ -30,7 +30,7 @@ Demonstrates form controls: text inputs, checkboxes, radio buttons, range slider
 ## Running
 
 ```bash
-cargo run -p wgpu-html-demo -- demo/wgpu-html-demo/html/styled-inputs.html
+cargo run -p lui-demo -- demo/lui-demo/html/styled-inputs.html
 ```
 
 ## What It Shows

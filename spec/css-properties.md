@@ -1,4 +1,4 @@
-# wgpu-html — CSS Property Matrix
+# lui — CSS Property Matrix
 
 Exhaustive support table for non-vendor, non-deprecated CSS
 properties tracked from MDN's standard CSS property index. Companion

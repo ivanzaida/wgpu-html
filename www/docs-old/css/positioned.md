@@ -4,7 +4,7 @@ title: Positioned Layout
 
 # Positioned Layout Properties
 
-wgpu-html implements CSS positioned layout with `static`, `relative`, `absolute`, and `fixed` positioning. The layout engine resolves containing blocks, applies offsets, and handles shrink-to-fit sizing for absolutely positioned elements.
+lui implements CSS positioned layout with `static`, `relative`, `absolute`, and `fixed` positioning. The layout engine resolves containing blocks, applies offsets, and handles shrink-to-fit sizing for absolutely positioned elements.
 
 ## `position`
 
@@ -133,7 +133,7 @@ The containing block is determined by:
 2. For `absolute` — the nearest positioned ancestor (`position: relative | absolute | fixed | sticky`), or the viewport if none
 3. For `relative` — the element's own normal flow position
 
-The layout function `layout_out_of_flow_block()` in `wgpu-html-layout` walks up the tree to find the containing block, then resolves inset offsets and sizes.
+The layout function `layout_out_of_flow_block()` in `lui-layout` walks up the tree to find the containing block, then resolves inset offsets and sizes.
 
 ## Shrink-to-Fit Sizing for Absolute Elements
 

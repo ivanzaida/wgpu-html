@@ -62,7 +62,7 @@ The HTML parser is lenient. Invalid HTML is recovered gracefully:
 For custom integrations, wrap the pipeline:
 
 ```rust
-match wgpu_html::compute_layout(&tree, &mut text_ctx, &mut image_cache, vw, vh, scale) {
+match lui::compute_layout(&tree, &mut text_ctx, &mut image_cache, vw, vh, scale) {
     Some(layout) => { /* render */ }
     None => { /* tree is empty, show placeholder */ }
 }

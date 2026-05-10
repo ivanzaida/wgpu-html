@@ -1,0 +1,8 @@
+[package]
+name = "lui-parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-models.workspace = true
+lui-tree.workspace   = true

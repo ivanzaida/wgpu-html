@@ -4,13 +4,13 @@ sidebar_position: 6
 
 # Native Apps
 
-Tips for building native desktop applications with wgpu-html.
+Tips for building native desktop applications with lui.
 
 ## Minimal App Template
 
 ```rust
-use wgpu_html_parser::parse;
-use wgpu_html_driver_winit::WinitDriver;
+use lui_parser::parse;
+use lui_driver_winit::WinitDriver;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
 

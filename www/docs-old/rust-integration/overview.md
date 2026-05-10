@@ -4,26 +4,26 @@ title: Rust Integration Overview
 
 # Rust Integration Overview
 
-The `wgpu-html` crate is the top-level facade. It re-exports all sub-crates and provides convenient pipeline functions so you only need one dependency.
+The `lui` crate is the top-level facade. It re-exports all sub-crates and provides convenient pipeline functions so you only need one dependency.
 
 ## Integration Approaches
 
 | Approach | Use case | Crate |
 |---|---|---|
-| Raw API | Full control over render loop, font loading, event dispatch | `wgpu-html` |
-| Winit driver | Batteries-included window app | `wgpu-html-driver-winit` |
-| Bevy driver | Fullscreen HTML overlay in a Bevy app | `wgpu-html-driver-bevy` |
-| egui driver | Embed HTML in an egui/eframe panel | `wgpu-html-driver-egui` |
+| Raw API | Full control over render loop, font loading, event dispatch | `lui` |
+| Winit driver | Batteries-included window app | `lui-driver-winit` |
+| Bevy driver | Fullscreen HTML overlay in a Bevy app | `lui-driver-bevy` |
+| egui driver | Embed HTML in an egui/eframe panel | `lui-driver-egui` |
 
 ## Project Layout
 
 ```
 crates/      Core engine (parser, tree, style, layout, renderer, ...)
 drivers/     Platform integrations
-  wgpu-html-driver/         Abstract Driver trait + Runtime
-  wgpu-html-driver-winit/   winit window harness
-  wgpu-html-driver-bevy/    Bevy fullscreen overlay plugin
-  wgpu-html-driver-egui/    egui region embedding
+  lui-driver/         Abstract Driver trait + Runtime
+  lui-driver-winit/   winit window harness
+  lui-driver-bevy/    Bevy fullscreen overlay plugin
+  lui-driver-egui/    egui region embedding
 demo/        Example applications
 ```
 
@@ -32,18 +32,18 @@ demo/        Example applications
 ```rust
 // Cargo.toml
 [dependencies]
-wgpu-html = "0.1"
+lui = "0.1"
 ```
 
 The facade re-exports:
-- `wgpu_html_layout` as `layout`
-- `wgpu_html_models` as `models`
-- `wgpu_html_parser` as `parser`
-- `wgpu_html_renderer` as `renderer`
-- `wgpu_html_style` as `style`
-- `wgpu_html_text` as `text`
-- `wgpu_html_tree` as `tree`
-- `wgpu_html::paint`, `wgpu_html::interactivity`, `wgpu_html::scroll`
+- `lui_layout` as `layout`
+- `lui_models` as `models`
+- `lui_parser` as `parser`
+- `lui_renderer` as `renderer`
+- `lui_style` as `style`
+- `lui_text` as `text`
+- `lui_tree` as `tree`
+- `lui::paint`, `lui::interactivity`, `lui::scroll`
 
 ## Main API
 

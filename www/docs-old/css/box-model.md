@@ -4,7 +4,7 @@ title: Box Model
 
 # CSS Box Model
 
-wgpu-html implements the standard CSS box model with content, padding, border, and margin boxes. The box model affects
+lui implements the standard CSS box model with content, padding, border, and margin boxes. The box model affects
 layout geometry (spacing, sizing) and paint (background clipping, border rendering).
 
 ## Box Model Structure
@@ -381,7 +381,7 @@ Available border styles:
 
 ## `border-radius`
 
-wgpu-html implements the full `border-radius` specification with elliptical (horizontal/vertical) radii and per-corner
+lui implements the full `border-radius` specification with elliptical (horizontal/vertical) radii and per-corner
 expansion.
 
 ### Uniform Radius

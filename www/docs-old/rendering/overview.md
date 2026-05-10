@@ -4,7 +4,7 @@ title: Rendering Pipeline Overview
 
 # Rendering Pipeline Overview
 
-The renderer (`wgpu-html-renderer`) converts a `DisplayList` into GPU draw calls. It owns the wgpu device, surface, and three GPU pipelines.
+The renderer (`lui-renderer`) converts a `DisplayList` into GPU draw calls. It owns the wgpu device, surface, and three GPU pipelines.
 
 ## DisplayList
 

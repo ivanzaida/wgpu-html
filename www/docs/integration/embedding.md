@@ -2,9 +2,9 @@
 sidebar_position: 1
 ---
 
-# Embedding wgpu-html
+# Embedding lui
 
-wgpu-html is designed to be embedded inside a Rust application. The core library is windowing-system agnostic — you connect it to any window via the `Driver` trait or use the provided drivers.
+lui is designed to be embedded inside a Rust application. The core library is windowing-system agnostic — you connect it to any window via the `Driver` trait or use the provided drivers.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Your Application
 ## Step 1: Create a Tree
 
 ```rust
-use wgpu_html_parser::parse;
+use lui_parser::parse;
 
 let mut tree = parse(r#"<html><body>
     <div style="padding: 20px; font-family: sans-serif;">
@@ -39,7 +39,7 @@ tree.register_font(FontFace {
 ### winit (desktop)
 
 ```rust
-use wgpu_html_driver_winit::WinitDriver;
+use lui_driver_winit::WinitDriver;
 
 let event_loop = EventLoop::new()?;
 let window = Arc::new(event_loop.create_window(Window::default_attributes())?);
@@ -52,7 +52,7 @@ driver.handle_event(&event); // dispatches + renders
 ### egui / eframe
 
 ```rust
-use wgpu_html_driver_egui::EguiRunner;
+use lui_driver_egui::EguiRunner;
 
 let mut runner = EguiRunner::new(window, 800, 600);
 
@@ -67,9 +67,9 @@ egui::CentralPanel::default().show(ctx, |ui| {
 ### Bevy
 
 ```rust
-use wgpu_html_driver_bevy::{WgpuHtmlPlugin, HtmlOverlay};
+use lui_driver_bevy::{LuiPlugin, HtmlOverlay};
 
-app.add_plugins(WgpuHtmlPlugin);
+app.add_plugins(LuiPlugin);
 
 fn setup(mut commands: Commands) {
     commands.insert_resource(HtmlOverlay::new());
@@ -111,7 +111,7 @@ println!("Frame: cascade={:.2}ms layout={:.2}ms paint={:.2}ms",
 
 ## Custom Drivers
 
-Implement the `Driver` trait from `wgpu-html-driver`:
+Implement the `Driver` trait from `lui-driver`:
 
 ```rust
 impl Driver for MyWindow {

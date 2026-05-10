@@ -4,7 +4,7 @@ title: Form Controls
 
 # Form Controls
 
-Form control editing is implemented in `wgpu-html-tree::text_edit` (252 lines) and driven by keyboard input dispatch.
+Form control editing is implemented in `lui-tree::text_edit` (252 lines) and driven by keyboard input dispatch.
 
 ## Text Editing
 

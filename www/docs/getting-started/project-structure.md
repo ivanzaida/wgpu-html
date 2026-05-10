@@ -7,23 +7,23 @@ sidebar_position: 5
 ## Workspace Layout
 
 ```
-wgpu-html/
+lui/
 ├── crates/                    # All Rust crates
-│   ├── wgpu-html/             # Façade: orchestration, paint, interactivity
-│   ├── wgpu-html-parser/      # HTML tokenizer, CSS parser, stylesheet parser
-│   ├── wgpu-html-style/       # CSS cascade, selector matching, inheritance
-│   ├── wgpu-html-layout/      # Block, flex, grid, IFC, positioned layout
-│   ├── wgpu-html-text/        # Font DB, cosmic-text shaping, glyph atlas
-│   ├── wgpu-html-renderer/    # wgpu pipelines (quad, glyph, image)
-│   ├── wgpu-html-tree/        # DOM tree, events, focus, query selectors
-│   ├── wgpu-html-events/      # Typed event structs
-│   ├── wgpu-html-models/      # Shared types (Style, enums, element structs)
-│   ├── wgpu-html-winit/       # winit window harness
-│   ├── wgpu-html-ui/          # Component framework
-│   ├── wgpu-html-egui/        # egui integration backend
-│   └── wgpu-html-devtools/    # Devtools inspector
+│   ├── lui/             # Façade: orchestration, paint, interactivity
+│   ├── lui-parser/      # HTML tokenizer, CSS parser, stylesheet parser
+│   ├── lui-style/       # CSS cascade, selector matching, inheritance
+│   ├── lui-layout/      # Block, flex, grid, IFC, positioned layout
+│   ├── lui-text/        # Font DB, cosmic-text shaping, glyph atlas
+│   ├── lui-renderer/    # wgpu pipelines (quad, glyph, image)
+│   ├── lui-tree/        # DOM tree, events, focus, query selectors
+│   ├── lui-events/      # Typed event structs
+│   ├── lui-models/      # Shared types (Style, enums, element structs)
+│   ├── lui-winit/       # winit window harness
+│   ├── lui-ui/          # Component framework
+│   ├── lui-egui/        # egui integration backend
+│   └── lui-devtools/    # Devtools inspector
 ├── demo/
-│   └── wgpu-html-demo/        # Demo application
+│   └── lui-demo/        # Demo application
 │       ├── html/              # Example HTML pages
 │       └── src/               # Demo source
 ├── spec/                      # Technical specifications
@@ -37,7 +37,7 @@ wgpu-html/
 
 ## Key Source Files
 
-### wgpu-html (facade)
+### lui (facade)
 
 | File | Purpose |
 |---|---|
@@ -46,7 +46,7 @@ wgpu-html/
 | `src/interactivity.rs` | Mouse/keyboard dispatch wrappers, text selection |
 | `src/date_picker_overlay.rs` | Date input overlay UI |
 
-### wgpu-html-layout
+### lui-layout
 
 | File | Purpose |
 |---|---|
@@ -56,7 +56,7 @@ wgpu-html/
 | `src/length.rs` | CSS length resolution (px, %, em, vw, calc, etc.) |
 | `src/table.rs` | Table layout (in progress) |
 
-### wgpu-html-renderer
+### lui-renderer
 
 | File | Purpose |
 |---|---|
@@ -70,13 +70,13 @@ wgpu-html/
 ```bash
 cargo build --workspace
 cargo test --workspace
-cargo run -p wgpu-html-demo
+cargo run -p lui-demo
 ```
 
 Targeted test loops:
 
 ```bash
-cargo test -p wgpu-html-layout
-cargo test -p wgpu-html-parser
-cargo test -p wgpu-html
+cargo test -p lui-layout
+cargo test -p lui-parser
+cargo test -p lui
 ```

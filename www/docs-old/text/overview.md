@@ -4,7 +4,7 @@ title: Text Rendering Overview
 
 # Text Rendering Overview
 
-Text rendering in wgpu-html is handled by the `wgpu-html-text` crate, which owns the shaping pipeline, font database, and CPU-side glyph atlas.
+Text rendering in lui is handled by the `lui-text` crate, which owns the shaping pipeline, font database, and CPU-side glyph atlas.
 
 ## Font Database
 
@@ -48,8 +48,8 @@ The glyph atlas is a 2048×2048 `R8Unorm` texture shared between CPU and GPU:
 pub const GLYPH_ATLAS_SIZE: u32 = 2048;
 ```
 
-- **CPU side** (`wgpu-html-text::Atlas`): shelf-packing allocator. Each glyph gets a rectangular region. Dirty rects accumulate and are flushed to the GPU each frame.
-- **GPU side** (`wgpu-html-renderer::GlyphPipeline`): samples the atlas texture with UV coordinates, multiplies coverage by per-glyph color.
+- **CPU side** (`lui-text::Atlas`): shelf-packing allocator. Each glyph gets a rectangular region. Dirty rects accumulate and are flushed to the GPU each frame.
+- **GPU side** (`lui-renderer::GlyphPipeline`): samples the atlas texture with UV coordinates, multiplies coverage by per-glyph color.
 
 ## Per-Glyph Text Color
 

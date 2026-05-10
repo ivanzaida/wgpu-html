@@ -1,0 +1,11 @@
+[package]
+name = "lui-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-tree.workspace   = true
+lui-models.workspace = true
+
+[dev-dependencies]
+lui-events.workspace = true

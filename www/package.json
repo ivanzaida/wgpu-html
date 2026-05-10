@@ -1,8 +1,8 @@
 {
-  "name": "wgpu-html-docs",
+  "name": "lui-docs",
   "version": "0.1.0",
   "private": true,
-  "description": "wgpu-html — GPU-accelerated HTML/CSS renderer documentation",
+  "description": "lui — GPU-accelerated HTML/CSS renderer documentation",
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",

@@ -1,10 +1,10 @@
 ---
-title: Component Framework (wgpu-html-ui)
+title: Component Framework (lui-ui)
 ---
 
-# Component Framework (`wgpu-html-ui`)
+# Component Framework (`lui-ui`)
 
-`wgpu-html-ui` is an Elm-architecture component framework for building interactive UI with wgpu-html. It provides state management, scoped CSS, render caching, and a builder DSL — all in Rust.
+`lui-ui` is an Elm-architecture component framework for building interactive UI with lui. It provides state management, scoped CSS, render caching, and a builder DSL — all in Rust.
 
 ## Elm Architecture
 
@@ -69,7 +69,7 @@ el::div().class(ctx.scoped("card"))  // → "mycomp-card"
 ## Observable — Reactive Shared State
 
 ```rust
-use wgpu_html_ui::Observable;
+use lui_ui::Observable;
 
 let theme = Observable::new("dark");
 
@@ -113,7 +113,7 @@ The DOM is patched in-place (not replaced wholesale), preserving form control va
 
 ```rust
 // Standalone mount (e.g. devtools, secondary windows)
-use wgpu_html_ui::Mount;
+use lui_ui::Mount;
 let mount = Mount::<MyComponent>::new(props);
 mount.render(&mut tree);
 mount.process(&mut tree);

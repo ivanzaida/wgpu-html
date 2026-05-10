@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace the monolithic `wgpu-html-renderer` with a trait-based architecture
+Replace the monolithic `lui-renderer` with a trait-based architecture
 supporting native graphics backends:
 
 - **wgpu** (current, wraps D3D12/Vulkan/Metal/GL internally)
@@ -14,24 +14,24 @@ supporting native graphics backends:
 ## Current Architecture
 
 ```
-DisplayList (IR)          -- defined in wgpu-html-renderer/src/paint.rs
+DisplayList (IR)          -- defined in lui-renderer/src/paint.rs
        |                     (zero wgpu types, pure f32/u32/Arc<Vec<u8>>)
        v
-Renderer struct           -- wgpu-html-renderer/src/lib.rs
+Renderer struct           -- lui-renderer/src/lib.rs
   +-- QuadPipeline           quad_pipeline.rs    (quad.wgsl, 313 lines)
   +-- GlyphPipeline          glyph_pipeline.rs   (glyph.wgsl)
   +-- ImagePipeline          image_pipeline.rs    (image.wgsl)
   +-- Screenshot             screenshot.rs
        |
        v
-Driver (Runtime)          -- drivers/wgpu-html-driver/src/lib.rs
+Driver (Runtime)          -- drivers/lui-driver/src/lib.rs
   calls: atlas.upload(&renderer.queue, renderer.glyph_atlas_texture())
   calls: renderer.render(&display_list)
 ```
 
 wgpu coupling points:
 - `Renderer` struct fields (device, queue, surface, pipelines)
-- `Atlas::upload()` in wgpu-html-text takes `&wgpu::Queue` + `&wgpu::Texture`
+- `Atlas::upload()` in lui-text takes `&wgpu::Queue` + `&wgpu::Texture`
 - Driver accesses `renderer.queue` and `renderer.glyph_atlas_texture()` directly
 
 Everything above the renderer (paint, layout, cascade, tree, parser) is
@@ -40,16 +40,16 @@ already backend-agnostic.
 ## Target Architecture
 
 ```
-wgpu-html-display-list    -- new crate: DisplayList, Rect, Color, Quad, etc.
+lui-display-list    -- new crate: DisplayList, Rect, Color, Quad, etc.
        |
        v
-wgpu-html-render-api      -- new crate: RenderBackend trait
+lui-render-api      -- new crate: RenderBackend trait
        |
-       +---> wgpu-html-renderer        (WgpuRenderer, existing code)
-       +---> wgpu-html-renderer-dx12   (Dx12Renderer)
-       +---> wgpu-html-renderer-dx11   (Dx11Renderer)
-       +---> wgpu-html-renderer-vk     (VulkanRenderer)
-       +---> wgpu-html-renderer-gl     (GlRenderer)
+       +---> lui-renderer        (WgpuRenderer, existing code)
+       +---> lui-renderer-dx12   (Dx12Renderer)
+       +---> lui-renderer-dx11   (Dx11Renderer)
+       +---> lui-renderer-vk     (VulkanRenderer)
+       +---> lui-renderer-gl     (GlRenderer)
        |
        v
 Driver (Runtime<B: RenderBackend>)
@@ -64,17 +64,17 @@ Driver (Runtime<B: RenderBackend>)
 
 ### Phase 1: Extract DisplayList crate (1 day)
 
-- [ ] Create `wgpu-html-display-list` crate
-- [ ] Move from `wgpu-html-renderer/src/paint.rs`:
+- [ ] Create `lui-display-list` crate
+- [ ] Move from `lui-renderer/src/paint.rs`:
   - `DisplayList`, `Quad`, `GlyphQuad`, `ImageQuad`, `ClipRange`
   - `DisplayCommand`, `DisplayCommandKind`
   - `Rect`, `Color`, `FrameOutcome`
-- [ ] Re-export from `wgpu-html-renderer` for backward compat
+- [ ] Re-export from `lui-renderer` for backward compat
 - [ ] Update all imports across the workspace
 
 ### Phase 2: Define RenderBackend trait (2-3 days)
 
-- [ ] Create `wgpu-html-render-api` crate
+- [ ] Create `lui-render-api` crate
 - [ ] Define trait:
 
 ```rust
@@ -125,7 +125,7 @@ Each backend requires:
 
 #### Phase 5a: D3D12 backend (2-3 weeks)
 
-- [ ] Crate: `wgpu-html-renderer-dx12`
+- [ ] Crate: `lui-renderer-dx12`
 - [ ] Dependency: `windows` crate (`ID3D12Device`, `ID3D12GraphicsCommandList`, etc.)
 - [ ] Port shaders: WGSL -> HLSL SM6
 - [ ] Root signature = bind group layout equivalent
@@ -135,7 +135,7 @@ Each backend requires:
 
 #### Phase 5b: Vulkan backend (2-3 weeks)
 
-- [ ] Crate: `wgpu-html-renderer-vk`
+- [ ] Crate: `lui-renderer-vk`
 - [ ] Dependency: `ash` crate
 - [ ] Port shaders: WGSL -> SPIR-V (use `naga` for automated translation)
 - [ ] VkDescriptorSet = bind group
@@ -145,7 +145,7 @@ Each backend requires:
 
 #### Phase 5c: D3D11 backend (3-4 weeks)
 
-- [ ] Crate: `wgpu-html-renderer-dx11`
+- [ ] Crate: `lui-renderer-dx11`
 - [ ] Dependency: `windows` crate (`ID3D11Device`, `ID3D11DeviceContext`)
 - [ ] Port shaders: WGSL -> HLSL SM5
 - [ ] No explicit descriptor sets — constant buffers via `VSSetConstantBuffers`
@@ -154,7 +154,7 @@ Each backend requires:
 
 #### Phase 5d: OpenGL backend (3-4 weeks)
 
-- [ ] Crate: `wgpu-html-renderer-gl`
+- [ ] Crate: `lui-renderer-gl`
 - [ ] Dependency: `glow` or `glutin` + raw GL
 - [ ] Port shaders: WGSL -> GLSL 3.3+ (or 4.3 for compute)
 - [ ] VAO + VBO model
@@ -243,4 +243,4 @@ Phase 5 backends are independent of each other and can be parallelized.
 | Trait style | `dyn RenderBackend` vs generic `B: RenderBackend` | TBD | Generic avoids vtable overhead; dyn enables runtime selection |
 | Shader porting | naga automated vs manual port | TBD | naga first, manual fixups where needed |
 | Atlas ownership | Backend owns texture vs callback | TBD | Callback (`flush_dirty`) is cleaner but backend-owns gives more control |
-| DisplayList location | Own crate vs wgpu-html-models | TBD | Own crate keeps models free of rendering concepts |
+| DisplayList location | Own crate vs lui-models | TBD | Own crate keeps models free of rendering concepts |

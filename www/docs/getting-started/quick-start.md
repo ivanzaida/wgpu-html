@@ -4,14 +4,14 @@ sidebar_position: 3
 
 # Quick Start
 
-This guide walks you through getting "Hello World" rendered on screen with wgpu-html in a winit window.
+This guide walks you through getting "Hello World" rendered on screen with lui in a winit window.
 
 ## Minimal Example — Parse, Cascade, Layout, Paint
 
 ```rust
-use wgpu_html::parse;
-use wgpu_html_style::cascade;
-use wgpu_html_layout::layout_with_text;
+use lui::parse;
+use lui_style::cascade;
+use lui_layout::layout_with_text;
 
 let html = r#"
     <!DOCTYPE html>
@@ -27,7 +27,7 @@ let html = r#"
 let mut tree = parse(html);
 
 tree.register_font(
-    wgpu_html_tree::FontFace {
+    lui_tree::FontFace {
         family: "sans-serif".into(),
         file: "C:/Windows/Fonts/segoeui.ttf".into(),
         ..Default::default()
@@ -37,7 +37,7 @@ tree.register_font(
 // Cascade → Layout → Paint
 let cascaded = cascade(&tree);
 let layout = layout_with_text(&cascaded, 800.0);
-let display_list = wgpu_html::paint::paint_tree_returning_layout(
+let display_list = lui::paint::paint_tree_returning_layout(
     &layout, &cascaded, 800.0, 600.0,
 );
 ```
@@ -45,8 +45,8 @@ let display_list = wgpu_html::paint::paint_tree_returning_layout(
 ## Full winit Window Example
 
 ```rust
-use wgpu_html::parse;
-use wgpu_html_winit::{create_window, AppHook};
+use lui::parse;
+use lui_winit::{create_window, AppHook};
 
 fn main() {
     let html = r#"<!DOCTYPE html>
@@ -54,17 +54,17 @@ fn main() {
 <body style="margin: 0; background: #1a1a2e; color: #e0e0e0;
              display: flex; justify-content: center; align-items: center; height: 100vh;">
     <div style="text-align: center;">
-        <h1 style="font-size: 48px; margin: 0;">Hello, wgpu-html!</h1>
+        <h1 style="font-size: 48px; margin: 0;">Hello, lui!</h1>
         <p style="font-size: 18px; color: #888;">GPU-accelerated HTML/CSS in Rust</p>
     </div>
 </body>
 </html>"#;
 
     let mut tree = parse(html);
-    wgpu_html_winit::register_system_fonts(&mut tree, "sans-serif");
+    lui_winit::register_system_fonts(&mut tree, "sans-serif");
 
     create_window(&mut tree)
-        .with_title("Hello wgpu-html")
+        .with_title("Hello lui")
         .with_size(800, 600)
         .run();
 }
@@ -72,7 +72,7 @@ fn main() {
 
 ## Expected Outcome
 
-A dark window (800×600) with centered white text reading "Hello, wgpu-html!" and a grey subtitle. The window handles:
+A dark window (800×600) with centered white text reading "Hello, lui!" and a grey subtitle. The window handles:
 
 - **Resizing** — layout re-runs on window resize
 - **Scrolling** — mouse wheel scrolls the viewport

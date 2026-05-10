@@ -1,4 +1,4 @@
-# wgpu-html — Text Input Spec
+# lui — Text Input Spec
 
 Text editing for `<input>` and `<textarea>` form controls.
 Companion to `spec/interactivity.md` (focus/keyboard foundations),
@@ -14,7 +14,7 @@ editing surface looks like today and where it's heading".
 
 | Feature | State | Notes |
 |---|---|---|
-| `<input>` value storage (`Input::value`) | ✅ | `wgpu-html-models/src/html/input.rs` |
+| `<input>` value storage (`Input::value`) | ✅ | `lui-models/src/html/input.rs` |
 | `<textarea>` value storage (`Textarea::value`) | ✅ | Falls back to RAWTEXT children when `None` |
 | `EditCursor` on `InteractionState` | ✅ | Byte offsets into the value string |
 | Character insertion via `KeyEvent.text` | ✅ | Layout-aware; respects user's keyboard layout |
@@ -51,7 +51,7 @@ editing surface looks like today and where it's heading".
 ### Input type support
 
 All 22 HTML input types are parsed into `InputType` variants
-(`wgpu-html-models/src/common/html_enums.rs`). Rendering and
+(`lui-models/src/common/html_enums.rs`). Rendering and
 editing support varies:
 
 | `type` | Parsed | Focusable | Editable | Renders as | Notes |
@@ -173,17 +173,17 @@ winit KeyEvent
 
 | Concern | Crate | File |
 |---|---|---|
-| `EditCursor` struct | `wgpu-html-tree` | `events.rs` |
-| Pure edit operations | `wgpu-html-tree` | `text_edit.rs` |
-| Dispatch + value mutation | `wgpu-html-tree` | `dispatch.rs` |
-| Value / placeholder layout | `wgpu-html-layout` | `lib.rs` |
-| Caret + selection paint | `wgpu-html` | `paint.rs` |
-| `EditCaretInfo` construction | `wgpu-html` | `lib.rs` |
-| Click-to-position caret | `wgpu-html` | `interactivity.rs` |
-| `KeyEvent.text` → `text_input` | `wgpu-html-winit` | `lib.rs` |
-| Clipboard shortcuts | `wgpu-html-winit` | `window.rs` |
-| `Input` model | `wgpu-html-models` | `html/input.rs` |
-| `Textarea` model | `wgpu-html-models` | `html/textarea.rs` |
+| `EditCursor` struct | `lui-tree` | `events.rs` |
+| Pure edit operations | `lui-tree` | `text_edit.rs` |
+| Dispatch + value mutation | `lui-tree` | `dispatch.rs` |
+| Value / placeholder layout | `lui-layout` | `lib.rs` |
+| Caret + selection paint | `lui` | `paint.rs` |
+| `EditCaretInfo` construction | `lui` | `lib.rs` |
+| Click-to-position caret | `lui` | `interactivity.rs` |
+| `KeyEvent.text` → `text_input` | `lui-winit` | `lib.rs` |
+| Clipboard shortcuts | `lui-winit` | `window.rs` |
+| `Input` model | `lui-models` | `html/input.rs` |
+| `Textarea` model | `lui-models` | `html/textarea.rs` |
 
 ## 4. `EditCursor`
 
@@ -243,7 +243,7 @@ is deferred.
 
 ## 6. Value rendering
 
-`compute_value_run` in `wgpu-html-layout/src/lib.rs`:
+`compute_value_run` in `lui-layout/src/lib.rs`:
 
 1. Reads `input.value` or `textarea.value` (falls back to RAWTEXT
    children for textarea).
@@ -294,7 +294,7 @@ selection).
 
 ## 8. Click-to-position
 
-`interactivity::mouse_down` (`wgpu-html/src/interactivity.rs`):
+`interactivity::mouse_down` (`lui/src/interactivity.rs`):
 after `dispatch_mouse_down` sets focus on a form control, the
 layout tree is walked to the focused element's `LayoutBox`. The
 click x-position is compared against each glyph's midpoint to
@@ -349,7 +349,7 @@ by the main event path.
 - **`maxlength` enforcement.** The `maxlength` attribute is parsed
   into the model but not checked during insertion.
 - **`InputEvent` dispatch.** The event struct
-  (`wgpu_html_events::InputEvent`) exists with `data`,
+  (`lui_events::InputEvent`) exists with `data`,
   `input_type`, and `is_composing` fields. Firing it after each
   mutation is straightforward but not yet wired.
 - **Undo / redo.** A simple stack of `(old_value, old_cursor)` on

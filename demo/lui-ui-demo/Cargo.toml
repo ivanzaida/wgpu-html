@@ -1,0 +1,16 @@
+[package]
+name = "lui-ui-demo"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "ui-demo"
+path = "src/main.rs"
+
+[dependencies]
+lui-ui.workspace       = true
+lui-models.workspace   = true
+lui-tree.workspace     = true
+lui-devtools.workspace = true
+lui-driver-winit       = { path = "../../drivers/lui-driver-winit" }
+winit.workspace               = true

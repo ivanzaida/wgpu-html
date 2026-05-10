@@ -10,7 +10,7 @@ How a `LayoutBox` tree becomes pixels on screen.
 
 The paint stage walks the layout tree and emits drawing primitives into a `DisplayList`.
 
-**Entry point:** `crates/wgpu-html/src/paint.rs`
+**Entry point:** `crates/lui/src/paint.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -54,7 +54,7 @@ Clip push at line ~504, pop at the end of children iteration.
 
 ## DisplayList
 
-**File:** `crates/wgpu-html-renderer/src/paint.rs`
+**File:** `crates/lui-renderer/src/paint.rs`
 
 ```rust
 pub struct DisplayList {
@@ -93,7 +93,7 @@ Key methods:
 
 ## GPU Renderer
 
-**File:** `crates/wgpu-html-renderer/src/lib.rs`
+**File:** `crates/lui-renderer/src/lib.rs`
 
 ### Initialization
 
@@ -157,7 +157,7 @@ Per the CSS spec, the root element's background (or the body's, if the root has 
 
 ## Border Rendering
 
-**File:** `crates/wgpu-html/src/paint.rs`
+**File:** `crates/lui/src/paint.rs`
 
 | Case | Function | Approach |
 |---|---|---|
@@ -171,7 +171,7 @@ Detection logic at `uniform_border_color()` checks if all non-zero sides share t
 
 ## Text Rendering
 
-Shaped text arrives as `ShapedRun` from `wgpu-html-text`. During paint (lines 354-502):
+Shaped text arrives as `ShapedRun` from `lui-text`. During paint (lines 354-502):
 
 1. Resolve text color (per-leaf `text_color` * opacity)
 2. Emit decoration quads (underline/overline/line-through, thickness = ascent/12)

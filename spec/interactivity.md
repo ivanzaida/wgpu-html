@@ -1,4 +1,4 @@
-# wgpu-html — Interactivity Spec (Mouse-First)
+# lui — Interactivity Spec (Mouse-First)
 
 The plan for moving from "static layout, F12 + Esc only" to a tree
 that responds to pointer input: hover / press / click / wheel, plus
@@ -13,10 +13,10 @@ exist for any of it to behave like a browser.
   wired (`pointer_move`, `mouse_down`, `mouse_up`, `pointer_leave`),
   hover/active tracking, enter/leave callbacks, click synthesis,
   `:hover`/`:active` cascade integration via `MatchContext::for_path`,
-  typed DOM events through `wgpu-html-events` (`HtmlEvent`,
+  typed DOM events through `lui-events` (`HtmlEvent`,
   `MouseEvent`, `EventPhase`), `buttons_down` bitmask. Most dispatch
-  logic moved to `wgpu_html_tree::dispatch` (path-based, no layout
-  dep); `wgpu_html::interactivity` is a thin layout-aware wrapper.
+  logic moved to `lui_tree::dispatch` (path-based, no layout
+  dep); `lui::interactivity` is a thin layout-aware wrapper.
 - **Focus + keyboard foundations ✅ shipped** (overlapping with
   M-INTER-2 and M-INTER-5). `focus_path` on `InteractionState`,
   `:focus` cascade matching (exact element only — no propagation;
@@ -30,7 +30,7 @@ exist for any of it to behave like a browser.
   `is_focusable`, `is_keyboard_focusable`, `focusable_paths`,
   `keyboard_focusable_paths`, `next_in_order`, `prev_in_order`,
   plus `Element::tabindex()`. Demo wires winit `KeyboardInput`
-  through `wgpu_html_winit::handle_keyboard`.
+  through `lui_winit::handle_keyboard`.
 - **Form fields ⚠️ partial → text editing ✅ shipped.**
   Placeholder rendering via `compute_placeholder_run` (color × 0.5
   alpha, single-line clip + centre, textarea soft-wrap).
@@ -51,17 +51,17 @@ exist for any of it to behave like a browser.
 - **M-INTER-3 ⚠️ partial.** `TextCursor`/`TextSelection` on
   `InteractionState`, drag-to-select, `select_all_text` /
   `selected_text`, `Ctrl+A`/`Ctrl+C` + `arboard` (now built into
-  the `wgpu-html-winit` harness), selection highlight quads in
+  the `lui-winit` harness), selection highlight quads in
   `paint.rs`. Form-control edit selection and blinking caret are
   shipped. Word/line select and `user-select` property enforcement
   are still ❌.
 - **M-INTER-4 ⚠️ partial.** `scroll_offsets_y: BTreeMap` on
   `InteractionState`, viewport scroll + per-element scroll-container
   offset, scrollbar paint, drag-to-scroll, `MouseWheel`. Scroll +
-  scrollbar utilities live in the new public `wgpu_html::scroll`
+  scrollbar utilities live in the new public `lui::scroll`
   module. `Wheel` events are not forwarded to element `on_event`
   callbacks.
-- **DOM-style query helpers ✅ shipped.** New `wgpu_html_tree::query`
+- **DOM-style query helpers ✅ shipped.** New `lui_tree::query`
   module: `SelectorList`, `ComplexSelector`, `CompoundSelector`,
   `Combinator`, plus `Tree::query_selector` /
   `query_selector_all` / `query_selector_path` /
@@ -74,8 +74,8 @@ exist for any of it to behave like a browser.
   pseudo-elements still parse as errors and degrade to "no match"
   via the lenient `From<&str>` path. Full status, grammar, and
   matcher semantics live in `spec/query.md`.
-- **`wgpu-html-winit` harness ✅ shipped.** New crate with
-  `WgpuHtmlWindow` (full `winit::ApplicationHandler` impl that owns
+- **`lui-winit` harness ✅ shipped.** New crate with
+  `LuiWindow` (full `winit::ApplicationHandler` impl that owns
   the window/renderer/text-context), `AppHook` trait
   (`on_key`/`on_frame`/`on_pointer_move`), built-in viewport
   scroll, scrollbar drag, clipboard, F12 screenshot. The demo's
@@ -142,7 +142,7 @@ preserved end-to-end; hit-tests do not snap.
 > on the tree: state is per-document, dropped with the document,
 > trivial to reset.
 
-**Current shape** (`wgpu-html-tree/src/events.rs`):
+**Current shape** (`lui-tree/src/events.rs`):
 
 ```rust
 #[derive(Debug, Clone)]
@@ -200,7 +200,7 @@ Rationale:
 
 ## 5. Hit testing — contract & extensions
 
-The current hit test (`crates/wgpu-html-layout/src/lib.rs`)
+The current hit test (`crates/lui-layout/src/lib.rs`)
 returns the deepest descendant whose `border_rect` contains the
 point, walking children last-to-first so the topmost paint wins.
 That contract stays.
@@ -253,7 +253,7 @@ current event support matrix live in `spec/events.md`.
 The interactivity layer currently dispatches mouse down/up/click,
 mouseenter/mouseleave, focus/blur/focusin/focusout, and keydown/keyup
 through `Node::on_event`. Many additional event structs exist in
-`wgpu-html-events` for future parity, but are not emitted yet.
+`lui-events` for future parity, but are not emitted yet.
 
 ## 7. Press semantics & implicit pointer capture
 
@@ -282,7 +282,7 @@ Other buttons do *not* gate `:active`. Only primary press sets it.
 
 ## 8. Cascade integration
 
-**Current state (shipped):** `wgpu-html-style::cascade(&Tree) ->
+**Current state (shipped):** `lui-style::cascade(&Tree) ->
 CascadedTree` already reads `tree.interaction` internally.
 `MatchContext::for_path` computes the context for each element:
 
@@ -346,7 +346,7 @@ caret on text".
 
 ## 10. `pointer-events` and `user-select`
 
-Already modelled (`crates/wgpu-html-models/src/common/css_enums.rs:209`,
+Already modelled (`crates/lui-models/src/common/css_enums.rs:209`,
 `:215`) and parsed into `Style`, **and now honoured downstream**:
 
 - `pointer-events: none` — element and its text are invisible to hit-testing.
@@ -399,7 +399,7 @@ range. Form-control internal value / placeholder text is marked
 `user-select: auto` semantics (`user-select: none` is enforced via
 `hit_text_cursor`).
 
-Copy: `wgpu-html` exposes `select_all_text` / `selected_text`; the
+Copy: `lui` exposes `select_all_text` / `selected_text`; the
 winit harness wires document-level `Ctrl+A` / `Ctrl+C` through
 `arboard`. Clipboard access still belongs to the host crate, not the
 core tree/layout crates.
@@ -416,10 +416,10 @@ control state.
 
 - `InteractionState::scroll_offsets_y: BTreeMap<Vec<usize>, f32>`
   stores per-element vertical scroll state by path.
-- The public `wgpu_html::scroll` module exposes viewport and
+- The public `lui::scroll` module exposes viewport and
   element scrollbar geometry, scrollbar paint, scroll clamping,
   hit-tests, and element scroll helpers.
-- The `wgpu-html-winit` harness handles `MouseWheel`, viewport
+- The `lui-winit` harness handles `MouseWheel`, viewport
   scroll, per-element scroll containers, and scrollbar dragging.
 - Paint clips scroll containers and translates descendants by the
   stored offset.
@@ -452,7 +452,7 @@ Mouse-first, but focus is shared state.
   (unless `disabled`), `<select>` (unless `disabled`), `<summary>`,
   any element with `tabindex >= 0`. `tabindex < 0` makes an
   element scriptable-focus only (excluded from Tab traversal).
-  See `wgpu_html_tree::focus::{is_focusable,
+  See `lui_tree::focus::{is_focusable,
   is_keyboard_focusable, focusable_paths,
   keyboard_focusable_paths}`.
 - `Tree::focus(Some(&path))` walks up to the nearest focusable
@@ -496,7 +496,7 @@ There's no single `dispatch(ev)` front door — the API is a small
 set of focused functions that hosts call from their own event
 loop. The two layers:
 
-**Layout-aware wrappers** in `wgpu_html::interactivity` (use these
+**Layout-aware wrappers** in `lui::interactivity` (use these
 when you have a `LayoutBox` handy and want hit-testing done for
 you):
 
@@ -505,7 +505,7 @@ pub fn pointer_move(tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32)) -> boo
 pub fn mouse_down (tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool;
 pub fn mouse_up   (tree: &mut Tree, layout: &LayoutBox, pos: (f32, f32), button: MouseButton) -> bool;
 // re-exports of the path-based dispatchers below:
-pub use wgpu_html_tree::{
+pub use lui_tree::{
     blur, dispatch_pointer_leave as pointer_leave,
     focus, focus_next, key_down, key_up,
 };
@@ -514,9 +514,9 @@ pub use wgpu_html_tree::{
 These hit-test (`layout.hit_path`, `layout.hit_text_cursor`) and
 forward into the path-based dispatchers below.
 
-**Path-based dispatchers** in `wgpu_html_tree::dispatch` (use
+**Path-based dispatchers** in `lui_tree::dispatch` (use
 these when the host already knows the target path, or to drive
-the engine without a `wgpu-html-layout` dependency):
+the engine without a `lui-layout` dependency):
 
 ```rust
 // Mouse — caller supplies the hit-tested target_path.
@@ -545,12 +545,12 @@ they fire DOM events — no `Modifiers` parameter on the public
 API.
 
 **Frame loop** (winit example, with the harness from
-`wgpu-html-winit`):
+`lui-winit`):
 
 ```rust
-let mut tree = wgpu_html_parser::parse(html);
-wgpu_html_winit::register_system_fonts(&mut tree, "DemoSans");
-wgpu_html_winit::create_window(&mut tree)
+let mut tree = lui_parser::parse(html);
+lui_winit::register_system_fonts(&mut tree, "DemoSans");
+lui_winit::create_window(&mut tree)
     .with_title("My App")
     .with_hook(MyHook { /* … */ })
     .run()?;
@@ -563,14 +563,14 @@ scrollbar drag, clipboard, and screenshot. The host plugs custom
 behaviour into `AppHook::on_key` / `on_frame` / `on_pointer_move`.
 
 Hosts that need finer control (or non-winit windowing) skip the
-harness and call `wgpu_html::interactivity::*` directly per
-window event, and `wgpu_html::paint_tree_returning_layout_profiled`
+harness and call `lui::interactivity::*` directly per
+window event, and `lui::paint_tree_returning_layout_profiled`
 per frame.
 
 ## 15. Public API surface
 
 ```
-wgpu-html-tree
+lui-tree
   + InteractionState                                                     ✅
     (hover/active/focus/selection/scroll/buttons/time_origin/modifiers)
   + Tree::interaction (field), Tree::clear_selection                      ✅ M-INTER-1
@@ -595,17 +595,17 @@ wgpu-html-tree
     (selector lists, combinators, attribute operators; pseudos mostly errors/no-match)
   + focus_visible flag                                                    ❌ M-INTER-2
 
-wgpu-html-models
+lui-models
   + (existing) Cursor, PointerEvents, UserSelect                         ✅ done
 
-wgpu-html-events
+lui-events
   + HtmlEvent, Event/UI/Mouse/Pointer/Wheel/Keyboard/Focus/Input/         ✅ M-INTER-1
     Composition/Clipboard/Drag/Touch/Animation/Transition/Submit/
     FormData/Toggle/Progress structs, EventPhase, HtmlEventType
   + Mouse, keyboard, and focus dispatch wired                             ✅
   + Wheel/Input/Clipboard/Drag/Touch/Animation/Transition dispatch         ❌
 
-wgpu-html-parser / wgpu-html-style
+lui-parser / lui-style
   + Pseudo-class selector parsing (`:hover`, `:active`, `:focus`)        ✅
   + MatchContext { is_hover, is_active, is_focus }                       ✅
   + MatchContext::for_path reads focus_path (exact match)                ✅ (focus slice)
@@ -619,7 +619,7 @@ wgpu-html-parser / wgpu-html-style
      ui-*, -apple-system, BlinkMacSystemFont)
   + pointer-events / user-select cascade-inheritance entries             ❌ M-INTER-2
 
-wgpu-html-layout
+lui-layout
   + hit_text_cursor((x,y)) → Option<TextCursor>                         ✅ M-INTER-3 (partial)
   + Input/Textarea placeholder text run + ::placeholder color            ✅ (forms slice)
     (compute_placeholder_run; both layout_block and
@@ -632,10 +632,10 @@ wgpu-html-layout
   + pointer-events / user-select cascade-inheritance entries               ✅ (partial — none enforced; all/auto not yet)
   + scroll_offset on LayoutBox                                            ❌ M-INTER-4 (offset stays on Tree)
 
-wgpu-html (facade)
+lui (facade)
   + interactivity::pointer_move, mouse_down, mouse_up                     ✅ M-INTER-1
     (thin layout-aware wrappers; dispatch logic is in
-     wgpu-html-tree::dispatch)
+     lui-tree::dispatch)
   + interactivity re-exports focus, blur, focus_next,                     ✅ (focus slice)
     key_down, key_up, pointer_leave from tree
   + select_all_text, selected_text                                        ✅ M-INTER-3
@@ -652,8 +652,8 @@ wgpu-html (facade)
     deepest_element_scrollbar_at, scroll_element_at,
     scroll_element_thumb_to, viewport_to_document, rect_contains
 
-wgpu-html-winit (new)
-  + WgpuHtmlWindow harness + create_window(&mut tree)                     ✅ (harness slice)
+lui-winit (new)
+  + LuiWindow harness + create_window(&mut tree)                     ✅ (harness slice)
   + Builders: with_title / with_size / with_exit_on_escape /              ✅
     with_clipboard_enabled / with_screenshot_key / with_hook
   + AppHook trait: on_key, on_frame, on_pointer_move                      ✅
@@ -666,12 +666,12 @@ wgpu-html-winit (new)
   + Forwarders: update_modifiers, forward_keyboard, handle_keyboard       ✅
   + system_font_variants(), register_system_fonts(tree, family)           ✅
 
-wgpu-html-demo
+lui-demo
   + Now ~450 lines (was ~1460); App + ApplicationHandler removed         ✅
-  + Uses wgpu_html_winit::create_window(...).with_hook(...).run()        ✅
+  + Uses lui_winit::create_window(...).with_hook(...).run()        ✅
   + DemoHook impl AppHook: F9 profiling toggle + 1-second stats          ✅
   + --renderer=winit|egui CLI flag (winit default; egui via              ✅
-    wgpu-html-egui crate)
+    lui-egui crate)
 ```
 
 ## 16. Phases
@@ -683,13 +683,13 @@ text spec's T1..T7.
 
 - `InteractionState` on `Tree`; default-initialised.
 - `pointer_move`, `mouse_down`, `mouse_up`, `pointer_leave` in
-  `wgpu-html::interactivity`.
+  `lui::interactivity`.
 - Hover-path tracking with synthesised enter / leave.
 - Implicit pointer capture during press (§7).
 - Click synthesis via deepest common ancestor.
 - Pseudo-class parsing: `:hover`, `:active`, `:focus`. Cascade reads
   `MatchContext`.
-- `wgpu-html-events` crate: `HtmlEvent`, `MouseEvent`, typed DOM
+- `lui-events` crate: `HtmlEvent`, `MouseEvent`, typed DOM
   event dispatch via `Node::on_event`.
 - Demo: cards change style on hover/active; `on_click` callbacks fire.
 
@@ -721,7 +721,7 @@ during the focus / keyboard slice):
 - `TextCursor` / `TextSelection` on `InteractionState`.
 - `hit_text_cursor` in layout for cursor placement.
 - Press on text leaf starts selection; drag extends; release commits.
-- `select_all_text` / `selected_text` in `wgpu-html`.
+- `select_all_text` / `selected_text` in `lui`.
 - Paint emits selection highlight rectangles.
 - Clipboard: document-level `Ctrl+A` + `Ctrl+C` wired in the winit
   harness via `arboard`.
@@ -763,7 +763,7 @@ during the focus / keyboard slice):
   the focus-path's ancestry).
 - Tab / Shift+Tab focus traversal built into `key_down`
   (cycles `keyboard_focusable_paths` in document order).
-- `wgpu-html-winit::handle_keyboard` translates winit
+- `lui-winit::handle_keyboard` translates winit
   `KeyboardInput` → modifier update + DOM `keydown` / `keyup`.
 
 **Not yet:**
@@ -826,8 +826,8 @@ during the focus / keyboard slice):
 
 State lives on the `Tree` (`InteractionState`), same constraint as
 fonts. The engine exposes four pointer functions (`pointer_move`,
-`mouse_down`, `mouse_up`, `pointer_leave`) in `wgpu-html::interactivity`.
-Typed DOM events flow through `wgpu-html-events` (`HtmlEvent`,
+`mouse_down`, `mouse_up`, `pointer_leave`) in `lui::interactivity`.
+Typed DOM events flow through `lui-events` (`HtmlEvent`,
 `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `EventPhase`, plus
 typed structs for future events). Cascade reads interaction state via
 `MatchContext::for_path`, matching `:hover`, `:active`, and exact

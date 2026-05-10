@@ -4,7 +4,7 @@ title: Focus + Keyboard
 
 # Focus + Keyboard
 
-Focus management and keyboard event dispatch are built into the tree's dispatch layer (`wgpu-html-tree::dispatch`).
+Focus management and keyboard event dispatch are built into the tree's dispatch layer (`lui-tree::dispatch`).
 
 ## Focus State
 

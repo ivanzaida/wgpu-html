@@ -9,7 +9,7 @@ sidebar_position: 3
 The fastest way to debug layout/rendering issues is running the demo with an HTML test case:
 
 ```bash
-cargo run -p wgpu-html-demo -- my-test.html
+cargo run -p lui-demo -- my-test.html
 ```
 
 - **F12** — save a screenshot for visual comparison
@@ -36,7 +36,7 @@ The devtools window shows:
 The `LayoutBox` tree can be inspected at any element:
 
 ```rust
-let box_at_path = wgpu_html::layout_at_path(&layout, path);
+let box_at_path = lui::layout_at_path(&layout, path);
 println!("margin_rect: {:?}", box_at_path.map(|b| b.margin_rect));
 println!("border_rect: {:?}", box_at_path.map(|b| b.border_rect));
 println!("content_rect: {:?}", box_at_path.map(|b| b.content_rect));
@@ -47,7 +47,7 @@ println!("content_rect: {:?}", box_at_path.map(|b| b.content_rect));
 The `DisplayList` can be examined before submitting to the renderer:
 
 ```rust
-let display_list = wgpu_html::paint_tree_with_text(...);
+let display_list = lui::paint_tree_with_text(...);
 
 println!("Quads: {}", display_list.quads.len());
 println!("Glyphs: {}", display_list.glyphs.len());

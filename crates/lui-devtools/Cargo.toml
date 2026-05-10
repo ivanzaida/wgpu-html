@@ -1,0 +1,13 @@
+[package]
+name = "lui-devtools"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-driver          = { path = "../../drivers/lui-driver" }
+lui-tree.workspace  = true
+lui-ui.workspace    = true
+lui-events.workspace = true
+lui-models.workspace = true
+lui-style.workspace  = true
+lui-layout.workspace = true

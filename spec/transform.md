@@ -8,12 +8,12 @@ The current codebase stores `transform` / `transform-origin` as raw `Option<Stri
 
 ## Milestone 1 — Typed Value Model
 
-**Crates:** `wgpu-html-models`, `wgpu-html-parser`
+**Crates:** `lui-models`, `lui-parser`
 
 **Files:**
-- `crates/wgpu-html-models/src/common/css_enums.rs`
-- `crates/wgpu-html-models/src/css/style.rs`
-- `crates/wgpu-html-parser/src/css_parser.rs`
+- `crates/lui-models/src/common/css_enums.rs`
+- `crates/lui-models/src/css/style.rs`
+- `crates/lui-parser/src/css_parser.rs`
 
 ### New types in `css_enums.rs`
 
@@ -67,7 +67,7 @@ pub transform:        Option<TransformList>,
 pub transform_origin: Option<TransformOrigin>,
 ```
 
-`merge_field!` in `wgpu-html-style/src/merge.rs` only requires `Option<T: Clone>`, so cascade/merge compiles unchanged.
+`merge_field!` in `lui-style/src/merge.rs` only requires `Option<T: Clone>`, so cascade/merge compiles unchanged.
 
 ### Parser additions (`css_parser.rs`)
 
@@ -78,7 +78,7 @@ Replace the existing raw-string assignments for `"transform"` and `"transform-or
 
 ### Tests
 
-In `crates/wgpu-html-parser/tests/css/declarations.rs`:
+In `crates/lui-parser/tests/css/declarations.rs`:
 - `translate(10px, 5px)` → `TransformList([Translate(Px(10.0), Px(5.0))])`
 - `rotate(45deg)` / `rotate(0.785rad)` → `Rotate(Deg(45.0))` / `Rotate(Rad(0.785))`
 - `scale(2)` → `Scale(2.0, 2.0)`
@@ -93,9 +93,9 @@ In `crates/wgpu-html-parser/tests/css/declarations.rs`:
 
 ## Milestone 2 — Layout Passthrough
 
-**Crate:** `wgpu-html-layout`
+**Crate:** `lui-layout`
 
-**File:** `crates/wgpu-html-layout/src/lib.rs`
+**File:** `crates/lui-layout/src/lib.rs`
 
 Add two fields to `LayoutBox` immediately after `opacity`:
 
@@ -108,7 +108,7 @@ In the section of `layout_with_text` that populates `LayoutBox` from a `Cascaded
 
 ### Tests
 
-In `crates/wgpu-html-layout/src/tests.rs`:
+In `crates/lui-layout/src/tests.rs`:
 - `transform_does_not_affect_layout` — element with `transform: translate(200px,200px)` and a neighbouring element must have identical `border_rect`/`margin_rect` to the no-transform baseline.
 - `transform_origin_defaults_to_50pct` — element with no `transform-origin` has `TransformOrigin { x: Percent(50), y: Percent(50) }`.
 
@@ -116,9 +116,9 @@ In `crates/wgpu-html-layout/src/tests.rs`:
 
 ## Milestone 3 — Matrix Math Library
 
-**Crate:** `wgpu-html-layout`
+**Crate:** `lui-layout`
 
-**New file:** `crates/wgpu-html-layout/src/transform_math.rs` (exported `pub` from the crate root)
+**New file:** `crates/lui-layout/src/transform_math.rs` (exported `pub` from the crate root)
 
 ### Types
 
@@ -159,9 +159,9 @@ pub struct Affine2 {
 
 ## Milestone 4 — DisplayList Transform Encoding
 
-**Crate:** `wgpu-html-renderer`
+**Crate:** `lui-renderer`
 
-**File:** `crates/wgpu-html-renderer/src/paint.rs`
+**File:** `crates/lui-renderer/src/paint.rs`
 
 ### `ClipRange` extension
 
@@ -186,7 +186,7 @@ pub transform: Option<[f32; 8]>,  // packed Affine2; None = identity (zero overh
 
 ## Milestone 5 — GPU Pipeline Transform Support
 
-**Crate:** `wgpu-html-renderer`
+**Crate:** `lui-renderer`
 
 **Files:** `quad_pipeline.rs`, `glyph_pipeline.rs`, `image_pipeline.rs` + matching `.wgsl` shaders
 
@@ -245,9 +245,9 @@ The fragment-shader SDF rounded-clip (`clip_active`) operates in screen space. F
 
 ## Milestone 6 — Paint: Transform Contexts
 
-**Crate:** `wgpu-html`
+**Crate:** `lui`
 
-**File:** `crates/wgpu-html/src/paint.rs`
+**File:** `crates/lui/src/paint.rs`
 
 In `paint_box_in_clip`, when `b.transform` is `Some(list)` and the resolved matrix is not identity:
 
@@ -265,7 +265,7 @@ In `paint_box_in_clip`, when `b.transform` is `Some(list)` and the resolved matr
 
 ### Tests
 
-In `crates/wgpu-html/src/paint.rs`:
+In `crates/lui/src/paint.rs`:
 - Parse a small HTML snippet with `transform: translate(30px, 0px)`, run `paint_tree`, assert the `ClipRange` carries the non-identity matrix and child quads sit at layout-space (pre-transform) positions.
 - Identity transform does **not** push an extra `ClipRange`.
 
@@ -273,9 +273,9 @@ In `crates/wgpu-html/src/paint.rs`:
 
 ## Milestone 7 — Hit Testing: Inverse Transform
 
-**Crate:** `wgpu-html-layout`
+**Crate:** `lui-layout`
 
-**File:** `crates/wgpu-html-layout/src/lib.rs`
+**File:** `crates/lui-layout/src/lib.rs`
 
 In `collect_hit_path_scrolled`, add `transform_stack: Option<Affine2>`. When inspecting a `LayoutBox` with a non-identity transform:
 
@@ -289,7 +289,7 @@ Apply the same pattern to `hit_path` (non-scrolled variant).
 
 ### Tests
 
-In `crates/wgpu-html-layout/src/tests.rs`:
+In `crates/lui-layout/src/tests.rs`:
 
 ```
 hit_test_translate_inverse

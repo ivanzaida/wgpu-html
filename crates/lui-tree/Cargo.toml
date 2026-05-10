@@ -1,0 +1,9 @@
+[package]
+name = "lui-tree"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-assets.workspace = true
+lui-events.workspace = true
+lui-models.workspace = true

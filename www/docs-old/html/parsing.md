@@ -4,7 +4,7 @@ title: HTML Parser Internals
 
 # HTML Parser Internals
 
-The wgpu-html parser converts raw HTML strings into typed `Tree<Node<Element>>` structures. It operates in two phases: **tokenization** and **tree building**.
+The lui parser converts raw HTML strings into typed `Tree<Node<Element>>` structures. It operates in two phases: **tokenization** and **tree building**.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ Tree { root: Some(Node::new(Div { class: "card", .. }).with_children([
 
 ## Tokenizer
 
-The tokenizer (`wgpu-html-parser/src/tokenizer.rs`) scans the input character-by-character and emits a flat list of `Token` values:
+The tokenizer (`lui-parser/src/tokenizer.rs`) scans the input character-by-character and emits a flat list of `Token` values:
 
 ```rust
 pub enum Token {
@@ -105,7 +105,7 @@ Other named entities beyond `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`, `&nbsp;
 
 ## Tree Builder
 
-The tree builder (`wgpu-html-parser/src/tree_builder.rs`) consumes the token stream and constructs the DOM tree.
+The tree builder (`lui-parser/src/tree_builder.rs`) consumes the token stream and constructs the DOM tree.
 
 ### Void Elements
 
@@ -184,8 +184,8 @@ If one of the top-level nodes is already a `<body>`, siblings are merged into it
 The value of every `style="..."` attribute is parsed by `parse_inline_style_decls()`:
 
 ```rust
-use wgpu_html_parser::parse_inline_style;
-use wgpu_html_models::Style;
+use lui_parser::parse_inline_style;
+use lui_models::Style;
 
 let style: Style = parse_inline_style("color: red; font-size: 16px; display: flex;");
 ```
@@ -197,13 +197,13 @@ let style: Style = parse_inline_style("color: red; font-size: 16px; display: fle
 The text content of `<style>` elements is parsed by `parse_stylesheet()`:
 
 ```rust
-use wgpu_html_parser::Stylesheet;
+use lui_parser::Stylesheet;
 
 let css = r#"
   .card { background: #fff; border-radius: 8px; }
   .card.active { border-color: blue; }
 "#;
-let sheet: Stylesheet = wgpu_html_parser::parse_stylesheet(css);
+let sheet: Stylesheet = lui_parser::parse_stylesheet(css);
 ```
 
 The parser supports:
@@ -220,7 +220,7 @@ Child (`>`), sibling (`+`, `~`), and attribute selectors (`[attr]`) are **not ye
 The tree can be serialized back to HTML for debugging:
 
 ```rust
-use wgpu_html_parser::parse;
+use lui_parser::parse;
 
 let tree = parse("<div id='main'><p>Hello</p></div>");
 

@@ -1,4 +1,4 @@
-# wgpu-html — Overflow & Clipping Spec
+# lui — Overflow & Clipping Spec
 
 The plan and current state of `overflow: hidden` (and its
 near-cousins `clip` / `scroll` / `auto`) clipping descendants to
@@ -10,7 +10,7 @@ through to paint, the paint pass tracks a clip stack and emits
 scissor-tagged ranges, and the renderer recordings call
 `set_scissor_rect` once per range. 84 layout tests + 21 paint
 tests pass; the demo at
-`crates/wgpu-html-demo/html/overflow.html` shows the
+`crates/lui-demo/html/overflow.html` shows the
 `visible` / `hidden` / `hidden + border-radius` cases side by
 side. The known gaps are spelled out in §6.
 
@@ -188,11 +188,11 @@ In rough order of usefulness:
 
 ## 6. Tests
 
-- **Layout** (`crates/wgpu-html-layout/src/tests.rs`):
+- **Layout** (`crates/lui-layout/src/tests.rs`):
   - `overflow_field_propagates_from_style`
   - `overflow_visible_is_default`
   - `overflow_axis_longhand_wins_over_shorthand`
-- **Paint** (`crates/wgpu-html/src/paint.rs` tests):
+- **Paint** (`crates/lui/src/paint.rs` tests):
   - `overflow_visible_emits_single_clip_range`
   - `overflow_hidden_emits_clip_range_at_padding_box`
   - `overflow_clip_range_only_covers_descendants`
@@ -206,7 +206,7 @@ tests' display-list snapshots.
 
 ## 7. Demo
 
-`crates/wgpu-html-demo/html/overflow.html` shows three side-by-
+`crates/lui-demo/html/overflow.html` shows three side-by-
 side panels:
 
 1. `overflow: visible` — the magenta blob extends beyond the

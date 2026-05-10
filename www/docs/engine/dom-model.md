@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # DOM Model
 
-wgpu-html maintains its own DOM-like tree in `wgpu-html-tree`. This is not a web DOM — there is no JavaScript, no `document`, no live `NodeList`. It is a Rust-native tree of elements.
+lui maintains its own DOM-like tree in `lui-tree`. This is not a web DOM — there is no JavaScript, no `document`, no live `NodeList`. It is a Rust-native tree of elements.
 
 ## Tree Structure
 
@@ -49,7 +49,7 @@ Each HTML element type has its own Rust struct with typed attributes. ~100 eleme
 The tree is typically built via parsing:
 
 ```rust
-let mut tree = wgpu_html_parser::parse(html_string);
+let mut tree = lui_parser::parse(html_string);
 ```
 
 It can also be constructed programmatically by building `Node` structures directly.

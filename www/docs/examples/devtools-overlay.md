@@ -9,7 +9,7 @@ Demonstrates the built-in devtools panel for inspecting component trees and CSS 
 ## Enabling Devtools
 
 ```rust
-use wgpu_html_devtools::Devtools;
+use lui_devtools::Devtools;
 
 // Attach devtools to a tree — this registers an F11 handler
 let mut devtools = Devtools::attach(&mut tree, false); // false = profiler off
@@ -22,7 +22,7 @@ The devtools render in their own window alongside your application:
 ```rust
 let devtools_win = Arc::new(event_loop.create_window(
     Window::default_attributes()
-        .with_title("wgpu-html Devtools")
+        .with_title("lui Devtools")
 )?);
 let mut devtools_driver = WinitDriver::bind(devtools_win, Tree::default());
 

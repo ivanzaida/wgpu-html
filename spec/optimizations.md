@@ -1,6 +1,6 @@
 # Optimization Spec
 
-Performance optimization roadmap for wgpu-html. Each item is
+Performance optimization roadmap for lui. Each item is
 categorised by pipeline stage, estimated impact, and implementation
 complexity.
 
@@ -274,7 +274,7 @@ must be re-evaluated.
 
 ### Root cause
 
-`wgpu_html_style::cascade()` walks the entire tree on every call,
+`lui_style::cascade()` walks the entire tree on every call,
 re-matching selectors for every element. When the only thing that
 changed is `hover_path` (one element entered, one left), the cascade
 still recomputes all ~200 elements.

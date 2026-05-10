@@ -8,7 +8,7 @@ How pointer events, keyboard input, focus, and scroll are handled.
 
 ## InteractionState
 
-**File:** `crates/wgpu-html-tree/src/events.rs` line 166
+**File:** `crates/lui-tree/src/events.rs` line 166
 
 Central state machine tracking all interaction:
 
@@ -33,7 +33,7 @@ Central state machine tracking all interaction:
 
 ## Hit Testing
 
-**File:** `crates/wgpu-html-layout/src/lib.rs`
+**File:** `crates/lui-layout/src/lib.rs`
 
 | Method | Line | Purpose |
 |---|---|---|
@@ -47,7 +47,7 @@ Hit testing is depth-first, last-child-first (topmost on overlap). Layout paths 
 
 ## Higher-Level Wrappers
 
-**File:** `crates/wgpu-html/src/interactivity.rs`
+**File:** `crates/lui/src/interactivity.rs`
 
 Layout-aware wrappers combining hit-test + dispatch:
 
@@ -65,7 +65,7 @@ Text selection helpers:
 
 ## Event Dispatch
 
-**File:** `crates/wgpu-html-tree/src/dispatch.rs`
+**File:** `crates/lui-tree/src/dispatch.rs`
 
 ### Pointer Move (line 508)
 
@@ -114,7 +114,7 @@ Hover chain management via `update_hover()` (line 309): common-prefix algorithm 
 
 ## Focus Management
 
-**File:** `crates/wgpu-html-tree/src/dispatch.rs`
+**File:** `crates/lui-tree/src/dispatch.rs`
 
 ### set_focus() (line 895)
 
@@ -156,7 +156,7 @@ Special key handling:
 
 ## Scroll
 
-**File:** `crates/wgpu-html/src/scroll.rs`
+**File:** `crates/lui/src/scroll.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -169,7 +169,7 @@ Scroll offsets stored in `InteractionState.scroll_offsets` per element path. Upd
 
 ## Re-Cascade Trigger
 
-**File:** `crates/wgpu-html/src/lib.rs` lines 350-365
+**File:** `crates/lui/src/lib.rs` lines 350-365
 
 After any dispatch:
 1. Capture old interaction snapshot before dispatch

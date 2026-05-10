@@ -4,7 +4,7 @@ title: HTML Markup Language
 
 # HTML Markup Language
 
-wgpu-html uses **standard HTML5** as its markup language. There is no custom markup, no template DSL, and no intermediate representation. You author plain HTML5 documents and the engine parses them directly into a typed DOM tree.
+lui uses **standard HTML5** as its markup language. There is no custom markup, no template DSL, and no intermediate representation. You author plain HTML5 documents and the engine parses them directly into a typed DOM tree.
 
 ## How HTML Is Parsed
 
@@ -15,13 +15,13 @@ The parsing pipeline has two stages:
 2. **Tree builder** — Tokens are consumed and assembled into a `Tree<Node<Element>>`. Open tags push onto a stack, children are attached, and close tags pop the stack. The result is a hierarchical document tree where every node is one of ~100 typed `Element` variants or raw `Text`.
 
 ```rust
-use wgpu_html_parser::parse;
+use lui_parser::parse;
 
 let tree = parse(r#"
 <!DOCTYPE html>
 <html>
   <body>
-    <h1 class="title">Hello, wgpu-html!</h1>
+    <h1 class="title">Hello, lui!</h1>
     <p>This is a <strong>Rust</strong> renderer.</p>
   </body>
 </html>
@@ -30,7 +30,7 @@ let tree = parse(r#"
 
 ## Key Differences From a Full Browser
 
-wgpu-html is a **renderer**, not a browser. It optimizes for GPU-accelerated rendering over pristine HTML5 spec compliance:
+lui is a **renderer**, not a browser. It optimizes for GPU-accelerated rendering over pristine HTML5 spec compliance:
 
 - **No HTML5 insertion-mode state machine** — No `<table>` foster-parenting, no `</br>`→`<br>` quirk, no scripting insertion modes.
 - **Unknown tags without a hyphen are dropped** with their entire subtree. [Custom elements](/docs/html/custom-elements) (tags containing a hyphen, e.g. `<my-card>`) are preserved and participate fully in the DOM, cascade, and layout.

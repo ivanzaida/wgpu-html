@@ -4,7 +4,7 @@ title: Typography & Text Properties
 
 # Typography and Text Properties
 
-wgpu-html uses [cosmic-text](https://github.com/pop-os/cosmic-text) (backed by HarfBuzz for shaping and rustybuzz for fallback) to shape and render text. The typography system supports font family fallback, weight/style selection, text transformation, decorations, alignment, and more.
+lui uses [cosmic-text](https://github.com/pop-os/cosmic-text) (backed by HarfBuzz for shaping and rustybuzz for fallback) to shape and render text. The typography system supports font family fallback, weight/style selection, text transformation, decorations, alignment, and more.
 
 ## `color`
 
@@ -50,7 +50,7 @@ When no specific font matches, these generic families provide fallback:
 Fonts are registered on the `Tree` before layout:
 
 ```rust
-use wgpu_html_tree::FontFace;
+use lui_tree::FontFace;
 
 tree.register_font(FontFace {
     family: "Helvetica Neue".into(),
@@ -60,7 +60,7 @@ tree.register_font(FontFace {
 });
 
 // Or register system fonts
-wgpu_html_winit::register_system_fonts(&mut tree, "Arial");
+lui_winit::register_system_fonts(&mut tree, "Arial");
 ```
 
 ## `font-size`
@@ -285,7 +285,7 @@ tree.register_font(FontFace {
 });
 
 // Register system fonts for fallback
-use wgpu_html_winit::register_system_fonts;
+use lui_winit::register_system_fonts;
 register_system_fonts(&mut tree, "Arial");
 register_system_fonts(&mut tree, "Segoe UI");
 ```

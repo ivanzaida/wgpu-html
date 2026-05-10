@@ -4,14 +4,14 @@ title: Element Reference
 
 # Element Reference
 
-This page provides detailed documentation for element attribute parsing, global attributes, and the most significant element types in wgpu-html.
+This page provides detailed documentation for element attribute parsing, global attributes, and the most significant element types in lui.
 
 ## Attribute Parsing
 
-Every recognized HTML element is parsed into a Rust struct in `wgpu-html-models`. Each struct carries typed fields for the element's specific attributes plus the shared global attribute set. The attribute parser (`attr_parser::parse_element`) maps raw `(name, value)` token pairs to struct fields:
+Every recognized HTML element is parsed into a Rust struct in `lui-models`. Each struct carries typed fields for the element's specific attributes plus the shared global attribute set. The attribute parser (`attr_parser::parse_element`) maps raw `(name, value)` token pairs to struct fields:
 
 ```rust
-// wgpu-html-models/src/html/input.rs
+// lui-models/src/html/input.rs
 pub struct Input {
     // Global attributes
     pub id: Option<String>,
@@ -119,7 +119,7 @@ Some elements are implicitly focusable even without `tabindex`: `<button>`, `<a 
 ### `<a>` — Anchor / Hyperlink
 
 ```rust
-// wgpu-html-models/src/html/a.rs
+// lui-models/src/html/a.rs
 pub struct A {
     pub href: Option<String>,
     pub r#type: Option<String>,
@@ -342,7 +342,7 @@ Form controls that support text editing (`<input>`, `<textarea>`) receive a full
 ### Wiring Callbacks in Rust
 
 ```rust
-use wgpu_html_parser::parse;
+use lui_parser::parse;
 use std::sync::Arc;
 
 let mut tree = parse(include_str!("form.html"));
@@ -359,7 +359,7 @@ tree.get_element_by_id("login-btn").map(|btn| {
 
 tree.get_element_by_id("user").map(|input| {
     // Focus the username field on startup
-    wgpu_html_tree::focus(&mut tree, /* path to input */);
+    lui_tree::focus(&mut tree, /* path to input */);
 });
 ```
 

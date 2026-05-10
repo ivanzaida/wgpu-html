@@ -11,7 +11,7 @@ The `El` builder provides chainable methods for constructing HTML element trees.
 73 element constructor functions are available in the `el` module, covering all standard HTML elements:
 
 ```rust
-use wgpu_html_ui::el;
+use lui_ui::el;
 
 el::div()       el::span()      el::p()         el::h1()..el::h6()
 el::a()         el::button()    el::input()     el::textarea()
@@ -69,7 +69,7 @@ el::span().text("Hello World")
 ## Callbacks
 
 ```rust
-use wgpu_html_tree::{MouseEvent, HtmlEvent};
+use lui_tree::{MouseEvent, HtmlEvent};
 
 // Inline closure
 el::button().on_click(|ev: &MouseEvent| {

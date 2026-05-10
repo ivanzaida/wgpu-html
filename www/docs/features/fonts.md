@@ -6,7 +6,7 @@ sidebar_position: 6
 
 ## Font Registration
 
-wgpu-html does not ship fonts. You must register them at startup:
+lui does not ship fonts. You must register them at startup:
 
 ```rust
 tree.register_font(FontFace {

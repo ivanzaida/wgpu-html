@@ -1,7 +1,7 @@
-# wgpu-html — `querySelector` / `querySelectorAll` Spec
+# lui — `querySelector` / `querySelectorAll` Spec
 
 DOM-style CSS selector lookup on the engine's element tree. Lives
-inside `wgpu-html-tree::query` and is exposed through the inherent
+inside `lui-tree::query` and is exposed through the inherent
 methods on [`Tree`] and [`Node`]. Companion to `spec/css.md` (which
 covers the cascade-side selector engine driving paint) and
 `spec/interactivity.md` (which covers element state used by future
@@ -72,10 +72,10 @@ returns `None`, never panics.
   by element identity (so `A, B` doesn't double-count an element
   matching both arms).
 - Paths in the selector layer are interchangeable with paths in the
-  rest of `wgpu-html-tree` (focus chain, scroll-offset map keys,
+  rest of `lui-tree` (focus chain, scroll-offset map keys,
   `at_path_mut`). Anything you obtain from `query_selector_path`
   can be fed straight into `Tree::at_path_mut`,
-  `wgpu_html::screenshot_node_to`, etc.
+  `lui::screenshot_node_to`, etc.
 - No allocation in the hot path of single-element matching
   (`CompoundSelector::matches(&Element)`).
 
@@ -134,7 +134,7 @@ pub struct CompoundSelector { tag, id, classes, attrs, … }
 pub enum   Combinator { Descendant, Child, NextSibling, SubsequentSibling }
 ```
 
-All four types live in `wgpu_html_tree` and re-export from the crate
+All four types live in `lui_tree` and re-export from the crate
 root. `Into<SelectorList>` is implemented for `&str`, `String`,
 `&String`, owned/borrowed `CompoundSelector`, owned/borrowed
 `ComplexSelector`, and owned/borrowed `SelectorList`. So:
@@ -210,7 +210,7 @@ swallow commas correctly.
 ## 5. Element model bridge
 
 Selectors look up element state through three methods on
-`wgpu_html_tree::Element`:
+`lui_tree::Element`:
 
 | Method | Returns | Used by |
 |---|---|---|
@@ -360,7 +360,7 @@ tree.query_selector_all("button[type=submit] ~ .error");
 tree.query_selector_all(r#"[lang|=en] a[href$=".pdf"]"#);
 
 // Reusable parsed selector for hot loops.
-let cta = wgpu_html_tree::SelectorList::parse(
+let cta = lui_tree::SelectorList::parse(
     "a.cta:not(.disabled), button.cta:not(.disabled)"
 ).unwrap_or_default(); // pseudo-classes still err → empty list, OK
 ```
@@ -377,12 +377,12 @@ when you need to know.
 
 ### 8.1 Demo stdin command
 
-`crates/wgpu-html-demo/src/winit.rs` runs a stdin reader thread that
+`crates/lui-demo/src/winit.rs` runs a stdin reader thread that
 parses `make_screenshot [selector]` lines, queues a command, and
 wakes the event loop with `window.request_redraw()`. Inside the
 per-frame hook the queue drains, calls
 `tree.query_selector_path(sel)` to map the selector to a DOM path,
-and forwards to `wgpu_html::screenshot_node_to` for an off-screen
+and forwards to `lui::screenshot_node_to` for an off-screen
 node-sized capture. So everything in §0's ✅ list works out of
 the box from the demo:
 
@@ -398,14 +398,14 @@ the box from the demo:
 DOM child indices and layout-tree child indices line up 1:1 in the
 current engine (no anonymous boxes are inserted between cascade and
 layout). So a path obtained from `query_selector_path` plugs
-directly into `wgpu_html::layout_at_path` and
-`wgpu_html::screenshot_node_to`. If layout ever starts inserting
+directly into `lui::layout_at_path` and
+`lui::screenshot_node_to`. If layout ever starts inserting
 anonymous boxes (line boxes, table-row groups, etc.), this
 correspondence is what would need to be reviewed.
 
 ### 8.3 Cascade engine
 
-The cascade in `wgpu-html-style` has its own selector matcher
+The cascade in `lui-style` has its own selector matcher
 because it has different requirements: per-rule specificity,
 streaming over an entire stylesheet, hot-path performance during
 paint. The two engines share `Element::attr` / `Element::class` /
@@ -443,7 +443,7 @@ Remaining items, in expected priority order:
 
 ## 11. Tests
 
-Selector tests live in `crates/wgpu-html-tree/src/query.rs`'s
+Selector tests live in `crates/lui-tree/src/query.rs`'s
 `#[cfg(test)] mod tests`. Coverage matrix (truncated, current count
 ~25):
 

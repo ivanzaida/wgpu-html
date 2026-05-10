@@ -4,7 +4,7 @@ title: CSS Syntax & Data Types
 
 # CSS Syntax and Basic Data Types
 
-wgpu-html parses CSS values into strongly-typed Rust enums and structs. This page documents the supported syntax for each value type.
+lui parses CSS values into strongly-typed Rust enums and structs. This page documents the supported syntax for each value type.
 
 ## Length Units
 
@@ -150,7 +150,7 @@ color: buttontext;
 | Keyword | Description |
 |---|---|
 | `transparent` | `rgba(0, 0, 0, 0)` |
-| `currentColor` | References the element's `color` property; resolves to `None` in wgpu-html |
+| `currentColor` | References the element's `color` property; resolves to `None` in lui |
 
 ## Number Values
 
@@ -183,7 +183,7 @@ Some properties accept arbitrary string values:
 
 ## Shorthand vs Longhand Properties
 
-wgpu-html handles shorthand expansion during parsing:
+lui handles shorthand expansion during parsing:
 
 ```css
 /* These are equivalent: */
@@ -230,7 +230,7 @@ Keywords are case-insensitive in CSS but stored as CamelCase in Rust.
 
 ## How Values Are Parsed into Rust Types
 
-The core parsing function is `apply_css_property(style: &mut Style, property: &str, value: &str)` in `wgpu-html-parser/src/css_parser.rs`. It dispatches on the property name:
+The core parsing function is `apply_css_property(style: &mut Style, property: &str, value: &str)` in `lui-parser/src/css_parser.rs`. It dispatches on the property name:
 
 ```rust
 pub fn apply_css_property(style: &mut Style, property: &str, value: &str) {

@@ -1,4 +1,4 @@
-# wgpu-html — Events Spec
+# lui — Events Spec
 
 The typed event model, which event structs exist, which events are
 actually dispatched today, and which browser-style event names are
@@ -15,7 +15,7 @@ host-installed Rust callbacks on `Node`: the mouse-specific slots
 
 ## 1. Architecture
 
-The `wgpu-html-events` crate models DOM event inheritance via
+The `lui-events` crate models DOM event inheritance via
 composition. Each event struct embeds its parent in a `base` field:
 
 ```rust
@@ -81,8 +81,8 @@ Every concrete event eventually contains `Event`:
 
 ## 3. Dispatch Surface
 
-Events are dispatched by `wgpu-html-tree::dispatch`, with layout-aware
-wrappers in `wgpu-html::interactivity`.
+Events are dispatched by `lui-tree::dispatch`, with layout-aware
+wrappers in `lui::interactivity`.
 
 Current path-based dispatchers:
 
@@ -101,9 +101,9 @@ text_input(tree, text)
 
 All of these except `text_input` also exist as inherent methods on
 `Tree`. `text_input` is a free function re-exported by
-`wgpu-html-tree`.
+`lui-tree`.
 
-`wgpu-html-winit` translates winit mouse/keyboard events into these
+`lui-winit` translates winit mouse/keyboard events into these
 dispatchers. The harness also implements scrollbars, viewport/element
 scroll, screenshots, and clipboard shortcuts; those host actions do
 not automatically imply DOM events unless listed below.
@@ -190,7 +190,7 @@ update it through `Tree::set_modifier`.
 
 ## 7. Keyboard Events
 
-`wgpu-html-winit` maps winit `KeyEvent` into DOM-like `key` and
+`lui-winit` maps winit `KeyEvent` into DOM-like `key` and
 `code` strings:
 
 - `key` comes from `event.logical_key`, so it follows the user's

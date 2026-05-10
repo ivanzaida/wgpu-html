@@ -1,0 +1,11 @@
+[package]
+name = "lui-driver-winit"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui.workspace      = true
+lui-driver         = { path = "../lui-driver" }
+lui-tree.workspace = true
+winit.workspace          = true
+arboard.workspace        = true

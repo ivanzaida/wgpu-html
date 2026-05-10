@@ -4,7 +4,7 @@ title: Colors & Backgrounds
 
 # Colors and Backgrounds
 
-wgpu-html supports a broad range of CSS color formats and background properties. Colors are parsed into a typed `CssColor` enum and resolved to `[r, g, b, a]` linear sRGB at paint time for GPU consumption.
+lui supports a broad range of CSS color formats and background properties. Colors are parsed into a typed `CssColor` enum and resolved to `[r, g, b, a]` linear sRGB at paint time for GPU consumption.
 
 ## Color Formats
 
@@ -378,7 +378,7 @@ input[type="text"]:focus {
 ### Rust: Resolving Colors Programmatically
 
 ```rust
-use wgpu_html_models::CssColor;
+use lui_models::CssColor;
 
 // Parse a color string
 let color = parse_css_color("hsla(200, 80%, 50%, 0.8)");

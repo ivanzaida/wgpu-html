@@ -4,11 +4,11 @@ title: CSS Selectors
 
 # CSS Selector Reference
 
-> **Note:** The selectors documented below work in stylesheet cascade matching. The `query_selector` and `query_selector_all` APIs in `wgpu-html-tree` additionally support child (`>`), sibling (`+` / `~`) combinators, attribute selectors (`[attr]`, `[attr=val]`, etc.), and many pseudo-classes including `:first-child`, `:last-child`, `:nth-child()`, `:not()`, `:is()`, `:where()`, `:has()`, `:root`, `:scope`, `:lang()`, `:dir()`, `:focus-within`, `:checked`, `:disabled`, `:enabled`, `:required`, `:optional`, `:read-only`, `:read-write`, `:placeholder-shown`, `:first-of-type`, `:last-of-type`, `:nth-of-type()`, and `:nth-last-child()`.
+> **Note:** The selectors documented below work in stylesheet cascade matching. The `query_selector` and `query_selector_all` APIs in `lui-tree` additionally support child (`>`), sibling (`+` / `~`) combinators, attribute selectors (`[attr]`, `[attr=val]`, etc.), and many pseudo-classes including `:first-child`, `:last-child`, `:nth-child()`, `:not()`, `:is()`, `:where()`, `:has()`, `:root`, `:scope`, `:lang()`, `:dir()`, `:focus-within`, `:checked`, `:disabled`, `:enabled`, `:required`, `:optional`, `:read-only`, `:read-write`, `:placeholder-shown`, `:first-of-type`, `:last-of-type`, `:nth-of-type()`, and `:nth-last-child()`.
 
 ## Selector Grammar
 
-wgpu-html's stylesheet parser supports a flat CSS selector syntax without at-rules or complex pseudo-classes. Each selector is a compound of optional tag, optional `#id`, optional `.class`(es), and optional static pseudo-classes, separated by a descendant combinator (whitespace) or comma.
+lui's stylesheet parser supports a flat CSS selector syntax without at-rules or complex pseudo-classes. Each selector is a compound of optional tag, optional `#id`, optional `.class`(es), and optional static pseudo-classes, separated by a descendant combinator (whitespace) or comma.
 
 ```
 selector_list = selector ("," selector)*
@@ -216,7 +216,7 @@ p.error { color: darkred; }
 ### Rust: Selector Matcher API
 
 ```rust
-use wgpu_html_style::{matches_selector, matches_selector_in_tree, MatchContext};
+use lui_style::{matches_selector, matches_selector_in_tree, MatchContext};
 
 // Match without ancestor context
 let selector = /* parsed Selector */;

@@ -4,17 +4,17 @@ sidebar_position: 5
 
 # Custom Render Target
 
-Rendering wgpu-html content to an off-screen texture for use in custom graphics pipelines.
+Rendering lui content to an off-screen texture for use in custom graphics pipelines.
 
 ## Headless Renderer
 
 ```rust
-use wgpu_html_renderer::Renderer;
+use lui_renderer::Renderer;
 
 let mut renderer = Renderer::headless();
 
 // Build your display list via paint_tree_with_text()
-let display_list = wgpu_html::paint_tree_with_text(
+let display_list = lui::paint_tree_with_text(
     &mut tree, &mut text_ctx, &mut image_cache,
     800, 600, 1.0, 0.0,
 );
@@ -28,7 +28,7 @@ let pixels: Vec<u8> = renderer.render_to_rgba(&display_list, 800, 600)?;
 ## Screenshot a Specific Element
 
 ```rust
-use wgpu_html::screenshot_node_to;
+use lui::screenshot_node_to;
 
 screenshot_node_to(
     &mut tree, &mut text_ctx, &mut image_cache,
@@ -53,7 +53,7 @@ Then render into your existing render pass by calling `renderer.render(&display_
 
 ## Use Cases
 
-- **Off-screen compositing** — render a wgpu-html surface, then blend it into a 3D scene
+- **Off-screen compositing** — render a lui surface, then blend it into a 3D scene
 - **Texture generation** — generate UI textures for game engines
 - **CI screenshots** — automated visual regression testing
 - **Export** — render to PNG/SVG without a window

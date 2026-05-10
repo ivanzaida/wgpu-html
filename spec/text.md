@@ -1,4 +1,4 @@
-# wgpu-html — Text Rendering Spec
+# lui — Text Rendering Spec
 
 How text leaves shape, lay out, and paint. Companion to
 `roadmap.md` (M5/M6) and `status.md`.
@@ -32,8 +32,8 @@ process-global state, no `@font-face` fetcher.
 
 ## 2. Supported CSS
 
-Resolved end-to-end (`crates/wgpu-html-style` cascade →
-`crates/wgpu-html-text` shape → `crates/wgpu-html-layout` IFC →
+Resolved end-to-end (`crates/lui-style` cascade →
+`crates/lui-text` shape → `crates/lui-layout` IFC →
 paint):
 
 | Property              | Coverage                                                                  |
@@ -52,7 +52,7 @@ paint):
 | `white-space: normal` | Whitespace runs collapse to a single ASCII space pre-shape                |
 | `<input>` / `<textarea>` `placeholder` | Shaped + painted as the box's text run when the field has no value/content; colour = cascaded `color × alpha 0.5`; single-line input vertically centred + horizontally clipped; textarea soft-wrap top-aligned. See §11.8 for the full behaviour matrix. |
 
-**Inheritance.** `wgpu-html-style::cascade` runs an
+**Inheritance.** `lui-style::cascade` runs an
 `inherit_into(child, parent)` pass that fills the standard
 inheriting properties (`color`, `font-*`, `line-height`,
 `letter-spacing`, `text-align`, `text-transform`, `white-space`,
@@ -60,7 +60,7 @@ inheriting properties (`color`, `font-*`, `line-height`,
 node didn't set explicitly. `inherit / initial / unset` keywords
 are honoured before the implicit pass.
 
-**UA stylesheet** (`crates/wgpu-html-style/src/ua.rs`,
+**UA stylesheet** (`crates/lui-style/src/ua.rs`,
 prepended so author rules win on source-order ties):
 
 - `head, style, script, meta, link, title, noscript, template,
@@ -97,7 +97,7 @@ Frame
 Public entry points:
 
 ```rust
-// wgpu-html-layout
+// lui-layout
 pub fn layout_with_text(
     tree:       &CascadedTree,
     text_ctx:   &mut TextContext,
@@ -107,7 +107,7 @@ pub fn layout_with_text(
 ) -> Option<LayoutBox>;
 pub fn layout(tree, vw, vh) -> Option<LayoutBox>; // no-text wrapper
 
-// wgpu-html (facade)
+// lui (facade)
 pub fn paint_tree_with_text(
     tree, text_ctx, viewport_w, viewport_h, scale,
 ) -> DisplayList;
@@ -138,7 +138,7 @@ This is a hard architectural constraint:
 - **Trivial to test** — register an embedded font, parse, render,
   assert.
 
-API (`wgpu-html-tree`):
+API (`lui-tree`):
 
 ```rust
 pub struct Tree {
@@ -165,7 +165,7 @@ impl Tree {
 shorthand. Re-registering with a fresh `Arc<[u8]>` triggers a
 font-db reload at the bridge layer.
 
-The bridge (`wgpu-html-text::FontDb`) lazily caches a
+The bridge (`lui-text::FontDb`) lazily caches a
 `cosmic_text::FontSystem` keyed by `Arc::as_ptr` identity. Same
 registry → no-op resync; replaced `Arc` → reload; removed face →
 removed from `fontdb` too. The `FontSystem` is constructed
@@ -204,7 +204,7 @@ entry is one of these generics, the search returns the
 best-`(weight, style)`-scoring face from the entire registry.
 This makes plain `font-family: sans-serif` resolve whatever face
 the host registered (e.g. via
-`wgpu_html_winit::register_system_fonts(tree, "DemoSans")`)
+`lui_winit::register_system_fonts(tree, "DemoSans")`)
 without requiring an explicit alias.
 
 If the whole walk misses *and* no generic is in the list, layout
@@ -279,7 +279,7 @@ content alongside block siblings are not yet generated — see
 
 ## 7. Glyph atlas + GPU pipeline
 
-**Atlas** (`crates/wgpu-html-text/src/atlas.rs`):
+**Atlas** (`crates/lui-text/src/atlas.rs`):
 
 - Single `R8Unorm` CPU buffer, default 2048×2048 (`pub const
   GLYPH_ATLAS_SIZE`); the renderer creates its GPU texture at the
@@ -303,7 +303,7 @@ AtlasGlyph>`): keyed by `(font_handle, glyph_id, size_px,
 subpixel_x_bin)`. Misses raster through `cosmic_text::SwashCache`,
 pack into the atlas, and store the resulting UVs.
 
-**Pipeline** (`crates/wgpu-html-renderer/src/glyph_pipeline.rs`,
+**Pipeline** (`crates/lui-renderer/src/glyph_pipeline.rs`,
 `shaders/glyph.wgsl`):
 
 - Instanced textured quads. The fragment samples the R8 atlas
@@ -354,7 +354,7 @@ aggregation). Per-glyph colour is filled from the source span's
 ## 8. Public API
 
 ```rust
-// wgpu-html-tree
+// lui-tree
 pub struct FontFace { family, weight, style, data };
 pub enum   FontStyleAxis { Normal, Italic, Oblique };
 pub struct FontHandle(pub usize);
@@ -368,7 +368,7 @@ impl FontRegistry {
     pub fn find_first(&self, families, weight, style) -> Option<FontHandle>;
 }
 
-// wgpu-html-text
+// lui-text
 pub struct TextContext { /* font_db, fonts, atlas, swash, glyph_cache */ };
 pub struct ShapedRun { glyphs, width, height, ascent };
 pub struct PositionedGlyph { x, y, w, h, uv_min, uv_max, color };
@@ -387,18 +387,18 @@ impl TextContext {
     pub fn shape_paragraph(spans, max_width) -> Option<ParagraphLayout>;
 }
 
-// wgpu-html-renderer
+// lui-renderer
 pub const GLYPH_ATLAS_SIZE: u32 = 2048;
 impl Renderer {
     pub fn glyph_atlas_texture(&self) -> &wgpu::Texture;
 }
 
-// wgpu-html-layout
+// lui-layout
 pub fn layout_with_text(tree, &mut TextContext, vw, vh, scale)
     -> Option<LayoutBox>;
 pub fn layout(tree, vw, vh) -> Option<LayoutBox>;
 
-// wgpu-html (facade)
+// lui (facade)
 pub fn paint_tree_with_text(tree, &mut TextContext, vw, vh, scale)
     -> DisplayList;
 pub fn paint_tree(tree, vw, vh) -> DisplayList;
@@ -459,19 +459,19 @@ pub fn paint_tree_returning_layout(tree, &mut TextContext, vw, vh, scale)
 
 ## 10. Tests
 
-- `wgpu-html-tree::fonts::tests` — 11 unit tests covering
+- `lui-tree::fonts::tests` — 11 unit tests covering
   register / lookup / case-insensitive family matching / weight
   bias / italic↔oblique swap / multi-family fallback / empty
   registry.
-- `wgpu-html-text::atlas::tests` (11) and
-  `wgpu-html-text::font_db::tests` (5) cover the shelf packer +
+- `lui-text::atlas::tests` (11) and
+  `lui-text::font_db::tests` (5) cover the shelf packer +
   the cosmic-text bridge identity check.
-- `wgpu-html-layout::tests` (89) covers layout including text
+- `lui-layout::tests` (89) covers layout including text
   leaves; the no-font compatibility wrapper (`layout(...)`) keeps
   the older fixtures green.
-- `wgpu-html::paint::tests` (23) covers the painter end-to-end
+- `lui::paint::tests` (23) covers the painter end-to-end
   for shaped text in single-leaf and rich-text paths.
-- The demo (`crates/wgpu-html-demo`) is the visual end-to-end
+- The demo (`crates/lui-demo`) is the visual end-to-end
   test: `hello-text.html`, `flex-grow.html`, `overflow.html`,
   `gif.html`, etc., rebuilt every frame against a candidate-paths
   table of system fonts.
@@ -566,7 +566,7 @@ The following remain intentionally uncovered until implemented:
 
 ### 11.8 Form-field placeholder rendering — done
 
-`compute_placeholder_run` (in `wgpu_html_layout::lib`) shapes the
+`compute_placeholder_run` (in `lui_layout::lib`) shapes the
 `placeholder` attribute on empty `<input>` and `<textarea>`
 elements and attaches the result as the box's `text_run`,
 painted at the cascaded `color × alpha 0.5` (the browser default
@@ -575,7 +575,7 @@ painted at the cascaded `color × alpha 0.5` (the browser default
 path most often).
 
 Behavioural rules covered by tests in
-`wgpu-html-layout::tests::*placeholder*`:
+`lui-layout::tests::*placeholder*`:
 
 - Empty `<input>` with `placeholder="…"` → text_run + color set.
 - Non-empty `value="…"` suppresses placeholder.

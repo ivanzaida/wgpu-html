@@ -1,15 +1,15 @@
 ---
-title: wgpu-html vs RmlUI
+title: lui vs RmlUI
 ---
 
-# wgpu-html vs RmlUI — Capability Comparison
+# lui vs RmlUI — Capability Comparison
 
 > **Date:** 2026-05-03
-> **Purpose:** Comparison of two GPU-accelerated HTML/CSS UI rendering engines aimed at game/application UI. wgpu-html is a Rust alternative to the C++ RmlUI library.
+> **Purpose:** Comparison of two GPU-accelerated HTML/CSS UI rendering engines aimed at game/application UI. lui is a Rust alternative to the C++ RmlUI library.
 
 ## Project Overview
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **Language** | Rust | C++ (C++17) |
 | **License** | MIT | MIT |
@@ -26,7 +26,7 @@ title: wgpu-html vs RmlUI
 
 ## Markup Language
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **Format** | Standard HTML5 (`.html`) | RML (XHTML1-like `.rml`) |
 | **Element Count** | ~100 typed HTML element structs | ~20 custom elements + `<script>`/`<lottie>`/`<svg>` via plugins |
@@ -39,7 +39,7 @@ title: wgpu-html vs RmlUI
 
 ### Selectors
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **Tag, `#id`, `.class`, universal `*`** | ✅ | ✅ |
 | **Descendant ` `** | ✅ | ✅ |
@@ -64,7 +64,7 @@ title: wgpu-html vs RmlUI
 
 ### Cascade System
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **UA stylesheet** | ✅ (~50 rules) | ❌ (recommended stylesheet available separately) |
 | **Author stylesheet** | ✅ (`<style>` blocks + `<link>` parsed) | ✅ (`<link type="text/rcss">` + inline) |
@@ -77,7 +77,7 @@ title: wgpu-html vs RmlUI
 
 ### CSS Properties Summary
 
-| Property Area | **wgpu-html** | **RmlUI** |
+| Property Area | **lui** | **RmlUI** |
 |---|---|---|
 | **`display`** | block, inline, inline-block, flex, grid, none | inline, block, inline-block, flow-root, flex, inline-flex, table, inline-table, table-row-group, table-row, table-column-group, table-column, table-cell, none |
 | **`position`** | static, relative, absolute, fixed | static, relative, absolute, fixed |
@@ -111,7 +111,7 @@ title: wgpu-html vs RmlUI
 
 ## Layout Engines
 
-| Layout Model | **wgpu-html** | **RmlUI** |
+| Layout Model | **lui** | **RmlUI** |
 |---|---|---|
 | **Block Flow** | ✅ Full | ✅ Full |
 | **Inline Formatting Context** | ✅ Line-box layout, word wrapping, text-align, inline-block | ✅ Line-box layout, word wrapping, text-align |
@@ -126,7 +126,7 @@ title: wgpu-html vs RmlUI
 
 ## Text & Typography
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **Font Engine** | cosmic-text + CPU rasterization → glyph atlas | FreeType (replaceable) |
 | **Text Shaping** | cosmic-text (HarfBuzz-based) | FreeType kerning; HarfBuzz optional |
@@ -144,7 +144,7 @@ title: wgpu-html vs RmlUI
 
 ## Rendering & Visuals
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **GPU Pipelines** | Quad (SDF) + Glyph (alpha test) + Image (textured) | Backend-dependent |
 | **Backgrounds** | ✅ Solid color + image tiling with rounded clip | ✅ Solid color + decorators |
@@ -163,7 +163,7 @@ title: wgpu-html vs RmlUI
 
 ## Interactivity & Events
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **Pointer/Mouse** | ✅ CursorMoved, MouseInput, CursorLeft, MouseWheel | ✅ MouseMove, MouseDown/Up, MouseWheel |
 | **Event Bubbling** | ✅ Bubbles mousedown→up→click target→root; mouseenter/mouseleave don't bubble; keydown/keyup bubble; focusout/focusin bubble, focus/blur don't | ✅ Event propagation (capture + bubble phases) |
@@ -187,7 +187,7 @@ title: wgpu-html vs RmlUI
 
 ## Form Controls
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **`<input type="text">`** | ✅ Full editing + placeholder + caret | ✅ |
 | **`<input type="password">`** | ✅ Bullet masking | ✅ |
@@ -203,7 +203,7 @@ title: wgpu-html vs RmlUI
 
 ## Images & Media
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **`<img>`** | ✅ PNG, JPEG, GIF (animated), BMP, WebP (animated); HTTP(S), data: URI, local files | ✅ Via renderer (format depends on backend) |
 | **Image Cache** | ✅ Two-level (raw+sized), process-wide, TTL (5 min default), byte-budget eviction (256 MiB default), `Cache-Control: max-age` | ❌ No built-in image cache |
@@ -216,7 +216,7 @@ title: wgpu-html vs RmlUI
 
 ## Special Features
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **Data Binding (MVC)** | ❌ (component framework provides state management) | ✅ Full model-view-controller |
 | **Templates** | ❌ | ✅ Template engine |
@@ -231,15 +231,15 @@ title: wgpu-html vs RmlUI
 
 ## Integration & Platform
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
-| **Window Integration** | `wgpu-html-winit` with `WgpuHtmlWindow` harness (one-call setup) | Multiple backends: Win32, X11, GLFW, SFML, SDL |
+| **Window Integration** | `lui-winit` with `LuiWindow` harness (one-call setup) | Multiple backends: Win32, X11, GLFW, SFML, SDL |
 | **Renderer Integration** | wgpu (built-in, no abstract interface needed) | `RenderInterface` abstract class (user implements) |
 | **Font Engine Integration** | cosmic-text (built-in) | `FontEngineInterface` (replaceable) |
 | **System Interface** | winit-provided (window, input, DPI) | `SystemInterface` abstract class |
 | **File Interface** | Built-in (HTTP + file + data URI) | Optional (user implements) |
 | **Loop Integration** | User calls `paint_tree_returning_layout()` each frame | User calls `context->Update()` + `context->Render()` each frame |
-| **egui Backend** | ✅ `wgpu-html-egui` for embedding in egui applications | ❌ |
+| **egui Backend** | ✅ `lui-egui` for embedding in egui applications | ❌ |
 | **DPI / High DPI** | ✅ Scale factor from winit through to glyph atlas | ✅ dp-ratio, monitor DPI awareness |
 | **Clipboard** | ✅ arboard (read/write) | ✅ Via platform backends |
 | **Pipeline Caching** | ✅ FullPipeline / PartialCascade / RepaintOnly with generation tracking | ❌ |
@@ -247,7 +247,7 @@ title: wgpu-html vs RmlUI
 
 ## Performance & Optimization
 
-| | **wgpu-html** | **RmlUI** |
+| | **lui** | **RmlUI** |
 |---|---|---|
 | **GPU-Accelerated** | ✅ wgpu (Vulkan/Metal/DX12) | ✅ Via backends (OpenGL, Vulkan, DX12, etc.) |
 | **Pipeline Caching** | ✅ Classifies frame to skip cascade/layout/paint when state unchanged | ❌ |
@@ -260,7 +260,7 @@ title: wgpu-html vs RmlUI
 
 ## Quick Summary — Strengths & Weaknesses
 
-### wgpu-html Strengths
+### lui Strengths
 
 - **Rust-native** — memory safety, no FFI, Cargo integration
 - **CSS Grid** — RmlUI has no grid layout
@@ -273,7 +273,7 @@ title: wgpu-html vs RmlUI
 - **Embeddable in egui**
 - **Pipeline caching + incremental cascade** — skips expensive stages when state unchanged
 
-### wgpu-html Weaknesses
+### lui Weaknesses
 
 - **No floats** — cannot wrap text around images or sidebars
 - **No table layout** — tables degrade to block flow
@@ -314,7 +314,7 @@ title: wgpu-html vs RmlUI
 
 ## Verdict — Viability as Rust Alternative
 
-wgpu-html is **already a viable Rust alternative** for many use cases, particularly:
+lui is **already a viable Rust alternative** for many use cases, particularly:
 
 - UI that needs **CSS Grid** or **custom properties**
 - **Static or mostly-static layouts** with rich Rust-driven interactivity
@@ -322,7 +322,7 @@ wgpu-html is **already a viable Rust alternative** for many use cases, particula
 - **Text-heavy interfaces** with selection/clipboard
 - Embedding inside **egui** applications
 
-wgpu-html needs work to match RmlUI on:
+lui needs work to match RmlUI on:
 
 - **Animations & transforms** — critical for game UI polish
 - **Float layout** — essential for document-like layouts
@@ -331,4 +331,4 @@ wgpu-html needs work to match RmlUI on:
 - **Decorator system** — flexibility beyond CSS properties
 - **Production hardening** — real-world testing and optimization
 
-The two projects have **different design philosophies**: RmlUI emphasizes visual richness (animations, transforms, decorators, filters) while wgpu-html emphasizes web-standards fidelity (grid, custom properties, calc(), full selector engine for DOM queries, text editing/selection).
+The two projects have **different design philosophies**: RmlUI emphasizes visual richness (animations, transforms, decorators, filters) while lui emphasizes web-standards fidelity (grid, custom properties, calc(), full selector engine for DOM queries, text editing/selection).

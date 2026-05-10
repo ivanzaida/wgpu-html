@@ -4,12 +4,12 @@ sidebar_position: 3
 
 # Windowing
 
-wgpu-html uses winit for windowing. The `wgpu-html-driver-winit` crate provides a complete window driver.
+lui uses winit for windowing. The `lui-driver-winit` crate provides a complete window driver.
 
 ## WinitDriver
 
 ```rust
-use wgpu_html_driver_winit::WinitDriver;
+use lui_driver_winit::WinitDriver;
 
 let event_loop = EventLoop::new()?;
 let window = Arc::new(event_loop.create_window(

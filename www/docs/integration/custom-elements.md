@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # Custom Elements
 
-wgpu-html supports a custom element system for extensibility.
+lui supports a custom element system for extensibility.
 
 ## Registering Custom Elements
 

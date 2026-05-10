@@ -38,10 +38,10 @@ Selection highlight quads are painted per line within the affected text runs. Th
 
 ```rust
 // Ctrl+A
-wgpu_html::select_all_text(&mut tree, &layout);
+lui::select_all_text(&mut tree, &layout);
 
 // Get selected text for clipboard
-if let Some(text) = wgpu_html::selected_text(&tree, &layout) {
+if let Some(text) = lui::selected_text(&tree, &layout) {
     // Copy to clipboard...
 }
 ```
@@ -53,7 +53,7 @@ if let Some(text) = wgpu_html::selected_text(&tree, &layout) {
 Double-clicking selects the word under the pointer:
 
 ```rust
-wgpu_html::select_word_at_cursor(&mut tree, &layout, &cursor);
+lui::select_word_at_cursor(&mut tree, &layout, &cursor);
 ```
 
 Word boundaries use `char::is_alphanumeric` and `_` as word characters. Whitespace and punctuation form separate tokens.
@@ -63,7 +63,7 @@ Word boundaries use `char::is_alphanumeric` and `_` as word characters. Whitespa
 Triple-clicking selects the entire shaped line:
 
 ```rust
-wgpu_html::select_line_at_cursor(&mut tree, &layout, &cursor);
+lui::select_line_at_cursor(&mut tree, &layout, &cursor);
 ```
 
 This selects all glyphs in the `ShapedLine` containing the hit cursor.
@@ -99,4 +99,4 @@ The highlight is painted *before* glyphs, so text appears on top. Selection colo
 | Ctrl+A | `select_all_text()` — selects all text in the document |
 | Ctrl+C | Copies `selected_text()` to the OS clipboard via `arboard` |
 
-These are handled in the default `key_down` dispatch. Hosts using `WgpuHtmlWindow` get them automatically; custom integrations add them manually.
+These are handled in the default `key_down` dispatch. Hosts using `LuiWindow` get them automatically; custom integrations add them manually.

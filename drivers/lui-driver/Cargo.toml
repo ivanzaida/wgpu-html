@@ -1,0 +1,11 @@
+[package]
+name = "lui-driver"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui.workspace      = true
+lui-text.workspace = true
+lui-tree.workspace = true
+wgpu.workspace           = true
+pollster.workspace       = true

@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Supported Selectors
 
-wgpu-html supports **full CSS Level 4 selectors** via `wgpu-html-tree::query`.
+lui supports **full CSS Level 4 selectors** via `lui-tree::query`.
 
 ## Combinators
 

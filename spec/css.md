@@ -1,4 +1,4 @@
-# wgpu-html — CSS Spec
+# lui — CSS Spec
 
 The CSS pipeline this engine implements, what's already wired up, and
 what's deliberately out-of-scope or left for follow-ups. Companion to
@@ -18,9 +18,9 @@ For the exhaustive per-property matrix, see `spec/css-properties.md`.
   cascade pass. Layout and paint never re-parse CSS.
 - Standards-faithful enough to handle the subset of CSS the renderer
   actually paints (block + flex layout, backgrounds, borders, text).
-- One source of truth for the property table: `wgpu-html-parser`
-  knows the kebab-case names; `wgpu-html-models::Style` is the typed
-  shape; `wgpu-html-style` consumes the cascade output.
+- One source of truth for the property table: `lui-parser`
+  knows the kebab-case names; `lui-models::Style` is the typed
+  shape; `lui-style` consumes the cascade output.
 - No global mutable state. The cascade is a pure function over a
   `Tree` plus its embedded `<style>` blocks.
 
@@ -40,14 +40,14 @@ For the exhaustive per-property matrix, see `spec/css-properties.md`.
 ```
 HTML string
    │
-   ▼  wgpu-html-parser            tokenize + tree-build + parse <style> bodies
+   ▼  lui-parser            tokenize + tree-build + parse <style> bodies
 Tree<Node<Element>>                inline `style="…"` attrs stay raw on each element
    │
-   ▼  wgpu-html-style::cascade    selector match + 4-band cascade + keyword
+   ▼  lui-style::cascade    selector match + 4-band cascade + keyword
                                   resolution + implicit inheritance
 CascadedTree                       per-node fully-resolved Style
    │
-   ▼  wgpu-html-layout            consume the typed Style values
+   ▼  lui-layout            consume the typed Style values
 LayoutBox tree
 ```
 
@@ -59,14 +59,14 @@ The parser owns:
 - Selector + rule parsing (`stylesheet.rs`).
 - The shared property dispatch table (`style_props.rs`).
 
-`wgpu-html-style` owns the cascade itself: matching, ordering,
+`lui-style` owns the cascade itself: matching, ordering,
 keyword resolution, inheritance.
 
 ---
 
 ## 4. Selectors
 
-**Done** — `wgpu-html-parser/src/stylesheet.rs::parse_selector`.
+**Done** — `lui-parser/src/stylesheet.rs::parse_selector`.
 
 | Form        | Example               | Notes                                  |
 |-------------|-----------------------|----------------------------------------|
@@ -121,7 +121,7 @@ silently.
 
 ## 6. Property parsing
 
-Source: `wgpu-html-parser/src/css_parser.rs::apply_css_property`
+Source: `lui-parser/src/css_parser.rs::apply_css_property`
 plus its per-property value parsers.
 
 ### 6.1 Length values
@@ -143,7 +143,7 @@ Not yet supported:
 ### 6.2 Color values
 
 `parse_css_color` recognises:
-- Named colors (~20 common ones — see `wgpu-html-style::color`).
+- Named colors (~20 common ones — see `lui-style::color`).
 - `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`.
 - `rgb(r, g, b)`, `rgba(r, g, b, a)` with comma or slash-alpha.
 - `hsl(h, s, l)`, `hsla(h, s, l, a)`.
@@ -151,7 +151,7 @@ Not yet supported:
 
 **CSS Color Module Level 4 system colors** — recognised by both
 the parser validator (`is_supported_named_color`) and the layout
-color resolver (`wgpu_html_layout::color::named_color`). Used by
+color resolver (`lui_layout::color::named_color`). Used by
 the UA stylesheet for form controls (`background-color: buttonface`,
 `color: fieldtext`, …) so those rules cascade cleanly:
 
@@ -182,7 +182,7 @@ Not yet fully resolved:
 
 ### 6.2.1 Generic font-family fallback — Done
 
-`FontRegistry::find_first` (in `wgpu-html-tree::fonts`) walks the
+`FontRegistry::find_first` (in `lui-tree::fonts`) walks the
 CSS family list left-to-right and returns the first family that
 has a registered face. **If no listed family matches and any
 entry is a CSS generic keyword**, it falls back to the best
@@ -194,7 +194,7 @@ Recognised generics: `sans-serif`, `serif`, `monospace`,
 
 This makes plain `font-family: sans-serif` resolve whatever font
 the host registered (typically via
-`wgpu_html_winit::register_system_fonts(tree, "MyFamily")`)
+`lui_winit::register_system_fonts(tree, "MyFamily")`)
 without needing the host to also register the generic alias.
 
 ### 6.3 Properties — typed vs deferred vs ignored
@@ -232,7 +232,7 @@ shorthands such as `animation-*`, `transition-*`, logical
 `font-stretch`, `list-style-*`, `outline-*`, `overscroll-*`,
 `scroll-margin-*`, `scroll-padding-*`, `text-decoration-*`,
 `text-emphasis-*`, `scroll-timeline-*`, `view-timeline-*`, and other
-future-facing longhands listed in `wgpu-html-parser/src/shorthands.rs`.
+future-facing longhands listed in `lui-parser/src/shorthands.rs`.
 
 For `animation` and `transition`, the parser now performs per-layer
 member extraction with defaults (`0s`, `ease`, `running`, etc.) rather
@@ -306,7 +306,7 @@ falls through). No diagnostics yet.
 
 ## 7. Cascade
 
-**Done** — `wgpu-html-style::cascade` + `computed_decls`.
+**Done** — `lui-style::cascade` + `computed_decls`.
 
 Per CSS-Cascade-3 §6.4, restricted to author + inline origins (no UA
 or user origin layers):
@@ -335,8 +335,8 @@ the implicit inheritance pass.
 
 ### 7.1 `!important` — Done
 
-**File**: `wgpu-html-parser/src/css_parser.rs::strip_important`,
-`wgpu-html-parser/src/stylesheet.rs::Rule.important`.
+**File**: `lui-parser/src/css_parser.rs::strip_important`,
+`lui-parser/src/stylesheet.rs::Rule.important`.
 
 - `prop: value !important;` recognised, with arbitrary whitespace
   between `!` and `important` and case-insensitive `IMPORTANT`.
@@ -347,7 +347,7 @@ the implicit inheritance pass.
 - Within a rule, `color: red; color: blue !important;` resolves
   blue as expected; `color: red !important; color: blue;` keeps red.
 
-**Tests** — `wgpu-html-style::tests::important_*`:
+**Tests** — `lui-style::tests::important_*`:
 - Lower-spec `!important` beats higher-spec normal.
 - Among `!important` declarations specificity still orders.
 - `!important` author beats inline normal.
@@ -357,7 +357,7 @@ the implicit inheritance pass.
 
 ### 7.2 CSS-wide keywords (`inherit / initial / unset`) — Done
 
-**File**: `wgpu-html-parser/src/style_props.rs`.
+**File**: `lui-parser/src/style_props.rs`.
 
 Detected case-insensitively per declaration. Each keyword is stored
 in the side-car keyword map (`keywords_normal` /
@@ -386,7 +386,7 @@ keyword fan-out, and shorthand reset behaviour. They are used by:
   merge that drops the matching keyword and honours
   `Style.reset_properties` for shorthand member resets.
 
-**Tests** — `wgpu-html-style::tests`:
+**Tests** — `lui-style::tests`:
 - `inherit` on `background-color` (non-inherited) takes the parent.
 - `initial` on `color` blocks the implicit-inheritance pass.
 - `unset` is `inherit`-flavoured for `color`, `initial`-flavoured
@@ -399,12 +399,12 @@ keyword fan-out, and shorthand reset behaviour. They are used by:
 
 ### 7.3 Inheritance — Done (with per-property table)
 
-**File**: `wgpu-html-style::cascade::inherit_into`.
+**File**: `lui-style::cascade::inherit_into`.
 
 After the keyword-resolution pass, any typed property still `None` AND
 not listed in the keyword map gets the parent's value if the property
 is inheritable. Deferred inherited longhands are copied by the same
-rule using `wgpu_html_parser::is_inherited(prop)`. The typed
+rule using `lui_parser::is_inherited(prop)`. The typed
 inheritable set is:
 
 ```
@@ -418,7 +418,7 @@ M-INTER-2 wires them into hit-testing / selection enforcement;
 they're parsed but not yet inherited.
 
 This list mirrors `is_inherited()` in
-`wgpu-html-parser/src/style_props.rs` — the same kebab-case strings
+`lui-parser/src/style_props.rs` — the same kebab-case strings
 are consulted on both the cascade side (for implicit inheritance)
 and the keyword-resolution side (for `unset`).
 
@@ -436,8 +436,8 @@ and the keyword-resolution side (for `unset`).
 - Inline element `style="..."` attribute (per-element).
 - `<style>` element bodies anywhere in the document — gathered into a
   single `Stylesheet` at cascade time
-  (`wgpu-html-style::collect_stylesheet`).
-- **UA default stylesheet** (`wgpu-html-style/src/ua.rs`) — `display:
+  (`lui-style::collect_stylesheet`).
+- **UA default stylesheet** (`lui-style/src/ua.rs`) — `display:
   none` for `<head>/<style>/<script>/…`, `body { margin: 8px }`,
   heading sizes/weights (`h1`–`h6`), block-level margins, inline
   emphasis (`b, strong, a, code, …`). Injected as the lowest-priority
@@ -458,7 +458,7 @@ to do:
 
 - **Length resolution.** Layout still receives raw `CssLength`
   values; the resolution to physical pixels happens in
-  `wgpu-html-layout::length::resolve` against viewport / parent
+  `lui-layout::length::resolve` against viewport / parent
   size. CSS spec calls for this to happen at "computed value" time
   for `em`/`rem`/`%` of the element's own font size — we
   approximate.
@@ -471,7 +471,7 @@ to do:
 
 What survives the cascade and actually changes pixels on the screen.
 
-### Honoured by layout (`wgpu-html-layout`)
+### Honoured by layout (`lui-layout`)
 
 - `display` (block, flex, grid, and atomic inline variants such as
   `inline-block` / `inline-flex` where the current layout path
@@ -514,7 +514,7 @@ What survives the cascade and actually changes pixels on the screen.
   `content_rect.w`. `type="hidden"` and non-empty `value` /
   textarea content suppress the placeholder.
 
-### Honoured by paint (`wgpu-html`)
+### Honoured by paint (`lui`)
 
 - Per-side border colors / styles (solid, dashed, dotted; double /
   groove / ridge / inset / outset render as solid).
@@ -550,7 +550,7 @@ Each phase ends in something a host can demo or test against.
 
 ### C1 — Parser-side property table — ✅
 
-- `wgpu-html-parser/src/style_props.rs` is the single source of
+- `lui-parser/src/style_props.rs` is the single source of
   truth: every supported property listed exactly once with
   `(struct_field, "kebab-case", inherited?)`.
 - The macro generates `clear_value_for`, `apply_keyword`,
@@ -585,7 +585,7 @@ Each phase ends in something a host can demo or test against.
 - **State pseudo-classes `:hover`, `:active`, `:focus` — ✅ done.**
   Parsed in `stylesheet.rs`; matched via
   `MatchContext { is_hover, is_active, is_focus }` derived in
-  `wgpu-html-style::cascade` from `InteractionState`'s
+  `lui-style::cascade` from `InteractionState`'s
   `hover_path` / `active_path` / `focus_path`. `:focus` is
   exact-match (only the focused element, not its ancestors);
   `:focus-within` (which would propagate) is not yet implemented.
@@ -633,7 +633,7 @@ responsive breakpoints work out of the box.
 
 ### C9 — UA default stylesheet — ✅ Done
 
-The UA stylesheet lives in `wgpu-html-style/src/ua.rs` and is injected
+The UA stylesheet lives in `lui-style/src/ua.rs` and is injected
 as the lowest-priority `Stylesheet` in every cascade pass. It covers:
 `display: none` for non-rendered elements (`<head>`, `<style>`,
 `<script>`, …), `body { margin: 8px }`, heading sizes and weights
@@ -685,7 +685,7 @@ inline emphasis (`b`, `strong`, `em`, `i`, `u`, `s`, `code`, `a`,
   so ordering is deterministic, but a documented test case would
   help.
 - **Initial values without a UA sheet.** The UA sheet now exists
-  (`wgpu-html-style/src/ua.rs`), so `initial` collapsing to `None`
+  (`lui-style/src/ua.rs`), so `initial` collapsing to `None`
   is less dangerous than before. However `initial` still resolves to
   `None` (not the CSS specified-initial value), which means the
   `keywords.contains_key($name)` guard in `inherit_into` is what

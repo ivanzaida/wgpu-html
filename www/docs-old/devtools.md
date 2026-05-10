@@ -4,7 +4,7 @@ title: Devtools
 
 # Devtools
 
-The `wgpu-html-devtools` crate provides a visual inspector panel built with `wgpu-html-ui` components. It opens in a secondary OS window for inspecting the host tree.
+The `lui-devtools` crate provides a visual inspector panel built with `lui-ui` components. It opens in a secondary OS window for inspecting the host tree.
 
 ## Features
 
@@ -23,12 +23,12 @@ The devtools window uses a dark theme:
 - Breadcrumb bar at the top.
 - Element picker button in the toolbar.
 
-Built entirely with HTML/CSS rendered by wgpu-html — the devtools are a wgpu-html application inspecting another wgpu-html application.
+Built entirely with HTML/CSS rendered by lui — the devtools are a lui application inspecting another lui application.
 
 ## Attaching to a Host Tree
 
 ```rust
-use wgpu_html_devtools::Devtools;
+use lui_devtools::Devtools;
 
 let devtools = Devtools::new();
 devtools.attach(&mut host_tree);
@@ -62,7 +62,7 @@ impl Devtools {
 
 ## Implementation
 
-The devtools are built with `wgpu-html-ui` components:
+The devtools are built with `lui-ui` components:
 
 ```rust
 struct DevtoolsComponent {
@@ -116,8 +116,8 @@ The devtools embed the Lucide icon font at compile time (`include_bytes!("../fon
 In the winit harness, devtools integration is manual:
 
 ```rust
-use wgpu_html_winit::{create_window, AppHook};
-use wgpu_html_devtools::Devtools;
+use lui_winit::{create_window, AppHook};
+use lui_devtools::Devtools;
 
 struct MyApp { devtools: Devtools }
 

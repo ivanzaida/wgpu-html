@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # wgpu Backend
 
-The renderer in `wgpu-html-renderer` manages a wgpu device, surface, and three GPU pipelines.
+The renderer in `lui-renderer` manages a wgpu device, surface, and three GPU pipelines.
 
 ## Backend Selection
 

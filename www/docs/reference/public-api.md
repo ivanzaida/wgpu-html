@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Public API
 
-The main facade is `wgpu_html`. Most applications only need this crate plus a driver.
+The main facade is `lui`. Most applications only need this crate plus a driver.
 
 ## Pipeline Functions
 

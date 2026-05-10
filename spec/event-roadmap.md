@@ -100,5 +100,5 @@ Fix requires threading `viewport_scroll_y` through `paint_tree_cached` →
 ## Demo
 
 ```
-cargo run -p wgpu-html-demo -- crates/wgpu-html-demo/html/events-test.html
+cargo run -p lui-demo -- crates/lui-demo/html/events-test.html
 ```

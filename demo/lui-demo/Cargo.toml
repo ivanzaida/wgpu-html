@@ -1,0 +1,18 @@
+[package]
+name = "lui-demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui.workspace         = true
+lui-models.workspace   = true
+lui-style.workspace    = true
+lui-text.workspace     = true
+lui-tree.workspace     = true
+lui-driver-winit       = { path = "../../drivers/lui-driver-winit" }
+lui-driver-egui        = { path = "../../drivers/lui-driver-egui" }
+lui-devtools.workspace = true
+winit.workspace              = true
+egui.workspace               = true
+eframe.workspace             = true
+arboard.workspace            = true

@@ -1,0 +1,13 @@
+[package]
+name = "lui-text"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-assets.workspace = true
+lui-tree.workspace = true
+wgpu.workspace = true
+cosmic-text = { version = "0.12", default-features = false, features = ["std", "swash", "shape-run-cache"] }
+
+[dev-dependencies]
+lui-tree.workspace = true

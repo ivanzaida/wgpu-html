@@ -4,20 +4,20 @@ title: Integration Guide
 
 # Integration Guide
 
-This guide walks through embedding wgpu-html in a custom Rust application from scratch, with full control over the event loop.
+This guide walks through embedding lui in a custom Rust application from scratch, with full control over the event loop.
 
 ## Step 1: Add Dependencies
 
 ```toml
 [dependencies]
-wgpu-html = "0.1"
+lui = "0.1"
 winit = "0.30"
 ```
 
 ## Step 2: Parse HTML/CSS
 
 ```rust
-use wgpu_html::{parser, tree::{Tree, Node, Element}};
+use lui::{parser, tree::{Tree, Node, Element}};
 
 let html = r#"
     <!DOCTYPE html>
@@ -27,7 +27,7 @@ let html = r#"
         .container { display: flex; gap: 16px; padding: 20px; }
     </style></head>
     <body>
-        <h1>Hello wgpu-html</h1>
+        <h1>Hello lui</h1>
         <div class="container">
             <div style="background:#e0e0e0;padding:16px;">Box 1</div>
             <div style="background:#d0d0d0;padding:16px;">Box 2</div>
@@ -43,7 +43,7 @@ let mut tree = Tree::new(Node::root(document));
 
 ```rust
 use std::sync::Arc;
-use wgpu_html::tree::{FontFace, FontStyleAxis, register_system_fonts};
+use lui::tree::{FontFace, FontStyleAxis, register_system_fonts};
 
 // Register system fonts for the sans-serif family
 register_system_fonts(&mut tree, "Arial");
@@ -71,7 +71,7 @@ tree.register_linked_stylesheet(
 ## Step 5: Set Up Callbacks
 
 ```rust
-use wgpu_html::tree::MouseEvent;
+use lui::tree::MouseEvent;
 
 if let Some(btn) = tree.get_element_by_id("my-button") {
     btn.on_click = Some(Arc::new(|ev: &MouseEvent| {
@@ -83,20 +83,20 @@ if let Some(btn) = tree.get_element_by_id("my-button") {
 ## Step 6: Create the Render Loop
 
 ```rust
-use wgpu_html::renderer::Renderer;
-use wgpu_html::text::TextContext;
-use wgpu_html::layout::ImageCache;
+use lui::renderer::Renderer;
+use lui::text::TextContext;
+use lui::layout::ImageCache;
 
 async fn run() {
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     let window = Arc::new(event_loop.create_window(
         winit::window::WindowAttributes::default()
-            .with_title("wgpu-html App")
+            .with_title("lui App")
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0)),
     ).unwrap());
 
     let mut renderer = Renderer::new(window.clone(), 1280, 720).await;
-    let mut text_ctx = TextContext::new(wgpu_html::renderer::GLYPH_ATLAS_SIZE);
+    let mut text_ctx = TextContext::new(lui::renderer::GLYPH_ATLAS_SIZE);
     let mut image_cache = ImageCache::new();
 
     event_loop.run(move |event, elwt| {
@@ -108,7 +108,7 @@ async fn run() {
                     let scale = window.scale_factor() as f32;
                     let size = window.inner_size();
 
-                    let (list, layout) = wgpu_html::paint_tree_returning_layout(
+                    let (list, layout) = lui::paint_tree_returning_layout(
                         &tree, &mut text_ctx, &mut image_cache,
                         size.width as f32, size.height as f32, scale,
                     );
@@ -130,8 +130,8 @@ async fn run() {
 ## Step 7: Handle Input Events
 
 ```rust
-use wgpu_html::interactivity;
-use wgpu_html::tree::MouseButton;
+use lui::interactivity;
+use lui::tree::MouseButton;
 
 // In your WindowEvent match:
 winit::event::WindowEvent::CursorMoved { position, .. } => {

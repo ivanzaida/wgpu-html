@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Painting
 
-The paint stage converts a positioned `LayoutBox` tree into a backend-agnostic `DisplayList`. It lives in `crates/wgpu-html/src/paint.rs`.
+The paint stage converts a positioned `LayoutBox` tree into a backend-agnostic `DisplayList`. It lives in `crates/lui/src/paint.rs`.
 
 ## Entry Point
 

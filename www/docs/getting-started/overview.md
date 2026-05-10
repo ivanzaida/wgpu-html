@@ -2,9 +2,9 @@
 sidebar_position: 1
 ---
 
-# What is wgpu-html?
+# What is lui?
 
-wgpu-html is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes real HTML5 markup and CSS stylesheets, runs them through a full browser-style pipeline (parser → cascade → layout → paint → render), and draws the result on screen using wgpu — all without a web browser.
+lui is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes real HTML5 markup and CSS stylesheets, runs them through a full browser-style pipeline (parser → cascade → layout → paint → render), and draws the result on screen using wgpu — all without a web browser.
 
 ## What It Is
 
@@ -16,7 +16,7 @@ wgpu-html is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes 
 ## What It Is NOT
 
 - **Not a web browser** — no tab management, no address bar, no history, no web platform APIs
-- **Not an Electron alternative** — you embed wgpu-html inside your Rust application, controlling window, input, and the event loop via winit
+- **Not an Electron alternative** — you embed lui inside your Rust application, controlling window, input, and the event loop via winit
 - **No JavaScript** — this is permanent. There is no `<script>` execution, no JS engine, no `eval`, no `addEventListener`. All logic lives in Rust.
 - **Not a full CSS engine** — many CSS3/4 features are intentionally out of scope. See the [Supported CSS](../features/supported-css) page.
 
@@ -34,32 +34,32 @@ wgpu-html is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes 
 
 | Crate | Role |
 |---|---|
-| `wgpu-html-parser` | HTML tokenizer, tree builder, CSS declaration parser, stylesheet parser |
-| `wgpu-html-models` | `Style` struct (~100 fields), CSS enums, ~100 HTML element structs |
-| `wgpu-html-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, interaction state, focus, DOM-style queries, tree hooks |
-| `wgpu-html-style` | Cascade engine: UA stylesheet, selector matching, CSS-wide keywords, inheritance, `var()`, `@media` |
-| `wgpu-html-layout` | Block flow, Flexbox, Grid, IFC, table, hit testing, image loading, scroll geometry, gradient rasterization |
-| `wgpu-html-text` | Font database, cosmic-text shaping, glyph atlas (rasterisation + GPU upload) |
-| `wgpu-html-renderer` | wgpu device/surface, quad pipeline (SDF), glyph pipeline, image pipeline, scissor clipping, screenshots |
-| `wgpu-html` | Façade: parse → cascade → layout → paint, `PipelineCache`, interactivity, text selection, scroll utilities |
-| `wgpu-html-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, etc. |
-| `wgpu-html-assets` | Asset management: image caching, font loading, preload queue |
+| `lui-parser` | HTML tokenizer, tree builder, CSS declaration parser, stylesheet parser |
+| `lui-models` | `Style` struct (~100 fields), CSS enums, ~100 HTML element structs |
+| `lui-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, interaction state, focus, DOM-style queries, tree hooks |
+| `lui-style` | Cascade engine: UA stylesheet, selector matching, CSS-wide keywords, inheritance, `var()`, `@media` |
+| `lui-layout` | Block flow, Flexbox, Grid, IFC, table, hit testing, image loading, scroll geometry, gradient rasterization |
+| `lui-text` | Font database, cosmic-text shaping, glyph atlas (rasterisation + GPU upload) |
+| `lui-renderer` | wgpu device/surface, quad pipeline (SDF), glyph pipeline, image pipeline, scissor clipping, screenshots |
+| `lui` | Façade: parse → cascade → layout → paint, `PipelineCache`, interactivity, text selection, scroll utilities |
+| `lui-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, etc. |
+| `lui-assets` | Asset management: image caching, font loading, preload queue |
 
 ### Optional Crates
 
 | Crate | Role |
 |---|---|
-| `wgpu-html-ui` | Component framework: `Component` trait, `El` builder DSL, reactive `Store<T>`, render caching |
-| `wgpu-html-devtools` | Visual devtools panel (component tree browser, styles inspector, breadcrumb bar, pick mode) |
+| `lui-ui` | Component framework: `Component` trait, `El` builder DSL, reactive `Store<T>`, render caching |
+| `lui-devtools` | Visual devtools panel (component tree browser, styles inspector, breadcrumb bar, pick mode) |
 
 ### Driver Crates (in `drivers/`)
 
 | Crate | Role |
 |---|---|
-| `wgpu-html-driver` | `Driver` trait + `Runtime<D>` abstraction for connecting any windowing system |
-| `wgpu-html-driver-winit` | winit window driver: `WinitDriver::bind(window, tree)` |
-| `wgpu-html-driver-egui` | egui/eframe driver: `EguiRunner::show(ui, tree, size)` |
-| `wgpu-html-driver-bevy` | Bevy plugin: `WgpuHtmlPlugin`, `HtmlOverlay` resource |
+| `lui-driver` | `Driver` trait + `Runtime<D>` abstraction for connecting any windowing system |
+| `lui-driver-winit` | winit window driver: `WinitDriver::bind(window, tree)` |
+| `lui-driver-egui` | egui/eframe driver: `EguiRunner::show(ui, tree, size)` |
+| `lui-driver-bevy` | Bevy plugin: `LuiPlugin`, `HtmlOverlay` resource |
 
 ## Use Cases
 
@@ -70,6 +70,6 @@ wgpu-html is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes 
 
 ## Next Steps
 
-- [Installation](./installation) — add wgpu-html to your `Cargo.toml`
+- [Installation](./installation) — add lui to your `Cargo.toml`
 - [Quick Start](./quick-start) — get "Hello World" on screen
 - [Engine Architecture](../engine/architecture) — understand the pipeline

@@ -4,11 +4,11 @@ sidebar_position: 10
 
 # Resource Loading
 
-wgpu-html handles fonts, images, and linked stylesheets through a centralized asset system in `wgpu-html-assets`.
+lui handles fonts, images, and linked stylesheets through a centralized asset system in `lui-assets`.
 
 ## Image Loading
 
-Image loading lives in `wgpu-html-layout` with caching in `wgpu-html-assets`.
+Image loading lives in `lui-layout` with caching in `lui-assets`.
 
 ### Supported Sources
 

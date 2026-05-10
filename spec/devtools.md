@@ -1,6 +1,6 @@
-# wgpu-html — DevTools Spec
+# lui — DevTools Spec
 
-A design for browser-style inspector tooling over the wgpu-html
+A design for browser-style inspector tooling over the lui
 pipeline. Mirrors the major panels of Chrome / Firefox DevTools
 (Elements, Styles, Computed, Layout / Box-model), scoped down to the
 features this engine actually exposes.
@@ -13,7 +13,7 @@ phases produce **data** and **overlays**, the later phases produce
 Companion to `roadmap.md` (engine milestones) and `status.md`
 (implementation snapshot).
 
-> **Status (2026-05-03):** Partially built. The `wgpu-html-devtools`
+> **Status (2026-05-03):** Partially built. The `lui-devtools`
 > crate exists with modules for component tree browsing (`tree_panel`),
 > styles inspection (`styles_panel`, `style_extract`, `css_fmt`),
 > breadcrumb navigation (`breadcrumb`), and a `Devtools` entry point
@@ -54,7 +54,7 @@ a public API plus an opt-in overlay / panel.
 
 ```
                           ┌──────────────────────────┐
-            host app ───▶ │ wgpu_html_devtools::Inspector │
+            host app ───▶ │ lui_devtools::Inspector │
                           │   • snapshot()            │
                           │   • pick_at(point)        │
                           │   • mutate_inline_style() │
@@ -71,10 +71,10 @@ a public API plus an opt-in overlay / panel.
                                        │ overlay quads pushed into
                                        │ DisplayList just before submit
                                        ▼
-                         wgpu_html_renderer::Renderer
+                         lui_renderer::Renderer
 ```
 
-A new crate `wgpu-html-devtools` owns:
+A new crate `lui-devtools` owns:
 
 - `Inspector` — the host-facing handle. Stateless except for the
   current `selection: Option<Vec<usize>>` (path into the tree) and a
@@ -83,7 +83,7 @@ A new crate `wgpu-html-devtools` owns:
   selected / hovered element's box-model layers (margin / border /
   padding / content). Plain quad rendering — works today on the
   existing pipeline.
-- `Panel` — the side-panel UI itself, **built as a wgpu-html
+- `Panel` — the side-panel UI itself, **built as a lui
   document**. The inspector keeps a second `Tree` + `LayoutBox` (the
   "devtools document") authored by the inspector code as HTML+CSS
   strings, laid out and painted by the same engine that paints the
@@ -96,12 +96,12 @@ A new crate `wgpu-html-devtools` owns:
   of inspector-specific data (selection state, mutation overrides,
   serde-json, etc.).
 - Lets host apps opt out completely (zero runtime cost).
-- Lets tests link `wgpu-html-devtools` for headless inspection
+- Lets tests link `lui-devtools` for headless inspection
   scenarios without dragging in a window.
 
 ### Self-hosted UI
 
-The panel is a wgpu-html document. The inspector ships a static
+The panel is a lui document. The inspector ships a static
 HTML+CSS template per panel (Elements, Computed, Styles, Box-model,
 Render); each frame the inspector:
 
@@ -141,7 +141,7 @@ data structures:
 | Element attributes               | per-element model structs (`Div`, `A`, …)              | yes                 |
 | Inline style attribute           | `<element>.style: Option<String>`                      | yes                 |
 | Computed style                   | `CascadedNode::style`                                  | yes                 |
-| Matched rules + specificity      | `wgpu-html-style` cascade — must expose intermediate   | **needs API**       |
+| Matched rules + specificity      | `lui-style` cascade — must expose intermediate   | **needs API**       |
 | Layout rectangles (m / b / p / c) | `LayoutBox::{margin_rect, border_rect, content_rect}`  | yes                 |
 | Border / corner radii            | `LayoutBox::{border, border_radius, …}`                | yes                 |
 | Background fill rect             | `LayoutBox::background_rect`                           | yes                 |
@@ -156,10 +156,10 @@ data structures:
 
 Two engine-side gaps to fix as part of D1 / D2:
 
-1. `wgpu-html-style::cascade` should optionally return the matched-
+1. `lui-style::cascade` should optionally return the matched-
    rule list per element (selector + specificity + which declarations
    it contributed). Cheap to record; needed for the Styles panel.
-2. `wgpu-html-renderer::Renderer` should record `last_frame_ms`,
+2. `lui-renderer::Renderer` should record `last_frame_ms`,
    `quad_count`, `submit_ms`. Already has the data, just needs to
    surface it.
 
@@ -205,7 +205,7 @@ re-laid-out.
 
 ### 5.3 Panels (gated on text rendering)
 
-Once M5 (text) lands, the side-panel — itself a wgpu-html document
+Once M5 (text) lands, the side-panel — itself a lui document
 authored by the inspector and painted by the same engine — populates:
 
 - **Elements**: tree view of `Tree`, rendered as a nested `<ul>`
@@ -224,7 +224,7 @@ authored by the inspector and painted by the same engine — populates:
   scroll-of-pipeline (which stage took how long).
 
 Each panel is a small HTML+CSS template stored as a `&'static str`
-inside `wgpu-html-devtools`. The inspector mutates the templates'
+inside `lui-devtools`. The inspector mutates the templates'
 content nodes per frame using the same `set_text` / `set_inline_style`
 APIs the host uses on the page document. No new rendering backend is
 introduced — devtools is the engine's first non-trivial in-tree
@@ -257,10 +257,10 @@ sub-rect; mutation happens on the host thread between
 ## 6. Public API (sketch)
 
 ```rust
-// crates/wgpu-html-devtools/src/lib.rs
+// crates/lui-devtools/src/lib.rs
 
-use wgpu_html_layout::LayoutBox;
-use wgpu_html_tree::Tree;
+use lui_layout::LayoutBox;
+use lui_tree::Tree;
 
 pub struct Inspector {
     selection: Option<Vec<usize>>, // path into Tree
@@ -303,7 +303,7 @@ pub struct NodeSnapshot<'a> {
     pub id:             Option<&'a str>,
     pub class:          Option<&'a str>,
     pub inline_style:   Option<&'a str>,
-    pub computed:       &'a wgpu_html_models::Style,
+    pub computed:       &'a lui_models::Style,
     pub layout:         &'a LayoutBox,          // pinned at the same path
     pub matched_rules:  Vec<MatchedRule<'a>>,   // post-D2 (cascade exposes)
     pub data_attrs:     &'a HashMap<String, String>,
@@ -329,7 +329,7 @@ nodes don't have a `style` attribute.
 ## 7. Input handling
 
 Devtools introduces the first real input handling in the demo. The
-event arms the `wgpu-html-demo` adds (and that future hosts mirror):
+event arms the `lui-demo` adds (and that future hosts mirror):
 
 | winit event                        | Devtools effect                           |
 |-----------------------------------|-------------------------------------------|
@@ -387,7 +387,7 @@ Each phase ends in something the demo can show.
 
 ### D1 — Overlay primitive ✅-shape
 
-- New crate `wgpu-html-devtools` with `Inspector::new()`, a
+- New crate `lui-devtools` with `Inspector::new()`, a
   `selection: Option<Vec<usize>>`, and `paint_overlay`.
 - Manual selection: host sets path with `inspector.set_selection(path)`.
 - Overlay paints four concentric quads (margin / border / padding /
@@ -399,7 +399,7 @@ Each phase ends in something the demo can show.
 
 ### D2 — Snapshot API + matched-rule trace
 
-- `cascade_with_trace(tree)` in `wgpu-html-style` — same output as
+- `cascade_with_trace(tree)` in `lui-style` — same output as
   `cascade` plus a `Vec<MatchedRule>` per node.
 - `Inspector::snapshot` returns `NodeSnapshot` (`tag`, `id`,
   `class`, inline + computed style, layout box, matched rules,
@@ -427,7 +427,7 @@ Each phase ends in something the demo can show.
 
 ### D5 — Self-hosted side panel (depends on engine M5 — text)
 
-The panel is a wgpu-html document. The inspector ships a static
+The panel is a lui document. The inspector ships a static
 HTML+CSS template per panel and patches it each frame.
 
 - Splitter layout: host carves the surface into `[page | panel]`
@@ -470,7 +470,7 @@ HTML+CSS template per panel and patches it each frame.
 
 - `Inspector::snapshot` already returns a serializable view; add
   `serde` derives behind a feature flag.
-- `cargo test --features wgpu-html-devtools/snapshot` can produce
+- `cargo test --features lui-devtools/snapshot` can produce
   golden JSON of the cascaded + laid-out tree, diffed against
   known-good output. Useful for catching unintended layout drift.
 

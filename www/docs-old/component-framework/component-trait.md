@@ -145,8 +145,8 @@ Generates: `.card-root { padding: 16px; ... }` `.card-root:hover { ... }`
 ## Complete Example
 
 ```rust
-use wgpu_html_ui::{Component, Ctx, El, MsgSender, Observable, ShouldRender, Subscriptions, el, style};
-use wgpu_html_models::common::Display;
+use lui_ui::{Component, Ctx, El, MsgSender, Observable, ShouldRender, Subscriptions, el, style};
+use lui_models::common::Display;
 
 struct Counter {
     count: i32,

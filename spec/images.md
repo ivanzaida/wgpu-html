@@ -1,4 +1,4 @@
-# wgpu-html — Image Support Spec
+# lui — Image Support Spec
 
 How `<img>` elements load, decode, cache, and render. Companion to
 `roadmap.md` (M-img) and `status.md`.
@@ -48,7 +48,7 @@ feature (and a per-format frame iterator next to
 
 ## 3. Schemes
 
-`fetch_image_bytes` (in `crates/wgpu-html-layout/src/lib.rs`)
+`fetch_image_bytes` (in `crates/lui-layout/src/lib.rs`)
 dispatches on the `src` prefix:
 
 - **`http://` / `https://`** — fetched with `ureq` (rustls TLS)
@@ -107,7 +107,7 @@ same URL at multiple CSS sizes shares a single texture.
 
 ## 5. Two-level cache
 
-`crates/wgpu-html-layout/src/lib.rs` holds two `OnceLock<Mutex<HashMap<…>>>`:
+`crates/lui-layout/src/lib.rs` holds two `OnceLock<Mutex<HashMap<…>>>`:
 
 ```
 raw_cache:   HashMap<String,   CacheEntry<RawState>>
@@ -187,7 +187,7 @@ To start downloading important assets at startup so the first
 frame doesn't paint placeholders, push them into
 `Tree::preload_queue` via `Tree::preload_asset(src)` once at
 construction. Every layout pass walks the queue and calls
-`wgpu_html_layout::preload_image(url)` on each entry; that
+`lui_layout::preload_image(url)` on each entry; that
 function is idempotent — already-known URLs are a hashmap-lookup
 no-op — so it's cheap to leave in place. `preload_image` is also
 exposed as a public free function for ad-hoc calls outside a
@@ -274,7 +274,7 @@ caps total decoded RGBA in both caches:
 
 ## 8. Public API
 
-Re-exported from `wgpu_html::layout`:
+Re-exported from `lui::layout`:
 
 ```rust
 pub fn image_cache_ttl()              -> Duration;
@@ -290,7 +290,7 @@ pub fn purge_image_cache();
 pub fn preload_image(src: &str);
 ```
 
-On `wgpu_html::tree::Tree`:
+On `lui::tree::Tree`:
 
 ```rust
 pub asset_cache_ttl: Option<Duration>,  // None → keep current default
@@ -323,9 +323,9 @@ document and survives across renderer instances.
 ## 10. Tests
 
 Image loading itself is exercised end-to-end by the demo
-(`crates/wgpu-html-demo/html/img-test.html`), which now
+(`crates/lui-demo/html/img-test.html`), which now
 references remote URLs, and indirectly by the painter tests in
-`crates/wgpu-html/src/paint.rs`. There are no isolated unit
+`crates/lui/src/paint.rs`. There are no isolated unit
 tests for the cache or TTL behaviour yet — adding deterministic
 ones requires either a fake clock injection or moving `Instant`
 behind a trait, neither of which has been done.

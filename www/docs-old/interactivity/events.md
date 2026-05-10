@@ -4,11 +4,11 @@ title: Event System
 
 # Event System
 
-The event system models W3C DOM events via composition (`wgpu-html-events` crate) and delivers them through callback slots on `Node` (`wgpu-html-tree`).
+The event system models W3C DOM events via composition (`lui-events` crate) and delivers them through callback slots on `Node` (`lui-tree`).
 
 ## Event Types
 
-All event types are defined in `wgpu-html-events::events`:
+All event types are defined in `lui-events::events`:
 
 | Event | Fields |
 |---|---|
@@ -63,7 +63,7 @@ All callbacks are `Arc<dyn Fn>` — thread-safe, shareable closures.
 ## Attaching Callbacks
 
 ```rust
-use wgpu_html_tree::{Tree, Node, Element};
+use lui_tree::{Tree, Node, Element};
 
 // Get an element from the tree
 if let Some(button) = tree.get_element_by_id("submit-btn") {
@@ -84,8 +84,8 @@ Position-based events (pointer move, mouse down/up) use `LayoutBox::hit_path_scr
 ## Complete Example
 
 ```rust
-use wgpu_html::interactivity;
-use wgpu_html_tree::MouseButton;
+use lui::interactivity;
+use lui_tree::MouseButton;
 
 // In your event loop, on pointer move:
 let (hover_changed, cursor) = interactivity::pointer_move_with_cursor(

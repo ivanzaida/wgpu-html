@@ -4,7 +4,7 @@ title: GPU Pipelines
 
 # GPU Pipelines
 
-wgpu-html renders through three custom GPU pipelines, each with its own WGSL shader, instancing strategy, and bind group layout.
+lui renders through three custom GPU pipelines, each with its own WGSL shader, instancing strategy, and bind group layout.
 
 ## Quad Pipeline (`quad.wgsl`)
 

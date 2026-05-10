@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Supported HTML
 
-wgpu-html supports **96 HTML tags** with typed element structs. Unknown tags are silently dropped (subtree discarded).
+lui supports **96 HTML tags** with typed element structs. Unknown tags are silently dropped (subtree discarded).
 
 ## Fully Supported
 

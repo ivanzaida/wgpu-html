@@ -4,16 +4,16 @@ title: Quick Start
 
 # Quick Start
 
-This guide walks you through getting "Hello World" rendered on screen with wgpu-html in a winit window.
+This guide walks you through getting "Hello World" rendered on screen with lui in a winit window.
 
 ## Minimal Example — Parse, Cascade, Layout, Paint
 
 The core pipeline is four steps:
 
 ```rust
-use wgpu_html::parse;
-use wgpu_html_style::cascade;
-use wgpu_html_layout::layout_with_text;
+use lui::parse;
+use lui_style::cascade;
+use lui_layout::layout_with_text;
 
 let html = r#"
     <!DOCTYPE html>
@@ -31,7 +31,7 @@ let mut tree = parse(html);
 
 // 2. Register fonts (required before cascading/layout)
 tree.register_font(
-    wgpu_html_tree::FontFace {
+    lui_tree::FontFace {
         family: "sans-serif".into(),
         file: "C:/Windows/Fonts/segoeui.ttf".into(),
         ..Default::default()
@@ -45,7 +45,7 @@ let cascaded = cascade(&tree);
 let layout = layout_with_text(&cascaded, 800.0);
 
 // 5. Paint to display list
-let display_list = wgpu_html::paint::paint_tree_returning_layout(
+let display_list = lui::paint::paint_tree_returning_layout(
     &layout,
     &cascaded,
     800.0,
@@ -57,12 +57,12 @@ At this point you have a `DisplayList` — the backend-agnostic draw-command lis
 
 ## Full winit Window Example
 
-For a real application, use the `wgpu-html-winit` harness which handles window creation, event loops, rendering, scrolling, and clipboard:
+For a real application, use the `lui-winit` harness which handles window creation, event loops, rendering, scrolling, and clipboard:
 
 ```rust
-use wgpu_html::parse;
-use wgpu_html_tree::{Tree, FontFace};
-use wgpu_html_winit::{create_window, AppHook, HookContext, EventResponse};
+use lui::parse;
+use lui_tree::{Tree, FontFace};
+use lui_winit::{create_window, AppHook, HookContext, EventResponse};
 
 fn main() {
     let html = r#"<!DOCTYPE html>
@@ -70,7 +70,7 @@ fn main() {
 <body style="margin: 0; background: #1a1a2e; color: #e0e0e0;
              display: flex; justify-content: center; align-items: center; height: 100vh;">
     <div style="text-align: center;">
-        <h1 style="font-size: 48px; margin: 0;">Hello, wgpu-html!</h1>
+        <h1 style="font-size: 48px; margin: 0;">Hello, lui!</h1>
         <p style="font-size: 18px; color: #888;">GPU-accelerated HTML/CSS in Rust</p>
     </div>
 </body>
@@ -78,11 +78,11 @@ fn main() {
     let mut tree = parse(html);
 
     // Register system fonts
-    wgpu_html_winit::register_system_fonts(&mut tree, "sans-serif");
+    lui_winit::register_system_fonts(&mut tree, "sans-serif");
 
     // Launch window
     create_window(&mut tree)
-        .with_title("Hello wgpu-html")
+        .with_title("Hello lui")
         .with_size(800, 600)
         .run();
 }
@@ -90,7 +90,7 @@ fn main() {
 
 ## Expected Outcome
 
-You should see a dark window (800×600) with centered white text reading "Hello, wgpu-html!" and a subtitle in grey. The window handles:
+You should see a dark window (800×600) with centered white text reading "Hello, lui!" and a subtitle in grey. The window handles:
 
 - **Resizing** — layout re-runs on window resize
 - **Scrolling** — mouse wheel scrolls the viewport

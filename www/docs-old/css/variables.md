@@ -4,7 +4,7 @@ title: Custom Properties (CSS Variables)
 
 # Custom Properties (CSS Variables)
 
-wgpu-html fully implements CSS custom properties (CSS variables) with `--*` declaration syntax, `var()` usage, inheritance, recursive substitution, cycle detection, and a programmatic API for runtime manipulation.
+lui fully implements CSS custom properties (CSS variables) with `--*` declaration syntax, `var()` usage, inheritance, recursive substitution, cycle detection, and a programmatic API for runtime manipulation.
 
 ## `--custom-property` Syntax
 
@@ -42,7 +42,7 @@ Range slider custom properties (simple color overrides):
 
 ### Popup Pseudo-Elements (`::lui-*`)
 
-wgpu-html provides `::lui-*` pseudo-elements for styling overlay popup parts (color picker, date picker). These use **standard CSS properties** — `background`, `border`, `color`, `width`, `height`, `font-size`, etc. — with full cascade, specificity, and media query support.
+lui provides `::lui-*` pseudo-elements for styling overlay popup parts (color picker, date picker). These use **standard CSS properties** — `background`, `border`, `color`, `width`, `height`, `font-size`, etc. — with full cascade, specificity, and media query support.
 
 #### Shared
 
@@ -194,7 +194,7 @@ Custom properties can be manipulated from Rust code at runtime:
 ### `Node::set_custom_property()`
 
 ```rust
-use wgpu_html_tree::Tree;
+use lui_tree::Tree;
 
 let mut tree = parse(html);
 let node = tree.get_element_by_id("my-element").unwrap();

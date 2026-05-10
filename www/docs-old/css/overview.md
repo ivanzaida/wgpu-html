@@ -2,9 +2,9 @@
 title: CSS Overview
 ---
 
-# CSS in wgpu-html
+# CSS in lui
 
-wgpu-html implements a full CSS property parsing and cascade pipeline designed to mirror real browser behaviour while targeting embedded Rust UI. The CSS engine lives primarily in the `wgpu-html-parser` (tokenization, selector parsing, declaration parsing) and `wgpu-html-style` (cascade resolution, inheritance, selector matching) crates.
+lui implements a full CSS property parsing and cascade pipeline designed to mirror real browser behaviour while targeting embedded Rust UI. The CSS engine lives primarily in the `lui-parser` (tokenization, selector parsing, declaration parsing) and `lui-style` (cascade resolution, inheritance, selector matching) crates.
 
 ## Parsing Pipeline
 
@@ -12,7 +12,7 @@ wgpu-html implements a full CSS property parsing and cascade pipeline designed t
 2. **Stylesheet parsing** — the CSS string is split into `selectors { declarations }` rule blocks. `/* comments */` are stripped during this phase. `@media` queries wrapping rule blocks are parsed. `@charset` declarations are recognized and skipped (Rust strings are always UTF-8). `@import` directives are resolved by inlining the referenced CSS from `linked_stylesheets` (with media query wrapping and cycle detection). Other at-rules (`@keyframes`, `@font-face`) are not supported.
 3. **Selector parsing** — each comma-separated selector is decomposed into tag, `#id`, `.class` compounds with descendant combinators (`A B`).
 4. **Declaration parsing** — each `property: value;` declaration is parsed into a typed Rust enum or struct field. `!important` is recognised and flagged.
-5. **Cascade resolution** — the `wgpu-html-style` crate walks the DOM tree and for each element computes the final `Style` struct by:
+5. **Cascade resolution** — the `lui-style` crate walks the DOM tree and for each element computes the final `Style` struct by:
    - Collecting matching UA default rules
    - Collecting matching author rules (sorted by specificity)
    - Overlaying inline `style="..."` attributes
@@ -65,7 +65,7 @@ Both sources feed into a single parsed `Stylesheet` that is cached per CSS sourc
 
 ## UA Default Stylesheet
 
-The user-agent stylesheet is a static `&'static str` compiled into `wgpu-html-style` that provides browser-consistent defaults:
+The user-agent stylesheet is a static `&'static str` compiled into `lui-style` that provides browser-consistent defaults:
 
 - `<head>`, `<style>`, `<script>`, `<noscript>`, `<template>`, `<title>`, `<base>`, `<link>`, `<meta>` → `display: none`
 - `<body>` → `display: block; margin: 8px`

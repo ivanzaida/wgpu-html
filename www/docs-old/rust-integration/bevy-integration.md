@@ -4,11 +4,11 @@ title: Bevy Integration
 
 # Bevy Integration
 
-The `wgpu-html-driver-bevy` crate provides `WgpuHtmlPlugin` — a single fullscreen transparent HTML overlay for Bevy applications.
+The `lui-driver-bevy` crate provides `LuiPlugin` — a single fullscreen transparent HTML overlay for Bevy applications.
 
 ## Architecture
 
-wgpu-html runs its own headless wgpu device (independent of Bevy's render pipeline) and produces RGBA pixels via offscreen rendering. Those pixels are uploaded into a Bevy `Image` asset each frame. This decouples wgpu versions and avoids render-graph complexity.
+lui runs its own headless wgpu device (independent of Bevy's render pipeline) and produces RGBA pixels via offscreen rendering. Those pixels are uploaded into a Bevy `Image` asset each frame. This decouples wgpu versions and avoids render-graph complexity.
 
 - One DOM `Tree` covering the entire viewport
 - One GPU render pass per frame
@@ -19,7 +19,7 @@ wgpu-html runs its own headless wgpu device (independent of Bevy's render pipeli
 
 ```toml
 [dependencies]
-wgpu-html-driver-bevy = { path = "drivers/wgpu-html-driver-bevy" }
+lui-driver-bevy = { path = "drivers/lui-driver-bevy" }
 bevy = { version = "0.18", default-features = false, features = [
     "bevy_winit", "bevy_render", "bevy_asset",
     "bevy_ui", "bevy_ui_render",
@@ -35,23 +35,23 @@ bevy = { version = "0.18", default-features = false, features = [
 
 ```rust
 use bevy::prelude::*;
-use wgpu_html_driver_bevy::{WgpuHtmlPlugin, HtmlOverlay};
+use lui_driver_bevy::{LuiPlugin, HtmlOverlay};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(WgpuHtmlPlugin)
+        .add_plugins(LuiPlugin)
         .add_systems(Startup, setup)
         .run();
 }
 
 fn setup(mut html: NonSendMut<HtmlOverlay>) {
-    let parsed = wgpu_html::parser::parse(r#"
+    let parsed = lui::parser::parse(r#"
         <style>
             .hud { padding: 20px; color: white; font-family: sans-serif; }
         </style>
         <div class="hud">
-            <h1>Hello from wgpu-html!</h1>
+            <h1>Hello from lui!</h1>
         </div>
     "#);
     html.tree_mut().merge(parsed);
@@ -87,7 +87,7 @@ html.tree_mut().get_element_by_id("score").unwrap()
 Use `Tree::merge` to append parsed HTML fragments into the overlay:
 
 ```rust
-let fragment = wgpu_html::parser::parse(r#"
+let fragment = lui::parser::parse(r#"
     <div id="dialog" class="modal">...</div>
 "#);
 html.tree_mut().merge(fragment);
@@ -108,7 +108,7 @@ html.set_captures_input(true);
 Use `<style>` tags in your HTML — the cascade discovers `StyleElement` nodes anywhere in the tree:
 
 ```rust
-let ui = wgpu_html::parser::parse(r#"
+let ui = lui::parser::parse(r#"
     <style>
         .btn {
             padding: 8px 16px;
@@ -133,7 +133,7 @@ Attach callbacks directly on nodes:
 ```rust
 use std::sync::Arc;
 
-let mut parsed = wgpu_html::parser::parse(r#"<button id="play">Play</button>"#);
+let mut parsed = lui::parser::parse(r#"<button id="play">Play</button>"#);
 if let Some(btn) = parsed.root.as_mut().unwrap().find_by_id_mut("play") {
     btn.on_click.push(Arc::new(|_ev| {
         println!("Play clicked!");
@@ -157,7 +157,7 @@ if devtools.is_enabled() {
 }
 ```
 
-See `demo/wgpu-html-demo-bevy/src/devtools.rs` for the full implementation.
+See `demo/lui-demo-bevy/src/devtools.rs` for the full implementation.
 
 ## DPI Scaling
 

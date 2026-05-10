@@ -4,7 +4,7 @@ title: Cascade & Inheritance
 
 # CSS Cascade and Inheritance
 
-The cascade is the algorithm that determines which CSS declarations apply to each element when multiple rules target the same property. wgpu-html implements CSS-Cascade-3 §6 with a 4-band cascade, selector specificity ordering, inline style overrides, CSS-wide keyword resolution, and property inheritance.
+The cascade is the algorithm that determines which CSS declarations apply to each element when multiple rules target the same property. lui implements CSS-Cascade-3 §6 with a 4-band cascade, selector specificity ordering, inline style overrides, CSS-wide keyword resolution, and property inheritance.
 
 ## Cascade Order
 
@@ -88,7 +88,7 @@ All box-model, layout, positioning, flex/grid, overflow, opacity, background, an
 
 ### Inheritance Mechanism
 
-The `inherit_into()` function in `wgpu-html-style` fills in inherited properties:
+The `inherit_into()` function in `lui-style` fills in inherited properties:
 
 ```rust
 fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<String, CssWideKeyword>) {

@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Supported Events
 
-All events use the typed event system in `wgpu-html-events`. Each event carries `target_path`, `current_target_path`, `phase`, `bubbles`, `cancelable`, `default_prevented`, and `time_origin`.
+All events use the typed event system in `lui-events`. Each event carries `target_path`, `current_target_path`, `phase`, `bubbles`, `cancelable`, `default_prevented`, and `time_origin`.
 
 ## Mouse Events
 

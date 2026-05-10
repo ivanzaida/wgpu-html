@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # Events
 
-wgpu-html has a typed DOM-style event system in `wgpu-html-events`, with dispatch in `wgpu-html-tree`.
+lui has a typed DOM-style event system in `lui-events`, with dispatch in `lui-tree`.
 
 ## Event Hierarchy
 
@@ -89,10 +89,10 @@ Hooks can return `TreeHookResponse::Continue` or `TreeHookResponse::Stop` to con
 
 ## Layout-Free Dispatch
 
-When you have a hit-test path but not a `LayoutBox`, use the `wgpu_html_tree::dispatch` functions:
+When you have a hit-test path but not a `LayoutBox`, use the `lui_tree::dispatch` functions:
 
 ```rust
-use wgpu_html_tree::dispatch;
+use lui_tree::dispatch;
 
 dispatch_pointer_move(&mut tree, target_path, pos, Some(cursor));
 dispatch_mouse_down(&mut tree, target_path, pos, button, Some(cursor));

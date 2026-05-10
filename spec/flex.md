@@ -1,11 +1,11 @@
-# wgpu-html — Flex Layout Spec
+# lui — Flex Layout Spec
 
 The plan and current state of `display: flex`, as implemented in
-`crates/wgpu-html-layout/src/flex.rs`. Companion to `roadmap.md`
+`crates/lui-layout/src/flex.rs`. Companion to `roadmap.md`
 (M9 — flexbox) and `status.md`.
 
 Status: shipped. All 20 dedicated flex unit tests pass plus 82 other
-layout tests in `crates/wgpu-html-layout/src/tests.rs`. The
+layout tests in `crates/lui-layout/src/tests.rs`. The
 implementation follows
 [CSS-Flexbox-1] §9 ("Flex Layout Algorithm") at a level of fidelity
 adequate for the demo pages and most everyday UI flex patterns; the
@@ -285,7 +285,7 @@ In rough priority order if we ever come back to flex:
 
 ## 7. Tests
 
-`crates/wgpu-html-layout/src/tests.rs` ships 20 dedicated flex
+`crates/lui-layout/src/tests.rs` ships 20 dedicated flex
 assertions on top of 82 non-flex layout assertions. Coverage:
 
 - `flex_grow_splits_remaining_main_equally`
@@ -314,7 +314,7 @@ through the existing CSS declaration test suite.
 
 ## 8. Demo
 
-`crates/wgpu-html-demo/html/flex-grow.html` exercises in order:
+`crates/lui-demo/html/flex-grow.html` exercises in order:
 
 1. `flex: 1` / `flex: 1` / `flex: 2` row — proportional split.
 2. `max-width` cap, `flex: 1` neutral, `min-width` floor — clamping

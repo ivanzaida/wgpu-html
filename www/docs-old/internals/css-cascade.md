@@ -8,7 +8,7 @@ How raw CSS text becomes a resolved `Style` on every DOM element.
 
 ## Overview
 
-The cascade lives in `crates/wgpu-html-style/src/lib.rs`. Entry points:
+The cascade lives in `crates/lui-style/src/lib.rs`. Entry points:
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -20,7 +20,7 @@ Output: `CascadedTree` containing a `CascadedNode` per element, each with a full
 
 ## Stylesheet Parsing
 
-**File:** `crates/wgpu-html-parser/src/stylesheet.rs`
+**File:** `crates/lui-parser/src/stylesheet.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -52,7 +52,7 @@ The `!important` flag is detected via `strip_important()` and routes to the appr
 
 ## Specificity
 
-**File:** `crates/wgpu-html-tree/src/query.rs`
+**File:** `crates/lui-tree/src/query.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -76,7 +76,7 @@ Each layer is applied via `apply_layer()` (line 1424): keywords clear matching v
 
 ## Rule Indexing
 
-**File:** `crates/wgpu-html-style/src/lib.rs` lines 202-283
+**File:** `crates/lui-style/src/lib.rs` lines 202-283
 
 To avoid testing every rule against every element, rules are indexed:
 
@@ -117,7 +117,7 @@ Non-inherited properties remain at their initial value (typically `None`) unless
 
 ## CSS-Wide Keywords
 
-**File:** `crates/wgpu-html-parser/src/style_props.rs` lines 217-283
+**File:** `crates/lui-parser/src/style_props.rs` lines 217-283
 
 ```rust
 enum CssWideKeyword {
@@ -133,7 +133,7 @@ Keywords are stored in side-car `HashMap<ArcStr, CssWideKeyword>` maps and resol
 
 ## var() Resolution
 
-**File:** `crates/wgpu-html-parser/src/css_parser.rs` lines 575-680
+**File:** `crates/lui-parser/src/css_parser.rs` lines 575-680
 
 Two-phase resolution in `resolve_var_references()`:
 
@@ -147,7 +147,7 @@ Detection during parsing: if a value contains `var(`, it's stored in `var_proper
 
 ## @media Evaluation
 
-**File:** `crates/wgpu-html-style/src/lib.rs` lines 1339-1371
+**File:** `crates/lui-style/src/lib.rs` lines 1339-1371
 
 Supported media features:
 
@@ -199,7 +199,7 @@ pub struct CascadedNode {
 
 ## Style Struct
 
-**File:** `crates/wgpu-html-models/src/css/style.rs` line 12
+**File:** `crates/lui-models/src/css/style.rs` line 12
 
 ~80 typed fields covering layout, colors, borders, text, flexbox, grid, overflow, visual effects, SVG, plus:
 

@@ -4,7 +4,7 @@ title: Custom Elements
 
 # Custom Elements
 
-wgpu-html supports HTML custom elements — any tag whose name contains a hyphen (per the [HTML spec](https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name)).
+lui supports HTML custom elements — any tag whose name contains a hyphen (per the [HTML spec](https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name)).
 
 ```html
 <my-card class="featured" theme="dark">
@@ -103,7 +103,7 @@ my-card {
 The `el` module provides a `custom()` constructor:
 
 ```rust
-use wgpu_html_ui::el;
+use lui_ui::el;
 
 // Create a custom element
 let card = el::custom("my-card")
@@ -120,7 +120,7 @@ let card = el::custom("my-card")
 Use `.configure()` to access element-specific fields:
 
 ```rust
-use wgpu_html_models::CustomElement;
+use lui_models::CustomElement;
 
 let card = el::custom("my-card")
     .configure(|e: &mut CustomElement| {
@@ -152,7 +152,7 @@ let card = tree.get_element_by_id("card-1");
 Custom elements are represented by `Element::CustomElement(CustomElement)`:
 
 ```rust
-// wgpu-html-models/src/html/custom_element.rs
+// lui-models/src/html/custom_element.rs
 pub struct CustomElement {
     pub tag_name: ArcStr,
     // Global attributes (same as every other element)
@@ -178,10 +178,10 @@ Register a factory function on `Tree` to automatically expand custom element tag
 ### Registration
 
 ```rust
-use wgpu_html_tree::{Tree, Node, Element};
-use wgpu_html_models::Div;
+use lui_tree::{Tree, Node, Element};
+use lui_models::Div;
 
-let mut tree = wgpu_html_parser::parse(r#"
+let mut tree = lui_parser::parse(r#"
   <body>
     <my-card theme="dark" class="featured">
       <h2>Hello</h2>
@@ -227,11 +227,11 @@ After `resolve_custom_elements()`, every `<my-card>` in the tree is replaced by 
 ### When to Call
 
 Call `resolve_custom_elements()` once after:
-1. Parsing HTML (`wgpu_html_parser::parse(...)`)
+1. Parsing HTML (`lui_parser::parse(...)`)
 2. Registering all factories (`tree.register_custom_element(...)`)
 
 ```rust
-let mut tree = wgpu_html_parser::parse(html);
+let mut tree = lui_parser::parse(html);
 tree.register_custom_element("my-card", card_factory);
 tree.register_custom_element("app-header", header_factory);
 tree.resolve_custom_elements(); // replaces all matching nodes

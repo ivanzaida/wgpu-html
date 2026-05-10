@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # Forms and Inputs
 
-wgpu-html supports `<input>` (22 types), `<textarea>`, `<button>`, and `<select>`, with full text editing, caret navigation, and selection.
+lui supports `<input>` (22 types), `<textarea>`, `<button>`, and `<select>`, with full text editing, caret navigation, and selection.
 
 ## Text Inputs
 

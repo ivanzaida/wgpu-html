@@ -1,12 +1,12 @@
-# wgpu-html — Grid Layout Spec
+# lui — Grid Layout Spec
 
 The plan and current state of `display: grid`, as implemented in
-`crates/wgpu-html-layout/src/grid.rs`. Companion to `roadmap.md`
+`crates/lui-layout/src/grid.rs`. Companion to `roadmap.md`
 (M10 — grid) and `status.md`.
 
 Status: shipped at the same level of fidelity as flex — every test
-in `crates/wgpu-html-layout/src/tests.rs` (81 total, 14 dedicated to
-grid) passes, the demo page at `crates/wgpu-html-demo/html/grid.html`
+in `crates/lui-layout/src/tests.rs` (81 total, 14 dedicated to
+grid) passes, the demo page at `crates/lui-demo/html/grid.html`
 exercises the holy-grail layout, a fr-based photo gallery, and
 row/column auto-flow. The known gaps are spelled out in §6.
 
@@ -159,7 +159,7 @@ hit-testing matches the DOM.
 The grid module talks to the rest of the layout engine through:
 
 - `crate::layout_block_at_with` + `BlockOverrides { width, height
-  }` (in `crates/wgpu-html-layout/src/lib.rs`) — drives recursive
+  }` (in `crates/lui-layout/src/lib.rs`) — drives recursive
   block layout to a precomputed extent without mutating the
   cascaded style. Same primitive flex uses.
 - `crate::translate_box_x_in_place` /
@@ -254,7 +254,7 @@ In rough order of value-per-effort:
 
 ## 7. Tests
 
-`crates/wgpu-html-layout/src/tests.rs` ships 14 dedicated grid /
+`crates/lui-layout/src/tests.rs` ships 14 dedicated grid /
 sizing assertions on top of the existing 67 layout tests:
 
 - `grid_two_by_two_fixed_columns`
@@ -276,7 +276,7 @@ covered through the existing CSS declaration test suite.
 
 ## 8. Demo
 
-`crates/wgpu-html-demo/html/grid.html` exercises in order:
+`crates/lui-demo/html/grid.html` exercises in order:
 
 1. **Holy-grail page layout.** `grid-template-columns: 200px 1fr
    200px;` `grid-template-rows: 60px 200px 40px;` with a header

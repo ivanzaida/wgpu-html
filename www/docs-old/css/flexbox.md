@@ -4,7 +4,7 @@ title: Flexbox Layout
 
 # Flexbox CSS Properties
 
-wgpu-html implements **complete CSS Flexible Box Layout Module Level 1** with all major properties. The flex layout engine handles axis direction, wrapping, grow/shrink distribution, alignment, gap, and ordering.
+lui implements **complete CSS Flexible Box Layout Module Level 1** with all major properties. The flex layout engine handles axis direction, wrapping, grow/shrink distribution, alignment, gap, and ordering.
 
 ## `display: flex`
 

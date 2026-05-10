@@ -4,7 +4,7 @@ title: Profiling and Performance
 
 # Profiling and Performance
 
-wgpu-html includes built-in timing instrumentation, a ring-buffer frame
+lui includes built-in timing instrumentation, a ring-buffer frame
 profiler, and a caching pipeline that skips work when inputs haven't
 changed. Zero-overhead when disabled — the only cost is a single
 `Option::is_some` branch per instrumented site.
@@ -14,7 +14,7 @@ changed. Zero-overhead when disabled — the only cost is a single
 ## Quick start
 
 ```rust
-use wgpu_html_tree::Profiler;
+use lui_tree::Profiler;
 
 // Enable the profiler on your tree:
 tree.profiler = Some(Profiler::tagged("my app"));
@@ -109,7 +109,7 @@ via an internal stack.
 For `Option<Profiler>` boundaries, use the macro:
 
 ```rust
-use wgpu_html_tree::prof_scope;
+use lui_tree::prof_scope;
 
 prof_scope!(&tree.profiler, "layout");
 // ^ expands to:
@@ -192,7 +192,7 @@ Returned by `compute_layout_profiled()` and
 `paint_tree_returning_layout_profiled()`:
 
 ```rust
-let (list, layout, timings) = wgpu_html::paint_tree_returning_layout_profiled(
+let (list, layout, timings) = lui::paint_tree_returning_layout_profiled(
     &tree, &mut text_ctx, &mut image_cache,
     viewport_w, viewport_h, scale, viewport_scroll_y,
 );
@@ -243,7 +243,7 @@ pub fn classify_frame(
 ### paint_only_pseudo_rules
 
 ```rust
-cache.paint_only_pseudo_rules = wgpu_html_style::pseudo_rules_are_paint_only(tree);
+cache.paint_only_pseudo_rules = lui_style::pseudo_rules_are_paint_only(tree);
 ```
 
 When all pseudo-class rules (`:hover`, `:active`, `:focus`) only set paint
@@ -255,10 +255,10 @@ geometry recomputation.
 ### Usage
 
 ```rust
-let mut cache = wgpu_html::PipelineCache::new();
+let mut cache = lui::PipelineCache::new();
 
 // Each frame:
-let (list, layout, timings) = wgpu_html::paint_tree_cached(
+let (list, layout, timings) = lui::paint_tree_cached(
     &tree, &mut text_ctx, &mut image_cache,
     viewport_w, viewport_h, scale, viewport_scroll_y, &mut cache,
 );
@@ -290,7 +290,7 @@ tree.generation += 1;  // or use tree.set_custom_property() which bumps automati
 
 ## Demo profiling (F9)
 
-The demo (`wgpu-html-demo`) has two profiling outputs, both toggled with F9:
+The demo (`lui-demo`) has two profiling outputs, both toggled with F9:
 
 **Compact (stdout):** rolling 1-second averages per stage with max values
 and hover latency.
@@ -305,7 +305,7 @@ with nested spans and proportional bars.
 Launch with `--profile` to enable both at startup:
 
 ```bash
-cargo run -p wgpu-html-demo -- --profile
+cargo run -p lui-demo -- --profile
 ```
 
 ---
@@ -317,10 +317,10 @@ For development, set hot crates to `opt-level = 2` in your workspace
 
 ```toml
 [profile.dev.package]
-wgpu-html-layout = { opt-level = 2 }
-wgpu-html-style = { opt-level = 2 }
-wgpu-html-renderer = { opt-level = 2 }
-wgpu-html-text = { opt-level = 2 }
+lui-layout = { opt-level = 2 }
+lui-style = { opt-level = 2 }
+lui-renderer = { opt-level = 2 }
+lui-text = { opt-level = 2 }
 ```
 
 This keeps debug builds fast enough for interactive development while
@@ -332,25 +332,25 @@ preserving debug info in your host code.
 
 | Type | Crate | Description |
 |------|-------|-------------|
-| `Profiler` | `wgpu-html-tree` | Ring-buffer frame profiler with scopes, counters, string interner |
-| `ScopeGuard` | `wgpu-html-tree` | RAII guard returned by `Profiler::scope()` |
-| `SpanId` | `wgpu-html-tree` | Opaque handle for manual `begin_span` / `end_span` |
-| `LabelId` | `wgpu-html-tree` | Interned string identifier for span/counter/event names |
-| `FrameRecord` | `wgpu-html-tree` | All profiling data for one frame |
-| `Span` | `wgpu-html-tree` | One measured time span with parent tracking |
-| `RingBuffer<N>` | `wgpu-html-tree` | Fixed-capacity ring buffer (default N=240, ≈ 4s at 60 Hz) |
-| `PipelineTimings` | `wgpu-html` | `{cascade_ms, layout_ms, paint_ms}` return value |
-| `PipelineCache` | `wgpu-html` | Caches layout + cascade to skip redundant work |
-| `PipelineAction` | `wgpu-html` | `FullPipeline \| PartialCascade \| RepaintOnly` |
-| `FrameTimings` | `wgpu-html-winit` | `{cascade_ms, layout_ms, paint_ms, render_ms}` passed to `AppHook::on_frame` |
+| `Profiler` | `lui-tree` | Ring-buffer frame profiler with scopes, counters, string interner |
+| `ScopeGuard` | `lui-tree` | RAII guard returned by `Profiler::scope()` |
+| `SpanId` | `lui-tree` | Opaque handle for manual `begin_span` / `end_span` |
+| `LabelId` | `lui-tree` | Interned string identifier for span/counter/event names |
+| `FrameRecord` | `lui-tree` | All profiling data for one frame |
+| `Span` | `lui-tree` | One measured time span with parent tracking |
+| `RingBuffer<N>` | `lui-tree` | Fixed-capacity ring buffer (default N=240, ≈ 4s at 60 Hz) |
+| `PipelineTimings` | `lui` | `{cascade_ms, layout_ms, paint_ms}` return value |
+| `PipelineCache` | `lui` | Caches layout + cascade to skip redundant work |
+| `PipelineAction` | `lui` | `FullPipeline \| PartialCascade \| RepaintOnly` |
+| `FrameTimings` | `lui-winit` | `{cascade_ms, layout_ms, paint_ms, render_ms}` passed to `AppHook::on_frame` |
 
 ---
 
 ## Complete example
 
 ```rust
-use wgpu_html::PipelineCache;
-use wgpu_html_tree::Profiler;
+use lui::PipelineCache;
+use lui_tree::Profiler;
 
 // Setup
 let mut cache = PipelineCache::new();
@@ -358,7 +358,7 @@ tree.profiler = Some(Profiler::tagged("my app"));
 tree.profiler.as_ref().map(|p| p.enable());
 
 // Per-frame:
-let (list, layout, timings) = wgpu_html::paint_tree_cached(
+let (list, layout, timings) = lui::paint_tree_cached(
     &tree, &mut text_ctx, &mut image_cache,
     viewport_w, viewport_h, scale, viewport_scroll_y, &mut cache,
 );
@@ -371,7 +371,7 @@ if let Some(ref prof) = tree.profiler {
 }
 
 // PipelineTimings always available regardless of profiler state:
-match wgpu_html::classify_frame(&tree, &cache, &image_cache, vw, vh, scale) {
+match lui::classify_frame(&tree, &cache, &image_cache, vw, vh, scale) {
     PipelineAction::FullPipeline => println!("full frame: {:.2}ms", timings.total_ms()),
     PipelineAction::PartialCascade => println!("cascade only: {:.2}ms", timings.cascade_ms),
     PipelineAction::RepaintOnly => println!("repaint only"),

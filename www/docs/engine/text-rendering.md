@@ -4,9 +4,9 @@ sidebar_position: 7
 
 # Text Rendering
 
-Text rendering spans two crates: `wgpu-html-text` for font management and shaping, and the glyph pipeline in `wgpu-html-renderer` for GPU rendering.
+Text rendering spans two crates: `lui-text` for font management and shaping, and the glyph pipeline in `lui-renderer` for GPU rendering.
 
-## Font Database (`wgpu-html-text`)
+## Font Database (`lui-text`)
 
 ### Registering Fonts
 
@@ -68,7 +68,7 @@ Glyphs are rasterized on the CPU and uploaded to a GPU texture atlas:
 
 ## Glyph Pipeline (GPU)
 
-The `GlyphPipeline` in `wgpu-html-renderer` handles GPU text rendering:
+The `GlyphPipeline` in `lui-renderer` handles GPU text rendering:
 
 - **Instanced rendering** — one instance per glyph with position, UV, and color
 - **Alpha blending** — glyphs blend in display space (non-sRGB view)

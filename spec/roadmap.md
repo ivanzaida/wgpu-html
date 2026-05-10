@@ -1,4 +1,4 @@
-# wgpu-html — Roadmap
+# lui — Roadmap
 
 ## Scope
 
@@ -20,7 +20,7 @@ Explicit non-goals:
 - No accessibility tree, no print layout, no SVG rendering.
 
 The user constructs a `Tree` programmatically from typed model structs or
-by parsing an HTML string with `wgpu_html_parser::parse`, then hands it
+by parsing an HTML string with `lui_parser::parse`, then hands it
 to the renderer.
 
 ## Pipeline
@@ -28,7 +28,7 @@ to the renderer.
 ```
 HTML/CSS string
    │
-   ▼  wgpu-html-parser           Tokenizer + tree builder + CSS parser
+   ▼  lui-parser           Tokenizer + tree builder + CSS parser
 Tree<Node<Element>>
    │
    ▼  resolve styles (inline `style` attrs + <style> blocks + UA defaults,
@@ -52,26 +52,26 @@ stage is independently testable.
 
 | Crate                | Role                                                                    | Status |
 |----------------------|-------------------------------------------------------------------------|--------|
-| `wgpu-html-models`   | Element structs (`Div`, `P`, `Body`, …), `css::Style`, enums            | done   |
-| `wgpu-html-tree`     | `Tree { root, fonts, interaction }`, `Node`, `Element`; path-based mouse + keyboard + focus dispatch (`dispatch`); `is_focusable` + Tab traversal (`focus`); DOM-style query helpers (`query`); `InteractionState` carries hover/active/**focus**/selection/scroll/**modifiers** | done   |
-| `wgpu-html-events`   | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `EventPhase` | done   |
-| `wgpu-html-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser; CSS-Color-4 system colors (`buttonface`, `field`, …) | done   |
-| `wgpu-html-style`    | Selector matching + cascade + `MatchContext` (`:hover`/`:active`/`:focus`); generic-family font fallback in `FontRegistry::find_first` | done   |
-| `wgpu-html-text`     | Font database + cosmic-text shaping + glyph atlas                      | done   |
-| `wgpu-html-layout`   | Block/flex/grid layout + IFC + image loading + hit testing; `<input>` / `<textarea>` placeholder shaping; flex max-content intrinsic for non-text non-replaced items | done   |
-| `wgpu-html-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | done   |
-| `wgpu-html`          | Facade: parse → cascade → layout → paint, layout-aware interactivity wrappers, `PipelineTimings`, public `scroll` module | done   |
-| `wgpu-html-winit`    | winit ↔ engine glue: type translators + forwarders + batteries-included `WgpuHtmlWindow` harness (`AppHook`, viewport scroll, scrollbar drag, clipboard, F12 screenshot); system-font discovery | done   |
-| `wgpu-html-egui`     | Alternative `egui` / `eframe` integration backend                       | done   |
-| `wgpu-html-demo`     | Thin shell over `wgpu-html-winit` (or `wgpu-html-egui` via `--renderer=`); HTML loading, demo `AppHook` for F9 profiling | done   |
+| `lui-models`   | Element structs (`Div`, `P`, `Body`, …), `css::Style`, enums            | done   |
+| `lui-tree`     | `Tree { root, fonts, interaction }`, `Node`, `Element`; path-based mouse + keyboard + focus dispatch (`dispatch`); `is_focusable` + Tab traversal (`focus`); DOM-style query helpers (`query`); `InteractionState` carries hover/active/**focus**/selection/scroll/**modifiers** | done   |
+| `lui-events`   | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `EventPhase` | done   |
+| `lui-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser; CSS-Color-4 system colors (`buttonface`, `field`, …) | done   |
+| `lui-style`    | Selector matching + cascade + `MatchContext` (`:hover`/`:active`/`:focus`); generic-family font fallback in `FontRegistry::find_first` | done   |
+| `lui-text`     | Font database + cosmic-text shaping + glyph atlas                      | done   |
+| `lui-layout`   | Block/flex/grid layout + IFC + image loading + hit testing; `<input>` / `<textarea>` placeholder shaping; flex max-content intrinsic for non-text non-replaced items | done   |
+| `lui-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | done   |
+| `lui`          | Facade: parse → cascade → layout → paint, layout-aware interactivity wrappers, `PipelineTimings`, public `scroll` module | done   |
+| `lui-winit`    | winit ↔ engine glue: type translators + forwarders + batteries-included `LuiWindow` harness (`AppHook`, viewport scroll, scrollbar drag, clipboard, F12 screenshot); system-font discovery | done   |
+| `lui-egui`     | Alternative `egui` / `eframe` integration backend                       | done   |
+| `lui-demo`     | Thin shell over `lui-winit` (or `lui-egui` via `--renderer=`); HTML loading, demo `AppHook` for F9 profiling | done   |
 
 ## Milestones
 
-Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
+Each milestone ends in a runnable `cargo run -p lui-demo`.
 
 ### M1 — wgpu skeleton ✅
 
-- Workspace + crates wired up, `wgpu-html` facade
+- Workspace + crates wired up, `lui` facade
 - `Renderer::new` (instance / adapter / device / queue / surface)
 - `Renderer::render` clears the surface to a solid color
 - `FrameOutcome::{Presented, Reconfigure, Skipped}` instead of leaking
@@ -80,7 +80,7 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 
 ### M2 — solid quad pipeline ✅
 
-- `Rect`, `Color`, `Quad`, `DisplayList` in `wgpu-html-renderer::paint`
+- `Rect`, `Color`, `Quad`, `DisplayList` in `lui-renderer::paint`
 - `QuadPipeline` (instanced rectangles)
   - WGSL shader, viewport uniform, unit-quad VB+IB
   - Dynamic instance buffer with power-of-two growth
@@ -91,7 +91,7 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 
 ### M3 — paint a tree of `<div>` ✅
 
-- `wgpu-html::paint::paint_tree(&Tree, vw, vh) -> DisplayList`
+- `lui::paint::paint_tree(&Tree, vw, vh) -> DisplayList`
 - Reads each element's inline `style` attribute via
   `parser::parse_inline_style`, resolves `top`/`left`/`width`/`height`
   and `background-color`, emits one quad per styled box
@@ -106,7 +106,7 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 
 ### M4 — block layout ✅
 
-- New `wgpu-html-layout` crate exposes `LayoutBox { margin_rect,
+- New `lui-layout` crate exposes `LayoutBox { margin_rect,
   border_rect, content_rect, background, kind, children }` and a single
   `layout(&Tree, vw, vh) -> Option<LayoutBox>` entry point
 - Block formatting context: vertical stacking inside the parent's
@@ -114,14 +114,14 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 - Per-side margin and padding (with shorthand fall-through)
 - `position: absolute` removed; `top`/`left` no longer used
 - Borders deferred to M7 (treated as zero)
-- `wgpu-html::paint` walks the laid-out box tree and emits one quad per
+- `lui::paint` walks the laid-out box tree and emits one quad per
   background; coordinates are absolute
 - Demo: a header bar + three vertically-stacked colored cards with
   padding and inner highlight strips
 
 ### M4½ — CSS stylesheets (selectors + cascade) ✅
 
-- `wgpu-html-parser::parse_stylesheet` parses `<style>` block contents
+- `lui-parser::parse_stylesheet` parses `<style>` block contents
   into a list of `Rule { selectors, declarations }`. A `Selector`
   carries one subject compound (`tag`, `id`, `classes`, `universal`)
   plus an optional `ancestors` chain for descendant combinators
@@ -129,7 +129,7 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
   compounds in the chain, matching standard CSS. Other combinators
   (`>`, `+`, `~`) and pseudo-classes / pseudo-elements still drop
   the rule.
-- New `wgpu-html-style` crate:
+- New `lui-style` crate:
   - `cascade(&Tree) -> CascadedTree` walks the tree, collects every
     `<style>` block's text, parses it once, and computes a final
     `Style` per element
@@ -139,15 +139,15 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
     the element's ancestor chain to evaluate descendant requirements;
     `matches_selector` is the simple-case wrapper used when no
     ancestor context is available
-- `wgpu-html-layout::layout` now takes `&CascadedTree`; styles are
+- `lui-layout::layout` now takes `&CascadedTree`; styles are
   precomputed once per node, never re-parsed during layout
 - `paint_tree` chains parse → cascade → layout → paint internally
 - 13 cascade unit tests + 9 selector parser tests
 
 ### M5 — text rendering ✅
 
-- `wgpu-html-text` crate: font database, `cosmic-text`-based shaping, glyph atlas (shelf packer + GPU upload)
-- `wgpu-html-renderer`: dedicated glyph pipeline (`glyph.wgsl`), per-glyph instanced quads, alpha-tested coverage
+- `lui-text` crate: font database, `cosmic-text`-based shaping, glyph atlas (shelf packer + GPU upload)
+- `lui-renderer`: dedicated glyph pipeline (`glyph.wgsl`), per-glyph instanced quads, alpha-tested coverage
 - `PaintCmd::Glyph` (effectively `DisplayList::glyphs`)
 - `font-family` fallback list, `font-weight`, `font-style: italic`, `letter-spacing`, `text-transform`, `white-space: pre` vs collapse
 - Demo: text rendering with external system font
@@ -167,7 +167,7 @@ Each milestone ends in a runnable `cargo run -p wgpu-html-demo`.
 
 ### M8 — images ✅ (landed)
 
-Full image support lives in `wgpu-html-layout` and `wgpu-html-renderer`.
+Full image support lives in `lui-layout` and `lui-renderer`.
 Covered:
 
 - `<img>` with CSS `width` / `height` or HTML attribute sizing
@@ -184,13 +184,13 @@ Covered:
 - Animated GIF/WebP: frame selection via a process-wide clock anchor
 - Per-URL `Cache-Control: max-age` respected over the global TTL
 
-Demo: `crates/wgpu-html-demo/html/img-test.html` and
-`crates/wgpu-html-demo/html/gif.html`.
+Demo: `crates/lui-demo/html/img-test.html` and
+`crates/lui-demo/html/gif.html`.
 
 ### M9 — flexbox ✅ (landed early)
 
 The full CSS-Flexbox-1 algorithm now lives in
-`wgpu-html-layout::flex`. Covered:
+`lui-layout::flex`. Covered:
 
 - `display: flex` / `inline-flex`
 - `flex-direction` (row / row-reverse / column / column-reverse)
@@ -224,12 +224,12 @@ Deferred:
   (Flex items with `overflow: visible` cannot shrink below their
   content width.)
 
-Demo: `crates/wgpu-html-demo/html/flex-grow.html` exercises grow,
+Demo: `crates/lui-demo/html/flex-grow.html` exercises grow,
 clamping, wrap + align-content, align-self, auto-margin, and order.
 
 ### M10 — grid ✅ (landed early)
 
-CSS-Grid-Layout-1 lives in `wgpu-html-layout::grid`. Covered:
+CSS-Grid-Layout-1 lives in `lui-layout::grid`. Covered:
 
 - `display: grid` / `inline-grid`
 - `grid-template-columns` / `grid-template-rows` with `<length>`,
@@ -247,7 +247,7 @@ CSS-Grid-Layout-1 lives in `wgpu-html-layout::grid`. Covered:
   (default `stretch`)
 - `justify-content` / `align-content` for distributing the track
   block when the explicit tracks underfill the container
-- 14 dedicated unit tests in `crates/wgpu-html-layout/src/tests.rs`
+- 14 dedicated unit tests in `crates/lui-layout/src/tests.rs`
 
 Deferred (see `spec/grid.md` §6):
 
@@ -259,7 +259,7 @@ Deferred (see `spec/grid.md` §6):
 - `dense` packing
 - Named grid lines, negative line numbers, subgrid, masonry
 
-Demo: `crates/wgpu-html-demo/html/grid.html` exercises a holy-
+Demo: `crates/lui-demo/html/grid.html` exercises a holy-
 grail layout, a `repeat(4, 1fr)` photo gallery, and the row /
 column auto-flow modes.
 
@@ -300,7 +300,7 @@ Deferred (see `spec/overflow.md` §5):
 - Stacking-context promotion
 - `clip-path`
 
-Demo: `crates/wgpu-html-demo/html/overflow.html` — `visible` /
+Demo: `crates/lui-demo/html/overflow.html` — `visible` /
 `hidden` / `hidden + border-radius` side by side.
 
 ### M12 — interactivity ⚠️ partial
@@ -312,15 +312,15 @@ See `spec/interactivity.md` for the full phase breakdown.
 - `InteractionState` on `Tree` (hover path, active path, **focus path**,
   scroll offsets, text selection, buttons bitmask, time origin,
   **modifiers**)
-- Layout-aware wrappers in `wgpu_html::interactivity` (`pointer_move`,
+- Layout-aware wrappers in `lui::interactivity` (`pointer_move`,
   `mouse_down`, `mouse_up`); path-based dispatch in
-  `wgpu_html_tree::dispatch` (`dispatch_pointer_move/_leave/_mouse_down/_mouse_up`)
+  `lui_tree::dispatch` (`dispatch_pointer_move/_leave/_mouse_down/_mouse_up`)
 - Synthesised enter / leave (deepest-first leave, root-first enter)
 - Click synthesis via deepest common ancestor; drag-select suppresses click
 - `:hover` / `:active` / **`:focus`** cascade via `MatchContext::for_path`.
   `:focus` is exact-match (no propagation to ancestors); `:focus-within`
   not yet wired.
-- `wgpu-html-events` crate: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`,
+- `lui-events` crate: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`,
   `FocusEvent`, `InputEvent`, `EventPhase`, `HtmlEventType`; both legacy
   (`on_click` slot) and typed (`on_event`) callbacks wired
 
@@ -337,7 +337,7 @@ See `spec/interactivity.md` for the full phase breakdown.
 - Modifier state lives on `InteractionState::modifiers`; updated via
   `Tree::set_modifier(Modifier, bool)`. Dispatchers no longer take a
   `Modifiers` parameter.
-- `wgpu_html_tree::focus` module: `is_focusable`, `is_keyboard_focusable`,
+- `lui_tree::focus` module: `is_focusable`, `is_keyboard_focusable`,
   `focusable_paths`, `keyboard_focusable_paths`, `next_in_order`,
   `prev_in_order`. Recognises `<button>` (unless disabled), `<a href>`,
   `<input>` (unless disabled or `type=hidden`), `<textarea>`, `<select>`,
@@ -359,9 +359,9 @@ See `spec/interactivity.md` for the full phase breakdown.
 **M-INTER-3 (text selection + clipboard) ⚠️ partial**
 
 - `TextCursor` / `TextSelection` on `InteractionState`
-- Drag-to-select; `select_all_text` / `selected_text` in `wgpu-html`
+- Drag-to-select; `select_all_text` / `selected_text` in `lui`
 - `Ctrl+A` + `Ctrl+C` + `arboard` integration — now built into the
-  `wgpu-html-winit` harness (no demo plumbing required)
+  `lui-winit` harness (no demo plumbing required)
 - Selection highlight quads painted; caret overlay not yet done
 - Word / line select (double-click / triple-click) not yet done
 
@@ -371,14 +371,14 @@ See `spec/interactivity.md` for the full phase breakdown.
 - Viewport scroll position + drag-scrollbar; `MouseWheel` scrolls
   viewport and detects deepest scrollable element
 - Per-element scroll offsets applied at paint time; scrollbar quads painted
-- Public `wgpu_html::scroll` module exposes scrollbar geometry,
+- Public `lui::scroll` module exposes scrollbar geometry,
   hit-tests, painters, and document/element scroll utilities
 - `Wheel` events are not forwarded to element `on_event` callbacks yet
 - Hit-testing inside scroll containers does not yet subtract scroll offset (handled in harness only)
 
 **DOM-style query helpers ✅**
 
-- `wgpu_html_tree::query`: `SelectorList`, `ComplexSelector`, `CompoundSelector`,
+- `lui_tree::query`: `SelectorList`, `ComplexSelector`, `CompoundSelector`,
   `Combinator`, `Tree::query_selector(sel)`, `query_selector_all`, `query_selector_path`,
   `query_selector_all_paths` (and `Node::*` mirrors). Supports **full CSS Level 4 selectors**:
   all four combinators (` `, `>`, `+`, `~`), all six attribute operators with case flags,
@@ -388,9 +388,9 @@ See `spec/interactivity.md` for the full phase breakdown.
   `:lang()`, `:dir()`, `:root`, `:scope`, `:empty`. Pseudo-elements accepted but
   always return no match.
 
-**`wgpu-html-winit` harness ✅**
+**`lui-winit` harness ✅**
 
-- `WgpuHtmlWindow` (full `winit::ApplicationHandler` impl) + builders
+- `LuiWindow` (full `winit::ApplicationHandler` impl) + builders
   (`with_title`, `with_size`, `with_exit_on_escape`,
   `with_clipboard_enabled`, `with_screenshot_key`, `with_hook`).
 - `AppHook` trait (`on_key`, `on_frame`, `on_pointer_move`),
@@ -440,7 +440,7 @@ M-INTER-6 (re-cascade caching).
 - `@font-face` (generic-family fallback in `FontRegistry::find_first`
   is already shipped)
 - `clip-path` / SDF non-rectangular clips
-- `wgpu-html-devtools` inspector crate (partially built — component tree browser, styles inspector, breadcrumb bar exist; self-hosted panel not yet)
+- `lui-devtools` inspector crate (partially built — component tree browser, styles inspector, breadcrumb bar exist; self-hosted panel not yet)
 - Render-loop hooks for engine-side animation (no JS; timeline-driven)
 
 ## Versioning

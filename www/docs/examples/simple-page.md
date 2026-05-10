@@ -4,17 +4,17 @@ sidebar_position: 1
 
 # Simple Page
 
-A minimal HTML page rendered with wgpu-html. Demonstrates the basic pipeline: parse, register fonts, and display.
+A minimal HTML page rendered with lui. Demonstrates the basic pipeline: parse, register fonts, and display.
 
 ## Source
 
-See `demo/wgpu-html-demo/html/` for example HTML files. The simplest possible page:
+See `demo/lui-demo/html/` for example HTML files. The simplest possible page:
 
 ```html
 <!DOCTYPE html>
 <html>
 <body>
-    <h1>Hello, wgpu-html!</h1>
+    <h1>Hello, lui!</h1>
     <p>This is a simple HTML page rendered with GPU acceleration.</p>
 </body>
 </html>
@@ -23,7 +23,7 @@ See `demo/wgpu-html-demo/html/` for example HTML files. The simplest possible pa
 ## Running
 
 ```bash
-cargo run -p wgpu-html-demo -- demo/wgpu-html-demo/html/simple.html
+cargo run -p lui-demo -- demo/lui-demo/html/simple.html
 ```
 
 ## What It Shows

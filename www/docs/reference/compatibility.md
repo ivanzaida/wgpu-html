@@ -52,7 +52,7 @@ Requires Rust 1.78 or later (for `impl Trait` in associated types and other rece
 
 ## Browser Compatibility Goals
 
-wgpu-html aims for CSS behavior parity with web browsers, not pixel-perfect rendering. The goal is to make CSS authored for browsers work correctly in wgpu-html, not to match every browser quirk.
+lui aims for CSS behavior parity with web browsers, not pixel-perfect rendering. The goal is to make CSS authored for browsers work correctly in lui, not to match every browser quirk.
 
 | Feature | Goal |
 |---|---|

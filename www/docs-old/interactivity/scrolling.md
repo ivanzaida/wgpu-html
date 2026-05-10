@@ -4,7 +4,7 @@ title: Scrolling
 
 # Scrolling
 
-Scrolling is implemented in `wgpu-html::scroll` (413 lines) with support for viewport-level and per-element scrolling.
+Scrolling is implemented in `lui::scroll` (413 lines) with support for viewport-level and per-element scrolling.
 
 ## Scroll State
 
@@ -117,7 +117,7 @@ pub fn max_scroll_y(layout: &LayoutBox, viewport_h: f32) -> f32;
 ## Complete Example
 
 ```rust
-use wgpu_html::scroll;
+use lui::scroll;
 
 // Handle wheel scroll
 let delta_y = scroll_delta as f32;

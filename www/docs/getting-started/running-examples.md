@@ -9,15 +9,15 @@ The workspace includes a demo application and several example HTML pages.
 ## Running the Demo
 
 ```bash
-cargo run -p wgpu-html-demo
+cargo run -p lui-demo
 ```
 
-This launches a winit window with the default demo page. The demos live under `demo/wgpu-html-demo/html/`.
+This launches a winit window with the default demo page. The demos live under `demo/lui-demo/html/`.
 
 ## Running a Specific HTML File
 
 ```bash
-cargo run -p wgpu-html-demo -- demo/wgpu-html-demo/html/styled-inputs.html
+cargo run -p lui-demo -- demo/lui-demo/html/styled-inputs.html
 ```
 
 ## Demo Controls
@@ -33,7 +33,7 @@ cargo run -p wgpu-html-demo -- demo/wgpu-html-demo/html/styled-inputs.html
 
 ## Changing the Default Page
 
-The default demo page is set in `crates/wgpu-html-demo/src/main.rs` via `const DEFAULT_DOC`. To change it permanently, edit that include:
+The default demo page is set in `crates/lui-demo/src/main.rs` via `const DEFAULT_DOC`. To change it permanently, edit that include:
 
 ```rust
 const DEFAULT_DOC: &str = include_str!("../html/your-page.html");
