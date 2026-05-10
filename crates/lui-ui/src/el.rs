@@ -128,7 +128,7 @@ macro_rules! with_all_variants {
         Var, Abbr, Cite, Dfn, Sub, Sup, Time,
         Ul, Ol, Li, Dl, Dt, Dd,
         Header, Nav, Main, Section, Article, Aside, Footer, Div,
-        Img, Picture, Source, Video, Audio, Track, Iframe, Canvas, Svg, SvgPath,
+        Img, Picture, Source, Video, Audio, Track, Iframe, Canvas, Svg, SvgPath, SvgElement,
         Table, Caption, Thead, Tbody, Tfoot, Tr, Th, Td, Colgroup, Col,
         Form, Label, Input, Textarea, Button, Select, OptionElement, Optgroup,
         Fieldset, Legend, Datalist, Output, Progress, Meter,

@@ -196,6 +196,9 @@ pub use svg::Svg;
 pub mod path;
 pub use path::SvgPath;
 
+pub mod svg_element;
+pub use svg_element::SvgElement;
+
 pub mod table;
 pub use table::Table;
 

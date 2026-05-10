@@ -3,6 +3,47 @@ use lui_models::ArcStr;
 use lui_models::common::html_enums::*;
 use lui_tree::Element;
 
+fn svg_original_case(lowered: &str) -> &str {
+  match lowered {
+    "lineargradient" => "linearGradient",
+    "radialgradient" => "radialGradient",
+    "clippath" => "clipPath",
+    "textpath" => "textPath",
+    "fegaussianblur" => "feGaussianBlur",
+    "feblend" => "feBlend",
+    "fecolormatrix" => "feColorMatrix",
+    "fecomponenttransfer" => "feComponentTransfer",
+    "fecomposite" => "feComposite",
+    "feconvolvematrix" => "feConvolveMatrix",
+    "fediffuselighting" => "feDiffuseLighting",
+    "fedisplacementmap" => "feDisplacementMap",
+    "fedropshadow" => "feDropShadow",
+    "feflood" => "feFlood",
+    "feimage" => "feImage",
+    "femerge" => "feMerge",
+    "femergenode" => "feMergeNode",
+    "femorphology" => "feMorphology",
+    "feoffset" => "feOffset",
+    "fespecularlighting" => "feSpecularLighting",
+    "fetile" => "feTile",
+    "feturbulence" => "feTurbulence",
+    "fedistantlight" => "feDistantLight",
+    "fepointlight" => "fePointLight",
+    "fespotlight" => "feSpotLight",
+    "animatemotion" => "animateMotion",
+    "animatetransform" => "animateTransform",
+    "foreignobject" => "foreignObject",
+    "tspan" => "tspan",
+    other => match other {
+      "circle" | "rect" | "ellipse" | "line" | "polygon" | "polyline"
+      | "g" | "defs" | "symbol" | "use" | "marker" | "mask" | "pattern"
+      | "image" | "stop" | "text" | "filter" | "animate" | "set"
+      | "desc" | "title" | "metadata" | "switch" | "view" => other,
+      _ => other,
+    },
+  }
+}
+
 /// Parse a tag name and raw attribute list into a typed `Element`.
 ///
 /// Returns `None` for unrecognized tags; callers should drop the subtree.
@@ -542,6 +583,35 @@ pub fn parse_element(tag: &str, attrs: &[(ArcStr, ArcStr)]) -> Option<Element> {
         }
       }
       Element::SvgPath(el)
+    }
+    "circle" | "rect" | "ellipse" | "line" | "polygon" | "polyline"
+    | "g" | "defs" | "symbol" | "use" | "marker" | "clippath"
+    | "mask" | "pattern" | "image"
+    | "lineargradient" | "radialgradient" | "stop"
+    | "text" | "tspan" | "textpath"
+    | "filter" | "fegaussianblur" | "feblend" | "fecolormatrix"
+    | "fecomponenttransfer" | "fecomposite" | "feconvolvematrix"
+    | "fediffuselighting" | "fedisplacementmap" | "fedropshadow"
+    | "feflood" | "feimage" | "femerge" | "femergenode"
+    | "femorphology" | "feoffset" | "fespecularlighting"
+    | "fetile" | "feturbulence"
+    | "fedistantlight" | "fepointlight" | "fespotlight"
+    | "animate" | "animatemotion" | "animatetransform" | "set"
+    | "desc" | "title" | "metadata"
+    | "foreignobject" | "switch" | "view" => {
+      let mut el = html::SvgElement {
+        tag: svg_original_case(tag).into(),
+        attrs: attrs.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        ..Default::default()
+      };
+      for (n, v) in attrs {
+        match &**n {
+          "id" => el.id = Some(v.clone()),
+          "class" => el.class = Some(v.clone()),
+          _ => {}
+        }
+      }
+      Element::SvgElement(el)
     }
     "table" => {
       let mut el = html::Table::default();

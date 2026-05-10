@@ -206,8 +206,34 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
 fn write_svg_child(child: &CascadedNode, out: &mut String) {
   match &child.element {
     Element::SvgPath(p) => write_svg_path(child, p, out),
-    // Any other element: skip (not yet supported SVG tags).
+    Element::SvgElement(el) => write_svg_element(child, el, out),
     _ => {}
+  }
+}
+
+fn write_svg_element(node: &CascadedNode, el: &lui_models::SvgElement, out: &mut String) {
+  out.push('<');
+  out.push_str(&el.tag);
+  for (k, v) in &el.attrs {
+    out.push(' ');
+    out.push_str(k);
+    out.push_str("=\"");
+    out.push_str(&escape_attr(v));
+    out.push('"');
+  }
+  if node.children.is_empty() {
+    out.push_str("/>");
+  } else {
+    out.push('>');
+    for child in &node.children {
+      write_svg_child(child, out);
+      if let Element::Text(t) = &child.element {
+        out.push_str(&escape_attr(t));
+      }
+    }
+    out.push_str("</");
+    out.push_str(&el.tag);
+    out.push('>');
   }
 }
 

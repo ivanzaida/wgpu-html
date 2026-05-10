@@ -124,6 +124,7 @@ pub fn element_tag(el: &Element) -> Option<&str> {
             match el {
                 Element::Text(_) => None,
                 Element::CustomElement(e) => Some(&e.tag_name),
+                Element::SvgElement(e) => Some(&e.tag),
                 $(Element::$v(_) => Some($tag),)*
             }
         };
@@ -168,6 +169,7 @@ pub fn element_id(el: &Element) -> Option<&str> {
             match el {
                 Element::Text(_) => None,
                 Element::CustomElement(e) => e.id.as_deref(),
+                Element::SvgElement(e) => e.id.as_deref(),
                 $(Element::$v(e) => e.id.as_deref(),)*
             }
         };
@@ -181,6 +183,7 @@ pub fn element_class(el: &Element) -> Option<&str> {
             match el {
                 Element::Text(_) => None,
                 Element::CustomElement(e) => e.class.as_deref(),
+                Element::SvgElement(e) => e.class.as_deref(),
                 $(Element::$v(e) => e.class.as_deref(),)*
             }
         };
@@ -194,6 +197,7 @@ pub fn element_style_attr(el: &Element) -> Option<&str> {
             match el {
                 Element::Text(_) => None,
                 Element::CustomElement(e) => e.style.as_deref(),
+                Element::SvgElement(e) => e.style.as_deref(),
                 $(Element::$v(e) => e.style.as_deref(),)*
             }
         };
@@ -392,6 +396,7 @@ impl_global_attrs!(
   lui_models::Rt,
   lui_models::Rp,
   lui_models::CustomElement,
+  lui_models::SvgElement,
 );
 
 fn with_global_attrs<R>(el: &Element, f: impl FnOnce(&dyn GlobalAttrs) -> R) -> Option<R> {
@@ -400,6 +405,7 @@ fn with_global_attrs<R>(el: &Element, f: impl FnOnce(&dyn GlobalAttrs) -> R) -> 
             match el {
                 Element::Text(_) => None,
                 Element::CustomElement(e) => Some(f(e)),
+                Element::SvgElement(e) => Some(f(e)),
                 $(Element::$v(e) => Some(f(e)),)*
             }
         };

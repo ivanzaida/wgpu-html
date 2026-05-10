@@ -1164,6 +1164,7 @@ pub enum Element {
   Canvas(m::Canvas),
   Svg(m::Svg),
   SvgPath(m::SvgPath),
+  SvgElement(m::SvgElement),
 
   Table(m::Table),
   Caption(m::Caption),
@@ -1253,7 +1254,7 @@ element_from! {
 
     Img => m::Img, Picture => m::Picture, Source => m::Source, Video => m::Video,
     Audio => m::Audio, Track => m::Track, Iframe => m::Iframe, Canvas => m::Canvas,
-    Svg => m::Svg, SvgPath => m::SvgPath,
+    Svg => m::Svg, SvgPath => m::SvgPath, SvgElement => m::SvgElement,
 
     Table => m::Table, Caption => m::Caption, Thead => m::Thead, Tbody => m::Tbody,
     Tfoot => m::Tfoot, Tr => m::Tr, Th => m::Th, Td => m::Td,
@@ -1342,6 +1343,7 @@ macro_rules! all_element_variants {
       Canvas,
       Svg,
       SvgPath,
+      SvgElement,
       Table,
       Caption,
       Thead,
@@ -1749,6 +1751,7 @@ impl Element {
       Element::Canvas(_) => "canvas",
       Element::Svg(_) => "svg",
       Element::SvgPath(_) => "path",
+      Element::SvgElement(el) => &el.tag,
       Element::Table(_) => "table",
       Element::Caption(_) => "caption",
       Element::Thead(_) => "thead",
