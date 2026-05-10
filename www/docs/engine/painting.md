@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Painting
 
-The paint stage converts a positioned `LayoutBox` tree into a backend-agnostic `DisplayList`. It lives in `crates/lui/src/paint.rs`.
+The paint stage converts a positioned `LayoutBox` tree into a backend-agnostic `DisplayList`. The `DisplayList` type is defined in `crates/lui-display-list` (no GPU dependencies), and the paint logic lives in `crates/lui/src/paint.rs`.
 
 ## Entry Point
 

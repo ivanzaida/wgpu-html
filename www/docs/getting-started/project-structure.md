@@ -8,31 +8,34 @@ sidebar_position: 5
 
 ```
 lui/
-├── crates/                    # All Rust crates
-│   ├── lui/             # Façade: orchestration, paint, interactivity
-│   ├── lui-parser/      # HTML tokenizer, CSS parser, stylesheet parser
-│   ├── lui-style/       # CSS cascade, selector matching, inheritance
-│   ├── lui-layout/      # Block, flex, grid, IFC, positioned layout
-│   ├── lui-text/        # Font DB, cosmic-text shaping, glyph atlas
-│   ├── lui-renderer/    # wgpu pipelines (quad, glyph, image)
-│   ├── lui-tree/        # DOM tree, events, focus, query selectors
-│   ├── lui-events/      # Typed event structs
-│   ├── lui-models/      # Shared types (Style, enums, element structs)
-│   ├── lui-winit/       # winit window harness
-│   ├── lui-ui/          # Component framework
-│   ├── lui-egui/        # egui integration backend
-│   └── lui-devtools/    # Devtools inspector
-├── demo/
-│   └── lui-demo/        # Demo application
-│       ├── html/              # Example HTML pages
-│       └── src/               # Demo source
-├── spec/                      # Technical specifications
-├── tests/                     # Integration tests
-├── www/                       # Docusaurus documentation site
-│   ├── docs/                  # Documentation pages
-│   ├── docusaurus.config.js   # Site configuration
-│   └── sidebars.js            # Sidebar structure
-└── AGENTS.md                  # Contributor guide
+├── crates/                       # Engine crates (backend-agnostic)
+│   ├── lui/                # Façade: orchestration, paint, interactivity
+│   ├── lui-parser/         # HTML tokenizer, CSS parser, stylesheet parser
+│   ├── lui-style/          # CSS cascade, selector matching, inheritance
+│   ├── lui-layout/         # Block, flex, grid, IFC, positioned layout
+│   ├── lui-text/           # Font DB, cosmic-text shaping, glyph atlas
+│   ├── lui-display-list/   # Backend-agnostic display list IR
+│   ├── lui-tree/           # DOM tree, events, focus, query selectors
+│   ├── lui-events/         # Typed event structs
+│   ├── lui-models/         # Shared types (Style, enums, element structs)
+│   ├── lui-ui/             # Component framework
+│   └── lui-devtools/       # Devtools inspector
+├── renderers/                    # GPU backend implementations
+│   ├── lui-render-api/     # RenderBackend trait + RenderError
+│   └── lui-renderer-wgpu/  # wgpu backend (quad, glyph, image pipelines)
+├── drivers/                      # Platform integrations
+│   ├── lui-driver/         # Backend-agnostic Driver + Runtime
+│   ├── lui-driver-winit/   # winit window harness
+│   ├── lui-driver-egui/    # egui integration
+│   └── lui-driver-bevy/    # Bevy plugin
+├── demo/                         # Demo applications
+│   ├── lui-demo/
+│   └── lui-demo-bevy/
+├── spec/                         # Technical specifications
+├── www/                          # Docusaurus documentation site
+│   ├── docs/
+│   └── docusaurus.config.js
+└── AGENTS.md
 ```
 
 ## Key Source Files
@@ -56,11 +59,11 @@ lui/
 | `src/length.rs` | CSS length resolution (px, %, em, vw, calc, etc.) |
 | `src/table.rs` | Table layout (in progress) |
 
-### lui-renderer
+### lui-renderer-wgpu
 
 | File | Purpose |
 |---|---|
-| `src/lib.rs` | `Renderer`, `render()`, wgpu surface setup |
+| `src/lib.rs` | `Renderer` (implements `RenderBackend`), wgpu surface setup |
 | `src/quad_pipeline.rs` | SDF rounded quad pipeline |
 | `src/glyph_pipeline.rs` | Glyph atlas text rendering |
 | `src/image_pipeline.rs` | Textured image rendering |

@@ -173,6 +173,10 @@ pub struct Tree {
   /// Locale for system strings (month names, form control labels, etc.).
   /// Swappable at runtime — takes effect on the next paint.
   pub locale: Arc<dyn Locale>,
+  /// Form field data collected during submission, keyed by `FormDataId`.
+  /// Hosts retrieve it via [`Tree::take_form_data`].
+  pub pending_form_data: HashMap<u64, Vec<FormField>>,
+  pub form_data_counter: u64,
 }
 
 impl Default for Tree {
@@ -196,6 +200,8 @@ impl Default for Tree {
       wrap_body: true,
       use_ua_stylesheet: true,
       locale: DefaultLocale::new(),
+      pending_form_data: HashMap::new(),
+      form_data_counter: 0,
     };
     tree.register_system_fonts("sans-serif");
     tree
@@ -671,6 +677,25 @@ impl Tree {
       .as_deref()
       .is_some_and(|hp| hp.len() >= path.len() && &hp[..path.len()] == path)
   }
+
+  /// Allocate the next `FormDataId` for a form submission.
+  pub fn next_form_data_id(&mut self) -> u64 {
+    let id = self.form_data_counter;
+    self.form_data_counter = id.wrapping_add(1);
+    id
+  }
+
+  /// Retrieve and remove the form fields for a given `FormDataId`.
+  pub fn take_form_data(&mut self, id: u64) -> Option<Vec<FormField>> {
+    self.pending_form_data.remove(&id)
+  }
+}
+
+/// Name-value pair collected from a form field during submission.
+#[derive(Debug, Clone)]
+pub struct FormField {
+  pub name: String,
+  pub value: String,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -9,9 +9,9 @@ Rendering lui content to an off-screen texture for use in custom graphics pipeli
 ## Headless Renderer
 
 ```rust
-use lui_renderer::Renderer;
+use lui_renderer_wgpu::Renderer;
 
-let mut renderer = Renderer::headless();
+let mut renderer = pollster::block_on(Renderer::headless());
 
 // Build your display list via paint_tree_with_text()
 let display_list = lui::paint_tree_with_text(
@@ -38,18 +38,18 @@ screenshot_node_to(
 )?;
 ```
 
-## Integration with Existing wgpu Pipelines
+## Using the RenderBackend Trait
 
-If you already have a wgpu device and surface, you can share them:
+Any type implementing `RenderBackend` can render a `DisplayList`. The wgpu backend is the default, but the trait is designed for pluggable backends:
 
 ```rust
-let renderer = Renderer::with_device_and_surface(
-    your_device, your_queue, your_surface,
-    your_adapter, width, height,
-);
-```
+use lui_render_api::RenderBackend;
 
-Then render into your existing render pass by calling `renderer.render(&display_list)` during your frame rendering.
+fn render_frame(backend: &mut impl RenderBackend, list: &DisplayList) {
+    backend.set_clear_color([1.0, 1.0, 1.0, 1.0]);
+    backend.render(list);
+}
+```
 
 ## Use Cases
 

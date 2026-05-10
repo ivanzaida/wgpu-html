@@ -29,7 +29,7 @@ lui-egui = "0.1"
 
 ## System Requirements
 
-- **GPU with Vulkan, Metal, or DX12 support** — wgpu uses `wgpu::Backends::PRIMARY`, which selects the best available backend for the platform.
+- **GPU with Vulkan, Metal, or DX12 support** — the default wgpu backend uses `wgpu::Backends::PRIMARY`, which selects the best available backend for the platform. The render backend is pluggable; future native backends (D3D12, Vulkan, OpenGL) are planned.
 - **Working graphics drivers** — if you can run `wgpu` examples, you can run lui.
 - **Fonts** — lui does not ship fonts. You must register `.ttf`, `.otf`, or `.ttc` font files at startup. The winit harness includes `register_system_fonts()` helpers.
 
@@ -43,7 +43,8 @@ lui (façade)
 ├── lui-layout
 │   ├── lui-text (cosmic-text)
 │   └── lui-events
-├── lui-renderer (wgpu)
+├── lui-display-list          # backend-agnostic IR
+├── lui-renderer-wgpu (wgpu)  # pluggable via RenderBackend trait
 └── lui-tree
 ```
 

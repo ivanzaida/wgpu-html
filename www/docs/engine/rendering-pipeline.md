@@ -4,14 +4,24 @@ sidebar_position: 2
 
 # Rendering Pipeline
 
-The GPU rendering stage is the final step in the pipeline. It consumes a `DisplayList` and produces a frame on a wgpu surface.
+The GPU rendering stage is the final step in the pipeline. It consumes a `DisplayList` (from `lui-display-list`) and produces a frame via any `RenderBackend` implementation.
 
-## Renderer Setup
+## Architecture
 
-The renderer (`crates/lui-renderer/src/lib.rs`) is created with:
+The rendering layer is split into three crates:
+
+- **`lui-display-list`** — backend-agnostic IR (`DisplayList`, `Quad`, `GlyphQuad`, `ImageQuad`, `ClipRange`, `Rect`, `Color`, `FrameOutcome`)
+- **`lui-render-api`** — the `RenderBackend` trait that every GPU renderer implements
+- **`lui-renderer-wgpu`** — the wgpu reference backend
+
+## Renderer Setup (wgpu)
+
+The wgpu backend (`renderers/lui-renderer-wgpu/src/lib.rs`) is created with:
 
 ```rust
-let renderer = Renderer::new(window, width, height, scale_factor);
+use lui_renderer_wgpu::Renderer;
+
+let renderer = pollster::block_on(Renderer::new(window, width, height));
 ```
 
 This acquires a wgpu `Instance`, `Adapter`, `Device`, `Queue`, and `Surface`, then initializes the three GPU pipelines.

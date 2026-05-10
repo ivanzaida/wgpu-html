@@ -4,11 +4,23 @@ sidebar_position: 2
 
 # wgpu Backend
 
-The renderer in `lui-renderer` manages a wgpu device, surface, and three GPU pipelines.
+`lui-renderer-wgpu` is the reference implementation of the `RenderBackend` trait. It manages a wgpu device, surface, and three GPU pipelines.
+
+## Render Backend Architecture
+
+Rendering in lui is split into three layers:
+
+| Crate | Role |
+|---|---|
+| `lui-display-list` | Backend-agnostic IR: `DisplayList`, `Quad`, `GlyphQuad`, `ImageQuad`, `Rect`, `Color` |
+| `lui-render-api` | `RenderBackend` trait that any GPU renderer must implement |
+| `lui-renderer-wgpu` | wgpu implementation (the default backend) |
+
+Any crate implementing `RenderBackend` can be plugged into the `Runtime` — the engine, layout, text, and paint stages never touch GPU types.
 
 ## Backend Selection
 
-The renderer uses `wgpu::Backends::PRIMARY`, which selects the best available backend:
+The wgpu backend uses `wgpu::Backends::PRIMARY`, which selects the best available backend:
 
 | Platform | Backend |
 |---|---|
@@ -20,12 +32,14 @@ The renderer uses `wgpu::Backends::PRIMARY`, which selects the best available ba
 ## Surface Configuration
 
 ```rust
-let mut renderer = Renderer::new(window, 800, 600);
+use lui_renderer_wgpu::Renderer;
+
+let renderer = pollster::block_on(Renderer::new(window, 800, 600));
 ```
 
 The surface is configured with:
 - **Format**: `Bgra8UnormSrgb` (Windows) or `Rgba8UnormSrgb` (others)
-- **Present mode**: `Fifo` (vsync) with `AutoVsync` fallback
+- **Present mode**: `Fifo` (vsync)
 - **Alpha mode**: `Opaque`
 
 ## Three GPU Pipelines
@@ -53,7 +67,7 @@ The surface is configured with:
 For off-screen rendering (no window, e.g., for screenshots or server-side rendering):
 
 ```rust
-let mut renderer = Renderer::headless();
+let renderer = pollster::block_on(Renderer::headless());
 let rgba_bytes = renderer.render_to_rgba(&display_list, 800, 600)?;
 ```
 

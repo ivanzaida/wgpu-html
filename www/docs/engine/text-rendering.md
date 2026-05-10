@@ -4,7 +4,7 @@ sidebar_position: 7
 
 # Text Rendering
 
-Text rendering spans two crates: `lui-text` for font management and shaping, and the glyph pipeline in `lui-renderer` for GPU rendering.
+Text rendering spans two crates: `lui-text` for font management and shaping, and the glyph pipeline in `lui-renderer-wgpu` for GPU rendering. `lui-text` is fully backend-agnostic — it manages a CPU-side glyph atlas and exposes dirty rects via `Atlas::flush_dirty`, which the render backend uploads to the GPU via `RenderBackend::upload_atlas_region`.
 
 ## Font Database (`lui-text`)
 

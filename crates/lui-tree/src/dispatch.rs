@@ -25,6 +25,7 @@ use std::cell::Cell;
 
 use lui_events as ev;
 use lui_models as m;
+use m::common::html_enums::InputType;
 
 use crate::{
   Element, InteractionState, Modifier, Modifiers, MouseButton, MouseEvent, Node, TextCursor, TextSelection, Tree,
@@ -2296,65 +2297,12 @@ fn find_ancestor_form(tree: &Tree, path: &[usize]) -> Option<Vec<usize>> {
 /// Fire a `submit` event on the form element at `form_path` with
 /// capture → target → bubble phases. `submitter_path` is the button
 /// or input that triggered the submission.
-fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Option<Vec<usize>>) {
+///
+/// Returns `false` if `preventDefault()` was called (submission
+/// should be aborted), `true` if the default action may proceed.
+fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Option<Vec<usize>>) -> bool {
   let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
   let depth = form_path.len();
-
-  // Capture phase: root → target parent
-  for i in 0..depth {
-    let current_path = form_path[..i].to_vec();
-    fire_submit_at(
-      tree,
-      form_path,
-      &current_path,
-      submitter_path.clone(),
-      time_stamp,
-      ev::EventPhase::CapturingPhase,
-    );
-  }
-
-  // Target phase
-  fire_submit_at(
-    tree,
-    form_path,
-    form_path,
-    submitter_path.clone(),
-    time_stamp,
-    ev::EventPhase::AtTarget,
-  );
-
-  // Bubble phase: target parent → root
-  for i in (0..depth).rev() {
-    let current_path = form_path[..i].to_vec();
-    fire_submit_at(
-      tree,
-      form_path,
-      &current_path,
-      submitter_path.clone(),
-      time_stamp,
-      ev::EventPhase::BubblingPhase,
-    );
-  }
-}
-
-fn fire_submit_at(
-  tree: &mut Tree,
-  form_path: &[usize],
-  current_path: &[usize],
-  submitter_path: Option<Vec<usize>>,
-  time_stamp: f64,
-  phase: ev::EventPhase,
-) {
-  let current_path = current_path.to_vec();
-  let on_evs = tree
-    .root
-    .as_ref()
-    .and_then(|root| root.at_path(&current_path))
-    .map(|node| node.on_event.clone())
-    .unwrap_or_default();
-  if on_evs.is_empty() {
-    return;
-  }
   let mut html_ev = ev::HtmlEvent::Submit(ev::events::SubmitEvent {
     base: ev::events::Event {
       event_type: ev::HtmlEventType::from(ev::HtmlEventType::SUBMIT),
@@ -2362,8 +2310,8 @@ fn fire_submit_at(
       cancelable: true,
       composed: true,
       target: Some(form_path.to_vec()),
-      current_target: Some(current_path),
-      event_phase: phase,
+      current_target: None,
+      event_phase: ev::EventPhase::None,
       default_prevented: Cell::new(false),
       propagation_stopped: Cell::new(false),
       immediate_propagation_stopped: Cell::new(false),
@@ -2372,11 +2320,155 @@ fn fire_submit_at(
     },
     submitter: submitter_path.clone(),
   });
-  if tree.emit_event(&mut html_ev).is_stop() {
+
+  // Capture phase: root → target parent
+  for i in 0..depth {
+    let current_path = form_path[..i].to_vec();
+    dispatch_submit_phase(tree, &mut html_ev, form_path, &current_path, ev::EventPhase::CapturingPhase);
+  }
+
+  // Target phase
+  dispatch_submit_phase(tree, &mut html_ev, form_path, form_path, ev::EventPhase::AtTarget);
+
+  // Bubble phase: target parent → root
+  for i in (0..depth).rev() {
+    let current_path = form_path[..i].to_vec();
+    dispatch_submit_phase(tree, &mut html_ev, form_path, &current_path, ev::EventPhase::BubblingPhase);
+  }
+
+  !html_ev.default_prevented()
+}
+
+fn dispatch_submit_phase(
+  tree: &mut Tree,
+  html_ev: &mut ev::HtmlEvent,
+  _form_path: &[usize],
+  current_path: &[usize],
+  phase: ev::EventPhase,
+) {
+  // Set phase and current_target on the shared event
+  match html_ev {
+    ev::HtmlEvent::Submit(se) => {
+      se.base.event_phase = phase;
+      se.base.current_target = Some(current_path.to_vec());
+    }
+    _ => unreachable!(),
+  }
+  let on_evs = tree
+    .root
+    .as_ref()
+    .and_then(|root| root.at_path(current_path))
+    .map(|node| node.on_event.clone())
+    .unwrap_or_default();
+  if on_evs.is_empty() {
+    return;
+  }
+  if tree.emit_event(html_ev).is_stop() {
     return;
   }
   for on_ev in &on_evs {
-    on_ev(&html_ev);
+    on_ev(html_ev);
+  }
+}
+
+/// Perform the full form submission sequence: fire `submit` event,
+/// and if not prevented, collect form data and fire `formdata` event.
+fn submit_form(tree: &mut Tree, form_path: &[usize], submitter_path: Option<Vec<usize>>) {
+  let prevented = bubble_submit_event(tree, form_path, submitter_path);
+  if !prevented {
+    let fields = collect_form_data(tree, form_path);
+    if !fields.is_empty() {
+      let form_data_id = tree.next_form_data_id();
+      tree.pending_form_data.insert(form_data_id, fields);
+      let time_stamp = tree.interaction.time_origin.elapsed().as_secs_f64() * 1000.0;
+      let mut form_data_ev = ev::HtmlEvent::FormData(ev::events::FormDataEvent {
+        base: ev::events::Event {
+          event_type: ev::HtmlEventType::from(ev::HtmlEventType::FORMDATA),
+          bubbles: false,
+          cancelable: false,
+          composed: false,
+          target: Some(form_path.to_vec()),
+          current_target: Some(form_path.to_vec()),
+          event_phase: ev::EventPhase::AtTarget,
+          default_prevented: Cell::new(false),
+          propagation_stopped: Cell::new(false),
+          immediate_propagation_stopped: Cell::new(false),
+          is_trusted: true,
+          time_stamp,
+        },
+        form_data: ev::FormDataId(form_data_id),
+      });
+      tree.emit_event(&mut form_data_ev);
+    }
+  }
+}
+
+/// Walk a form subtree and collect name-value pairs from its
+/// form controls (inputs, textareas, selects — currently inputs
+/// and textareas). Nested `<form>` elements are skipped.
+fn collect_form_data(tree: &Tree, form_path: &[usize]) -> Vec<crate::FormField> {
+  let root = match tree.root.as_ref() {
+    Some(r) => r,
+    None => return vec![],
+  };
+  let form = match root.at_path(form_path) {
+    Some(n) => n,
+    None => return vec![],
+  };
+  let mut fields = Vec::new();
+  collect_form_fields(form, &mut fields);
+  fields
+}
+
+fn collect_form_fields(node: &Node, fields: &mut Vec<crate::FormField>) {
+  match &node.element {
+    Element::Input(inp) => {
+      let name = inp.name.as_deref().unwrap_or("").to_string();
+      if name.is_empty() {
+        return;
+      }
+      let r#type = inp.r#type.as_ref();
+      // Skip no-value types
+      if matches!(r#type, Some(InputType::Submit | InputType::Reset | InputType::Button | InputType::Image)) {
+        return;
+      }
+      // Skip unchecked checkboxes/radios
+      if matches!(r#type, Some(InputType::Checkbox | InputType::Radio)) && !inp.checked.unwrap_or(false) {
+        return;
+      }
+      let value = inp.value.as_deref().unwrap_or("").to_string();
+      fields.push(crate::FormField { name, value });
+    }
+    Element::Textarea(ta) => {
+      let name = ta.name.as_deref().unwrap_or("").to_string();
+      if name.is_empty() {
+        return;
+      }
+      // textarea value is in its text content (children), NOT the value attribute
+      let value = ta.value.as_deref().map(|s| s.to_string()).unwrap_or_else(|| {
+        node
+          .children
+          .iter()
+          .filter_map(|n| {
+            if let Element::Text(s) = &n.element {
+              Some(s.to_string())
+            } else {
+              None
+            }
+          })
+          .collect::<Vec<_>>()
+          .join("")
+      });
+      fields.push(crate::FormField { name, value });
+    }
+    _ => {}
+  }
+  // Recurse into children (but NOT into nested forms)
+  for child in &node.children {
+    if matches!(&child.element, Element::Form(_)) {
+      continue;
+    }
+    collect_form_fields(child, fields);
   }
 }
 
