@@ -44,7 +44,7 @@ use winit::{
 /// a passive helper — call [`handle_event`](Self::handle_event) from
 /// `window_event()` and it does the rest.
 pub struct WinitDriver {
-  pub rt: Runtime<Lui>,
+  pub rt: Runtime<Lui, lui_renderer::Renderer>,
   pub tree: Tree,
 }
 
@@ -52,8 +52,11 @@ impl WinitDriver {
   /// Wire a winit window to a tree.
   pub fn bind(window: Arc<Window>, tree: Tree) -> Self {
     let size = window.inner_size();
+    let renderer = pollster::block_on(
+      lui_renderer::Renderer::new(window.clone(), size.width, size.height),
+    );
     let driver = Lui { window, clipboard: std::cell::RefCell::new(None) };
-    let rt = Runtime::new(driver, size.width, size.height);
+    let rt = Runtime::new(driver, renderer);
     Self { rt, tree }
   }
 
@@ -125,12 +128,6 @@ pub struct Lui {
 }
 
 impl Driver for Lui {
-  type Surface = Window;
-
-  fn surface(&self) -> &Arc<Window> {
-    &self.window
-  }
-
   fn inner_size(&self) -> (u32, u32) {
     let s = self.window.inner_size();
     (s.width, s.height)
@@ -163,7 +160,7 @@ impl Driver for Lui {
 
 // ── Event dispatch (internal) ──────────────────────────────────────────────
 
-fn dispatch(event: &WindowEvent, rt: &mut Runtime<Lui>, tree: &mut Tree) -> bool {
+fn dispatch(event: &WindowEvent, rt: &mut Runtime<Lui, lui_renderer::Renderer>, tree: &mut Tree) -> bool {
   match event {
     WindowEvent::Resized(size) => {
       rt.on_resize(tree, size.width, size.height);

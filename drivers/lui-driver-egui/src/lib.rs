@@ -32,6 +32,7 @@ use lui::{
   renderer::{DisplayList, Rect},
 };
 use lui_driver::{Driver, Runtime};
+use lui_renderer::Renderer;
 use lui_tree::{Modifier, MouseButton, Tree};
 
 // ── Driver ──────────────────────────────────────────────────────────────────
@@ -46,13 +47,7 @@ pub struct EguiHtml<W> {
   scale: f64,
 }
 
-impl<W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static> Driver for EguiHtml<W> {
-  type Surface = W;
-
-  fn surface(&self) -> &Arc<W> {
-    &self.window
-  }
-
+impl<W> Driver for EguiHtml<W> {
   fn inner_size(&self) -> (u32, u32) {
     self.size
   }
@@ -81,7 +76,7 @@ impl<W> EguiHtml<W> {
 /// egui region each frame; it synchronises modifiers, key events, and
 /// pointer state, runs the pipeline, and paints a quad+text preview.
 pub struct EguiRunner<W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static> {
-  rt: Runtime<EguiHtml<W>>,
+  rt: Runtime<EguiHtml<W>, Renderer>,
   primary_down: bool,
   secondary_down: bool,
   middle_down: bool,
@@ -94,13 +89,14 @@ impl<W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static> EguiRunner<W
   /// creation; the viewport is updated each frame from the egui
   /// region passed to [`Self::show`].
   pub fn new(window: Arc<W>, width: u32, height: u32) -> Self {
+    let renderer = pollster::block_on(Renderer::new(window.clone(), width, height));
     let driver = EguiHtml {
       window,
       size: (width, height),
       scale: 1.0,
     };
     Self {
-      rt: Runtime::new(driver, width, height),
+      rt: Runtime::new(driver, renderer),
       primary_down: false,
       secondary_down: false,
       middle_down: false,
@@ -108,11 +104,11 @@ impl<W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static> EguiRunner<W
   }
 
   /// Access the underlying [`Runtime`].
-  pub fn runtime(&self) -> &Runtime<EguiHtml<W>> {
+  pub fn runtime(&self) -> &Runtime<EguiHtml<W>, Renderer> {
     &self.rt
   }
 
-  pub fn runtime_mut(&mut self) -> &mut Runtime<EguiHtml<W>> {
+  pub fn runtime_mut(&mut self) -> &mut Runtime<EguiHtml<W>, Renderer> {
     &mut self.rt
   }
 

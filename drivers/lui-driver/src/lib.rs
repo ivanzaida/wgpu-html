@@ -22,8 +22,6 @@
 //! struct MyDriver { window: Arc<MyWindow> }
 //!
 //! impl Driver for MyDriver {
-//!     type Surface = MyWindow;
-//!     fn surface(&self) -> &Arc<MyWindow> { &self.window }
 //!     fn inner_size(&self) -> (u32, u32) { self.window.size() }
 //!     fn scale_factor(&self) -> f64 { self.window.scale() }
 //!     fn request_redraw(&self) { self.window.request_redraw(); }
@@ -31,20 +29,17 @@
 //! }
 //!
 //! let driver = MyDriver { window: Arc::new(my_window) };
-//! let mut rt = Runtime::new(driver, 800, 600);
+//! let renderer = pollster::block_on(Renderer::new(my_window, 800, 600));
+//! let mut rt = Runtime::new(driver, renderer);
 //! // … in event loop:
 //! rt.on_pointer_move(&mut tree, x, y);
 //! rt.render_frame(&mut tree);
 //! ```
 
-use std::{
-  sync::Arc,
-  time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
-use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use lui::{
-  events as ev, interactivity, layout::{Cursor, LayoutBox}, renderer::{DisplayList, FrameOutcome, RenderBackend, Rect, Renderer, GLYPH_ATLAS_SIZE},
+  events as ev, interactivity, layout::{Cursor, LayoutBox}, renderer::{DisplayList, FrameOutcome, Rect},
   scroll::{
     clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at, translate_display_list_x
     , translate_display_list_y, viewport_to_document,
@@ -54,6 +49,7 @@ use lui::{
   selected_text,
   PipelineCache, PipelineTimings,
 };
+use lui_render_api::RenderBackend;
 use lui_text::TextContext;
 use lui_tree::{MouseButton, Tree};
 
@@ -81,13 +77,6 @@ pub trait SecondaryWindow {
 /// glfw, etc.) and pair it with a [`Runtime`] to get full HTML
 /// rendering, input handling, and scroll management.
 pub trait Driver {
-  /// Platform surface type. Must satisfy wgpu's raw-window-handle
-  /// requirements.
-  type Surface: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static;
-
-  /// The surface that wgpu renders into.
-  fn surface(&self) -> &Arc<Self::Surface>;
-
   /// Current physical (inner) dimensions of the rendering area in
   /// device pixels.  Layout and paint use this directly as the
   /// viewport; CSS `px` values are scaled by [`scale_factor`](Self::scale_factor)
@@ -121,9 +110,9 @@ pub trait Driver {
 /// `Runtime` is the primary type users interact with. Create one per
 /// window, then call the `on_*` methods from your event loop followed
 /// by [`Self::render_frame`] on each redraw.
-pub struct Runtime<D: Driver> {
+pub struct Runtime<D: Driver, B: RenderBackend> {
   pub driver: D,
-  pub renderer: Renderer,
+  pub renderer: B,
   pub text_ctx: TextContext,
   pub image_cache: lui::layout::ImageCache,
   pipeline_cache: PipelineCache,
@@ -365,25 +354,19 @@ impl Default for ProfilingOverlay {
   }
 }
 
-impl<D: Driver> Runtime<D> {
+impl<D: Driver, B: RenderBackend> Runtime<D, B> {
   // ── Construction ────────────────────────────────────────────────────────
 
-  /// Create a new `Runtime` by building a wgpu [`Renderer`] from the
-  /// driver's surface.
+  /// Create a runtime with the given driver and render backend.
   ///
-  /// This blocks on GPU adapter/device acquisition.
-  pub fn new(driver: D, width: u32, height: u32) -> Self {
-    let renderer = pollster::block_on(Renderer::new(driver.surface().clone(), width, height));
-    Self::with_renderer(driver, renderer)
-  }
-
-  /// Wrap an externally-managed [`Renderer`] (e.g. from bevy's
-  /// render world).
-  pub fn with_renderer(driver: D, renderer: Renderer) -> Self {
+  /// The caller is responsible for creating the backend (e.g. wgpu
+  /// `Renderer`, a D3D12 backend, etc.) and passing it in.
+  pub fn new(driver: D, renderer: B) -> Self {
+    let atlas_size = renderer.glyph_atlas_size();
     Self {
       driver,
       renderer,
-      text_ctx: TextContext::new(GLYPH_ATLAS_SIZE),
+      text_ctx: TextContext::new(atlas_size),
       image_cache: lui::layout::ImageCache::default(),
       pipeline_cache: PipelineCache::new(),
       scroll_x: 0.0,

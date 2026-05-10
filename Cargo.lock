@@ -3523,10 +3523,9 @@ name = "lui-driver"
 version = "0.1.0"
 dependencies = [
  "lui",
+ "lui-render-api",
  "lui-text",
  "lui-tree",
- "pollster",
- "wgpu 29.0.1",
 ]
 
 [[package]]
@@ -3550,7 +3549,9 @@ dependencies = [
  "egui",
  "lui",
  "lui-driver",
+ "lui-renderer",
  "lui-tree",
+ "pollster",
  "wgpu 29.0.1",
 ]
 
@@ -3561,7 +3562,9 @@ dependencies = [
  "arboard",
  "lui",
  "lui-driver",
+ "lui-renderer",
  "lui-tree",
+ "pollster",
  "winit",
 ]
 

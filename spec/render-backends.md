@@ -91,13 +91,15 @@ Driver (Runtime<B: RenderBackend>)
 - [ ] Remove `glyph_atlas_texture()` from public API (deferred: no callers remain, can remove anytime)
 - [x] All existing tests/drivers keep working
 
-### Phase 4: Genericize Driver (2-3 days)
+### Phase 4: Genericize Driver (2-3 days) ✓
 
-- [ ] `Runtime<B: RenderBackend>` instead of `Runtime` with concrete `Renderer`
-- [ ] Update winit driver
-- [ ] Update bevy driver
-- [ ] Update egui driver
-- [ ] Ensure `Driver` trait bounds don't leak backend-specific window handle types
+- [x] `Runtime<D, B: RenderBackend>` instead of `Runtime<D>` with concrete `Renderer`
+- [x] Update winit driver — creates `Renderer` directly, passes to `Runtime::new`
+- [x] Update egui driver — same pattern
+- [x] Bevy driver already managed `Renderer` directly, no change needed
+- [x] Remove `Surface` type + `surface()` from `Driver` trait (was wgpu-specific)
+- [x] Remove `wgpu`/`pollster` deps from `lui-driver` (moved to platform crates)
+- [x] `Driver` trait is now fully backend-agnostic
 
 ### Phase 5: Native backends
 
