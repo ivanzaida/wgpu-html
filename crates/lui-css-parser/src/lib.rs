@@ -13,6 +13,7 @@ pub mod shorthand;
 pub mod stylesheet;
 pub mod tokenizer;
 pub mod unit;
+pub mod validate;
 pub mod value;
 
 pub use color::CssColor;
@@ -29,4 +30,5 @@ pub use selector::{parse_selector_list, SelectorList};
 pub use shorthand::{expand as expand_shorthand, distribute_values, longhands_of};
 pub use stylesheet::{parse_stylesheet, AtRule, Declaration, StyleRule, Stylesheet};
 pub use unit::CssUnit;
+pub use validate::{validate_value, Validation};
 pub use value::CssValue;
