@@ -33,6 +33,10 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
             if name == "var" {
                 return parse_var_function(tokens, pos);
             }
+            // url() gets special parsing — elide the function wrapper
+            if name == "url" {
+                return parse_url_function(tokens, pos);
+            }
 
             let function = crate::CssFunction::from_name(name);
 
@@ -51,11 +55,10 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
                     p += 1;
                     break;
                 }
-                if !args.is_empty() {
-                    if tokens[p] != Token::Delim(',') {
-                        return Err(ParseError::new(format!("expected ',' between args, found {:?}", tokens[p]), p));
-                    }
+                // Skip separators: commas (legacy) and slashes (modern alpha separator)
+                if tokens[p] == Token::Delim(',') || tokens[p] == Token::Delim('/') {
                     p += 1;
+                    continue;
                 }
                 let (arg, next) = parse_tokens(tokens, p)?;
                 args.push(arg);
@@ -126,6 +129,33 @@ fn is_named_color(s: &str) -> bool {
         | "tan" | "teal" | "thistle" | "tomato" | "turquoise" | "violet" | "wheat" | "white"
         | "whitesmoke" | "yellow" | "yellowgreen"
     )
+}
+
+fn parse_url_function(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), ParseError> {
+    let mut p = pos + 1; // skip Function token
+    if p >= tokens.len() || tokens[p] != Token::Delim('(') {
+        return Err(ParseError::new("expected '(' after url", p));
+    }
+    p += 1;
+
+    // Consume everything until ')' as the URL string
+    let url_start = p;
+    while p < tokens.len() && tokens[p] != Token::Delim(')') {
+        p += 1;
+    }
+    if p >= tokens.len() {
+        return Err(ParseError::new("expected ')'", p));
+    }
+
+    let url: String = tokens[url_start..p].iter().map(|t| match t {
+        Token::String(s) => s.clone(),
+        Token::Ident(s) => s.clone(),
+        Token::Delim(c) => c.to_string(),
+        _ => String::new(),
+    }).collect::<String>().trim().to_string();
+
+    p += 1; // skip ')'
+    Ok((CssValue::Url(url), p))
 }
 
 fn parse_var_function(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), ParseError> {

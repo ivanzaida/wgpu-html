@@ -59,3 +59,25 @@ fn var_with_nested_var_fallback() {
         }
     );
 }
+
+#[test]
+fn modern_rgb_space_syntax() {
+    assert_eq!(
+        parse_value("rgb(255 0 128)").unwrap(),
+        CssValue::Function {
+            function: CssFunction::Rgb,
+            args: vec![CssValue::Number(255.0), CssValue::Number(0.0), CssValue::Number(128.0)],
+        }
+    );
+}
+
+#[test]
+fn modern_rgb_slash_alpha() {
+    assert_eq!(
+        parse_value("rgb(255 0 128 / 0.5)").unwrap(),
+        CssValue::Function {
+            function: CssFunction::Rgb,
+            args: vec![CssValue::Number(255.0), CssValue::Number(0.0), CssValue::Number(128.0), CssValue::Number(0.5)],
+        }
+    );
+}

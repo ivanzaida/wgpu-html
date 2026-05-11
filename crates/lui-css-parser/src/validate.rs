@@ -95,6 +95,8 @@ pub fn validate_value(property: &CssProperty, value: &CssValue) -> Validation {
         }
 
         CssValue::Var { .. } => Validation::ok(),
+
+        CssValue::Url(_) => Validation::ok(),
     }
 }
 

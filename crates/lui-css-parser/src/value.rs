@@ -20,6 +20,7 @@ pub enum CssValue {
         name: String,
         fallback: Option<Box<CssValue>>,
     },
+    Url(String),
     Unknown(String),
 }
 

@@ -11,6 +11,7 @@ pub mod parser;
 pub mod selector;
 pub mod shorthand;
 pub mod stylesheet;
+pub mod supports;
 pub mod tokenizer;
 pub mod type_keywords;
 pub mod unit;
@@ -29,6 +30,7 @@ pub use media::{parse_media_query_list, MediaCondition, MediaFeature, MediaModif
 pub use parser::{parse_declaration, parse_value};
 pub use selector::{parse_selector_list, SelectorList};
 pub use shorthand::{expand as expand_shorthand, distribute_values, longhands_of};
+pub use supports::{parse_supports_condition, SupportsCondition, SupportsFeature};
 pub use stylesheet::{parse_stylesheet, AtRule, Declaration, StyleRule, Stylesheet};
 pub use unit::CssUnit;
 pub use validate::{validate_value, Validation};

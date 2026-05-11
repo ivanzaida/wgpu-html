@@ -4,6 +4,7 @@ use crate::error::ParseError;
 use crate::media::{MediaQueryList, parse_media_query_list};
 use crate::parser::parse_declaration;
 use crate::selector::{SelectorList, parse_selector_list};
+use crate::supports::{SupportsCondition, parse_supports_condition};
 use crate::value::CssValue;
 
 /// One parsed CSS rule: a selector list with its declarations and computed specificity.
@@ -28,6 +29,7 @@ pub struct AtRule {
     pub at_rule: CssAtRule,
     pub prelude: String,
     pub media: Option<MediaQueryList>,
+    pub supports: Option<SupportsCondition>,
     pub rules: Vec<StyleRule>,
     pub at_rules: Vec<AtRule>,
 }
@@ -103,11 +105,17 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
                 } else {
                     None
                 };
+                let supports = if &*name == "@supports" {
+                    parse_supports_condition(&prelude_str).ok()
+                } else {
+                    None
+                };
 
                 at_rules.push(AtRule {
                     at_rule: CssAtRule::from_name(&name),
                     prelude: prelude_str,
                     media,
+                    supports,
                     rules: inner.rules,
                     at_rules: inner.at_rules,
                 });
@@ -118,6 +126,7 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
                     at_rule: CssAtRule::from_name(&name),
                     prelude: prelude.trim().to_string(),
                     media: None,
+                    supports: None,
                     rules: vec![],
                     at_rules: vec![],
                 });
