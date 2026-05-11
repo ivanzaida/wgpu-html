@@ -1,10 +1,11 @@
 use lui_css_parser::{validate_value, CssColor, CssProperty, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn color_value_is_invalid_for_display_property() {
     let result = validate_value(
         &CssProperty::Display,
-        &CssValue::Color(CssColor::Named("red".into())),
+        &CssValue::Color(CssColor::Named(ArcStr::from("red"))),
     );
     assert_eq!(result.valid, false);
     assert!(result.warning.is_some());

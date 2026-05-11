@@ -1,3 +1,5 @@
+use crate::ArcStr;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CssColor {
     Rgb(u8, u8, u8),
@@ -6,6 +8,6 @@ pub enum CssColor {
     Hsla(u16, u8, u8, u8),
     Hwb(u16, u8, u8),
     Hwba(u16, u8, u8, u8),
-    Hex(String),
-    Named(String),
+    Hex(ArcStr),
+    Named(ArcStr),
 }

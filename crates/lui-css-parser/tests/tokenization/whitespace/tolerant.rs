@@ -1,4 +1,5 @@
 use lui_css_parser::tokenizer::{tokenize, Token};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn tokenizer_ignores_leading_and_interleaved_whitespace() {

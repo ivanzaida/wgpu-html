@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_value, CssFunction, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn unknown_function_produces_unknown_variant() {

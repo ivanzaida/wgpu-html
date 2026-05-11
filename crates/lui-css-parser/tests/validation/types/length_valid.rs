@@ -1,4 +1,5 @@
 use lui_css_parser::{validate_value, CssProperty, CssUnit, CssValue, Validation};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn dimension_in_px_is_valid_for_font_size() {

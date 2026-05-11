@@ -1,4 +1,5 @@
 use lui_css_parser::tokenizer::{tokenize, Token};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn tokenizes_nested_function_calls_with_quoted_strings() {

@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_value, CssFunction, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_rgb_as_function() {
@@ -27,9 +28,9 @@ fn parses_var_with_fallback() {
     assert_eq!(
         parse_value("var(--color, red)").unwrap(),
         CssValue::Var {
-            name: "--color".into(),
+            name: ArcStr::from("--color"),
             fallback: Some(Box::new(CssValue::Color(
-                lui_css_parser::CssColor::Named("red".into())
+                lui_css_parser::CssColor::Named(ArcStr::from("red"))
             ))),
         }
     );
@@ -40,7 +41,7 @@ fn parses_var_without_fallback() {
     assert_eq!(
         parse_value("var(--color)").unwrap(),
         CssValue::Var {
-            name: "--color".into(),
+            name: ArcStr::from("--color"),
             fallback: None,
         }
     );
@@ -51,9 +52,9 @@ fn var_with_nested_var_fallback() {
     assert_eq!(
         parse_value("var(--a, var(--b))").unwrap(),
         CssValue::Var {
-            name: "--a".into(),
+            name: ArcStr::from("--a"),
             fallback: Some(Box::new(CssValue::Var {
-                name: "--b".into(),
+                name: ArcStr::from("--b"),
                 fallback: None,
             })),
         }

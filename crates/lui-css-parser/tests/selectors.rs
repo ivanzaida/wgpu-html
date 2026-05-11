@@ -1,3 +1,4 @@
+use lui_css_parser::ArcStr;
 #[path = "selectors/compound/mod.rs"]
 mod compound;
 #[path = "selectors/complex/mod.rs"]

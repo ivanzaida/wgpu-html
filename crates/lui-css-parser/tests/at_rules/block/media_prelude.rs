@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_media_with_simple_feature_prelude() {

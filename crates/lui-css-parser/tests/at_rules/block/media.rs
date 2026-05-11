@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule, CssColor, CssProperty, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_media_with_single_nested_rule() {
@@ -18,7 +19,7 @@ fn parses_media_with_single_nested_rule() {
     let nested = &at.rules[0];
     let decl = &nested.declarations[0];
     assert_eq!(decl.property, CssProperty::Color);
-    assert_eq!(decl.value, CssValue::Color(CssColor::Named("red".into())));
+    assert_eq!(decl.value, CssValue::Color(CssColor::Named(ArcStr::from("red"))));
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_media_query_list, MediaCondition};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_media_type_with_and_feature() {

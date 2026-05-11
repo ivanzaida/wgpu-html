@@ -1,4 +1,5 @@
 use lui_css_parser::CssProperty;
+use lui_css_parser::ArcStr;
 
 #[test]
 fn resolves_background_color_from_name() {

@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_declaration, validate_value, Validation};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parse_and_validate_valid_color_declaration() {

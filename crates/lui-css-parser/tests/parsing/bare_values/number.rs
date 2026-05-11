@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_value, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_bare_number_value() {

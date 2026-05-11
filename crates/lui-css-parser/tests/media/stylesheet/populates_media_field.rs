@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule, MediaCondition};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn populates_atrule_media_field_when_parsing_media_rule() {

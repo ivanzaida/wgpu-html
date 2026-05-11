@@ -1,4 +1,5 @@
 use lui_css_parser::parse_media_query_list;
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_comma_separated_queries_into_two_separate_queries() {

@@ -1,4 +1,5 @@
 use lui_css_parser::tokenizer::{tokenize, Token};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn resolves_escaped_quotes_inside_double_quoted_string() {

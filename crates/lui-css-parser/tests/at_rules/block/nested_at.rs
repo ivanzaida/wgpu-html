@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule, CssProperty, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_media_containing_supports() {
@@ -28,7 +29,7 @@ fn parses_media_containing_supports() {
     let nested_rule = &supports.rules[0];
     let decl = &nested_rule.declarations[0];
     assert_eq!(decl.property, CssProperty::Display);
-    assert_eq!(decl.value, CssValue::String("flex".into()));
+    assert_eq!(decl.value, CssValue::String(ArcStr::from("flex")));
 }
 
 #[test]

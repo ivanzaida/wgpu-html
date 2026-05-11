@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule, CssUnit, CssValue, MediaCondition};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn populates_media_field_for_max_width_feature_with_nested_rule() {

@@ -1,3 +1,4 @@
+use crate::ArcStr;
 use crate::color::CssColor;
 use crate::css_property::CssProperty;
 use crate::error::ParseError;
@@ -76,13 +77,13 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
             Ok((CssValue::Dimension { value: *value, unit: unit.clone() }, pos + 1))
         }
 
-        Token::String(s) => Ok((CssValue::String(s.clone()), pos + 1)),
+        Token::String(s) => Ok((CssValue::String(s.clone().into()), pos + 1)),
 
         Token::Ident(s) => {
             if let Some(color) = parse_color(s) {
                 Ok((CssValue::Color(color), pos + 1))
             } else {
-                Ok((CssValue::String(s.clone()), pos + 1))
+                Ok((CssValue::String(s.clone().into()), pos + 1))
             }
         }
 
@@ -92,10 +93,10 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
 
 fn parse_color(s: &str) -> Option<CssColor> {
     if s.starts_with('#') {
-        return Some(CssColor::Hex(s.to_string()));
+        return Some(CssColor::Hex(s.into()));
     }
     if is_named_color(s) {
-        return Some(CssColor::Named(s.to_string()));
+        return Some(CssColor::Named(s.into()));
     }
     None
 }
@@ -147,12 +148,12 @@ fn parse_url_function(tokens: &[Token], pos: usize) -> Result<(CssValue, usize),
         return Err(ParseError::new("expected ')'", p));
     }
 
-    let url: String = tokens[url_start..p].iter().map(|t| match t {
+    let url: ArcStr = tokens[url_start..p].iter().map(|t| match t {
         Token::String(s) => s.clone(),
         Token::Ident(s) => s.clone(),
         Token::Delim(c) => c.to_string(),
         _ => String::new(),
-    }).collect::<String>().trim().to_string();
+    }).collect::<String>().trim().into();
 
     p += 1; // skip ')'
     Ok((CssValue::Url(url), p))
@@ -175,7 +176,7 @@ fn parse_var_function(tokens: &[Token], pos: usize) -> Result<(CssValue, usize),
                 return Err(ParseError::new(format!("var() expects a custom property starting with --, got {s}"), p));
             }
             p += 1;
-            s.clone()
+            s.clone().into()
         }
         _ => return Err(ParseError::new("expected custom property name", p)),
     };

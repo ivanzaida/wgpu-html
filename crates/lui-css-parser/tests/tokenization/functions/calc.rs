@@ -1,4 +1,5 @@
 use lui_css_parser::tokenizer::{tokenize, Token};
+use lui_css_parser::ArcStr;
 use lui_css_parser::CssUnit;
 
 #[test]

@@ -1,4 +1,5 @@
 use lui_css_parser::CssType;
+use lui_css_parser::ArcStr;
 
 #[test]
 fn resolves_color_type_from_string_name() {

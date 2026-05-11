@@ -1,10 +1,11 @@
 use lui_css_parser::{validate_value, CssProperty, CssValue, Validation};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn grid_lanes_is_valid_keyword_for_display() {
     let result = validate_value(
         &CssProperty::Display,
-        &CssValue::String("grid-lanes".into()),
+        &CssValue::String(ArcStr::from("grid-lanes")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }
@@ -13,7 +14,7 @@ fn grid_lanes_is_valid_keyword_for_display() {
 fn inline_grid_lanes_is_valid_keyword_for_display() {
     let result = validate_value(
         &CssProperty::Display,
-        &CssValue::String("inline-grid-lanes".into()),
+        &CssValue::String(ArcStr::from("inline-grid-lanes")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }
@@ -22,7 +23,7 @@ fn inline_grid_lanes_is_valid_keyword_for_display() {
 fn math_is_valid_keyword_for_display() {
     let result = validate_value(
         &CssProperty::Display,
-        &CssValue::String("math".into()),
+        &CssValue::String(ArcStr::from("math")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }

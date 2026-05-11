@@ -1,4 +1,5 @@
 use lui_css_parser::tokenizer::{tokenize, Token};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn tokenizes_bare_function_with_number_arg() {

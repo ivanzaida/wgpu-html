@@ -1,4 +1,5 @@
 use lui_css_parser::tokenizer::{tokenize, Token};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn tokenizes_empty_quoted_string() {

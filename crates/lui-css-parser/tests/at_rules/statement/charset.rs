@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_charset_with_utf8_string() {

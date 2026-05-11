@@ -1,3 +1,4 @@
+use lui_css_parser::ArcStr;
 #[path = "parsing/functions/mod.rs"]
 mod functions;
 #[path = "parsing/bare_values/mod.rs"]

@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_media_query_list, MediaModifier};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_not_modifier_with_media_type() {

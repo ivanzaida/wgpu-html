@@ -1,3 +1,8 @@
+use std::sync::Arc;
+
+/// Cheaply-cloneable string — `Arc<str>`.
+pub type ArcStr = Arc<str>;
+
 pub mod color;
 pub mod combinator;
 pub mod css_at_rule;

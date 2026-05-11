@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_media_query_list, MediaCondition};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_single_feature_as_one_query_with_one_condition() {

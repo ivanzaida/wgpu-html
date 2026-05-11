@@ -1,3 +1,4 @@
+use lui_css_parser::ArcStr;
 #[path = "tokenization/functions/mod.rs"]
 mod functions;
 #[path = "tokenization/numbers/mod.rs"]

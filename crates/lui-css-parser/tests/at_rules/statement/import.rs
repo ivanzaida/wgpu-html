@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_stylesheet, CssAtRule};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_import_with_url_function_and_trailing_semicolon() {

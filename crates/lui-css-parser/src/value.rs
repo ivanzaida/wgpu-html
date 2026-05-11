@@ -1,3 +1,4 @@
+use crate::ArcStr;
 use crate::color::CssColor;
 use crate::css_function::CssFunction;
 use crate::unit::CssUnit;
@@ -10,18 +11,18 @@ pub enum CssValue {
         value: f64,
         unit: CssUnit,
     },
-    String(String),
+    String(ArcStr),
     Color(CssColor),
     Function {
         function: CssFunction,
         args: Vec<CssValue>,
     },
     Var {
-        name: String,
+        name: ArcStr,
         fallback: Option<Box<CssValue>>,
     },
-    Url(String),
-    Unknown(String),
+    Url(ArcStr),
+    Unknown(ArcStr),
 }
 
 impl CssValue {

@@ -1,4 +1,5 @@
 use lui_css_parser::{validate_value, CssFunction, CssProperty, CssValue, Validation};
+use lui_css_parser::ArcStr;
 
 /// Width syntax contains `calc-size()` which has "calc" as a substring,
 /// so the `calc` function name is matched by `syntax.contains(&name)`.

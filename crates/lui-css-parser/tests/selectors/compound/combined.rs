@@ -1,5 +1,6 @@
 use lui_css_parser::selector::*;
 use lui_css_parser::CssPseudo;
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_combined_tag_class_id_pseudo_in_one_compound() {

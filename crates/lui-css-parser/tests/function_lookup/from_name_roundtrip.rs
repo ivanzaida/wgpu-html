@@ -1,4 +1,5 @@
 use lui_css_parser::CssFunction;
+use lui_css_parser::ArcStr;
 
 #[test]
 fn resolves_acos_from_string_name() {

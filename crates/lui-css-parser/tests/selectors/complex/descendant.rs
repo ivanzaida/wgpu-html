@@ -1,5 +1,6 @@
 use lui_css_parser::selector::*;
 use lui_css_parser::CssCombinator;
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_descendant_combinator_with_space() {

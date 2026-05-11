@@ -1,4 +1,5 @@
 use lui_css_parser::{parse_declaration, CssProperty, CssUnit, CssValue};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn parses_valid_property_with_dimension_value() {

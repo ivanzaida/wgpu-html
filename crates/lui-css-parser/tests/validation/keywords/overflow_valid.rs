@@ -1,10 +1,11 @@
 use lui_css_parser::{validate_value, CssProperty, CssValue, Validation};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn visible_is_valid_keyword_for_overflow_x() {
     let result = validate_value(
         &CssProperty::OverflowX,
-        &CssValue::String("visible".into()),
+        &CssValue::String(ArcStr::from("visible")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }
@@ -13,7 +14,7 @@ fn visible_is_valid_keyword_for_overflow_x() {
 fn hidden_is_valid_keyword_for_overflow_x() {
     let result = validate_value(
         &CssProperty::OverflowX,
-        &CssValue::String("hidden".into()),
+        &CssValue::String(ArcStr::from("hidden")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }
@@ -22,7 +23,7 @@ fn hidden_is_valid_keyword_for_overflow_x() {
 fn scroll_is_valid_keyword_for_overflow_x() {
     let result = validate_value(
         &CssProperty::OverflowX,
-        &CssValue::String("scroll".into()),
+        &CssValue::String(ArcStr::from("scroll")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }
@@ -31,7 +32,7 @@ fn scroll_is_valid_keyword_for_overflow_x() {
 fn auto_is_valid_keyword_for_overflow_x() {
     let result = validate_value(
         &CssProperty::OverflowX,
-        &CssValue::String("auto".into()),
+        &CssValue::String(ArcStr::from("auto")),
     );
     assert_eq!(result, Validation { valid: true, warning: None });
 }

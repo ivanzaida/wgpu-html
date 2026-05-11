@@ -1,4 +1,5 @@
 use lui_css_parser::{validate_value, CssProperty, CssValue, Validation};
+use lui_css_parser::ArcStr;
 
 #[test]
 fn percentage_is_valid_for_font_stretch() {
