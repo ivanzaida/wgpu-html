@@ -1,0 +1,31 @@
+use lui_css::{parse_stylesheet, CssProperty, CssValue};
+
+#[test]
+fn parses_simple_rule() {
+    let sheet = parse_stylesheet("h1 { color: red; }").unwrap();
+    assert_eq!(sheet.rules.len(), 1);
+    let rule = &sheet.rules[0];
+    let decl = &rule.declarations[0];
+    assert_eq!(decl.property, CssProperty::Color);
+    assert_eq!(decl.value, CssValue::String("red".into()));
+    assert!(!decl.important);
+}
+
+#[test]
+fn parses_multiple_rules() {
+    let sheet = parse_stylesheet("h1 { color: red; } p { font-size: 14px; }").unwrap();
+    assert_eq!(sheet.rules.len(), 2);
+}
+
+#[test]
+fn parses_important() {
+    let sheet = parse_stylesheet("h1 { color: red !important; }").unwrap();
+    assert!(sheet.rules[0].declarations[0].important);
+}
+
+#[test]
+fn parses_complex_selector_rule() {
+    let sheet = parse_stylesheet("div.foo > span { display: none; }").unwrap();
+    assert_eq!(sheet.rules.len(), 1);
+    assert_eq!(sheet.rules[0].specificity, (0, 1, 2)); // 1 class, 2 tags
+}

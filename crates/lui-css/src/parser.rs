@@ -1,18 +1,7 @@
 use crate::css_property::CssProperty;
+use crate::error::ParseError;
 use crate::tokenizer::{tokenize, Token};
 use crate::value::CssValue;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParseError {
-    pub message: String,
-    pub position: usize,
-}
-
-impl ParseError {
-    pub fn new(msg: impl Into<String>, pos: usize) -> Self {
-        ParseError { message: msg.into(), position: pos }
-    }
-}
 
 /// Parse a full CSS declaration `property: value`. Unknown properties and functions are
 /// represented as their respective `Unknown(_)` variants, never as errors.

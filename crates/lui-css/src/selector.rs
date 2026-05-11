@@ -1,5 +1,6 @@
 use crate::CssCombinator;
 use crate::CssPseudo;
+use crate::error::ParseError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SelectorList(pub Vec<ComplexSelector>);
@@ -41,12 +42,6 @@ pub enum AttrOp {
 pub struct PseudoSelector {
     pub pseudo: CssPseudo,
     pub arg: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParseError {
-    pub message: String,
-    pub position: usize,
 }
 
 pub fn parse_selector_list(input: &str) -> Result<SelectorList, ParseError> {
