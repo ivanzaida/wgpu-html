@@ -1,4 +1,4 @@
-use lui_css::{parse_stylesheet, CssColor, CssProperty, CssValue, NamedColor};
+use lui_css::{parse_stylesheet, CssColor, CssProperty, CssValue};
 
 #[test]
 fn parses_simple_rule() {
@@ -7,7 +7,7 @@ fn parses_simple_rule() {
     let rule = &sheet.rules[0];
     let decl = &rule.declarations[0];
     assert_eq!(decl.property, CssProperty::Color);
-    assert_eq!(decl.value, CssValue::Color(CssColor::Named(NamedColor::Red)));
+    assert_eq!(decl.value, CssValue::Color(CssColor::Named("red".into())));
     assert!(!decl.important);
 }
 

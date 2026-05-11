@@ -14,7 +14,7 @@ pub mod tokenizer;
 pub mod unit;
 pub mod value;
 
-pub use color::{CssColor, NamedColor};
+pub use color::CssColor;
 pub use combinator::CssCombinator;
 pub use css_at_rule::{AtRuleKind, CssAtRule};
 pub use css_function::CssFunction;

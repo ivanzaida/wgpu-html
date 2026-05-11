@@ -1,4 +1,4 @@
-use crate::color::{CssColor, NamedColor};
+use crate::color::CssColor;
 use crate::css_property::CssProperty;
 use crate::error::ParseError;
 use crate::tokenizer::{tokenize, Token};
@@ -83,41 +83,43 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
 }
 
 fn parse_color(s: &str) -> Option<CssColor> {
-    if let Some(hex) = parse_hex_color(s) { return Some(hex); }
-    NamedColor::from_name(s).map(CssColor::Named)
+    if s.starts_with('#') {
+        return Some(CssColor::Hex(s.to_string()));
+    }
+    if is_named_color(s) {
+        return Some(CssColor::Named(s.to_string()));
+    }
+    None
 }
 
-fn parse_hex_color(s: &str) -> Option<CssColor> {
-    let s = s.strip_prefix('#')?;
-    if s.chars().any(|c| !c.is_ascii_hexdigit()) { return None; }
-    match s.len() {
-        3 => {
-            let r = u8::from_str_radix(&s[0..1], 16).ok()? * 17;
-            let g = u8::from_str_radix(&s[1..2], 16).ok()? * 17;
-            let b = u8::from_str_radix(&s[2..3], 16).ok()? * 17;
-            Some(CssColor::Hex { r, g, b, a: None })
-        }
-        4 => {
-            let r = u8::from_str_radix(&s[0..1], 16).ok()? * 17;
-            let g = u8::from_str_radix(&s[1..2], 16).ok()? * 17;
-            let b = u8::from_str_radix(&s[2..3], 16).ok()? * 17;
-            let a = u8::from_str_radix(&s[3..4], 16).ok()? * 17;
-            Some(CssColor::Hex { r, g, b, a: Some(a) })
-        }
-        6 => {
-            let r = u8::from_str_radix(&s[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&s[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&s[4..6], 16).ok()?;
-            Some(CssColor::Hex { r, g, b, a: None })
-        }
-        8 => {
-            let r = u8::from_str_radix(&s[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&s[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&s[4..6], 16).ok()?;
-            let a = u8::from_str_radix(&s[6..8], 16).ok()?;
-            Some(CssColor::Hex { r, g, b, a: Some(a) })
-        }
-        _ => None,
-    }
+fn is_named_color(s: &str) -> bool {
+    matches!(s.to_lowercase().as_str(),
+        "transparent" | "currentcolor" | "aliceblue" | "antiquewhite" | "aqua" | "aquamarine"
+        | "azure" | "beige" | "bisque" | "black" | "blanchedalmond" | "blue" | "blueviolet"
+        | "brown" | "burlywood" | "cadetblue" | "chartreuse" | "chocolate" | "coral"
+        | "cornflowerblue" | "cornsilk" | "crimson" | "cyan" | "darkblue" | "darkcyan"
+        | "darkgoldenrod" | "darkgray" | "darkgreen" | "darkgrey" | "darkkhaki" | "darkmagenta"
+        | "darkolivegreen" | "darkorange" | "darkorchid" | "darkred" | "darksalmon"
+        | "darkseagreen" | "darkslateblue" | "darkslategray" | "darkslategrey" | "darkturquoise"
+        | "darkviolet" | "deeppink" | "deepskyblue" | "dimgray" | "dimgrey" | "dodgerblue"
+        | "firebrick" | "floralwhite" | "forestgreen" | "fuchsia" | "gainsboro" | "ghostwhite"
+        | "gold" | "goldenrod" | "gray" | "green" | "greenyellow" | "grey" | "honeydew"
+        | "hotpink" | "indianred" | "indigo" | "ivory" | "khaki" | "lavender" | "lavenderblush"
+        | "lawngreen" | "lemonchiffon" | "lightblue" | "lightcoral" | "lightcyan"
+        | "lightgoldenrodyellow" | "lightgray" | "lightgreen" | "lightgrey" | "lightpink"
+        | "lightsalmon" | "lightseagreen" | "lightskyblue" | "lightslategray" | "lightslategrey"
+        | "lightsteelblue" | "lightyellow" | "lime" | "limegreen" | "linen" | "magenta"
+        | "maroon" | "mediumaquamarine" | "mediumblue" | "mediumorchid" | "mediumpurple"
+        | "mediumseagreen" | "mediumslateblue" | "mediumspringgreen" | "mediumturquoise"
+        | "mediumvioletred" | "midnightblue" | "mintcream" | "mistyrose" | "moccasin"
+        | "navajowhite" | "navy" | "oldlace" | "olive" | "olivedrab" | "orange" | "orangered"
+        | "orchid" | "palegoldenrod" | "palegreen" | "paleturquoise" | "palevioletred"
+        | "papayawhip" | "peachpuff" | "peru" | "pink" | "plum" | "powderblue" | "purple"
+        | "rebeccapurple" | "red" | "rosybrown" | "royalblue" | "saddlebrown" | "salmon"
+        | "sandybrown" | "seagreen" | "seashell" | "sienna" | "silver" | "skyblue"
+        | "slateblue" | "slategray" | "slategrey" | "snow" | "springgreen" | "steelblue"
+        | "tan" | "teal" | "thistle" | "tomato" | "turquoise" | "violet" | "wheat" | "white"
+        | "whitesmoke" | "yellow" | "yellowgreen"
+    )
 }
 

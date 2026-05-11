@@ -1,4 +1,4 @@
-use lui_css::{parse_stylesheet, CssAtRule, CssColor, CssProperty, CssValue, NamedColor};
+use lui_css::{parse_stylesheet, CssAtRule, CssColor, CssProperty, CssValue};
 
 #[test]
 fn parses_style_rule_before_at_rule() {
@@ -12,7 +12,7 @@ fn parses_style_rule_before_at_rule() {
     let rule = &sheet.rules[0];
     let decl = &rule.declarations[0];
     assert_eq!(decl.property, CssProperty::Color);
-    assert_eq!(decl.value, CssValue::Color(CssColor::Named(NamedColor::Red)));
+    assert_eq!(decl.value, CssValue::Color(CssColor::Named("red".into())));
 
     let at = &sheet.at_rules[0];
     assert_eq!(at.at_rule, CssAtRule::Media);
