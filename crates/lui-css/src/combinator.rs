@@ -1,4 +1,4 @@
-/// CSS selector combinators and the nesting selector.
+/// CSS selector combinators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CssCombinator {
     /// ` ` — descendant combinator
@@ -11,8 +11,6 @@ pub enum CssCombinator {
     SubsequentSibling,
     /// `||` — column combinator
     Column,
-    /// `&` — nesting selector (refers to the parent rule's selector)
-    Nesting,
 }
 
 impl CssCombinator {
@@ -23,7 +21,6 @@ impl CssCombinator {
             CssCombinator::NextSibling => "+",
             CssCombinator::SubsequentSibling => "~",
             CssCombinator::Column => "||",
-            CssCombinator::Nesting => "&",
         }
     }
 
