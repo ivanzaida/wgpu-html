@@ -3471,11 +3471,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "lui-css"
+name = "lui-css-old"
 version = "0.1.0"
 
 [[package]]
-name = "lui-css-old"
+name = "lui-css-parser"
 version = "0.1.0"
 
 [[package]]

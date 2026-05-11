@@ -1,7 +1,0 @@
-[package]
-name = "lui-css"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-# No external dependencies — all CSS type data is baked in at compile time.
