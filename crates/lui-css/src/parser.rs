@@ -17,7 +17,7 @@ impl ParseError {
 /// Parse a full CSS declaration `property: value`. Unknown properties and functions are
 /// represented as their respective `Unknown(_)` variants, never as errors.
 pub fn parse_declaration(property: &str, value: &str) -> Result<(CssProperty, CssValue), ParseError> {
-    let prop = CssProperty::from_name_or_unknown(property);
+    let prop = CssProperty::from_name(property);
     let val = parse_value(value)?;
     Ok((prop, val))
 }
@@ -39,7 +39,7 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
 
     match &tokens[pos] {
         Token::Function(name) => {
-            let function = crate::CssFunction::from_name_or_unknown(name);
+            let function = crate::CssFunction::from_name(name);
 
             let mut p = pos + 1;
             if p >= tokens.len() || tokens[p] != Token::Delim('(') {

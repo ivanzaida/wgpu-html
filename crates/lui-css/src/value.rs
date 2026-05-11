@@ -18,7 +18,7 @@ pub enum CssValue {
 }
 
 impl CssValue {
-    pub fn function(name: &str, args: Vec<CssValue>) -> Option<Self> {
-        CssFunction::from_name(name).map(|f| CssValue::Function { function: f, args })
+    pub fn function(name: &str, args: Vec<CssValue>) -> Self {
+        CssValue::Function { function: CssFunction::from_name(name), args }
     }
 }

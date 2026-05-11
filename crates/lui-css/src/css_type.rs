@@ -2163,7 +2163,7 @@ pub enum CssType {
 }
 
 impl CssType {
-    pub fn name(self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             CssType::OpenParenToken => "(-token",
             CssType::CloseParenToken => ")-token",
@@ -2691,7 +2691,7 @@ impl CssType {
 }
     }
 
-    pub fn from_name(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Self {
         const ENTRIES: &[(&str, CssType)] = &[
             ("(-token", CssType::OpenParenToken),
             (")-token", CssType::CloseParenToken),
@@ -3217,12 +3217,7 @@ impl CssType {
             ("zero", CssType::Zero),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
-            Ok(i) => Some(ENTRIES[i].1.clone()),
-            Err(_) => None,
+            Ok(i) => ENTRIES[i].1.clone(),
+            Err(_) => CssType::Unknown(name.to_string()),
         }
-    }
-
-    pub fn from_name_or_unknown(name: &str) -> Self {
-        Self::from_name(name).unwrap_or_else(|| CssType::Unknown(name.to_string()))
-    }
-}
+    }}

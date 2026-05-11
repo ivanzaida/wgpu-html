@@ -4396,7 +4396,7 @@ pub enum CssProperty {
 }
 
 impl CssProperty {
-    pub fn name(self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             CssProperty::WebkitAlignContent => "-webkit-align-content",
             CssProperty::WebkitAlignItems => "-webkit-align-items",
@@ -5215,7 +5215,7 @@ impl CssProperty {
 }
     }
 
-    pub fn from_name(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Self {
         const ENTRIES: &[(&str, CssProperty)] = &[
             ("-webkit-align-content", CssProperty::WebkitAlignContent),
             ("-webkit-align-items", CssProperty::WebkitAlignItems),
@@ -6032,16 +6032,10 @@ impl CssProperty {
             ("zoom", CssProperty::Zoom),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
-            Ok(i) => Some(ENTRIES[i].1.clone()),
-            Err(_) => None,
+            Ok(i) => ENTRIES[i].1.clone(),
+            Err(_) => CssProperty::Unknown(name.to_string()),
         }
-    }
-
-    pub fn from_name_or_unknown(name: &str) -> Self {
-        Self::from_name(name).unwrap_or_else(|| CssProperty::Unknown(name.to_string()))
-    }
-
-    pub fn syntax(self) -> &'static str {
+    }pub fn syntax(self) -> &'static str {
         match self {
             CssProperty::WebkitAlignContent => "normal | <baseline-position> | <content-distribution> | <overflow-position>? <content-position>",
             CssProperty::WebkitAlignItems => "normal | stretch | <baseline-position> | <overflow-position>? <self-position>",

@@ -740,7 +740,7 @@ pub enum CssFunction {
 }
 
 impl CssFunction {
-    pub fn name(self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             CssFunction::WebkitImageSet => "-webkit-image-set",
             CssFunction::Abs => "abs",
@@ -908,7 +908,7 @@ impl CssFunction {
 }
     }
 
-    pub fn from_name(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Self {
         const ENTRIES: &[(&str, CssFunction)] = &[
             ("-webkit-image-set", CssFunction::WebkitImageSet),
             ("abs", CssFunction::Abs),
@@ -1074,12 +1074,7 @@ impl CssFunction {
             ("xywh", CssFunction::Xywh),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
-            Ok(i) => Some(ENTRIES[i].1.clone()),
-            Err(_) => None,
+            Ok(i) => ENTRIES[i].1.clone(),
+            Err(_) => CssFunction::Unknown(name.to_string()),
         }
-    }
-
-    pub fn from_name_or_unknown(name: &str) -> Self {
-        Self::from_name(name).unwrap_or_else(|| CssFunction::Unknown(name.to_string()))
-    }
-}
+    }}

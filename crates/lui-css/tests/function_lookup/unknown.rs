@@ -1,6 +1,9 @@
 use lui_css::CssFunction;
 
 #[test]
-fn returns_none_for_unknown_function_name() {
-    assert_eq!(CssFunction::from_name("nonexistent"), None);
+fn unknown_function_returns_unknown_variant() {
+    assert_eq!(
+        CssFunction::from_name("nonexistent"),
+        CssFunction::Unknown("nonexistent".into())
+    );
 }

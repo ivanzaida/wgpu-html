@@ -2,24 +2,26 @@ use lui_css::CssProperty;
 
 #[test]
 fn resolves_background_color_from_name() {
-    assert_eq!(CssProperty::from_name("background-color"), Some(CssProperty::BackgroundColor));
+    assert_eq!(CssProperty::from_name("background-color"), CssProperty::BackgroundColor);
 }
 
 #[test]
 fn resolves_border_radius_from_name() {
-    assert_eq!(CssProperty::from_name("border-radius"), Some(CssProperty::BorderRadius));
+    assert_eq!(CssProperty::from_name("border-radius"), CssProperty::BorderRadius);
 }
 
 #[test]
 fn name_roundtrips_through_from_name() {
     let p = CssProperty::Display;
-    let name = p.clone().name().to_string();
-    assert_eq!(CssProperty::from_name(&name), Some(p));
+    assert_eq!(CssProperty::from_name(p.name()), p);
 }
 
 #[test]
-fn returns_none_for_unknown_property() {
-    assert_eq!(CssProperty::from_name("not-a-real-property"), None);
+fn unknown_property_returns_unknown_variant() {
+    assert_eq!(
+        CssProperty::from_name("not-a-real-property"),
+        CssProperty::Unknown("not-a-real-property".into())
+    );
 }
 
 #[test]
