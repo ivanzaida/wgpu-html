@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/lui",
     "crates/lui-css",
+    "crates/lui-css-old",
     "crates/lui-devtools",
     "crates/lui-display-list",
     "crates/lui-events",
@@ -28,6 +29,7 @@ members = [
 [workspace.dependencies]
 lui = { path = "crates/lui" }
 lui-css = { path = "crates/lui-css" }
+lui-css-old = { path = "crates/lui-css-old" }
 lui-devtools = { path = "crates/lui-devtools" }
 lui-events = { path = "crates/lui-events" }
 lui-layout = { path = "crates/lui-layout" }

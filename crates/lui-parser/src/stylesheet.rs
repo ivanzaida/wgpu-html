@@ -1,13 +1,13 @@
 //! CSS stylesheet parsing — selectors + rules.
 //!
 //! Structural parsing (tokenization, rule extraction, at-rule dispatch,
-//! comment stripping, brace matching) is delegated to [`lui_css::CssParser`].
-//! This module converts the generic `lui_css` AST into the engine's typed
+//! comment stripping, brace matching) is delegated to [`lui_css_old::CssParser`].
+//! This module converts the generic `lui_css_old` AST into the engine's typed
 //! [`Rule`] format that the cascade in `lui-style` expects.
 
 use std::collections::HashMap;
 
-pub use lui_css::stylesheet::{MediaFeature, MediaQuery, MediaQueryList, MediaType};
+pub use lui_css_old::stylesheet::{MediaFeature, MediaQuery, MediaQueryList, MediaType};
 use lui_models::{ArcStr, Style};
 pub use lui_tree::query::{
   AttrFilter, AttrOp, Combinator, ComplexSelector, CompoundSelector, MatchContext, PseudoClass, PseudoElement,
@@ -49,11 +49,11 @@ impl Stylesheet {
 }
 
 // ---------------------------------------------------------------------------
-// Parsing — delegates to lui_css, then converts
+// Parsing — delegates to lui_css_old, then converts
 // ---------------------------------------------------------------------------
 
 pub fn parse_stylesheet(css: &str) -> Stylesheet {
-  let parser = lui_css::CssParser::new();
+  let parser = lui_css_old::CssParser::new();
   let sheet = parser.parse_stylesheet(css);
   let mut rules = Vec::new();
   convert_rules(&sheet.rules, &mut Vec::new(), &mut rules);
@@ -61,13 +61,13 @@ pub fn parse_stylesheet(css: &str) -> Stylesheet {
 }
 
 pub fn parse_media_query_list(input: &str) -> Option<MediaQueryList> {
-  lui_css::at_rules::MediaAtRuleParser::parse_media_query_list_from(input)
+  lui_css_old::at_rules::MediaAtRuleParser::parse_media_query_list_from(input)
 }
 
-fn convert_rules(css_rules: &[lui_css::CssRule], media_stack: &mut Vec<MediaQueryList>, rules: &mut Vec<Rule>) {
+fn convert_rules(css_rules: &[lui_css_old::CssRule], media_stack: &mut Vec<MediaQueryList>, rules: &mut Vec<Rule>) {
   for css_rule in css_rules {
     match css_rule {
-      lui_css::CssRule::Style(style_rule) => {
+      lui_css_old::CssRule::Style(style_rule) => {
         let selectors = SelectorList::from(style_rule.selector_text.as_ref());
         if selectors.is_empty() {
           continue;
@@ -78,7 +78,7 @@ fn convert_rules(css_rules: &[lui_css::CssRule], media_stack: &mut Vec<MediaQuer
             .declarations
             .iter()
             .map(|d| {
-              let imp = if d.importance == lui_css::Importance::Important {
+              let imp = if d.importance == lui_css_old::Importance::Important {
                 " !important"
               } else {
                 ""
@@ -97,7 +97,7 @@ fn convert_rules(css_rules: &[lui_css::CssRule], media_stack: &mut Vec<MediaQuer
           media: media_stack.clone(),
         });
       }
-      lui_css::CssRule::Media(media_rule) => {
+      lui_css_old::CssRule::Media(media_rule) => {
         media_stack.push(media_rule.query.clone());
         convert_rules(&media_rule.rules, media_stack, rules);
         media_stack.pop();

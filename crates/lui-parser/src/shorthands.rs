@@ -1,1 +1,1 @@
-pub use lui_css::shorthands::*;
+pub use lui_css_old::shorthands::*;
