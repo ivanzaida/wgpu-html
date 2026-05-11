@@ -1,4 +1,5 @@
 pub mod combinator;
+pub mod css_at_rule;
 pub mod css_function;
 pub mod css_property;
 pub mod css_pseudo;
@@ -12,12 +13,14 @@ pub mod unit;
 pub mod value;
 
 pub use combinator::CssCombinator;
+pub use css_at_rule::CssAtRule;
 pub use css_function::CssFunction;
 pub use css_property::CssProperty;
 pub use css_pseudo::CssPseudo;
 pub use css_type::CssType;
+pub use error::ParseError;
 pub use parser::{parse_declaration, parse_value};
 pub use selector::{parse_selector_list, SelectorList};
-pub use stylesheet::{parse_stylesheet, Declaration, StyleRule, Stylesheet};
+pub use stylesheet::{parse_stylesheet, AtRule, Declaration, StyleRule, Stylesheet};
 pub use unit::CssUnit;
 pub use value::CssValue;
