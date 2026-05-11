@@ -266,10 +266,14 @@ pub struct RangeDrag {
 pub struct CachedLayout(pub Option<Box<dyn std::any::Any + Send + Sync>>);
 
 impl Default for CachedLayout {
-  fn default() -> Self { Self(None) }
+  fn default() -> Self {
+    Self(None)
+  }
 }
 impl Clone for CachedLayout {
-  fn clone(&self) -> Self { Self(None) }
+  fn clone(&self) -> Self {
+    Self(None)
+  }
 }
 impl std::fmt::Debug for CachedLayout {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

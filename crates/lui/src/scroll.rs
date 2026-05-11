@@ -396,8 +396,8 @@ pub fn element_scrollbar_geometry_x(b: &LayoutBox, scroll_x: f32) -> Option<Scro
   if track_h <= 0.0 {
     return None;
   }
-  let has_vbar = matches!(b.overflow.y, Overflow::Scroll | Overflow::Auto)
-    && scrollable_content_height(b) > pad.h + 0.5;
+  let has_vbar =
+    matches!(b.overflow.y, Overflow::Scroll | Overflow::Auto) && scrollable_content_height(b) > pad.h + 0.5;
   let bar_w = if has_vbar { pad.w - track_h } else { pad.w };
   let track = Rect::new(pad.x, pad.y + pad.h - track_h, bar_w, track_h);
   let thumb_w = (bar_w * bar_w / scroll_w).clamp(18.0_f32.min(bar_w), bar_w);

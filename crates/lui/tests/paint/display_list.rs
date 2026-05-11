@@ -66,7 +66,7 @@ fn svg_test_demo_paints_svg_images() {
     1080.0,
     1.0,
   )
-    .expect("layout");
+  .expect("layout");
   fn count_layout_images(b: &LayoutBox) -> usize {
     (b.image.is_some() && b.content_rect.w > 0.0 && b.content_rect.h > 0.0) as usize
       + b.children.iter().map(count_layout_images).sum::<usize>()
@@ -103,7 +103,7 @@ fn svg_test_demo_paints_svg_images() {
     1080.0,
     1.5,
   )
-    .expect("scaled layout");
+  .expect("scaled layout");
   let mut scaled_image_rects = Vec::new();
   collect_image_rects(&scaled_layout, &mut scaled_image_rects);
   assert!(

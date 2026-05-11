@@ -30,7 +30,6 @@ where
   }
 }
 
-
 impl<T> Clone for Observable<T> {
   fn clone(&self) -> Self {
     Self {

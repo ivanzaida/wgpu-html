@@ -30,19 +30,19 @@
 //!
 //! The runtime uses three render paths per component:
 //!
-//! - **Path 1 (clean):** Component and subtree unchanged — returns
-//!   cached output instantly. No `view()` call.
-//! - **Path 2 (patch):** Component unchanged but a child is dirty —
-//!   `view()` is skipped; only dirty children re-render.
-//! - **Path 3 (full):** Component's own `update()` returned `Yes` —
-//!   `view()` is called and children are reconciled by key.
+//! - **Path 1 (clean):** Component and subtree unchanged — returns cached output instantly. No `view()` call.
+//! - **Path 2 (patch):** Component unchanged but a child is dirty — `view()` is skipped; only dirty children re-render.
+//! - **Path 3 (full):** Component's own `update()` returned `Yes` — `view()` is called and children are reconciled by
+//!   key.
 //!
 //! `ctx.scoped()` class names are cached across renders — after the
 //! first frame, repeated calls return a cheap `ArcStr` clone.
 
 use crate::{
-  core::ctx::{Ctx, MsgSender},
-  core::observable::Subscriptions,
+  core::{
+    ctx::{Ctx, MsgSender},
+    observable::Subscriptions,
+  },
   el::El,
   style::Stylesheet,
 };

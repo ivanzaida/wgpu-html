@@ -1,16 +1,12 @@
 use lui_layout::LayoutBox;
-use lui_models::common::{
-  AlignItems, CssLength, Display, FontWeight, GridTrackSize,
-};
+use lui_models::common::{AlignItems, CssLength, Display, FontWeight, GridTrackSize};
 use lui_ui::{
-  el::{self, div},
-  style::{self, px, Stylesheet},
   Component, Ctx, El, ShouldRender,
+  el::{self, div},
+  style::{self, Stylesheet, px},
 };
 
-use super::lucide_icon::lucide;
-use super::store::DevtoolsStore;
-use super::theme::Theme;
+use super::{lucide_icon::lucide, store::DevtoolsStore, theme::Theme};
 
 const ICON_CHEVRON_DOWN: &str = "\u{E06D}";
 
@@ -34,7 +30,9 @@ impl Component for LayoutSection {
   type Props = LayoutSectionProps;
   type Msg = LayoutSectionMsg;
 
-  fn create(_: &LayoutSectionProps) -> Self { Self }
+  fn create(_: &LayoutSectionProps) -> Self {
+    Self
+  }
 
   fn update(&mut self, msg: LayoutSectionMsg, _: &LayoutSectionProps) -> ShouldRender {
     match msg {}
@@ -42,8 +40,7 @@ impl Component for LayoutSection {
 
   fn styles() -> Stylesheet {
     style::sheet([
-      style::rule(".section")
-        .background_color(Theme::BG_SECONDARY),
+      style::rule(".section").background_color(Theme::BG_SECONDARY),
       style::rule(".hdr")
         .display(Display::Flex)
         .align_items(AlignItems::Center)
@@ -89,9 +86,7 @@ impl Component for LayoutSection {
         .align_items(AlignItems::Center)
         .padding_vh(px(0), px(8))
         .height(px(20)),
-      style::rule(".band-inner")
-        .flex_grow(1.0)
-        .margin_vh(px(0), px(4)),
+      style::rule(".band-inner").flex_grow(1.0).margin_vh(px(0), px(4)),
       style::rule(".bl")
         .font_family("Inter, system-ui, sans-serif")
         .font_size(px(9))
@@ -171,7 +166,8 @@ impl Component for LayoutSection {
 
       if let Some(lb) = lb {
         let extracted = props.store.cascaded.with(|cascaded| {
-          let cn = cascaded.as_ref()
+          let cn = cascaded
+            .as_ref()
             .and_then(|c| c.root.as_ref())
             .and_then(|r| r.at_path(path));
           ExtractedStyle::from_cascaded(cn)
@@ -236,7 +232,12 @@ struct ExtractedStyle {
 impl ExtractedStyle {
   fn from_cascaded(cn: Option<&lui_style::CascadedNode>) -> Self {
     let Some(cn) = cn else {
-      return Self { margin_auto: [false; 4], flex: None, grid: None, table: None };
+      return Self {
+        margin_auto: [false; 4],
+        flex: None,
+        grid: None,
+        table: None,
+      };
     };
     let s = &cn.style;
     let is_auto = |specific: &Option<CssLength>, shorthand: &Option<CssLength>| -> bool {
@@ -255,7 +256,11 @@ impl ExtractedStyle {
     let is_flex = matches!(s.display, Some(Display::Flex) | Some(Display::InlineFlex));
     let flex = if is_flex {
       Some(ExtractedFlex {
-        direction: s.flex_direction.as_ref().map(|d| d.as_css_str().to_string()).unwrap_or_default(),
+        direction: s
+          .flex_direction
+          .as_ref()
+          .map(|d| d.as_css_str().to_string())
+          .unwrap_or_default(),
         gap: s.gap.clone(),
         row_gap: s.row_gap.clone(),
         col_gap: s.column_gap.clone(),
@@ -298,35 +303,43 @@ impl ExtractedStyle {
         | Some(Display::TableColumnGroup)
     );
     let table = if is_table {
-      let display_type = s.display.as_ref().map(|d| d.as_css_str().to_string()).unwrap_or_default();
+      let display_type = s
+        .display
+        .as_ref()
+        .map(|d| d.as_css_str().to_string())
+        .unwrap_or_default();
       let table_props: &[&str] = &[
-        "border-collapse", "border-spacing", "table-layout",
-        "caption-side", "empty-cells", "vertical-align",
+        "border-collapse",
+        "border-spacing",
+        "table-layout",
+        "caption-side",
+        "empty-cells",
+        "vertical-align",
       ];
       let properties: Vec<(String, String)> = table_props
         .iter()
-        .filter_map(|&key| {
-          s.deferred_longhands
-            .get(key)
-            .map(|v| (key.to_string(), v.to_string()))
-        })
+        .filter_map(|&key| s.deferred_longhands.get(key).map(|v| (key.to_string(), v.to_string())))
         .collect();
-      Some(ExtractedTable { display_type, properties })
+      Some(ExtractedTable {
+        display_type,
+        properties,
+      })
     } else {
       None
     };
 
-    Self { margin_auto, flex, grid, table }
+    Self {
+      margin_auto,
+      flex,
+      grid,
+      table,
+    }
   }
 }
 
 // ── Box model ────────────────────────────────────────────────────────
 
-fn build_box_model(
-  lb: &LayoutBox,
-  style: &ExtractedStyle,
-  ctx: &Ctx<LayoutSectionMsg>,
-) -> El {
+fn build_box_model(lb: &LayoutBox, style: &ExtractedStyle, ctx: &Ctx<LayoutSectionMsg>) -> El {
   let mr = &lb.margin_rect;
   let br = &lb.border_rect;
   let cr = &lb.content_rect;
@@ -350,29 +363,41 @@ fn build_box_model(
     .text(format!("{} \u{00d7} {}", cr.w.round() as i32, cr.h.round() as i32));
 
   let padding_band = band(
-    "padding", BM_PADDING,
-    fmt_val(p_top), fmt_val(p_right), fmt_val(p_bottom), fmt_val(p_left),
-    content_box, ctx,
+    "padding",
+    BM_PADDING,
+    fmt_val(p_top),
+    fmt_val(p_right),
+    fmt_val(p_bottom),
+    fmt_val(p_left),
+    content_box,
+    ctx,
   );
 
   let border_band = band(
-    "border", BM_BORDER,
-    fmt_val(bd.top), fmt_val(bd.right), fmt_val(bd.bottom), fmt_val(bd.left),
-    padding_band, ctx,
+    "border",
+    BM_BORDER,
+    fmt_val(bd.top),
+    fmt_val(bd.right),
+    fmt_val(bd.bottom),
+    fmt_val(bd.left),
+    padding_band,
+    ctx,
   );
 
   let margin_band = band(
-    "margin", BM_MARGIN,
+    "margin",
+    BM_MARGIN,
     if m[0] { "auto".into() } else { fmt_val(m_top) },
     if m[1] { "auto".into() } else { fmt_val(m_right) },
     if m[2] { "auto".into() } else { fmt_val(m_bottom) },
     if m[3] { "auto".into() } else { fmt_val(m_left) },
-    border_band, ctx,
+    border_band,
+    ctx,
   );
 
-  div().class(ctx.scoped("bm-area")).children([
-    div().style("width:340px").children([margin_band])
-  ])
+  div()
+    .class(ctx.scoped("bm-area"))
+    .children([div().style("width:340px").children([margin_band])])
 }
 
 fn band(
@@ -398,9 +423,9 @@ fn band(
         div().class(ctx.scoped("band-inner")).children([inner]),
         el::span().class(ctx.scoped("bv")).text(right),
       ]),
-      div().class(ctx.scoped("band-bot")).children([
-        el::span().class(ctx.scoped("bv")).text(bottom),
-      ]),
+      div()
+        .class(ctx.scoped("band-bot"))
+        .children([el::span().class(ctx.scoped("bv")).text(bottom)]),
     ])
 }
 
@@ -526,11 +551,7 @@ fn build_grid_info(gi: &ExtractedGrid, ctx: &Ctx<LayoutSectionMsg>) -> El {
 }
 
 fn fmt_track_list(tracks: &[GridTrackSize]) -> String {
-  tracks
-    .iter()
-    .map(|t| format!("{t}"))
-    .collect::<Vec<_>>()
-    .join(" ")
+  tracks.iter().map(|t| format!("{t}")).collect::<Vec<_>>().join(" ")
 }
 
 // ── Table info ──────────────────────────────────────────────────────

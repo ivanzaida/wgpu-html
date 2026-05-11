@@ -1,5 +1,4 @@
-use lui::paint::*;
-use lui::text::TextContext;
+use lui::{paint::*, text::TextContext};
 
 fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui::renderer::DisplayList {
   let mut tree = lui_parser::parse(html);
@@ -17,7 +16,8 @@ fn rotated_card_text_wraps_within_container() {
         <p style="margin:0">Icon and text rotated together here</p>
       </div>
     </body>"#,
-    600.0, 400.0,
+    600.0,
+    400.0,
   );
   assert!(!list.glyphs.is_empty(), "should have glyphs");
   let visible = list.glyphs.iter().filter(|g| g.rect.w > 0.0 && g.rect.h > 0.0).count();
@@ -32,7 +32,8 @@ fn scaled_card_text_fully_present() {
         <p style="margin:0">Scaled card with check icon text</p>
       </div>
     </body>"#,
-    600.0, 400.0,
+    600.0,
+    400.0,
   );
   assert!(!list.glyphs.is_empty(), "should have glyphs");
   let visible = list.glyphs.iter().filter(|g| g.rect.w > 0.0 && g.rect.h > 0.0).count();
@@ -49,7 +50,8 @@ fn flex_row_with_svg_and_text_rotated() {
         <p style="margin:0">Icon plus text rotated</p>
       </div>
     </body>"#,
-    600.0, 400.0,
+    600.0,
+    400.0,
   );
   // SVG placeholder (red circle) + text
   assert!(list.quads.len() >= 2, "should have icon + card bg quads");
@@ -59,19 +61,26 @@ fn flex_row_with_svg_and_text_rotated() {
   let min_x = list.glyphs.iter().map(|g| g.rect.x).fold(f32::MAX, f32::min);
   let max_x = list.glyphs.iter().map(|g| g.rect.x + g.rect.w).fold(f32::MIN, f32::max);
   let text_width = max_x - min_x;
-  eprintln!("glyphs: {} total, x range: {min_x:.1}..{max_x:.1} (span={text_width:.1})", list.glyphs.len());
+  eprintln!(
+    "glyphs: {} total, x range: {min_x:.1}..{max_x:.1} (span={text_width:.1})",
+    list.glyphs.len()
+  );
 
   // Verify no glyph is clipped to a restrictive scissor
   for cmd in &list.commands {
-    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph { continue; }
+    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph {
+      continue;
+    }
     let g = &list.glyphs[cmd.index as usize];
     let clip = &list.clips[cmd.clip_index as usize];
     if let Some(cr) = clip.rect {
       let glyph_right = g.rect.x + g.rect.w;
       let clip_right = cr.x + cr.w;
       if glyph_right > clip_right + 1.0 {
-        eprintln!("CLIP: glyph at x={:.1}..{:.1} outside clip {:.1}..{:.1}",
-          g.rect.x, glyph_right, cr.x, clip_right);
+        eprintln!(
+          "CLIP: glyph at x={:.1}..{:.1} outside clip {:.1}..{:.1}",
+          g.rect.x, glyph_right, cr.x, clip_right
+        );
       }
     }
   }
@@ -88,20 +97,26 @@ fn text_not_clipped_by_untransformed_scissor() {
         <span>Text that should not be clipped by a tight rect</span>
       </div>
     </body>"#,
-    600.0, 400.0,
+    600.0,
+    400.0,
   );
 
   // With overflow:visible and no parent clips, glyphs should have
   // no restrictive clip rect (rect = None) or a viewport-sized clip.
   for cmd in &list.commands {
-    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph { continue; }
+    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph {
+      continue;
+    }
     let clip = &list.clips[cmd.clip_index as usize];
     if let Some(cr) = clip.rect {
       // If there IS a clip rect, it should be at least viewport-sized
       // or the full container size — not a tight untransformed rect
       // that would chop rotated content.
-      assert!(cr.w >= 200.0 || cr.h >= 60.0,
-        "clip rect too small for transformed content: {:?}", cr);
+      assert!(
+        cr.w >= 200.0 || cr.h >= 60.0,
+        "clip rect too small for transformed content: {:?}",
+        cr
+      );
     }
   }
 }

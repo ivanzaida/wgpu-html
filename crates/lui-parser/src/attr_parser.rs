@@ -1,6 +1,5 @@
 use lui_models as html;
-use lui_models::ArcStr;
-use lui_models::common::html_enums::*;
+use lui_models::{ArcStr, common::html_enums::*};
 use lui_tree::Element;
 
 fn svg_original_case(lowered: &str) -> &str {
@@ -35,10 +34,9 @@ fn svg_original_case(lowered: &str) -> &str {
     "foreignobject" => "foreignObject",
     "tspan" => "tspan",
     other => match other {
-      "circle" | "rect" | "ellipse" | "line" | "polygon" | "polyline"
-      | "g" | "defs" | "symbol" | "use" | "marker" | "mask" | "pattern"
-      | "image" | "stop" | "text" | "filter" | "animate" | "set"
-      | "desc" | "title" | "metadata" | "switch" | "view" => other,
+      "circle" | "rect" | "ellipse" | "line" | "polygon" | "polyline" | "g" | "defs" | "symbol" | "use" | "marker"
+      | "mask" | "pattern" | "image" | "stop" | "text" | "filter" | "animate" | "set" | "desc" | "title"
+      | "metadata" | "switch" | "view" => other,
       _ => other,
     },
   }
@@ -584,21 +582,59 @@ pub fn parse_element(tag: &str, attrs: &[(ArcStr, ArcStr)]) -> Option<Element> {
       }
       Element::SvgPath(el)
     }
-    "circle" | "rect" | "ellipse" | "line" | "polygon" | "polyline"
-    | "g" | "defs" | "symbol" | "use" | "marker" | "clippath"
-    | "mask" | "pattern" | "image"
-    | "lineargradient" | "radialgradient" | "stop"
-    | "text" | "tspan" | "textpath"
-    | "filter" | "fegaussianblur" | "feblend" | "fecolormatrix"
-    | "fecomponenttransfer" | "fecomposite" | "feconvolvematrix"
-    | "fediffuselighting" | "fedisplacementmap" | "fedropshadow"
-    | "feflood" | "feimage" | "femerge" | "femergenode"
-    | "femorphology" | "feoffset" | "fespecularlighting"
-    | "fetile" | "feturbulence"
-    | "fedistantlight" | "fepointlight" | "fespotlight"
-    | "animate" | "animatemotion" | "animatetransform" | "set"
-    | "desc" | "title" | "metadata"
-    | "foreignobject" | "switch" | "view" => {
+    "circle"
+    | "rect"
+    | "ellipse"
+    | "line"
+    | "polygon"
+    | "polyline"
+    | "g"
+    | "defs"
+    | "symbol"
+    | "use"
+    | "marker"
+    | "clippath"
+    | "mask"
+    | "pattern"
+    | "image"
+    | "lineargradient"
+    | "radialgradient"
+    | "stop"
+    | "text"
+    | "tspan"
+    | "textpath"
+    | "filter"
+    | "fegaussianblur"
+    | "feblend"
+    | "fecolormatrix"
+    | "fecomponenttransfer"
+    | "fecomposite"
+    | "feconvolvematrix"
+    | "fediffuselighting"
+    | "fedisplacementmap"
+    | "fedropshadow"
+    | "feflood"
+    | "feimage"
+    | "femerge"
+    | "femergenode"
+    | "femorphology"
+    | "feoffset"
+    | "fespecularlighting"
+    | "fetile"
+    | "feturbulence"
+    | "fedistantlight"
+    | "fepointlight"
+    | "fespotlight"
+    | "animate"
+    | "animatemotion"
+    | "animatetransform"
+    | "set"
+    | "desc"
+    | "title"
+    | "metadata"
+    | "foreignobject"
+    | "switch"
+    | "view" => {
       let mut el = html::SvgElement {
         tag: svg_original_case(tag).into(),
         attrs: attrs.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
@@ -1037,8 +1073,20 @@ pub fn parse_element(tag: &str, attrs: &[(ArcStr, ArcStr)]) -> Option<Element> {
 fn is_global_attr(name: &str) -> bool {
   matches!(
     &*name,
-    "id" | "class" | "style" | "title" | "lang" | "dir" | "hidden" | "tabindex" | "accesskey" | "contenteditable"
-      | "draggable" | "spellcheck" | "translate" | "role"
+    "id"
+      | "class"
+      | "style"
+      | "title"
+      | "lang"
+      | "dir"
+      | "hidden"
+      | "tabindex"
+      | "accesskey"
+      | "contenteditable"
+      | "draggable"
+      | "spellcheck"
+      | "translate"
+      | "role"
   ) || name.starts_with("data-")
     || name.starts_with("aria-")
 }

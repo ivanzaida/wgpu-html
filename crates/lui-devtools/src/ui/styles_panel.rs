@@ -1,14 +1,16 @@
-use super::layout_section::{LayoutSection, LayoutSectionProps};
-use super::store::DevtoolsStore;
-use super::style_rule::{StyleRule, StyleRuleProps};
-use super::theme::Theme;
 use lui_models::common::{AlignItems, Display, FontWeight, Overflow};
 use lui_tree::Element;
-use lui_ui::style::Val;
 use lui_ui::{
-  el::{self, div},
-  style::{self, pct, px, Stylesheet},
   Component, Ctx, El, ShouldRender,
+  el::{self, div},
+  style::{self, Stylesheet, Val, pct, px},
+};
+
+use super::{
+  layout_section::{LayoutSection, LayoutSectionProps},
+  store::DevtoolsStore,
+  style_rule::{StyleRule, StyleRuleProps},
+  theme::Theme,
 };
 
 const ELEM_MARGIN: Val = Val::Px(4f32);
@@ -120,12 +122,9 @@ impl Component for StylesPanel {
         .height(px(18))
         .padding_vh(px(0), px(12))
         .font_family("Roboto Mono, monospace"),
-      style::rule(".computed-prop")
-        .color(Theme::PROPERTY),
-      style::rule(".computed-sep")
-        .color(Theme::TEXT_SECONDARY),
-      style::rule(".computed-val")
-        .color(Theme::VALUE),
+      style::rule(".computed-prop").color(Theme::PROPERTY),
+      style::rule(".computed-sep").color(Theme::TEXT_SECONDARY),
+      style::rule(".computed-val").color(Theme::VALUE),
     ])
     .scoped("styles")
   }
@@ -141,11 +140,7 @@ impl Component for StylesPanel {
       }
     };
 
-    let no_selection = || {
-      vec![el::span()
-        .class(ctx.scoped("empty"))
-        .text("No element selected")]
-    };
+    let no_selection = || vec![el::span().class(ctx.scoped("empty")).text("No element selected")];
 
     let content = match self.active_tab {
       Tab::Layout => {
@@ -154,9 +149,7 @@ impl Component for StylesPanel {
         })]
       }
       Tab::EventListeners => {
-        vec![el::span()
-          .class(ctx.scoped("empty"))
-          .text("No event listeners")]
+        vec![el::span().class(ctx.scoped("empty")).text("No event listeners")]
       }
       tab => {
         if let (Some(path), Some(host_tree)) = (&selected, props.store.host_tree()) {
@@ -259,14 +252,10 @@ fn build_styles_content(
       _ => tag.to_string(),
     };
 
-    blocks.push(
-      div().class(ctx.scoped("inherited-hdr")).children([
-        el::span().text("Inherited from"),
-        el::span()
-          .class(ctx.scoped("inherited-tag"))
-          .text(label.as_str()),
-      ]),
-    );
+    blocks.push(div().class(ctx.scoped("inherited-hdr")).children([
+      el::span().text("Inherited from"),
+      el::span().class(ctx.scoped("inherited-tag")).text(label.as_str()),
+    ]));
 
     for rule in inherited_rules {
       let inherited_decls: Vec<(String, String)> = rule
@@ -367,22 +356,16 @@ fn build_computed_content(
   }
 
   if props.is_empty() {
-    return vec![el::span()
-      .class(ctx.scoped("empty"))
-      .text("No computed styles")];
+    return vec![el::span().class(ctx.scoped("empty")).text("No computed styles")];
   }
 
   props
     .iter()
     .map(|(prop, val)| {
       div().class(ctx.scoped("computed-row")).children([
-        el::span()
-          .class(ctx.scoped("computed-prop"))
-          .text(prop.as_str()),
+        el::span().class(ctx.scoped("computed-prop")).text(prop.as_str()),
         el::span().class(ctx.scoped("computed-sep")).text(": "),
-        el::span()
-          .class(ctx.scoped("computed-val"))
-          .text(val.as_str()),
+        el::span().class(ctx.scoped("computed-val")).text(val.as_str()),
         el::span().class(ctx.scoped("computed-sep")).text(";"),
       ])
     })

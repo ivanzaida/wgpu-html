@@ -20,32 +20,65 @@ pub struct Transform2D {
 
 impl Transform2D {
   pub const IDENTITY: Self = Self {
-    a: 1.0, b: 0.0, c: 0.0, d: 1.0, tx: 0.0, ty: 0.0,
+    a: 1.0,
+    b: 0.0,
+    c: 0.0,
+    d: 1.0,
+    tx: 0.0,
+    ty: 0.0,
   };
 
   pub fn translate(tx: f32, ty: f32) -> Self {
-    Self { a: 1.0, b: 0.0, c: 0.0, d: 1.0, tx, ty }
+    Self {
+      a: 1.0,
+      b: 0.0,
+      c: 0.0,
+      d: 1.0,
+      tx,
+      ty,
+    }
   }
 
   pub fn scale(sx: f32, sy: f32) -> Self {
-    Self { a: sx, b: 0.0, c: 0.0, d: sy, tx: 0.0, ty: 0.0 }
+    Self {
+      a: sx,
+      b: 0.0,
+      c: 0.0,
+      d: sy,
+      tx: 0.0,
+      ty: 0.0,
+    }
   }
 
   pub fn rotate(radians: f32) -> Self {
     let (s, c) = radians.sin_cos();
-    Self { a: c, b: s, c: -s, d: c, tx: 0.0, ty: 0.0 }
+    Self {
+      a: c,
+      b: s,
+      c: -s,
+      d: c,
+      tx: 0.0,
+      ty: 0.0,
+    }
   }
 
   pub fn skew(ax: f32, ay: f32) -> Self {
-    Self { a: 1.0, b: ay.tan(), c: ax.tan(), d: 1.0, tx: 0.0, ty: 0.0 }
+    Self {
+      a: 1.0,
+      b: ay.tan(),
+      c: ax.tan(),
+      d: 1.0,
+      tx: 0.0,
+      ty: 0.0,
+    }
   }
 
   pub fn then(&self, other: &Self) -> Self {
     Self {
-      a:  self.a * other.a  + self.c * other.b,
-      b:  self.b * other.a  + self.d * other.b,
-      c:  self.a * other.c  + self.c * other.d,
-      d:  self.b * other.c  + self.d * other.d,
+      a: self.a * other.a + self.c * other.b,
+      b: self.b * other.a + self.d * other.b,
+      c: self.a * other.c + self.c * other.d,
+      d: self.b * other.c + self.d * other.d,
       tx: self.a * other.tx + self.c * other.ty + self.tx,
       ty: self.b * other.tx + self.d * other.ty + self.ty,
     }
@@ -56,10 +89,7 @@ impl Transform2D {
   }
 
   pub fn apply(&self, x: f32, y: f32) -> (f32, f32) {
-    (
-      self.a * x + self.c * y + self.tx,
-      self.b * x + self.d * y + self.ty,
-    )
+    (self.a * x + self.c * y + self.tx, self.b * x + self.d * y + self.ty)
   }
 
   pub fn is_translate_only(&self) -> bool {
@@ -81,10 +111,7 @@ impl Transform2D {
     let inv_d = self.a / det;
     let inv_tx = (self.c * self.ty - self.d * self.tx) / det;
     let inv_ty = (self.b * self.tx - self.a * self.ty) / det;
-    (
-      inv_a * x + inv_c * y + inv_tx,
-      inv_b * x + inv_d * y + inv_ty,
-    )
+    (inv_a * x + inv_c * y + inv_tx, inv_b * x + inv_d * y + inv_ty)
   }
 }
 
@@ -158,11 +185,7 @@ pub fn parse_transform(value: &str, ref_w: f32, ref_h: f32) -> Option<Transform2
     result = result.then(&t);
   }
 
-  if result.is_identity() {
-    None
-  } else {
-    Some(result)
-  }
+  if result.is_identity() { None } else { Some(result) }
 }
 
 /// Parse `transform-origin` into `(ox, oy)` in pixels, relative to
@@ -197,9 +220,7 @@ fn resolve_origin_axis(token: &str, extent: f32) -> f32 {
 }
 
 fn parse_args(s: &str) -> Vec<String> {
-  s.split(',')
-    .map(|a| a.trim().to_string())
-    .collect()
+  s.split(',').map(|a| a.trim().to_string()).collect()
 }
 
 fn parse_num(args: &[String], idx: usize) -> Option<f32> {
@@ -240,8 +261,9 @@ fn parse_angle(args: &[String], idx: usize) -> f32 {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use std::f32::consts::PI;
+
+  use super::*;
 
   fn approx(a: f32, b: f32) -> bool {
     (a - b).abs() < 0.001

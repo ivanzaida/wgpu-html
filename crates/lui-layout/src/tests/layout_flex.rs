@@ -1215,8 +1215,14 @@ fn checkbox_stays_inside_parent_card() {
   // Find all cards (children of .columns flex row)
   // Structure: html > body > div.columns > div.card * 5
   fn find_columns(b: &LayoutBox) -> Option<&LayoutBox> {
-    if b.children.len() == 5 { return Some(b); }
-    for c in &b.children { if let Some(f) = find_columns(c) { return Some(f); } }
+    if b.children.len() == 5 {
+      return Some(b);
+    }
+    for c in &b.children {
+      if let Some(f) = find_columns(c) {
+        return Some(f);
+      }
+    }
     None
   }
   let columns = find_columns(&root).expect("should find columns with 5 cards");
@@ -1233,7 +1239,9 @@ fn checkbox_stays_inside_parent_card() {
           "card[{card_idx}] ({card_left:.0}..{card_right:.0}): form control at {ctrl_left:.0}..{ctrl_right:.0} overflows"
         );
       }
-      for c in &b.children { check_bounds(c, card_left, card_right, card_idx); }
+      for c in &b.children {
+        check_bounds(c, card_left, card_right, card_idx);
+      }
     }
     check_bounds(card, card_left, card_right, i);
   }
@@ -1242,10 +1250,14 @@ fn checkbox_stays_inside_parent_card() {
   fn dump_controls(b: &LayoutBox, depth: usize) {
     if b.form_control.is_some() {
       let indent = "  ".repeat(depth);
-      eprintln!("{indent}control: x={:.1} y={:.1} w={:.1} h={:.1} kind={:?}",
-        b.border_rect.x, b.border_rect.y, b.border_rect.w, b.border_rect.h, b.form_control);
+      eprintln!(
+        "{indent}control: x={:.1} y={:.1} w={:.1} h={:.1} kind={:?}",
+        b.border_rect.x, b.border_rect.y, b.border_rect.w, b.border_rect.h, b.form_control
+      );
     }
-    for c in &b.children { dump_controls(c, depth + 1); }
+    for c in &b.children {
+      dump_controls(c, depth + 1);
+    }
   }
   dump_controls(card0, 0);
 }
@@ -1271,11 +1283,19 @@ fn flex_row_percentage_width_plus_flex_grow() {
     let indent = "  ".repeat(depth);
     let has_text = b.text_run.is_some();
     if depth <= 5 || b.border_rect.w > 100.0 {
-      eprintln!("{indent}w={:.0} h={:.0} x={:.0} children={} text={}",
-        b.border_rect.w, b.border_rect.h, b.border_rect.x, b.children.len(), has_text);
+      eprintln!(
+        "{indent}w={:.0} h={:.0} x={:.0} children={} text={}",
+        b.border_rect.w,
+        b.border_rect.h,
+        b.border_rect.x,
+        b.children.len(),
+        has_text
+      );
     }
     if depth <= 5 {
-      for c in &b.children { dump(c, depth + 1); }
+      for c in &b.children {
+        dump(c, depth + 1);
+      }
     }
   }
   dump(&root, 0);

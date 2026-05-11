@@ -22,14 +22,11 @@
 
 use lui_layout::{Cursor, FormControlKind, LayoutBox};
 use lui_tree::{ColorPickerDragTarget, ColorPickerState, DatePickerState, MouseButton, RangeDrag, Tree};
-
-use crate::color_picker_overlay;
-use crate::date_picker_overlay;
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `lui_tree::dispatch`.
-pub use lui_tree::{
-  blur, dispatch_pointer_leave as pointer_leave, focus, focus_next, key_down, key_up, wheel_event,
-};
+pub use lui_tree::{blur, dispatch_pointer_leave as pointer_leave, focus, focus_next, key_down, key_up, wheel_event};
+
+use crate::{color_picker_overlay, date_picker_overlay};
 
 /// Update the hover path to whatever lies under `pos` and fire
 /// any `on_mouse_enter` / `on_mouse_leave` callbacks the change
@@ -108,7 +105,10 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
   if let Some(path) = target.as_deref() {
     if let Some(lb) = crate::layout_at_path(layout, path) {
       if let Some(ref fc) = lb.form_control {
-        if matches!(fc.kind, FormControlKind::Date { .. } | FormControlKind::DatetimeLocal { .. }) {
+        if matches!(
+          fc.kind,
+          FormControlKind::Date { .. } | FormControlKind::DatetimeLocal { .. }
+        ) {
           let cr = lb.content_rect;
           let icon_sz = (cr.h * 0.6).min(14.0);
           let icon_x = cr.x + cr.w - icon_sz - 4.0;
@@ -121,7 +121,9 @@ pub fn pointer_move_with_cursor(tree: &mut Tree, layout: &LayoutBox, pos: (f32, 
           let btn_x = lb.content_rect.x - pad[3];
           let btn_w = pad[3] + crate::paint::file_button_width(lb) + pad[1];
           if pos.0 >= btn_x && pos.0 <= btn_x + btn_w {
-            let btn_cursor = lb.file_button.as_ref()
+            let btn_cursor = lb
+              .file_button
+              .as_ref()
               .map(|f| f.cursor.clone())
               .unwrap_or(Cursor::Pointer);
             css_cursor = btn_cursor;
@@ -261,7 +263,9 @@ pub fn mouse_down_with_click_count(
               dp.hour = (dp.hour + 1) % 24;
               let path = dp.path.clone();
               let iso = lui_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
-              let display = tree.locale.format_datetime(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              let display = tree
+                .locale
+                .format_datetime(dp.year, dp.month, dp.day, dp.hour, dp.minute);
               lui_tree::set_date_value(tree, &path, &iso);
               tree.interaction.date_display_value = Some(display);
             }
@@ -272,7 +276,9 @@ pub fn mouse_down_with_click_count(
               dp.minute = (dp.minute + 1) % 60;
               let path = dp.path.clone();
               let iso = lui_tree::date::format_datetime_local(dp.year, dp.month, dp.day, dp.hour, dp.minute);
-              let display = tree.locale.format_datetime(dp.year, dp.month, dp.day, dp.hour, dp.minute);
+              let display = tree
+                .locale
+                .format_datetime(dp.year, dp.month, dp.day, dp.hour, dp.minute);
               lui_tree::set_date_value(tree, &path, &iso);
               tree.interaction.date_display_value = Some(display);
             }
@@ -380,7 +386,10 @@ pub fn mouse_down_with_click_count(
               });
             }
             FormControlKind::Color { r, g, b, a } => {
-              let already_open = tree.interaction.color_picker.as_ref()
+              let already_open = tree
+                .interaction
+                .color_picker
+                .as_ref()
                 .is_some_and(|cp| cp.path == *target_path);
               if already_open {
                 tree.interaction.color_picker = None;
@@ -416,9 +425,7 @@ pub fn mouse_down_with_click_count(
                 };
                 let vw = layout.border_rect.w;
                 let vh = layout.border_rect.h;
-                color_picker_overlay::compute_popup_rects(
-                  &mut cp, br.x, br.y, br.h, 1.0, vw, vh,
-                );
+                color_picker_overlay::compute_popup_rects(&mut cp, br.x, br.y, br.h, 1.0, vw, vh);
                 tree.interaction.color_picker = Some(cp);
               }
             }
@@ -429,42 +436,53 @@ pub fn mouse_down_with_click_count(
               if pos.0 < icon_x {
                 // Click on text area — don't open picker, let normal focus/edit proceed.
               } else {
-              let already_open = tree.interaction.date_picker.as_ref()
-                .is_some_and(|dp| dp.path == *target_path);
-              if already_open {
-                tree.interaction.date_picker = None;
-              } else {
-                let has_time = matches!(fc.kind, FormControlKind::DatetimeLocal { .. });
-                let (hour, minute) = if let FormControlKind::DatetimeLocal { hour, minute, .. } = fc.kind {
-                  (hour, minute)
+                let already_open = tree
+                  .interaction
+                  .date_picker
+                  .as_ref()
+                  .is_some_and(|dp| dp.path == *target_path);
+                if already_open {
+                  tree.interaction.date_picker = None;
                 } else {
-                  (0, 0)
-                };
-                let today = date_picker_overlay::today_ymd_pub();
-                let (vy, vm) = if month >= 1 && month <= 12 { (year, month) } else { (today.0, today.1) };
-                let br = lb.border_rect;
-                let mut dp = DatePickerState {
-                  path: target_path.clone(),
-                  year, month, day,
-                  hour, minute,
-                  has_time,
-                  view_year: vy, view_month: vm,
-                  popup_rect: [0.0; 4],
-                  header_rect: [0.0; 4],
-                  prev_btn_rect: [0.0; 4],
-                  next_btn_rect: [0.0; 4],
-                  grid_rect: [0.0; 4],
-                  hour_rect: [0.0; 4],
-                  minute_rect: [0.0; 4],
-                  reset_btn_rect: [0.0; 4],
-                  popup_style: lb.lui_popup.clone(),
-                  calendar_style: lb.lui_calendar.clone(),
-                };
-                let vw = layout.border_rect.w;
-                let vh = layout.border_rect.h;
-                date_picker_overlay::compute_popup_rects(&mut dp, br.x, br.y, br.h, vw, vh);
-                tree.interaction.date_picker = Some(dp);
-              }
+                  let has_time = matches!(fc.kind, FormControlKind::DatetimeLocal { .. });
+                  let (hour, minute) = if let FormControlKind::DatetimeLocal { hour, minute, .. } = fc.kind {
+                    (hour, minute)
+                  } else {
+                    (0, 0)
+                  };
+                  let today = date_picker_overlay::today_ymd_pub();
+                  let (vy, vm) = if month >= 1 && month <= 12 {
+                    (year, month)
+                  } else {
+                    (today.0, today.1)
+                  };
+                  let br = lb.border_rect;
+                  let mut dp = DatePickerState {
+                    path: target_path.clone(),
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute,
+                    has_time,
+                    view_year: vy,
+                    view_month: vm,
+                    popup_rect: [0.0; 4],
+                    header_rect: [0.0; 4],
+                    prev_btn_rect: [0.0; 4],
+                    next_btn_rect: [0.0; 4],
+                    grid_rect: [0.0; 4],
+                    hour_rect: [0.0; 4],
+                    minute_rect: [0.0; 4],
+                    reset_btn_rect: [0.0; 4],
+                    popup_style: lb.lui_popup.clone(),
+                    calendar_style: lb.lui_calendar.clone(),
+                  };
+                  let vw = layout.border_rect.w;
+                  let vh = layout.border_rect.h;
+                  date_picker_overlay::compute_popup_rects(&mut dp, br.x, br.y, br.h, vw, vh);
+                  tree.interaction.date_picker = Some(dp);
+                }
               } // icon click else
             }
             FormControlKind::File { disabled, .. } => {
@@ -488,13 +506,12 @@ pub fn mouse_down_with_click_count(
 }
 
 fn open_file_dialog(tree: &mut Tree, path: &[usize]) {
-  let (accept, multiple) = tree.root.as_ref()
+  let (accept, multiple) = tree
+    .root
+    .as_ref()
     .and_then(|r| r.at_path(path))
     .and_then(|n| match &n.element {
-      lui_tree::Element::Input(inp) => Some((
-        inp.accept.as_deref().map(str::to_string),
-        inp.multiple.unwrap_or(false),
-      )),
+      lui_tree::Element::Input(inp) => Some((inp.accept.as_deref().map(str::to_string), inp.multiple.unwrap_or(false))),
       _ => None,
     })
     .unwrap_or((None, false));
@@ -515,19 +532,23 @@ fn open_file_dialog(tree: &mut Tree, path: &[usize]) {
   };
 
   if let Some(paths) = files {
-    let infos: Vec<lui_models::input::FileInfo> = paths.iter().map(|p| {
-      let meta = std::fs::metadata(p).ok();
-      lui_models::input::FileInfo {
-        name: p.file_name().unwrap_or_default().to_string_lossy().into(),
-        size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
-        mime_type: guess_mime_type(p).into(),
-        last_modified: meta.and_then(|m| m.modified().ok())
-          .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-          .map(|d| d.as_millis() as u64)
-          .unwrap_or(0),
-        path: Some(p.clone()),
-      }
-    }).collect();
+    let infos: Vec<lui_models::input::FileInfo> = paths
+      .iter()
+      .map(|p| {
+        let meta = std::fs::metadata(p).ok();
+        lui_models::input::FileInfo {
+          name: p.file_name().unwrap_or_default().to_string_lossy().into(),
+          size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+          mime_type: guess_mime_type(p).into(),
+          last_modified: meta
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+          path: Some(p.clone()),
+        }
+      })
+      .collect();
     lui_tree::set_file_value(tree, path, infos);
   }
 }
@@ -544,12 +565,22 @@ fn parse_accept_filter(accept: &str) -> (String, Vec<String>) {
       }
     }
   }
-  let name = if exts.is_empty() { "All files".to_string() } else { exts.join(", ") };
+  let name = if exts.is_empty() {
+    "All files".to_string()
+  } else {
+    exts.join(", ")
+  };
   (name, exts)
 }
 
 fn guess_mime_type(path: &std::path::Path) -> &'static str {
-  match path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+  match path
+    .extension()
+    .and_then(|e| e.to_str())
+    .unwrap_or("")
+    .to_ascii_lowercase()
+    .as_str()
+  {
     "html" | "htm" => "text/html",
     "css" => "text/css",
     "js" | "mjs" => "application/javascript",

@@ -1005,7 +1005,10 @@ fn set_focus(tree: &mut Tree, new_path: Option<Vec<usize>>) -> bool {
           let editable = crate::date::editable_segment_indices(&segs);
           let cursor = if let Some(&first) = editable.first() {
             let s = &segs[first];
-            crate::EditCursor { cursor: s.byte_start + s.byte_len, selection_anchor: Some(s.byte_start) }
+            crate::EditCursor {
+              cursor: s.byte_start + s.byte_len,
+              selection_anchor: Some(s.byte_start),
+            }
           } else {
             crate::EditCursor::collapsed(display.len())
           };
@@ -1464,7 +1467,11 @@ fn handle_activation_key(tree: &mut Tree) {
     Element::A(a) => a.href.is_some(),
     Element::Input(inp) => matches!(
       inp.r#type,
-      Some(InputType::Checkbox) | Some(InputType::Submit) | Some(InputType::Reset) | Some(InputType::Button) | Some(InputType::File)
+      Some(InputType::Checkbox)
+        | Some(InputType::Submit)
+        | Some(InputType::Reset)
+        | Some(InputType::Button)
+        | Some(InputType::File)
     ),
     _ => false,
   };
@@ -2324,7 +2331,13 @@ fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Opt
   // Capture phase: root → target parent
   for i in 0..depth {
     let current_path = form_path[..i].to_vec();
-    dispatch_submit_phase(tree, &mut html_ev, form_path, &current_path, ev::EventPhase::CapturingPhase);
+    dispatch_submit_phase(
+      tree,
+      &mut html_ev,
+      form_path,
+      &current_path,
+      ev::EventPhase::CapturingPhase,
+    );
   }
 
   // Target phase
@@ -2333,7 +2346,13 @@ fn bubble_submit_event(tree: &mut Tree, form_path: &[usize], submitter_path: Opt
   // Bubble phase: target parent → root
   for i in (0..depth).rev() {
     let current_path = form_path[..i].to_vec();
-    dispatch_submit_phase(tree, &mut html_ev, form_path, &current_path, ev::EventPhase::BubblingPhase);
+    dispatch_submit_phase(
+      tree,
+      &mut html_ev,
+      form_path,
+      &current_path,
+      ev::EventPhase::BubblingPhase,
+    );
   }
 
   !html_ev.default_prevented()
@@ -2428,7 +2447,10 @@ fn collect_form_fields(node: &Node, fields: &mut Vec<crate::FormField>) {
         return;
       }
       let r#type = inp.r#type.as_ref();
-      if matches!(r#type, Some(InputType::Submit | InputType::Reset | InputType::Button | InputType::Image)) {
+      if matches!(
+        r#type,
+        Some(InputType::Submit | InputType::Reset | InputType::Button | InputType::Image)
+      ) {
         return;
       }
       if matches!(r#type, Some(InputType::Checkbox | InputType::Radio)) && !inp.checked.unwrap_or(false) {
@@ -2602,10 +2624,24 @@ fn handle_numeric_step(tree: &mut Tree, key: &str) -> bool {
     return false;
   }
 
-  let min: f64 = inp.min.as_deref().and_then(|s| s.parse().ok()).unwrap_or(if is_range { 0.0 } else { f64::NEG_INFINITY });
-  let max: f64 = inp.max.as_deref().and_then(|s| s.parse().ok()).unwrap_or(if is_range { 100.0 } else { f64::INFINITY });
+  let min: f64 =
+    inp
+      .min
+      .as_deref()
+      .and_then(|s| s.parse().ok())
+      .unwrap_or(if is_range { 0.0 } else { f64::NEG_INFINITY });
+  let max: f64 =
+    inp
+      .max
+      .as_deref()
+      .and_then(|s| s.parse().ok())
+      .unwrap_or(if is_range { 100.0 } else { f64::INFINITY });
   let step: f64 = inp.step.as_deref().and_then(|s| s.parse().ok()).unwrap_or(1.0);
-  let current: f64 = inp.value.as_deref().and_then(|s| s.parse().ok()).unwrap_or(if is_range { (min + max) / 2.0 } else { 0.0 });
+  let current: f64 = inp
+    .value
+    .as_deref()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(if is_range { (min + max) / 2.0 } else { 0.0 });
 
   let delta = if key == "ArrowUp" { step } else { -step };
   let new_val = (current + delta).clamp(min, max);
@@ -2733,7 +2769,9 @@ pub fn set_file_value(tree: &mut Tree, path: &[usize], files: Vec<m::input::File
   let Some(root) = tree.root.as_mut() else { return };
   let Some(node) = root.at_path_mut(path) else { return };
   if let Element::Input(inp) = &mut node.element {
-    if !matches!(inp.r#type, Some(InputType::File)) { return; }
+    if !matches!(inp.r#type, Some(InputType::File)) {
+      return;
+    }
     inp.value = files.first().map(|f| f.name.clone());
     inp.files = files;
     tree.form_control_generation += 1;
@@ -2774,8 +2812,12 @@ fn focused_date_pattern_for(tree: &Tree, input_type: Option<&lui_models::common:
 /// Invalid display values are silently ignored (the ISO value stays
 /// unchanged until the user fixes it or the input blurs and reverts).
 pub fn flush_date_to_iso(tree: &mut Tree) {
-  let Some(focus_path) = tree.interaction.focus_path.clone() else { return };
-  let Some(display) = tree.interaction.date_display_value.as_deref() else { return };
+  let Some(focus_path) = tree.interaction.focus_path.clone() else {
+    return;
+  };
+  let Some(display) = tree.interaction.date_display_value.as_deref() else {
+    return;
+  };
   let pattern = focused_date_pattern(tree);
   let segs = crate::date::parse_pattern_segments(&pattern);
   let clamped = crate::date::clamp_segments(display, &segs);
@@ -2800,7 +2842,10 @@ pub fn flush_date_to_iso(tree: &mut Tree) {
 
 fn focused_date_pattern(tree: &Tree) -> String {
   use lui_models::common::html_enums::InputType;
-  let is_datetime = tree.interaction.focus_path.as_deref()
+  let is_datetime = tree
+    .interaction
+    .focus_path
+    .as_deref()
     .and_then(|p| tree.root.as_ref()?.at_path(p))
     .map(|n| matches!(&n.element, Element::Input(inp) if matches!(inp.r#type, Some(InputType::DatetimeLocal))))
     .unwrap_or(false);
@@ -2970,12 +3015,22 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
         any = true;
       }
     }
-    if !any { return false; }
+    if !any {
+      return false;
+    }
     let start_range = cursor.selection_range().0;
-    tree.interaction.undo_stack.push(crate::UndoEntry { value: old_value, cursor });
+    tree.interaction.undo_stack.push(crate::UndoEntry {
+      value: old_value,
+      cursor,
+    });
     tree.interaction.date_display_value = Some(current_text);
     let start_seg = crate::date::segment_at(&segs, start_range);
-    let end_seg = crate::date::segment_at(&segs, current_pos.saturating_sub(1).min(segs.last().map(|s| s.byte_start + s.byte_len - 1).unwrap_or(0)));
+    let end_seg = crate::date::segment_at(
+      &segs,
+      current_pos
+        .saturating_sub(1)
+        .min(segs.last().map(|s| s.byte_start + s.byte_len - 1).unwrap_or(0)),
+    );
     let advanced = start_seg != end_seg;
     if advanced {
       flush_date_to_iso(tree);
@@ -2984,7 +3039,10 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
       let snap_pos = current_pos.min(segs.last().map(|s| s.byte_start + s.byte_len - 1).unwrap_or(0));
       if let Some(si) = crate::date::segment_at(&segs, snap_pos) {
         let s = &segs[si];
-        crate::EditCursor { cursor: s.byte_start + s.byte_len, selection_anchor: Some(s.byte_start) }
+        crate::EditCursor {
+          cursor: s.byte_start + s.byte_len,
+          selection_anchor: Some(s.byte_start),
+        }
       } else {
         crate::EditCursor::collapsed(current_pos)
       }
@@ -2994,7 +3052,10 @@ pub fn text_input(tree: &mut Tree, text: &str) -> bool {
     tree.interaction.edit_cursor = Some(new_cursor);
   } else {
     let (new_value, new_cursor) = crate::text_edit::insert_text(&old_value, &cursor, text);
-    tree.interaction.undo_stack.push(crate::UndoEntry { value: old_value, cursor });
+    tree.interaction.undo_stack.push(crate::UndoEntry {
+      value: old_value,
+      cursor,
+    });
     if let Some(node) = tree.root.as_mut().and_then(|r| r.at_path_mut(&focus_path)) {
       write_value(node, new_value);
     }
@@ -3134,17 +3195,26 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
     let nav_cursor = match key {
       "ArrowLeft" | "Tab" if key == "Tab" && shift || key == "ArrowLeft" => {
         let (start, end) = crate::date::prev_segment(&segs, pos);
-        Some(crate::EditCursor { cursor: end, selection_anchor: Some(start) })
+        Some(crate::EditCursor {
+          cursor: end,
+          selection_anchor: Some(start),
+        })
       }
       "ArrowRight" | "Tab" => {
         let (start, end) = crate::date::next_segment(&segs, pos);
-        Some(crate::EditCursor { cursor: end, selection_anchor: Some(start) })
+        Some(crate::EditCursor {
+          cursor: end,
+          selection_anchor: Some(start),
+        })
       }
       "Home" => {
         let editable = crate::date::editable_segment_indices(&segs);
         if let Some(&first) = editable.first() {
           let s = &segs[first];
-          Some(crate::EditCursor { cursor: s.byte_start + s.byte_len, selection_anchor: Some(s.byte_start) })
+          Some(crate::EditCursor {
+            cursor: s.byte_start + s.byte_len,
+            selection_anchor: Some(s.byte_start),
+          })
         } else {
           Some(crate::EditCursor::collapsed(0))
         }
@@ -3153,7 +3223,10 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
         let editable = crate::date::editable_segment_indices(&segs);
         if let Some(&last) = editable.last() {
           let s = &segs[last];
-          Some(crate::EditCursor { cursor: s.byte_start + s.byte_len, selection_anchor: Some(s.byte_start) })
+          Some(crate::EditCursor {
+            cursor: s.byte_start + s.byte_len,
+            selection_anchor: Some(s.byte_start),
+          })
         } else {
           Some(crate::EditCursor::collapsed(old_value.len()))
         }
@@ -3172,7 +3245,10 @@ fn handle_edit_key(tree: &mut Tree, key: &str, code: &str) -> bool {
       if r.consumed {
         tree.interaction.date_display_value = Some(r.text);
         let (start, end) = crate::date::select_segment_near(&segs, r.cursor);
-        tree.interaction.edit_cursor = Some(crate::EditCursor { cursor: end, selection_anchor: Some(start) });
+        tree.interaction.edit_cursor = Some(crate::EditCursor {
+          cursor: end,
+          selection_anchor: Some(start),
+        });
         tree.interaction.caret_blink_epoch = std::time::Instant::now();
         tree.generation += 1;
         tree.dirty_paths.push(focus_path.clone());

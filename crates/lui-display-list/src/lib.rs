@@ -294,12 +294,8 @@ impl DisplayList {
         .get(old)
         .copied()
         .flatten()
-        .or_else(|| {
-          remap[..old.min(remap.len())].iter().rev().find_map(|s| *s)
-        })
-        .or_else(|| {
-          remap.iter().find_map(|s| *s)
-        });
+        .or_else(|| remap[..old.min(remap.len())].iter().rev().find_map(|s| *s))
+        .or_else(|| remap.iter().find_map(|s| *s));
       if let Some(new) = mapped {
         cmd.clip_index = new;
       }
@@ -489,14 +485,7 @@ impl DisplayList {
     self
   }
 
-  pub fn push_image(
-    &mut self,
-    rect: Rect,
-    image_id: u64,
-    data: Arc<Vec<u8>>,
-    width: u32,
-    height: u32,
-  ) -> &mut Self {
+  pub fn push_image(&mut self, rect: Rect, image_id: u64, data: Arc<Vec<u8>>, width: u32, height: u32) -> &mut Self {
     self.push_image_with_opacity(rect, image_id, data, width, height, 1.0)
   }
 

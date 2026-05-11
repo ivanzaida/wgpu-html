@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, HtmlDirection, SvgLength};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, HtmlDirection, SvgLength},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Svg {

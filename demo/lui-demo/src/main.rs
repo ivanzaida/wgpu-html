@@ -5,8 +5,8 @@ mod examples;
 mod parse_cmd;
 mod winit;
 
-use std::sync::Arc;
-use std::{path::PathBuf, process::ExitCode};
+use std::{path::PathBuf, process::ExitCode, sync::Arc};
+
 use lui_tree::FontFace;
 
 const DEFAULT_EXAMPLE: &str = "flex_browser_like";
@@ -18,7 +18,6 @@ enum RendererKind {
 }
 
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
-
 
 // ── CLI dispatch ──────────────────────────────────────────────────────────
 
@@ -97,7 +96,12 @@ fn run_example(name: &str, profiling: bool, renderer: RendererKind) -> ExitCode 
 
 fn run_file(path: PathBuf, profiling: bool, renderer: RendererKind) -> ExitCode {
   match std::fs::read_to_string(&path) {
-    Ok(html) => launch(lui::parser::parse(&html), path.display().to_string(), profiling, renderer),
+    Ok(html) => launch(
+      lui::parser::parse(&html),
+      path.display().to_string(),
+      profiling,
+      renderer,
+    ),
     Err(err) => {
       eprintln!("demo: failed to read HTML document '{}': {err}", path.display());
       ExitCode::FAILURE

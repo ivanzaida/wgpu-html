@@ -1,6 +1,5 @@
 use super::helpers::synthetic_text_layout;
-use crate::*;
-use crate::hit_test::collect_hit_path;
+use crate::{hit_test::collect_hit_path, *};
 
 // ---------------------------------------------------------------------------
 // Hit testing
@@ -151,5 +150,8 @@ fn hit_path_uses_transform_inverse() {
   // A point far outside (e.g. the original untransformed rect center
   // but NOT in the rotated area) should NOT hit.
   let path = collect_hit_path(&bx, 250.0, 125.0, None);
-  assert!(path.is_none(), "point at original center but outside rotated area should miss");
+  assert!(
+    path.is_none(),
+    "point at original center but outside rotated area should miss"
+  );
 }

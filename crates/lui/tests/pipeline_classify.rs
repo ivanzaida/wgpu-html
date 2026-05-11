@@ -16,16 +16,7 @@ fn initial_render(tree: &Tree, cache: &mut PipelineCache) {
   let mut text_ctx = lui_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
   let mut image_cache = lui_layout::ImageCache::default();
-  paint_tree_cached(
-    tree,
-    &mut text_ctx,
-    &mut image_cache,
-    800.0,
-    600.0,
-    1.0,
-    0.0,
-    cache,
-  );
+  paint_tree_cached(tree, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0, 0.0, cache);
 }
 
 // ── Classification tests ───────────────────────────────────────────
@@ -43,7 +34,10 @@ fn typing_in_input_classifies_as_layout_only_not_full_pipeline() {
 
   // Render the first frame to populate cache.
   initial_render(&tree, &mut cache);
-  assert!(cache.layout().is_some(), "cache.layout should be populated after initial render");
+  assert!(
+    cache.layout().is_some(),
+    "cache.layout should be populated after initial render"
+  );
 
   // Simulate focusing the input and typing.
   lui_tree::focus(&mut tree, Some(&[0]));
@@ -51,7 +45,9 @@ fn typing_in_input_classifies_as_layout_only_not_full_pipeline() {
 
   // Second frame: should be LayoutOnly, NOT FullPipeline.
   let action = classify_frame(&tree, &cache, &mut image_cache, 800.0, 600.0, 1.0);
-  assert_eq!(action, PipelineAction::LayoutOnly,
+  assert_eq!(
+    action,
+    PipelineAction::LayoutOnly,
     "typing should trigger LayoutOnly, not {action:?}. \
      tree.generation={} \
      tree.cascade_generation={} \
@@ -76,8 +72,10 @@ fn typing_does_not_bump_cascade_generation() {
   lui_tree::focus(&mut tree, Some(&[0]));
   lui_tree::text_input(&mut tree, "hello");
 
-  assert_eq!(tree.cascade_generation, gen_before,
-    "text_input should not bump cascade_generation");
+  assert_eq!(
+    tree.cascade_generation, gen_before,
+    "text_input should not bump cascade_generation"
+  );
 }
 
 #[test]
@@ -108,7 +106,10 @@ fn typing_pushes_dirty_path() {
   };
 
   lui_tree::focus(&mut tree, Some(&input_path));
-  assert!(tree.interaction.edit_cursor.is_some(), "focus should set edit_cursor on input");
+  assert!(
+    tree.interaction.edit_cursor.is_some(),
+    "focus should set edit_cursor on input"
+  );
   assert!(tree.dirty_paths.is_empty());
 
   lui_tree::text_input(&mut tree, "a");
@@ -137,7 +138,10 @@ fn dirty_paths_cleared_after_render() {
     &tree,
     &mut text_ctx,
     &mut image_cache,
-    800.0, 600.0, 1.0, 0.0,
+    800.0,
+    600.0,
+    1.0,
+    0.0,
     &mut cache,
   );
   tree.dirty_paths.clear(); // driver does this
@@ -164,14 +168,26 @@ fn second_keystroke_also_classifies_as_layout_only() {
   // Render frame 2.
   let mut text_ctx = lui_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  paint_tree_cached(&tree, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0, 0.0, &mut cache);
+  paint_tree_cached(
+    &tree,
+    &mut text_ctx,
+    &mut image_cache,
+    800.0,
+    600.0,
+    1.0,
+    0.0,
+    &mut cache,
+  );
   tree.dirty_paths.clear();
 
   // Second keystroke.
   lui_tree::text_input(&mut tree, "b");
   let action = classify_frame(&tree, &cache, &mut image_cache, 800.0, 600.0, 1.0);
-  assert_eq!(action, PipelineAction::LayoutOnly,
-    "second keystroke should also be LayoutOnly, not {action:?}");
+  assert_eq!(
+    action,
+    PipelineAction::LayoutOnly,
+    "second keystroke should also be LayoutOnly, not {action:?}"
+  );
 }
 
 #[test]
@@ -189,7 +205,16 @@ fn form_with_image_input_does_not_force_full_pipeline_on_typing() {
   // First render — FullPipeline (populates cache).
   let mut text_ctx = lui_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  paint_tree_cached(&tree, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0, 0.0, &mut cache);
+  paint_tree_cached(
+    &tree,
+    &mut text_ctx,
+    &mut image_cache,
+    800.0,
+    600.0,
+    1.0,
+    0.0,
+    &mut cache,
+  );
   tree.dirty_paths.clear();
 
   // Focus email input and type.
@@ -197,8 +222,11 @@ fn form_with_image_input_does_not_force_full_pipeline_on_typing() {
   lui_tree::text_input(&mut tree, "x");
 
   let action = classify_frame(&tree, &cache, &mut image_cache, 800.0, 600.0, 1.0);
-  assert_ne!(action, PipelineAction::FullPipeline,
-    "pending image should not force FullPipeline when typing. Action: {action:?}");
+  assert_ne!(
+    action,
+    PipelineAction::FullPipeline,
+    "pending image should not force FullPipeline when typing. Action: {action:?}"
+  );
 }
 
 #[test]
@@ -218,8 +246,11 @@ fn checkbox_toggle_classifies_as_patch_form_controls() {
   let action = classify_frame(&tree, &cache, &mut image_cache, 800.0, 600.0, 1.0);
   // Should be PatchFormControls (form_control_generation changed, generation didn't).
   // Or PartialCascade if focus changed. Either way, NOT FullPipeline.
-  assert_ne!(action, PipelineAction::FullPipeline,
-    "checkbox toggle should not be FullPipeline. Action: {action:?}");
+  assert_ne!(
+    action,
+    PipelineAction::FullPipeline,
+    "checkbox toggle should not be FullPipeline. Action: {action:?}"
+  );
 }
 
 #[test]

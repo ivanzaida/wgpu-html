@@ -394,9 +394,7 @@ fn wrap_policy_respects_white_space_and_text_wrap_mode() {
     .insert("text-wrap-mode".into(), "nowrap".into());
   assert!(!style_wraps_text(&style));
 
-  style
-    .deferred_longhands
-    .insert("text-wrap-mode".into(), "wrap".into());
+  style.deferred_longhands.insert("text-wrap-mode".into(), "wrap".into());
   assert!(style_wraps_text(&style));
 }
 
@@ -585,10 +583,7 @@ fn word_break_parses_values() {
     lui_parser::parse_inline_style("word-break: normal").word_break,
     Some(WordBreak::Normal)
   );
-  assert_eq!(
-    lui_parser::parse_inline_style("color: red").word_break,
-    None
-  );
+  assert_eq!(lui_parser::parse_inline_style("color: red").word_break, None);
 }
 
 // ── text-overflow ───────────────────────────────────────────────────
@@ -607,7 +602,8 @@ fn text_overflow_parses_values() {
 
 #[test]
 fn text_overflow_defaults_to_none_on_layout_box() {
-  let tree = make(r#"<body style="margin:0"><div style="text-overflow:ellipsis;overflow:hidden;width:50px">long</div></body>"#);
+  let tree =
+    make(r#"<body style="margin:0"><div style="text-overflow:ellipsis;overflow:hidden;width:50px">long</div></body>"#);
   let root = layout(&tree, 200.0, 100.0).unwrap();
   let div = &root.children[0];
   assert_eq!(div.text_overflow, Some(TextOverflow::Ellipsis));
@@ -660,7 +656,8 @@ fn vertical_align_sub_element_renders() {
 
 #[test]
 fn transform_translate_stored_on_layout_box() {
-  let tree = make(r#"<body style="margin:0"><div style="transform:translate(10px,20px);width:100px;height:50px"></div></body>"#);
+  let tree =
+    make(r#"<body style="margin:0"><div style="transform:translate(10px,20px);width:100px;height:50px"></div></body>"#);
   let root = layout(&tree, 200.0, 200.0).unwrap();
   let div = &root.children[0];
   let t = div.transform.as_ref().expect("transform should be set");
@@ -671,7 +668,9 @@ fn transform_translate_stored_on_layout_box() {
 
 #[test]
 fn transform_percentage_translate_resolves_against_border_box() {
-  let tree = make(r#"<body style="margin:0"><div style="transform:translate(-50%,-50%);width:200px;height:100px"></div></body>"#);
+  let tree = make(
+    r#"<body style="margin:0"><div style="transform:translate(-50%,-50%);width:200px;height:100px"></div></body>"#,
+  );
   let root = layout(&tree, 400.0, 400.0).unwrap();
   let div = &root.children[0];
   let t = div.transform.as_ref().expect("transform should be set");
@@ -699,10 +698,12 @@ fn transform_origin_defaults_to_center() {
 
 #[test]
 fn adjacent_sibling_margins_collapse() {
-  let tree = make(r#"<body style="margin:0">
+  let tree = make(
+    r#"<body style="margin:0">
     <div style="margin-bottom:20px;height:10px"></div>
     <div style="margin-top:15px;height:10px"></div>
-  </body>"#);
+  </body>"#,
+  );
   let root = layout(&tree, 200.0, 200.0).unwrap();
   let first = &root.children[0];
   let second = &root.children[1];
@@ -712,10 +713,12 @@ fn adjacent_sibling_margins_collapse() {
 
 #[test]
 fn equal_sibling_margins_collapse_to_single() {
-  let tree = make(r#"<body style="margin:0">
+  let tree = make(
+    r#"<body style="margin:0">
     <div style="margin-bottom:10px;height:10px"></div>
     <div style="margin-top:10px;height:10px"></div>
-  </body>"#);
+  </body>"#,
+  );
   let root = layout(&tree, 200.0, 200.0).unwrap();
   let first = &root.children[0];
   let second = &root.children[1];
@@ -725,10 +728,12 @@ fn equal_sibling_margins_collapse_to_single() {
 
 #[test]
 fn negative_margins_collapse_most_negative() {
-  let tree = make(r#"<body style="margin:0">
+  let tree = make(
+    r#"<body style="margin:0">
     <div style="margin-bottom:-5px;height:20px"></div>
     <div style="margin-top:-10px;height:20px"></div>
-  </body>"#);
+  </body>"#,
+  );
   let root = layout(&tree, 200.0, 200.0).unwrap();
   let first = &root.children[0];
   let second = &root.children[1];
@@ -738,10 +743,12 @@ fn negative_margins_collapse_most_negative() {
 
 #[test]
 fn mixed_positive_negative_margins_sum() {
-  let tree = make(r#"<body style="margin:0">
+  let tree = make(
+    r#"<body style="margin:0">
     <div style="margin-bottom:20px;height:10px"></div>
     <div style="margin-top:-5px;height:10px"></div>
-  </body>"#);
+  </body>"#,
+  );
   let root = layout(&tree, 200.0, 200.0).unwrap();
   let first = &root.children[0];
   let second = &root.children[1];
@@ -751,11 +758,13 @@ fn mixed_positive_negative_margins_sum() {
 
 #[test]
 fn out_of_flow_children_do_not_collapse() {
-  let tree = make(r#"<body style="margin:0;position:relative">
+  let tree = make(
+    r#"<body style="margin:0;position:relative">
     <div style="margin-bottom:20px;height:10px"></div>
     <div style="position:absolute;margin-top:100px;height:10px"></div>
     <div style="margin-top:15px;height:10px"></div>
-  </body>"#);
+  </body>"#,
+  );
   let root = layout(&tree, 200.0, 200.0).unwrap();
   let first = &root.children[0];
   let third = &root.children[2];
@@ -767,10 +776,7 @@ fn out_of_flow_children_do_not_collapse() {
 
 #[test]
 fn hit_text_cursor_in_untransformed_element() {
-  let root = layout_with_fonts(
-    r#"<body style="margin:0"><span>Hello</span></body>"#,
-    400.0, 100.0,
-  );
+  let root = layout_with_fonts(r#"<body style="margin:0"><span>Hello</span></body>"#, 400.0, 100.0);
   // Click in the middle of the text — should find a glyph
   let cursor = root.hit_text_cursor((30.0, 10.0));
   assert!(cursor.is_some(), "should hit text cursor in untransformed span");
@@ -780,7 +786,8 @@ fn hit_text_cursor_in_untransformed_element() {
 fn hit_text_cursor_in_translated_element() {
   let root = layout_with_fonts(
     r#"<body style="margin:0"><div style="transform:translate(50px,50px)"><span>Hello</span></div></body>"#,
-    400.0, 200.0,
+    400.0,
+    200.0,
   );
   // Text is translated to (50, 50). Click at (80, 60) should hit text.
   let cursor = root.hit_text_cursor((80.0, 60.0));
@@ -796,7 +803,8 @@ fn hit_text_cursor_glyph_index_correct_in_rotated_element() {
   // use inverse-transformed coordinates, not screen coordinates.
   let root = layout_with_fonts(
     r#"<body style="margin:0"><div style="transform:rotate(0deg);width:200px"><span>abcdef</span></div></body>"#,
-    400.0, 100.0,
+    400.0,
+    100.0,
   );
   let text_box = root.box_at_path(&[0, 0]).expect("text box");
   assert!(text_box.text_run.is_some(), "should have text run");
@@ -810,5 +818,8 @@ fn hit_text_cursor_glyph_index_correct_in_rotated_element() {
   assert!(cursor_mid.is_some(), "should hit middle of text (at x={:.1})", tw * 0.6);
   let idx_mid = cursor_mid.unwrap().glyph_index;
 
-  assert!(idx_mid > idx_start, "later x should hit later glyph: start={idx_start} mid={idx_mid}");
+  assert!(
+    idx_mid > idx_start,
+    "later x should hit later glyph: start={idx_start} mid={idx_mid}"
+  );
 }

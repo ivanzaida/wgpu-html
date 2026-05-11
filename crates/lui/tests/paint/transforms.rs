@@ -1,5 +1,4 @@
-use lui::paint::*;
-use lui::text::TextContext;
+use lui::{paint::*, text::TextContext};
 
 fn approx(a: f32, b: f32) -> bool {
   (a - b).abs() < 0.5
@@ -18,10 +17,13 @@ fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui::renderer::DisplayList {
 #[test]
 fn translate_shifts_quad_position() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:translate(30px,20px);width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -34,10 +36,13 @@ fn translate_shifts_quad_position() {
 #[test]
 fn translate_percentage_shifts_by_own_size() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:translate(-50%,-50%);width:200px;height:100px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -51,10 +56,13 @@ fn translate_percentage_shifts_by_own_size() {
 #[test]
 fn scale_sets_matrix_on_quad() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:scale(2);width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -68,22 +76,41 @@ fn scale_sets_matrix_on_quad() {
   assert!(approx(c, 0.0), "c = 0: got {c}");
   assert!(approx(d, 2.0), "d = 2: got {d}");
   // Origin at center
-  assert!(approx(q.transform_origin[0], 50.0), "origin x = 50: got {}", q.transform_origin[0]);
-  assert!(approx(q.transform_origin[1], 25.0), "origin y = 25: got {}", q.transform_origin[1]);
+  assert!(
+    approx(q.transform_origin[0], 50.0),
+    "origin x = 50: got {}",
+    q.transform_origin[0]
+  );
+  assert!(
+    approx(q.transform_origin[1], 25.0),
+    "origin y = 25: got {}",
+    q.transform_origin[1]
+  );
 }
 
 #[test]
 fn scale_with_origin_top_left_sets_origin() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:scale(2);transform-origin:left top;width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
-  assert!(approx(q.transform_origin[0], 0.0), "origin x = 0: got {}", q.transform_origin[0]);
-  assert!(approx(q.transform_origin[1], 0.0), "origin y = 0: got {}", q.transform_origin[1]);
+  assert!(
+    approx(q.transform_origin[0], 0.0),
+    "origin x = 0: got {}",
+    q.transform_origin[0]
+  );
+  assert!(
+    approx(q.transform_origin[1], 0.0),
+    "origin y = 0: got {}",
+    q.transform_origin[1]
+  );
 }
 
 // ── rotate ────────────────────────────────────────────────────────────
@@ -93,10 +120,13 @@ fn scale_with_origin_top_left_sets_origin() {
 #[test]
 fn rotate_sets_matrix_on_quad() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(90deg);width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -114,40 +144,65 @@ fn rotate_sets_matrix_on_quad() {
 #[test]
 fn rotate_origin_defaults_to_center() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(45deg);width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
   // Origin relative to rect top-left = center = (50, 25)
-  assert!(approx(q.transform_origin[0], 50.0), "origin x = 50: got {}", q.transform_origin[0]);
-  assert!(approx(q.transform_origin[1], 25.0), "origin y = 25: got {}", q.transform_origin[1]);
+  assert!(
+    approx(q.transform_origin[0], 50.0),
+    "origin x = 50: got {}",
+    q.transform_origin[0]
+  );
+  assert!(
+    approx(q.transform_origin[1], 25.0),
+    "origin y = 25: got {}",
+    q.transform_origin[1]
+  );
 }
 
 #[test]
 fn rotate_with_custom_origin() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(90deg);transform-origin:left top;width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
   // Origin relative to rect top-left = (0, 0)
-  assert!(approx(q.transform_origin[0], 0.0), "origin x = 0: got {}", q.transform_origin[0]);
-  assert!(approx(q.transform_origin[1], 0.0), "origin y = 0: got {}", q.transform_origin[1]);
+  assert!(
+    approx(q.transform_origin[0], 0.0),
+    "origin x = 0: got {}",
+    q.transform_origin[0]
+  );
+  assert!(
+    approx(q.transform_origin[1], 0.0),
+    "origin y = 0: got {}",
+    q.transform_origin[1]
+  );
 }
 
 #[test]
 fn no_transform_keeps_identity_matrix() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -159,12 +214,15 @@ fn no_transform_keeps_identity_matrix() {
 #[test]
 fn child_inherits_parent_rotation_matrix() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(45deg);width:200px;height:200px">
         <div style="width:50px;height:25px;background:blue"></div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -180,12 +238,15 @@ fn child_inherits_parent_rotation_matrix() {
 #[test]
 fn child_inherits_parent_scale_matrix() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:scale(3);transform-origin:left top;width:200px;height:200px">
         <div style="width:40px;height:20px;background:green"></div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -197,34 +258,42 @@ fn child_inherits_parent_scale_matrix() {
 #[test]
 fn multiple_children_all_inherit_transform() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(90deg);width:200px;height:200px">
         <div style="width:50px;height:20px;background:red"></div>
         <div style="width:50px;height:20px;background:blue"></div>
         <div style="width:50px;height:20px;background:green"></div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 3, "three child quads");
   for (i, q) in list.quads.iter().enumerate() {
     let [a, b, c, d] = q.transform;
-    assert!(approx(a, 0.0) && approx(b, 1.0) && approx(c, -1.0) && approx(d, 0.0),
-      "child {i} should have 90deg rotation matrix, got [{a}, {b}, {c}, {d}]");
+    assert!(
+      approx(a, 0.0) && approx(b, 1.0) && approx(c, -1.0) && approx(d, 0.0),
+      "child {i} should have 90deg rotation matrix, got [{a}, {b}, {c}, {d}]"
+    );
   }
 }
 
 #[test]
 fn grandchild_inherits_nested_transforms() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:scale(2);transform-origin:left top;width:200px;height:200px">
         <div style="width:100px;height:100px">
           <div style="width:30px;height:15px;background:red"></div>
         </div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -238,12 +307,15 @@ fn child_with_own_transform_composes_with_parent() {
   // Parent rotates 90deg, child scales 2x — child's quad should have
   // the composed matrix (rotate then scale, or the product).
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(90deg);width:200px;height:200px">
         <div style="transform:scale(2);transform-origin:left top;width:50px;height:25px;background:red"></div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -264,10 +336,13 @@ fn child_with_own_transform_composes_with_parent() {
 #[test]
 fn translate_then_scale_sets_both() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:translate(10px,10px) scale(2);transform-origin:left top;width:50px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert_eq!(list.quads.len(), 1);
   let q = &list.quads[0];
@@ -291,7 +366,8 @@ fn glyphs_inherit_parent_rotation() {
         <span>Hello</span>
       </div>
     </body>"#,
-    400.0, 400.0,
+    400.0,
+    400.0,
   );
   assert!(!list.glyphs.is_empty(), "should have glyphs");
   let cos45 = std::f32::consts::FRAC_1_SQRT_2;
@@ -306,14 +382,14 @@ fn glyphs_inherit_parent_rotation() {
 
 #[test]
 fn glyphs_without_transform_keep_identity() {
-  let list = paint_with_fonts(
-    r#"<body style="margin:0"><span>Test</span></body>"#,
-    400.0, 400.0,
-  );
+  let list = paint_with_fonts(r#"<body style="margin:0"><span>Test</span></body>"#, 400.0, 400.0);
   assert!(!list.glyphs.is_empty(), "should have glyphs");
   for (i, g) in list.glyphs.iter().enumerate() {
-    assert_eq!(g.transform, [1.0, 0.0, 0.0, 1.0],
-      "glyph {i} should have identity transform");
+    assert_eq!(
+      g.transform,
+      [1.0, 0.0, 0.0, 1.0],
+      "glyph {i} should have identity transform"
+    );
   }
 }
 
@@ -322,33 +398,45 @@ fn glyphs_without_transform_keep_identity() {
 #[test]
 fn images_inherit_parent_rotation() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(90deg);width:200px;height:200px">
         <div style="width:50px;height:50px;background-image:url(test.png)"></div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   // background-image may not produce images without an asset loader,
   // so test via an inline <img> with SVG data instead.
   // For now just verify images list exists (may be empty without assets).
   // The key check: if images ARE produced, they should carry the transform.
   for (i, img) in list.images.iter().enumerate() {
-    assert_eq!(img.transform, [0.0, 1.0, -1.0, 0.0],
-      "image {i} should have 90deg rotation");
+    assert_eq!(
+      img.transform,
+      [0.0, 1.0, -1.0, 0.0],
+      "image {i} should have 90deg rotation"
+    );
   }
 }
 
 #[test]
 fn images_without_transform_keep_identity() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="width:100px;height:100px;background-image:url(test.png)"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   for (i, img) in list.images.iter().enumerate() {
-    assert_eq!(img.transform, [1.0, 0.0, 0.0, 1.0],
-      "image {i} should have identity transform");
+    assert_eq!(
+      img.transform,
+      [1.0, 0.0, 0.0, 1.0],
+      "image {i} should have identity transform"
+    );
   }
 }

@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, HtmlDirection};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, HtmlDirection},
+};
 
 /// SVG `<path>` element.
 #[derive(Debug, Clone, Default)]

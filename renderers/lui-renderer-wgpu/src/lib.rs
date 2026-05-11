@@ -19,8 +19,8 @@ mod screenshot;
 pub use glyph_pipeline::GlyphPipeline;
 pub use image_pipeline::ImagePipeline;
 pub use lui_display_list::{
-  Color, ClipRange, CornerRadii, DisplayCommand, DisplayCommandKind, DisplayList,
-  FrameOutcome, GlyphQuad, ImageQuad, Pattern, Quad, Rect, StrokeWidths,
+  ClipRange, Color, CornerRadii, DisplayCommand, DisplayCommandKind, DisplayList, FrameOutcome, GlyphQuad, ImageQuad,
+  Pattern, Quad, Rect, StrokeWidths,
 };
 pub use lui_render_api::{RenderBackend, RenderError};
 pub use quad_pipeline::QuadPipeline;
@@ -328,12 +328,7 @@ impl Renderer {
 
   /// Render `list` into an offscreen texture and return the pixels as
   /// RGBA8 bytes. Does not touch the window surface.
-  pub fn render_to_rgba(
-    &mut self,
-    list: &DisplayList,
-    width: u32,
-    height: u32,
-  ) -> Result<Vec<u8>, ScreenshotError> {
+  pub fn render_to_rgba(&mut self, list: &DisplayList, width: u32, height: u32) -> Result<Vec<u8>, ScreenshotError> {
     let width = width.max(1);
     let height = height.max(1);
     let format = self.format;
@@ -488,27 +483,14 @@ impl Renderer {
     // If a capture was requested, append a texture-to-buffer copy to
     // the same encoder so it sees the just-rendered surface texture.
     let capture_target = self.pending_capture.take();
-    let staging = capture_target.as_ref().map(|_| {
-      screenshot::begin_capture(
-        &self.device,
-        &mut encoder,
-        &frame.texture,
-        config.width,
-        config.height,
-      )
-    });
+    let staging = capture_target
+      .as_ref()
+      .map(|_| screenshot::begin_capture(&self.device, &mut encoder, &frame.texture, config.width, config.height));
 
     self.queue.submit(Some(encoder.finish()));
 
     if let (Some(stg), Some(path)) = (staging, capture_target) {
-      if let Err(e) = screenshot::finish_capture(
-        &self.device,
-        stg,
-        config.width,
-        config.height,
-        config.format,
-        &path,
-      ) {
+      if let Err(e) = screenshot::finish_capture(&self.device, stg, config.width, config.height, config.format, &path) {
         eprintln!("screenshot failed: {e}");
       } else {
         eprintln!("saved screenshot to {}", path.display());
@@ -718,12 +700,7 @@ impl RenderBackend for Renderer {
     self.render(list)
   }
 
-  fn render_to_rgba(
-    &mut self,
-    list: &DisplayList,
-    width: u32,
-    height: u32,
-  ) -> Result<Vec<u8>, RenderError> {
+  fn render_to_rgba(&mut self, list: &DisplayList, width: u32, height: u32) -> Result<Vec<u8>, RenderError> {
     self
       .render_to_rgba(list, width, height)
       .map_err(|e| RenderError::Backend(Box::new(e)))

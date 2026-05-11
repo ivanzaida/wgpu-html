@@ -11,25 +11,25 @@
 //! - Borders are not drawn yet (treated as zero); inline / flex / floats come in later milestones.
 //! - Text nodes contribute zero height; M5 brings real text layout.
 
-pub use lui_assets::{current_frame, AssetIo, Fetcher, ImageData, ImageFrame};
+pub use lui_assets::{AssetIo, Fetcher, ImageData, ImageFrame, current_frame};
 pub type ImageCache = AssetIo<lui_assets::blocking::BlockingFetcher>;
 
-pub use color::{resolve_color, resolve_with_current, Color};
-pub use lui_models::common::css_enums::{Cursor, PointerEvents, Resize, TextOverflow, UserSelect, VerticalAlign, WordBreak};
-pub use lui_models::Style;
-pub use lui_models::common::css_enums::WhiteSpace;
-pub use lui_text::{PositionedGlyph, ShapedRun};
-
+pub use color::{Color, resolve_color, resolve_with_current};
+pub use lui_models::{
+  Style,
+  common::css_enums::{Cursor, PointerEvents, Resize, TextOverflow, UserSelect, VerticalAlign, WhiteSpace, WordBreak},
+};
 #[cfg(test)]
 use lui_style::CascadedTree;
+pub use lui_text::{PositionedGlyph, ShapedRun};
 
 pub mod color;
 pub mod types;
 pub use types::*;
 
-pub(crate) mod layout_profile;
 pub(crate) mod background;
 pub(crate) mod box_model;
+pub(crate) mod layout_profile;
 pub(crate) use box_model::*;
 pub(crate) mod positioned;
 pub(crate) use positioned::*;
@@ -39,33 +39,29 @@ pub(crate) mod inline;
 pub(crate) use inline::*;
 pub(crate) mod form_controls;
 pub(crate) use form_controls::*;
-pub(crate) mod entry;
 pub(crate) mod block;
+pub(crate) mod entry;
 
 mod flex;
 mod gradient;
 mod grid;
+mod hit_test;
 mod length;
+pub mod shadow;
 mod svg;
 mod table;
-mod hit_test;
-pub mod shadow;
 pub mod transform;
 
 mod incremental;
-pub use incremental::{
-  layout_incremental, padding_box_rect, patch_form_controls,
-  patch_layout_colors, resolve_lui_properties, lui_popup_from_pseudo,
-  lui_color_from_pseudo, lui_calendar_from_pseudo, file_button_from_pseudo,
-};
-
 // Crate-root re-exports — needed by flex, grid, table, positioned, etc.
-pub(crate) use block::{layout_block, layout_block_at_with, BlockOverrides};
-pub(crate) use types::Ctx;
-pub(crate) use types::TextCtx;
-
+pub(crate) use block::{BlockOverrides, layout_block, layout_block_at_with};
 // Public entry points.
 pub use entry::*;
+pub use incremental::{
+  file_button_from_pseudo, layout_incremental, lui_calendar_from_pseudo, lui_color_from_pseudo, lui_popup_from_pseudo,
+  padding_box_rect, patch_form_controls, patch_layout_colors, resolve_lui_properties,
+};
+pub(crate) use types::{Ctx, TextCtx};
 
 #[cfg(test)]
 mod tests;

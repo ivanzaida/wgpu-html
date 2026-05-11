@@ -9,9 +9,7 @@ fn content_property_parsed() {
 
 #[test]
 fn cascade_pseudo_element_style_computed() {
-  let tree = lui_parser::parse(
-    r#"<style>p::before { content: "X"; color: red; }</style><p>test</p>"#,
-  );
+  let tree = lui_parser::parse(r#"<style>p::before { content: "X"; color: red; }</style><p>test</p>"#);
   let cascaded = lui_style::cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
   fn find_p(n: &lui_style::CascadedNode) -> Option<&lui_style::CascadedNode> {
@@ -89,9 +87,7 @@ fn list_style_none_hides_markers() {
 
 #[test]
 fn cascade_marker_computed_for_list_item() {
-  let tree = lui_parser::parse(
-    r#"<ul><li>test</li></ul>"#,
-  );
+  let tree = lui_parser::parse(r#"<ul><li>test</li></ul>"#);
   let cascaded = lui_style::cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
   fn find_li(n: &lui_style::CascadedNode) -> Option<&lui_style::CascadedNode> {
@@ -103,7 +99,11 @@ fn cascade_marker_computed_for_list_item() {
   let li = find_li(root).expect("found li");
   assert!(li.marker.is_some(), "li should have marker pseudo-element");
   let marker = li.marker.as_ref().unwrap();
-  assert!(marker.content_text.contains("\u{2022}"), "marker should be bullet, got: {}", marker.content_text);
+  assert!(
+    marker.content_text.contains("\u{2022}"),
+    "marker should be bullet, got: {}",
+    marker.content_text
+  );
 }
 
 fn find_text_content(b: &LayoutBox) -> String {

@@ -1,11 +1,11 @@
-use super::theme::Theme;
 use lui_models::common::{AlignItems, Display, FontStyle, FontWeight, Overflow, WhiteSpace};
-use lui_ui::style::Val;
 use lui_ui::{
-  el::{self, div},
-  style::{self, px, Stylesheet},
   Component, Ctx, El, ShouldRender,
+  el::{self, div},
+  style::{self, Stylesheet, Val, px},
 };
+
+use super::theme::Theme;
 
 const ELEM_MARGIN: Val = Val::Px(4f32);
 
@@ -53,14 +53,12 @@ impl Component for StyleRule {
     children.push(div().class(ctx.scoped("rule-hdr")).children(hdr_parts));
 
     for (prop, val) in &props.declarations {
-      children.push(
-        div().class(ctx.scoped("decl")).children([
-          el::span().class(ctx.scoped("prop")).text(prop.as_str()),
-          el::span().class(ctx.scoped("punct")).text(":"),
-          el::span().class(ctx.scoped("val")).text(val.as_str()),
-          el::span().class(ctx.scoped("punct")).text(";"),
-        ]),
-      );
+      children.push(div().class(ctx.scoped("decl")).children([
+        el::span().class(ctx.scoped("prop")).text(prop.as_str()),
+        el::span().class(ctx.scoped("punct")).text(":"),
+        el::span().class(ctx.scoped("val")).text(val.as_str()),
+        el::span().class(ctx.scoped("punct")).text(";"),
+      ]));
     }
 
     children.push(
@@ -103,13 +101,9 @@ impl Component for StyleRule {
       style::rule(".brace")
         .color(Theme::PROPERTY)
         .margin_left(ELEM_MARGIN.clone()),
-      style::rule(".prop")
-        .color(Theme::PROPERTY),
-      style::rule(".val")
-        .color(Theme::VALUE)
-        .margin_left(ELEM_MARGIN.clone()),
-      style::rule(".punct")
-        .color(Theme::PROPERTY),
+      style::rule(".prop").color(Theme::PROPERTY),
+      style::rule(".val").color(Theme::VALUE).margin_left(ELEM_MARGIN.clone()),
+      style::rule(".punct").color(Theme::PROPERTY),
       style::rule(".file")
         .color(Theme::ACCENT_BLUE)
         .font_family("Inter, system-ui, sans-serif")
@@ -119,9 +113,8 @@ impl Component for StyleRule {
         .font_family("Inter, system-ui, sans-serif")
         .font_size(px(10))
         .font_style(FontStyle::Italic),
-      style::rule(".spacer")
-        .flex_grow(1.0),
+      style::rule(".spacer").flex_grow(1.0),
     ])
-      .scoped("srule")
+    .scoped("srule")
   }
 }

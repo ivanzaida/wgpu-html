@@ -1,14 +1,11 @@
 use lui_layout::LayoutBox;
-use lui_models::common::css_enums::*;
-use lui_models::{ArcStr, Div, Span};
+use lui_models::{ArcStr, Div, Span, common::css_enums::*};
 use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_style::{CascadedNode, CascadedTree};
 use lui_text::TextContext;
-use lui_tree::date;
-use lui_tree::{DatePickerState, Element, Tree};
+use lui_tree::{DatePickerState, Element, Tree, date};
 
 const CELL_SIZE: f32 = 30.0;
-
 
 fn cn(element: Element, style: lui_models::Style, children: Vec<CascadedNode>) -> CascadedNode {
   CascadedNode {
@@ -35,19 +32,39 @@ fn text_node(text: &str, color: &CssColor, font_size: f32) -> CascadedNode {
 
 fn merge_popup_style(base: &mut lui_models::Style, popup: Option<&lui_models::LuiPopupStyle>) {
   let Some(ps) = popup else { return };
-  if ps.width.is_some() { base.width = ps.width.clone(); }
-  if ps.height.is_some() { base.height = ps.height.clone(); }
-  if ps.background_color.is_some() { base.background_color = ps.background_color.clone(); }
-  if ps.color.is_some() { base.color = ps.color.clone(); }
-  if ps.font_size.is_some() { base.font_size = ps.font_size.clone(); }
-  if ps.font_family.is_some() { base.font_family = ps.font_family.clone(); }
-  if ps.font_weight.is_some() { base.font_weight = ps.font_weight.clone(); }
+  if ps.width.is_some() {
+    base.width = ps.width.clone();
+  }
+  if ps.height.is_some() {
+    base.height = ps.height.clone();
+  }
+  if ps.background_color.is_some() {
+    base.background_color = ps.background_color.clone();
+  }
+  if ps.color.is_some() {
+    base.color = ps.color.clone();
+  }
+  if ps.font_size.is_some() {
+    base.font_size = ps.font_size.clone();
+  }
+  if ps.font_family.is_some() {
+    base.font_family = ps.font_family.clone();
+  }
+  if ps.font_weight.is_some() {
+    base.font_weight = ps.font_weight.clone();
+  }
   macro_rules! border {
     ($w:ident, $s:ident, $c:ident) => {
-      if ps.$w.is_some() { base.$w = ps.$w.clone(); }
-      if ps.$s.is_some() { base.$s = ps.$s.clone(); }
-      if ps.$c.is_some() { base.$c = ps.$c.clone(); }
-    }
+      if ps.$w.is_some() {
+        base.$w = ps.$w.clone();
+      }
+      if ps.$s.is_some() {
+        base.$s = ps.$s.clone();
+      }
+      if ps.$c.is_some() {
+        base.$c = ps.$c.clone();
+      }
+    };
   }
   border!(border_top_width, border_top_style, border_top_color);
   border!(border_right_width, border_right_style, border_right_color);
@@ -90,9 +107,11 @@ fn build_date_picker_tree(dp: &DatePickerState, tree: &Tree) -> CascadedTree {
   let cal_ps = dp.calendar_style.as_deref();
   let locale = &tree.locale;
 
-  let text_color = popup_ps.and_then(|p| p.color.clone())
+  let text_color = popup_ps
+    .and_then(|p| p.color.clone())
     .unwrap_or(CssColor::Rgba(217, 217, 217, 1.0));
-  let dim_color = cal_ps.and_then(|c| c.dim.clone())
+  let dim_color = cal_ps
+    .and_then(|c| c.dim.clone())
     .unwrap_or(CssColor::Rgba(115, 115, 115, 1.0));
   let font_size = 12.0;
   let small_font = 10.0;
@@ -137,30 +156,40 @@ fn build_date_picker_tree(dp: &DatePickerState, tree: &Tree) -> CascadedTree {
   title_s.align_items = Some(AlignItems::Center);
   let month_name = locale.month_name(dp.view_month);
   let header_text = format!("{month_name} {}", dp.view_year);
-  let title_node = cn(Element::Div(Div::default()), title_s, vec![
-    text_node(&header_text, &text_color, font_size),
-  ]);
+  let title_node = cn(
+    Element::Div(Div::default()),
+    title_s,
+    vec![text_node(&header_text, &text_color, font_size)],
+  );
 
-  let header_row = cn(Element::Div(Div::default()), header_s, vec![prev_btn, title_node, next_btn]);
+  let header_row = cn(
+    Element::Div(Div::default()),
+    header_s,
+    vec![prev_btn, title_node, next_btn],
+  );
 
   // ── Weekday header row ──
   let mut wd_row_s = lui_models::Style::default();
   wd_row_s.display = Some(Display::Flex);
   wd_row_s.flex_direction = Some(FlexDirection::Row);
   let first_dow = locale.first_day_of_week();
-  let wd_children: Vec<CascadedNode> = (0..7u8).map(|i| {
-    let dow = (first_dow + i) % 7;
-    let label = locale.weekday_short(dow);
-    let mut cell_s = lui_models::Style::default();
-    cell_s.width = Some(CssLength::Px(CELL_SIZE));
-    cell_s.height = Some(CssLength::Px(20.0));
-    cell_s.display = Some(Display::Flex);
-    cell_s.justify_content = Some(JustifyContent::Center);
-    cell_s.align_items = Some(AlignItems::Center);
-    cn(Element::Div(Div::default()), cell_s, vec![
-      text_node(label, &dim_color, small_font),
-    ])
-  }).collect();
+  let wd_children: Vec<CascadedNode> = (0..7u8)
+    .map(|i| {
+      let dow = (first_dow + i) % 7;
+      let label = locale.weekday_short(dow);
+      let mut cell_s = lui_models::Style::default();
+      cell_s.width = Some(CssLength::Px(CELL_SIZE));
+      cell_s.height = Some(CssLength::Px(20.0));
+      cell_s.display = Some(Display::Flex);
+      cell_s.justify_content = Some(JustifyContent::Center);
+      cell_s.align_items = Some(AlignItems::Center);
+      cn(
+        Element::Div(Div::default()),
+        cell_s,
+        vec![text_node(label, &dim_color, small_font)],
+      )
+    })
+    .collect();
   let wd_row = cn(Element::Div(Div::default()), wd_row_s, wd_children);
 
   // ── Day grid (6 rows × 7 cells) ──
@@ -177,47 +206,57 @@ fn build_date_picker_tree(dp: &DatePickerState, tree: &Tree) -> CascadedTree {
     row_s.display = Some(Display::Flex);
     row_s.flex_direction = Some(FlexDirection::Row);
 
-    let cells: Vec<CascadedNode> = (0..7u8).map(|col| {
-      let cell_idx = row as i32 * 7 + col as i32 - offset as i32;
-      let (d_year, d_month, d_day, is_current) = if cell_idx < 0 {
-        (pvy, pvm, (days_prev as i32 + cell_idx + 1) as u8, false)
-      } else if cell_idx >= days_this as i32 {
-        let (ny, nm) = date::next_month(dp.view_year, dp.view_month);
-        (ny, nm, (cell_idx - days_this as i32 + 1) as u8, false)
-      } else {
-        (dp.view_year, dp.view_month, cell_idx as u8 + 1, true)
-      };
+    let cells: Vec<CascadedNode> = (0..7u8)
+      .map(|col| {
+        let cell_idx = row as i32 * 7 + col as i32 - offset as i32;
+        let (d_year, d_month, d_day, is_current) = if cell_idx < 0 {
+          (pvy, pvm, (days_prev as i32 + cell_idx + 1) as u8, false)
+        } else if cell_idx >= days_this as i32 {
+          let (ny, nm) = date::next_month(dp.view_year, dp.view_month);
+          (ny, nm, (cell_idx - days_this as i32 + 1) as u8, false)
+        } else {
+          (dp.view_year, dp.view_month, cell_idx as u8 + 1, true)
+        };
 
-      let is_selected = d_year == dp.year && d_month == dp.month && d_day == dp.day;
-      let is_today = d_year == today.0 && d_month == today.1 && d_day == today.2;
+        let is_selected = d_year == dp.year && d_month == dp.month && d_day == dp.day;
+        let is_today = d_year == today.0 && d_month == today.1 && d_day == today.2;
 
-      let cell_color = if is_selected {
-        CssColor::Rgba(255, 255, 255, 1.0)
-      } else if is_current {
-        text_color.clone()
-      } else {
-        dim_color.clone()
-      };
+        let cell_color = if is_selected {
+          CssColor::Rgba(255, 255, 255, 1.0)
+        } else if is_current {
+          text_color.clone()
+        } else {
+          dim_color.clone()
+        };
 
-      let mut cell_s = lui_models::Style::default();
-      cell_s.width = Some(CssLength::Px(CELL_SIZE));
-      cell_s.height = Some(CssLength::Px(CELL_SIZE));
-      cell_s.display = Some(Display::Flex);
-      cell_s.justify_content = Some(JustifyContent::Center);
-      cell_s.align_items = Some(AlignItems::Center);
-      set_radius_all(&mut cell_s, CELL_SIZE / 2.0);
+        let mut cell_s = lui_models::Style::default();
+        cell_s.width = Some(CssLength::Px(CELL_SIZE));
+        cell_s.height = Some(CssLength::Px(CELL_SIZE));
+        cell_s.display = Some(Display::Flex);
+        cell_s.justify_content = Some(JustifyContent::Center);
+        cell_s.align_items = Some(AlignItems::Center);
+        set_radius_all(&mut cell_s, CELL_SIZE / 2.0);
 
-      if is_selected {
-        let sel_bg = cal_ps.and_then(|c| c.selected_bg.clone()).unwrap_or(CssColor::Rgba(59, 130, 245, 1.0));
-        cell_s.background_color = Some(sel_bg);
-      } else if is_today {
-        let today_c = cal_ps.and_then(|c| c.today_color.clone()).unwrap_or(CssColor::Rgba(102, 153, 255, 1.0));
-        set_border_all(&mut cell_s, 1.0, today_c);
-      }
+        if is_selected {
+          let sel_bg = cal_ps
+            .and_then(|c| c.selected_bg.clone())
+            .unwrap_or(CssColor::Rgba(59, 130, 245, 1.0));
+          cell_s.background_color = Some(sel_bg);
+        } else if is_today {
+          let today_c = cal_ps
+            .and_then(|c| c.today_color.clone())
+            .unwrap_or(CssColor::Rgba(102, 153, 255, 1.0));
+          set_border_all(&mut cell_s, 1.0, today_c);
+        }
 
-      let label = format!("{d_day}");
-      cn(Element::Div(Div::default()), cell_s, vec![text_node(&label, &cell_color, small_font)])
-    }).collect();
+        let label = format!("{d_day}");
+        cn(
+          Element::Div(Div::default()),
+          cell_s,
+          vec![text_node(&label, &cell_color, small_font)],
+        )
+      })
+      .collect();
 
     grid_rows.push(cn(Element::Div(Div::default()), row_s, cells));
   }
@@ -246,17 +285,25 @@ fn build_date_picker_tree(dp: &DatePickerState, tree: &Tree) -> CascadedTree {
       fs.background_color = Some(CssColor::Rgba(26, 26, 26, 1.0));
       set_border_all(&mut fs, 1.0, CssColor::Rgba(89, 89, 89, 1.0));
       set_radius_all(&mut fs, 3.0);
-      cn(Element::Div(Div::default()), fs, vec![
-        text_node(&format!("{val:02}"), &text_color, font_size),
-      ])
+      cn(
+        Element::Div(Div::default()),
+        fs,
+        vec![text_node(&format!("{val:02}"), &text_color, font_size)],
+      )
     };
 
     let hour_field = make_time_field(dp.hour);
-    let colon = cn(Element::Span(Span::default()), lui_models::Style::default(), vec![
-      text_node(":", &text_color, font_size),
-    ]);
+    let colon = cn(
+      Element::Span(Span::default()),
+      lui_models::Style::default(),
+      vec![text_node(":", &text_color, font_size)],
+    );
     let minute_field = make_time_field(dp.minute);
-    Some(cn(Element::Div(Div::default()), tr_s, vec![hour_field, colon, minute_field]))
+    Some(cn(
+      Element::Div(Div::default()),
+      tr_s,
+      vec![hour_field, colon, minute_field],
+    ))
   } else {
     None
   };
@@ -270,13 +317,17 @@ fn build_date_picker_tree(dp: &DatePickerState, tree: &Tree) -> CascadedTree {
   set_border_all(&mut rb_s, 1.0, CssColor::Rgba(77, 77, 77, 1.0));
   set_radius_all(&mut rb_s, 3.0);
   let reset_label = locale.date_picker_reset_label();
-  let reset_btn = cn(Element::Div(Div::default()), rb_s, vec![
-    text_node(reset_label, &dim_color, small_font),
-  ]);
+  let reset_btn = cn(
+    Element::Div(Div::default()),
+    rb_s,
+    vec![text_node(reset_label, &dim_color, small_font)],
+  );
 
   // ── Assemble ──
   let mut children = vec![header_row, wd_row, grid];
-  if let Some(tr) = time_row { children.push(tr); }
+  if let Some(tr) = time_row {
+    children.push(tr);
+  }
   children.push(reset_btn);
 
   let popup = cn(Element::Div(Div::default()), ps, children);
@@ -297,12 +348,7 @@ fn translate_layout_box(b: &mut LayoutBox, dx: f32, dy: f32) {
   }
 }
 
-pub fn paint_date_picker_overlay(
-  list: &mut DisplayList,
-  _root: &LayoutBox,
-  tree: &Tree,
-  text_ctx: &mut TextContext,
-) {
+pub fn paint_date_picker_overlay(list: &mut DisplayList, _root: &LayoutBox, tree: &Tree, text_ctx: &mut TextContext) {
   let dp = match &tree.interaction.date_picker {
     Some(dp) => dp,
     None => return,
@@ -312,9 +358,10 @@ pub fn paint_date_picker_overlay(
 
   let picker_tree = build_date_picker_tree(dp, tree);
   let mut image_cache = lui_layout::ImageCache::default();
-  let Some(mut layout) = lui_layout::layout_with_text(
-    &picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0,
-  ) else { return };
+  let Some(mut layout) = lui_layout::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
+  else {
+    return;
+  };
 
   translate_layout_box(&mut layout, popup_x, popup_y);
 
@@ -335,7 +382,8 @@ pub fn paint_date_picker_overlay(
 }
 
 fn resolve_dim_color(dp: &DatePickerState) -> [f32; 4] {
-  dp.calendar_style.as_ref()
+  dp.calendar_style
+    .as_ref()
     .and_then(|c| c.dim.as_ref())
     .and_then(|c| lui_layout::color::resolve_color(c))
     .unwrap_or([0.45, 0.45, 0.45, 1.0])
@@ -349,7 +397,11 @@ fn paint_chevron(list: &mut DisplayList, br: &lui_layout::Rect, color: [f32; 4],
   let half = sz / 2.0;
   let steps = (sz / (t * 0.4)).ceil().max(4.0) as usize;
   let r = t / 2.0;
-  let (tip_x, wing_x) = if left { (cx - half * 0.4, cx + half * 0.4) } else { (cx + half * 0.4, cx - half * 0.4) };
+  let (tip_x, wing_x) = if left {
+    (cx - half * 0.4, cx + half * 0.4)
+  } else {
+    (cx + half * 0.4, cx - half * 0.4)
+  };
   let top_y = cy - half;
   let bot_y = cy + half;
   for i in 0..=steps {
@@ -370,8 +422,11 @@ fn paint_chevron(list: &mut DisplayList, br: &lui_layout::Rect, color: [f32; 4],
 
 pub fn compute_popup_rects(
   dp: &mut DatePickerState,
-  swatch_x: f32, swatch_y: f32, swatch_h: f32,
-  viewport_w: f32, viewport_h: f32,
+  swatch_x: f32,
+  swatch_y: f32,
+  swatch_h: f32,
+  viewport_w: f32,
+  viewport_h: f32,
 ) {
   let pw = CELL_SIZE * 7.0 + 16.0 + 2.0;
   let header_h = 28.0;
@@ -384,8 +439,12 @@ pub fn compute_popup_rects(
 
   let mut px = swatch_x;
   let mut py = swatch_y + swatch_h + 4.0;
-  if px + pw > viewport_w { px = (viewport_w - pw - 4.0).max(0.0); }
-  if py + ph > viewport_h { py = (swatch_y - ph - 4.0).max(0.0); }
+  if px + pw > viewport_w {
+    px = (viewport_w - pw - 4.0).max(0.0);
+  }
+  if py + ph > viewport_h {
+    py = (swatch_y - ph - 4.0).max(0.0);
+  }
 
   dp.popup_rect = [px, py, pw, ph];
 
@@ -417,29 +476,43 @@ pub fn compute_popup_rects(
 pub fn hit_test(dp: &DatePickerState, pos: (f32, f32)) -> Option<DatePickerHit> {
   let (mx, my) = pos;
   let [px, py, pw, ph] = dp.popup_rect;
-  if mx < px || mx > px + pw || my < py || my > py + ph { return None; }
+  if mx < px || mx > px + pw || my < py || my > py + ph {
+    return None;
+  }
 
   let [bx, by, bw, bh] = dp.prev_btn_rect;
-  if mx >= bx && mx <= bx + bw && my >= by && my <= by + bh { return Some(DatePickerHit::PrevMonth); }
+  if mx >= bx && mx <= bx + bw && my >= by && my <= by + bh {
+    return Some(DatePickerHit::PrevMonth);
+  }
   let [bx, by, bw, bh] = dp.next_btn_rect;
-  if mx >= bx && mx <= bx + bw && my >= by && my <= by + bh { return Some(DatePickerHit::NextMonth); }
+  if mx >= bx && mx <= bx + bw && my >= by && my <= by + bh {
+    return Some(DatePickerHit::NextMonth);
+  }
 
   let [gx, gy, gw, gh] = dp.grid_rect;
   if mx >= gx && mx <= gx + gw && my >= gy && my <= gy + gh {
     let col = ((mx - gx) / CELL_SIZE) as u8;
     let row = ((my - gy) / CELL_SIZE) as u8;
-    if col < 7 && row < 6 { return Some(DatePickerHit::DayCell(row, col)); }
+    if col < 7 && row < 6 {
+      return Some(DatePickerHit::DayCell(row, col));
+    }
   }
 
   if dp.has_time {
     let [hx, hy, hw, hh] = dp.hour_rect;
-    if mx >= hx && mx <= hx + hw && my >= hy && my <= hy + hh { return Some(DatePickerHit::HourField); }
+    if mx >= hx && mx <= hx + hw && my >= hy && my <= hy + hh {
+      return Some(DatePickerHit::HourField);
+    }
     let [mx2, my2, mw, mh] = dp.minute_rect;
-    if mx >= mx2 && mx <= mx2 + mw && my >= my2 && my <= my2 + mh { return Some(DatePickerHit::MinuteField); }
+    if mx >= mx2 && mx <= mx2 + mw && my >= my2 && my <= my2 + mh {
+      return Some(DatePickerHit::MinuteField);
+    }
   }
 
   let [rbx, rby, rbw, rbh] = dp.reset_btn_rect;
-  if mx >= rbx && mx <= rbx + rbw && my >= rby && my <= rby + rbh { return Some(DatePickerHit::Reset); }
+  if mx >= rbx && mx <= rbx + rbw && my >= rby && my <= rby + rbh {
+    return Some(DatePickerHit::Reset);
+  }
 
   Some(DatePickerHit::Background)
 }
@@ -471,7 +544,9 @@ pub enum DatePickerHit {
   Background,
 }
 
-pub fn today_ymd_pub() -> (i32, u8, u8) { today_ymd() }
+pub fn today_ymd_pub() -> (i32, u8, u8) {
+  today_ymd()
+}
 
 fn today_ymd() -> (i32, u8, u8) {
   let secs = std::time::SystemTime::now()

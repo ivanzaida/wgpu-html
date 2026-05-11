@@ -5,10 +5,10 @@ use lui_style::CascadedTree;
 use lui_text::TextContext;
 
 use crate::{
-    block::{layout_block, BlockOverrides},
-    layout_profile::LayoutProfiler,
-    types::{Ctx, LayoutBox, Rect, TextCtx},
-    ImageCache,
+  ImageCache,
+  block::{BlockOverrides, layout_block},
+  layout_profile::LayoutProfiler,
+  types::{Ctx, LayoutBox, Rect, TextCtx},
 };
 
 /// Lay the cascaded tree out into a viewport of `viewport_w × viewport_h`
@@ -23,7 +23,15 @@ pub fn layout_with_text(
   scale: f32,
 ) -> Option<LayoutBox> {
   let default_locale = lui_tree::DefaultLocale;
-  layout_with_text_locale(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, &default_locale)
+  layout_with_text_locale(
+    tree,
+    text_ctx,
+    image_cache,
+    viewport_w,
+    viewport_h,
+    scale,
+    &default_locale,
+  )
 }
 
 pub fn layout_with_text_locale(
@@ -35,7 +43,18 @@ pub fn layout_with_text_locale(
   scale: f32,
   locale: &dyn lui_tree::Locale,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, None, None)
+  layout_with_text_profiled(
+    tree,
+    text_ctx,
+    image_cache,
+    viewport_w,
+    viewport_h,
+    scale,
+    false,
+    locale,
+    None,
+    None,
+  )
 }
 
 pub fn layout_with_text_locale_date(
@@ -49,7 +68,18 @@ pub fn layout_with_text_locale_date(
   date_display: Option<String>,
   date_focus_iso: Option<String>,
 ) -> Option<LayoutBox> {
-  layout_with_text_profiled(tree, text_ctx, image_cache, viewport_w, viewport_h, scale, false, locale, date_display, date_focus_iso)
+  layout_with_text_profiled(
+    tree,
+    text_ctx,
+    image_cache,
+    viewport_w,
+    viewport_h,
+    scale,
+    false,
+    locale,
+    date_display,
+    date_focus_iso,
+  )
 }
 
 /// Like [`layout_with_text`] but optionally enables the layout
@@ -77,11 +107,7 @@ pub fn layout_with_text_profiled(
     locale,
     date_display_value: date_display,
     date_focus_iso,
-    profiler: if profile {
-      Some(LayoutProfiler::new())
-    } else {
-      None
-    },
+    profiler: if profile { Some(LayoutProfiler::new()) } else { None },
   };
   let result = layout_block(
     root,

@@ -61,21 +61,10 @@ pub trait RenderBackend {
   fn render(&mut self, list: &DisplayList) -> FrameOutcome;
 
   /// Render a display list into an offscreen buffer and return RGBA8 pixels.
-  fn render_to_rgba(
-    &mut self,
-    list: &DisplayList,
-    width: u32,
-    height: u32,
-  ) -> Result<Vec<u8>, RenderError>;
+  fn render_to_rgba(&mut self, list: &DisplayList, width: u32, height: u32) -> Result<Vec<u8>, RenderError>;
 
   /// Render a display list into an offscreen buffer and save as PNG.
-  fn capture_to(
-    &mut self,
-    list: &DisplayList,
-    width: u32,
-    height: u32,
-    path: &Path,
-  ) -> Result<(), RenderError>;
+  fn capture_to(&mut self, list: &DisplayList, width: u32, height: u32, path: &Path) -> Result<(), RenderError>;
 
   /// Schedule the next on-screen frame to be saved to `path` as PNG.
   fn capture_next_frame_to(&mut self, path: std::path::PathBuf);

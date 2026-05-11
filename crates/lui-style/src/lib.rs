@@ -18,8 +18,7 @@ use std::{
 };
 
 use lui_models as m;
-use lui_models::{ArcStr, Style};
-use lui_models::common::css_enums::ListStyleType;
+use lui_models::{ArcStr, Style, common::css_enums::ListStyleType};
 use lui_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
   MediaQuery, MediaQueryList, MediaType, PseudoClass, PseudoElement, Rule, Stylesheet, parse_import_directive,
@@ -176,7 +175,9 @@ pub struct InspectionContext {
 
 impl InspectionContext {
   pub fn new(tree: &Tree) -> Self {
-    Self { sheets: collect_named_sheets(tree) }
+    Self {
+      sheets: collect_named_sheets(tree),
+    }
   }
 
   pub fn matched_rules(&self, tree: &Tree, path: &[usize]) -> Vec<MatchedRuleInfo> {
@@ -257,11 +258,7 @@ fn collect_named_sheets(tree: &Tree) -> Vec<(String, bool, PreparedStylesheet)> 
   let mut sheets = Vec::new();
 
   if tree.use_ua_stylesheet {
-    sheets.push((
-      "user-agent".to_string(),
-      true,
-      ua_prepared_stylesheet().clone(),
-    ));
+    sheets.push(("user-agent".to_string(), true, ua_prepared_stylesheet().clone()));
   }
 
   // Inline <style> tags
@@ -354,12 +351,24 @@ fn compound_to_string(c: &CompoundSelector, s: &mut String) {
     let val = &attr.value;
     match attr.op {
       AttrOp::Exists => {}
-      AttrOp::Equals => { s.push_str(&format!("=\"{val}\"")); }
-      AttrOp::Substring => { s.push_str(&format!("*=\"{val}\"")); }
-      AttrOp::Prefix => { s.push_str(&format!("^=\"{val}\"")); }
-      AttrOp::Suffix => { s.push_str(&format!("$=\"{val}\"")); }
-      AttrOp::DashMatch => { s.push_str(&format!("|=\"{val}\"")); }
-      AttrOp::Includes => { s.push_str(&format!("~=\"{val}\"")); }
+      AttrOp::Equals => {
+        s.push_str(&format!("=\"{val}\""));
+      }
+      AttrOp::Substring => {
+        s.push_str(&format!("*=\"{val}\""));
+      }
+      AttrOp::Prefix => {
+        s.push_str(&format!("^=\"{val}\""));
+      }
+      AttrOp::Suffix => {
+        s.push_str(&format!("$=\"{val}\""));
+      }
+      AttrOp::DashMatch => {
+        s.push_str(&format!("|=\"{val}\""));
+      }
+      AttrOp::Includes => {
+        s.push_str(&format!("~=\"{val}\""));
+      }
     }
     s.push(']');
   }
@@ -381,9 +390,15 @@ fn compound_to_string(c: &CompoundSelector, s: &mut String) {
       PseudoClass::LastChild => s.push_str("last-child"),
       PseudoClass::FirstOfType => s.push_str("first-of-type"),
       PseudoClass::LastOfType => s.push_str("last-of-type"),
-      PseudoClass::NthChild(f, _) => { s.push_str(&format!("nth-child({}n+{})", f.a, f.b)); }
-      PseudoClass::NthLastChild(f) => { s.push_str(&format!("nth-last-child({}n+{})", f.a, f.b)); }
-      PseudoClass::NthOfType(f) => { s.push_str(&format!("nth-of-type({}n+{})", f.a, f.b)); }
+      PseudoClass::NthChild(f, _) => {
+        s.push_str(&format!("nth-child({}n+{})", f.a, f.b));
+      }
+      PseudoClass::NthLastChild(f) => {
+        s.push_str(&format!("nth-last-child({}n+{})", f.a, f.b));
+      }
+      PseudoClass::NthOfType(f) => {
+        s.push_str(&format!("nth-of-type({}n+{})", f.a, f.b));
+      }
       PseudoClass::OnlyChild => s.push_str("only-child"),
       PseudoClass::Root => s.push_str("root"),
       PseudoClass::Scope => s.push_str("scope"),
@@ -391,8 +406,12 @@ fn compound_to_string(c: &CompoundSelector, s: &mut String) {
       PseudoClass::PlaceholderShown => s.push_str("placeholder-shown"),
       PseudoClass::Valid => s.push_str("valid"),
       PseudoClass::Invalid => s.push_str("invalid"),
-      PseudoClass::Lang(l) => { s.push_str(&format!("lang({l})")); }
-      PseudoClass::Dir(d) => { s.push_str(&format!("dir({d})")); }
+      PseudoClass::Lang(l) => {
+        s.push_str(&format!("lang({l})"));
+      }
+      PseudoClass::Dir(d) => {
+        s.push_str(&format!("dir({d})"));
+      }
       PseudoClass::Not(inner) => {
         s.push_str("not(");
         s.push_str(&selector_list_to_string(inner));
@@ -568,8 +587,7 @@ impl PseudoClassUsage {
     self.has_hover_ancestor || self.has_active_ancestor || self.has_focus_ancestor || self.has_valid_ancestor
   }
   fn has_any(&self) -> bool {
-    self.has_hover() || self.has_active() || self.has_focus()
-      || self.has_valid()
+    self.has_hover() || self.has_active() || self.has_focus() || self.has_valid()
   }
   fn has_valid(&self) -> bool {
     self.has_valid_subject || self.has_valid_ancestor
@@ -1105,23 +1123,65 @@ fn re_cascade_dirty(
       lui_parser::resolve_var_references(&mut style);
     }
     cached.before = compute_pseudo_element_style(
-      PseudoElement::Before, &node.element, &style, sheets, root, path, interaction,
-    ).map(Box::new);
+      PseudoElement::Before,
+      &node.element,
+      &style,
+      sheets,
+      root,
+      path,
+      interaction,
+    )
+    .map(Box::new);
     cached.after = compute_pseudo_element_style(
-      PseudoElement::After, &node.element, &style, sheets, root, path, interaction,
-    ).map(Box::new);
+      PseudoElement::After,
+      &node.element,
+      &style,
+      sheets,
+      root,
+      path,
+      interaction,
+    )
+    .map(Box::new);
     cached.first_line = compute_pseudo_style_only(
-      PseudoElement::FirstLine, &node.element, &style, sheets, root, path, interaction,
-    ).map(Box::new);
+      PseudoElement::FirstLine,
+      &node.element,
+      &style,
+      sheets,
+      root,
+      path,
+      interaction,
+    )
+    .map(Box::new);
     cached.first_letter = compute_pseudo_style_only(
-      PseudoElement::FirstLetter, &node.element, &style, sheets, root, path, interaction,
-    ).map(Box::new);
+      PseudoElement::FirstLetter,
+      &node.element,
+      &style,
+      sheets,
+      root,
+      path,
+      interaction,
+    )
+    .map(Box::new);
     cached.placeholder = compute_pseudo_style_only(
-      PseudoElement::Placeholder, &node.element, &style, sheets, root, path, interaction,
-    ).map(Box::new);
+      PseudoElement::Placeholder,
+      &node.element,
+      &style,
+      sheets,
+      root,
+      path,
+      interaction,
+    )
+    .map(Box::new);
     cached.selection = compute_pseudo_style_only(
-      PseudoElement::Selection, &node.element, &style, sheets, root, path, interaction,
-    ).map(Box::new);
+      PseudoElement::Selection,
+      &node.element,
+      &style,
+      sheets,
+      root,
+      path,
+      interaction,
+    )
+    .map(Box::new);
     cached.marker = compute_marker(&node.element, &style, root, path, sheets, interaction).map(Box::new);
     cached.style = style;
   }
@@ -1250,12 +1310,7 @@ fn extract_import_urls_from_css(css: &str, tree: &Tree) -> Vec<String> {
   urls
 }
 
-fn collect_import_urls_recursive(
-  css: &str,
-  tree: &Tree,
-  out: &mut Vec<String>,
-  seen: &mut HashSet<String>,
-) {
+fn collect_import_urls_recursive(css: &str, tree: &Tree, out: &mut Vec<String>, seen: &mut HashSet<String>) {
   for (url, _media) in scan_imports(css) {
     let resolved = tree.resolve_asset_path(&url).into_owned();
     if !seen.insert(resolved.clone()) {
@@ -1462,7 +1517,9 @@ fn compute_pseudo_element_style(
     let mut selector_entries = Vec::new();
     let mut push = |entries: &[SelectorRuleRef]| {
       for e in entries {
-        if !selector_entries.iter().any(|s: &SelectorRuleRef| s.rule_idx == e.rule_idx && s.selector_idx == e.selector_idx)
+        if !selector_entries
+          .iter()
+          .any(|s: &SelectorRuleRef| s.rule_idx == e.rule_idx && s.selector_idx == e.selector_idx)
         {
           selector_entries.push(*e);
         }
@@ -1488,8 +1545,12 @@ fn compute_pseudo_element_style(
     push(&sheet.index.universal);
 
     for entry in selector_entries {
-      let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else { continue };
-      let Some(selector) = rule.selectors.selectors.get(entry.selector_idx) else { continue };
+      let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else {
+        continue;
+      };
+      let Some(selector) = rule.selectors.selectors.get(entry.selector_idx) else {
+        continue;
+      };
       let subj = selector.subject();
       if subj.pseudo_element != Some(pe) {
         continue;
@@ -1533,7 +1594,10 @@ fn compute_pseudo_element_style(
     style.display = Some(lui_models::common::css_enums::Display::Inline);
   }
 
-  Some(PseudoElementStyle { style, content_text: text })
+  Some(PseudoElementStyle {
+    style,
+    content_text: text,
+  })
 }
 
 fn compute_pseudo_style_only(
@@ -1589,8 +1653,12 @@ fn compute_pseudo_style_only(
     push(&sheet.index.universal);
 
     for entry in selector_entries {
-      let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else { continue };
-      let Some(selector) = rule.selectors.selectors.get(entry.selector_idx) else { continue };
+      let Some(rule) = sheet.sheet.rules.get(entry.rule_idx) else {
+        continue;
+      };
+      let Some(selector) = rule.selectors.selectors.get(entry.selector_idx) else {
+        continue;
+      };
       let subj = selector.subject();
       if subj.pseudo_element != Some(pe) {
         continue;
@@ -1652,9 +1720,8 @@ fn compute_marker(
     }
   };
 
-  let mut marker_style = compute_pseudo_element_style(
-    PseudoElement::Marker, element, style, sheets, root, path, interaction,
-  );
+  let mut marker_style =
+    compute_pseudo_element_style(PseudoElement::Marker, element, style, sheets, root, path, interaction);
 
   if let Some(ref mut ms) = marker_style {
     if ms.content_text.is_empty() {
@@ -1780,11 +1847,7 @@ fn ordinal_to_roman(n: i32, upper: bool) -> String {
       val -= threshold;
     }
   }
-  if upper {
-    result.to_uppercase()
-  } else {
-    result
-  }
+  if upper { result.to_uppercase() } else { result }
 }
 
 /// Recursive cascade. `ancestors[0]` is the immediate parent element
@@ -1887,23 +1950,65 @@ fn cascade_node(
     })
     .collect();
   let before = compute_pseudo_element_style(
-    PseudoElement::Before, &node.element, &style, sheets, root, path, interaction,
-  ).map(Box::new);
+    PseudoElement::Before,
+    &node.element,
+    &style,
+    sheets,
+    root,
+    path,
+    interaction,
+  )
+  .map(Box::new);
   let after = compute_pseudo_element_style(
-    PseudoElement::After, &node.element, &style, sheets, root, path, interaction,
-  ).map(Box::new);
+    PseudoElement::After,
+    &node.element,
+    &style,
+    sheets,
+    root,
+    path,
+    interaction,
+  )
+  .map(Box::new);
   let first_line = compute_pseudo_style_only(
-    PseudoElement::FirstLine, &node.element, &style, sheets, root, path, interaction,
-  ).map(Box::new);
+    PseudoElement::FirstLine,
+    &node.element,
+    &style,
+    sheets,
+    root,
+    path,
+    interaction,
+  )
+  .map(Box::new);
   let first_letter = compute_pseudo_style_only(
-    PseudoElement::FirstLetter, &node.element, &style, sheets, root, path, interaction,
-  ).map(Box::new);
+    PseudoElement::FirstLetter,
+    &node.element,
+    &style,
+    sheets,
+    root,
+    path,
+    interaction,
+  )
+  .map(Box::new);
   let placeholder = compute_pseudo_style_only(
-    PseudoElement::Placeholder, &node.element, &style, sheets, root, path, interaction,
-  ).map(Box::new);
+    PseudoElement::Placeholder,
+    &node.element,
+    &style,
+    sheets,
+    root,
+    path,
+    interaction,
+  )
+  .map(Box::new);
   let selection = compute_pseudo_style_only(
-    PseudoElement::Selection, &node.element, &style, sheets, root, path, interaction,
-  ).map(Box::new);
+    PseudoElement::Selection,
+    &node.element,
+    &style,
+    sheets,
+    root,
+    path,
+    interaction,
+  )
+  .map(Box::new);
 
   let marker = compute_marker(&node.element, &style, root, path, sheets, interaction).map(Box::new);
 

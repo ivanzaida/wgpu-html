@@ -694,7 +694,10 @@ fn build_item<'a>(
     if native {
       return 0.0;
     }
-    if matches!(bstyle, Some(lui_models::common::css_enums::BorderStyle::None | lui_models::common::css_enums::BorderStyle::Hidden)) {
+    if matches!(
+      bstyle,
+      Some(lui_models::common::css_enums::BorderStyle::None | lui_models::common::css_enums::BorderStyle::Hidden)
+    ) {
       return 0.0;
     }
     resolve_axis_length(width, parent_inner_main, ctx).unwrap_or(0.0)
@@ -979,7 +982,11 @@ fn child_intrinsic_outer_main(node: &CascadedNode, is_row: bool, ctx: &mut Ctx) 
   let style = &node.style;
   let frame = child_frame_main(style, is_row, ctx);
 
-  let main_prop = if is_row { style.width.as_ref() } else { style.height.as_ref() };
+  let main_prop = if is_row {
+    style.width.as_ref()
+  } else {
+    style.height.as_ref()
+  };
   if let Some(v) = resolve_axis_length(main_prop, None, ctx) {
     let box_sizing = style.box_sizing.clone().unwrap_or(BoxSizing::ContentBox);
     return Some(match box_sizing {
@@ -1015,7 +1022,10 @@ fn child_frame_main(style: &Style, is_row: bool, ctx: &mut Ctx) -> f32 {
 fn children_flow_inline(node: &CascadedNode) -> bool {
   node.children.iter().all(|child| {
     if let Some(d) = child.style.display.as_ref() {
-      return matches!(d, Display::Inline | Display::InlineBlock | Display::InlineFlex | Display::None);
+      return matches!(
+        d,
+        Display::Inline | Display::InlineBlock | Display::InlineFlex | Display::None
+      );
     }
     matches!(
       &child.element,

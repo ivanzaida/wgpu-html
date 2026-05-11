@@ -3,15 +3,15 @@
 //! file focused.
 
 use lui_models::{
-  common::css_enums::{Overflow, Position, ScrollbarColor, ScrollbarWidth},
   Style,
+  common::css_enums::{Overflow, Position, ScrollbarColor, ScrollbarWidth},
 };
 use lui_style::CascadedNode;
 
 use crate::{
-  color::{resolve_color, Color},
-  length,
   BlockOverrides, Ctx, LayoutBox, OverflowAxes, Rect,
+  color::{Color, resolve_color},
+  length,
 };
 
 // ---------------------------------------------------------------------------
@@ -27,15 +27,22 @@ pub(crate) fn resolved_opacity(style: &Style) -> f32 {
 }
 
 pub(crate) fn resolved_pointer_events(style: &Style) -> lui_models::common::css_enums::PointerEvents {
-  style.pointer_events.unwrap_or(lui_models::common::css_enums::PointerEvents::Auto)
+  style
+    .pointer_events
+    .unwrap_or(lui_models::common::css_enums::PointerEvents::Auto)
 }
 
 pub(crate) fn resolved_user_select(style: &Style) -> lui_models::common::css_enums::UserSelect {
-  style.user_select.unwrap_or(lui_models::common::css_enums::UserSelect::Auto)
+  style
+    .user_select
+    .unwrap_or(lui_models::common::css_enums::UserSelect::Auto)
 }
 
 pub(crate) fn resolved_cursor(style: &Style) -> lui_models::common::css_enums::Cursor {
-  style.cursor.clone().unwrap_or(lui_models::common::css_enums::Cursor::Auto)
+  style
+    .cursor
+    .clone()
+    .unwrap_or(lui_models::common::css_enums::Cursor::Auto)
 }
 
 pub(crate) fn resolved_z_index(style: &Style) -> Option<i32> {

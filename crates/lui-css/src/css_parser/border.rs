@@ -1,20 +1,8 @@
-use lui_models::ArcStr;
-use lui_models::Style;
-use lui_models::common::css_enums::*;
-
-use crate::shorthands::shorthand_members;
-use crate::style_props::clear_value_for;
-
 use super::{
-    parse_css_color,
-    parse_css_length,
-    parse_css_image,
-    parse_background_repeat,
-    parse_background_clip,
-    parse_border_style,
-    strip_func,
-    is_preserved_color_function,
+  is_preserved_color_function, parse_background_clip, parse_background_repeat, parse_border_style, parse_css_color,
+  parse_css_image, parse_css_length, strip_func,
 };
+use crate::{shorthands::shorthand_members, style::Style, style_props::clear_value_for, values::*};
 
 fn mark_shorthand_reset(style: &mut Style, property: &str) {
   if let Some(members) = shorthand_members(property) {
@@ -250,7 +238,7 @@ fn is_supported_named_color(value: &str) -> bool {
             | "orange"
             | "pink"
             // CSS Color Module Level 4 system colors. Used by the UA
-            // stylesheet for form controls (`buttonface`, `field`, …).
+            // stylesheet for form controls (`buttonface`, `field`, ...).
             | "canvas"
             | "canvastext"
             | "linktext"
@@ -273,9 +261,9 @@ fn is_supported_named_color(value: &str) -> bool {
   )
 }
 
-/// Split `value` on whitespace, but only at parenthesis depth 0 — so
+/// Split `value` on whitespace, but only at parenthesis depth 0 -- so
 /// `rgb(1, 2, 3)`, `hsl(...)`, `calc(...)` survive intact as a single
-/// token. Used by shorthand parsers (`border`, …) where the value
+/// token. Used by shorthand parsers (`border`, ...) where the value
 /// can mix bare keywords / lengths and functional values.
 pub(crate) fn split_top_level_whitespace(value: &str) -> Vec<&str> {
   let bytes = value.as_bytes();
@@ -313,7 +301,7 @@ pub(crate) fn split_top_level_whitespace(value: &str) -> Vec<&str> {
   out
 }
 
-/// `border-width: 1 / 2 / 3 / 4 values` → fans into the four per-side widths.
+/// `border-width: 1 / 2 / 3 / 4 values` -> fans into the four per-side widths.
 pub(crate) fn apply_border_widths(value: &str, style: &mut Style) {
   mark_property_resets(
     style,
@@ -339,7 +327,7 @@ pub(crate) fn apply_border_widths(value: &str, style: &mut Style) {
   }
 }
 
-/// `border-style: 1 / 2 / 3 / 4 values` → fans into the four per-side styles.
+/// `border-style: 1 / 2 / 3 / 4 values` -> fans into the four per-side styles.
 pub(crate) fn apply_border_styles(value: &str, style: &mut Style) {
   mark_property_resets(
     style,
@@ -365,7 +353,7 @@ pub(crate) fn apply_border_styles(value: &str, style: &mut Style) {
   }
 }
 
-/// `border-color: 1 / 2 / 3 / 4 values` → fans into the four per-side colors.
+/// `border-color: 1 / 2 / 3 / 4 values` -> fans into the four per-side colors.
 pub(crate) fn apply_border_colors(value: &str, style: &mut Style) {
   mark_property_resets(
     style,
@@ -391,7 +379,7 @@ pub(crate) fn apply_border_colors(value: &str, style: &mut Style) {
   }
 }
 
-/// `border-radius: <h-list> [ / <v-list> ]` — each list 1..4 values in
+/// `border-radius: <h-list> [ / <v-list> ]` -- each list 1..4 values in
 /// CSS per-corner order TL, TR, BR, BL. Without the slash both axes
 /// share the same list. Each axis uses the standard 1/2/3/4-value
 /// expansion rules.
@@ -545,7 +533,7 @@ fn parse_keyword_box_shorthand<T: Clone>(
   }
 }
 
-/// `parse_css_length` minus its catch-all `Raw` / `Auto` returns — used
+/// `parse_css_length` minus its catch-all `Raw` / `Auto` returns -- used
 /// when matching one piece of a shorthand against multiple value kinds.
 pub(crate) fn parse_definite_length(token: &str) -> Option<CssLength> {
   match parse_css_length(token)? {

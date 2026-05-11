@@ -82,10 +82,7 @@ pub(crate) fn layout_grid_children(
   // -----------------------------------------------------------------
   let mut items: Vec<GridItem> = Vec::with_capacity(parent.children.len());
   for (idx, child) in parent.children.iter().enumerate() {
-    if matches!(
-      child.style.display,
-      Some(lui_models::common::css_enums::Display::None)
-    ) {
+    if matches!(child.style.display, Some(lui_models::common::css_enums::Display::None)) {
       continue;
     }
     items.push(GridItem::from_node(child, idx));

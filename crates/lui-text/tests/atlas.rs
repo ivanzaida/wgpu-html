@@ -170,11 +170,7 @@ fn flushed_top_gutter_row_matches_first_bitmap_row() {
   let (dirty, bytes) = &flushed[0];
 
   // The dirty rect must start one row above the glyph (the gutter).
-  assert_eq!(
-    dirty.y,
-    rect.y - 1,
-    "dirty rect must include top gutter row"
-  );
+  assert_eq!(dirty.y, rect.y - 1, "dirty rect must include top gutter row");
 
   // The first row in the flushed bytes IS the gutter row. It must
   // equal the glyph's own first row (dilated copy), not zeros.

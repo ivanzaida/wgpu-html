@@ -3,14 +3,12 @@ use std::collections::HashSet;
 use lui_models::common::{AlignItems, BoxSizing, Cursor, Display, Overflow, WhiteSpace};
 use lui_tree::{Element, Node, Tree};
 use lui_ui::{
-  el::{self, div}, style::{self, pct, px, Stylesheet}, Component, Ctx,
-  El,
-  ShouldRender,
+  Component, Ctx, El, ShouldRender,
+  el::{self, div},
+  style::{self, Stylesheet, pct, px},
 };
 
-use super::lucide_icon::lucide;
-use super::store::DevtoolsStore;
-use super::theme::Theme;
+use super::{lucide_icon::lucide, store::DevtoolsStore, theme::Theme};
 
 const ICON_CHEVRON_RIGHT: &str = "\u{E06F}";
 const ICON_CHEVRON_DOWN: &str = "\u{E06D}";
@@ -91,9 +89,7 @@ impl Component for TreePanel {
         .box_sizing(BoxSizing::BorderBox)
         .font_family("monospace")
         .font_size(px(11)),
-      style::rule(".rows")
-        .flex_grow(1.0)
-        .overflow_y(Overflow::Auto),
+      style::rule(".rows").flex_grow(1.0).overflow_y(Overflow::Auto),
       style::rule(".row")
         .display(Display::Flex)
         .align_items(AlignItems::Center)
@@ -101,12 +97,9 @@ impl Component for TreePanel {
         .padding_right(px(12))
         .white_space(WhiteSpace::Nowrap)
         .cursor(Cursor::Default),
-      style::rule(".row:hover")
-        .background_color(Theme::BG_HOVER),
-      style::rule(".row.selected")
-        .background_color(Theme::BG_SELECTED),
-      style::rule(".row.selected:hover")
-        .background_color(Theme::BG_SELECTED_HOVER),
+      style::rule(".row:hover").background_color(Theme::BG_HOVER),
+      style::rule(".row.selected").background_color(Theme::BG_SELECTED),
+      style::rule(".row.selected:hover").background_color(Theme::BG_SELECTED_HOVER),
       style::rule(".chevron")
         .width(px(12))
         .height(px(12))
@@ -116,29 +109,21 @@ impl Component for TreePanel {
         .prop("line-height", "12px")
         .flex_shrink(0.0)
         .margin_right(px(4)),
-      style::rule(".chevron.selected")
-        .color(Theme::TEXT_PRIMARY),
+      style::rule(".chevron.selected").color(Theme::TEXT_PRIMARY),
       style::rule(".spacer")
         .width(px(12))
         .height(px(12))
         .flex_shrink(0.0)
         .margin_right(px(4)),
-      style::rule(".tag")
-        .color(Theme::TAG_COLOR),
-      style::rule(".punct")
-        .color(Theme::TAG_BRACKET),
-      style::rule(".equals")
-        .color(Theme::ATTR_EQUALS),
-      style::rule(".attr-name")
-        .color(Theme::ATTR_NAME)
-        .margin_left("4px"),
-      style::rule(".attr-val")
-        .color(Theme::ATTR_VALUE),
-      style::rule(".text-content")
-        .color(Theme::TEXT_CONTENT),
-      style::rule(".doctype")
-        .color(Theme::COMMENT),
-    ]).scoped("tree")
+      style::rule(".tag").color(Theme::TAG_COLOR),
+      style::rule(".punct").color(Theme::TAG_BRACKET),
+      style::rule(".equals").color(Theme::ATTR_EQUALS),
+      style::rule(".attr-name").color(Theme::ATTR_NAME).margin_left("4px"),
+      style::rule(".attr-val").color(Theme::ATTR_VALUE),
+      style::rule(".text-content").color(Theme::TEXT_CONTENT),
+      style::rule(".doctype").color(Theme::COMMENT),
+    ])
+    .scoped("tree")
   }
 
   fn view(&self, props: &TreePanelProps, ctx: &Ctx<TreePanelMsg>) -> El {
@@ -150,11 +135,12 @@ impl Component for TreePanel {
     }
 
     let hover_clear = props.store.hover_path.clone();
-    div().class(ctx.scoped("panel")).children([
-      div().class(ctx.scoped("rows"))
-        .on_mouse_leave(move |_| { hover_clear.set(None); })
-        .children(rows),
-    ])
+    div().class(ctx.scoped("panel")).children([div()
+      .class(ctx.scoped("rows"))
+      .on_mouse_leave(move |_| {
+        hover_clear.set(None);
+      })
+      .children(rows)])
   }
 }
 
@@ -196,7 +182,11 @@ impl TreePanel {
       }
     } else {
       let text_content = node.children.iter().find_map(|c| {
-        if let Element::Text(t) = &c.element { Some(t.as_ref()) } else { None }
+        if let Element::Text(t) = &c.element {
+          Some(t.as_ref())
+        } else {
+          None
+        }
       });
       rows.push(self.render_leaf_tag(node, &path_vec, depth, is_selected, text_content, ctx, store));
     }
@@ -215,7 +205,11 @@ impl TreePanel {
     let pad_left = BASE_PAD_LEFT + depth as f32 * INDENT_PX;
     let tag = node.element.tag_name();
 
-    let chevron_icon = if expanded { ICON_CHEVRON_DOWN } else { ICON_CHEVRON_RIGHT };
+    let chevron_icon = if expanded {
+      ICON_CHEVRON_DOWN
+    } else {
+      ICON_CHEVRON_RIGHT
+    };
 
     let mut parts: Vec<El> = Vec::new();
     parts.push(
@@ -233,8 +227,7 @@ impl TreePanel {
       push_close_tag(tag, selected, &mut parts, ctx);
     }
 
-    row(parts, pad_left, selected, ctx, store, path)
-      .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
+    row(parts, pad_left, selected, ctx, store, path).on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
 
   fn render_close_tag(
@@ -253,8 +246,7 @@ impl TreePanel {
     parts.push(div().class(ctx.scoped("spacer")));
     push_close_tag(tag, selected, &mut parts, ctx);
 
-    row(parts, pad_left, selected, ctx, store, path)
-      .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
+    row(parts, pad_left, selected, ctx, store, path).on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
 
   fn render_leaf_tag(
@@ -288,8 +280,7 @@ impl TreePanel {
       push_close_tag(tag, selected, &mut parts, ctx);
     }
 
-    row(parts, pad_left, selected, ctx, store, path)
-      .on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
+    row(parts, pad_left, selected, ctx, store, path).on_click_cb(ctx.on_click(TreePanelMsg::Select(path.to_vec())))
   }
 }
 
@@ -303,7 +294,14 @@ fn sel_class(selected: bool, ctx: &Ctx<TreePanelMsg>) -> String {
   }
 }
 
-fn row(children: Vec<El>, pad_left: f32, selected: bool, ctx: &Ctx<TreePanelMsg>, store: &DevtoolsStore, path: &[usize]) -> El {
+fn row(
+  children: Vec<El>,
+  pad_left: f32,
+  selected: bool,
+  ctx: &Ctx<TreePanelMsg>,
+  store: &DevtoolsStore,
+  path: &[usize],
+) -> El {
   let hover_path = store.hover_path.clone();
   let p = path.to_vec();
   div()
@@ -313,7 +311,9 @@ fn row(children: Vec<El>, pad_left: f32, selected: bool, ctx: &Ctx<TreePanelMsg>
       ctx.scoped("row").to_string()
     })
     .style(format!("padding-left: {}px", pad_left))
-    .on_mouse_enter(move |_| { hover_path.set(Some(p.clone())); })
+    .on_mouse_enter(move |_| {
+      hover_path.set(Some(p.clone()));
+    })
     .children(children)
 }
 
@@ -379,8 +379,20 @@ fn push_attr(name: &str, value: &str, _selected: bool, parts: &mut Vec<El>, ctx:
 fn is_void_element(tag: &str) -> bool {
   matches!(
     tag,
-    "area" | "base" | "br" | "col" | "embed" | "hr" | "img"
-      | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr"
+    "area"
+      | "base"
+      | "br"
+      | "col"
+      | "embed"
+      | "hr"
+      | "img"
+      | "input"
+      | "link"
+      | "meta"
+      | "param"
+      | "source"
+      | "track"
+      | "wbr"
   )
 }
 
@@ -400,11 +412,7 @@ fn auto_expand(node: &Node, path: &[usize], depth: usize, max_depth: usize, out:
   }
 }
 
-pub fn build_breadcrumb(
-  selected: &Option<Vec<usize>>,
-  tree: Option<&Tree>,
-  scope: &str,
-) -> El {
+pub fn build_breadcrumb(selected: &Option<Vec<usize>>, tree: Option<&Tree>, scope: &str) -> El {
   let mut crumbs: Vec<El> = Vec::new();
 
   if let (Some(path), Some(tree)) = (selected, tree) {
@@ -421,10 +429,7 @@ pub fn build_breadcrumb(
           continue;
         }
         if !crumbs.is_empty() {
-          crumbs.push(
-            lucide(ICON_CHEVRON_RIGHT)
-              .class(format!("{scope}__crumb-sep")),
-          );
+          crumbs.push(lucide(ICON_CHEVRON_RIGHT).class(format!("{scope}__crumb-sep")));
         }
         let is_last = i == path.len();
         let label = crumb_label(n);

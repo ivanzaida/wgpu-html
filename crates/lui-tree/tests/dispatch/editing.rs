@@ -263,7 +263,7 @@ fn prevent_default_stops_form_data_collection() {
   }
   tree.interaction.selection_colors = SelectionColors::default();
 
-  tree.focus(Some(&[0, 0]));  // focus the input inside the form
+  tree.focus(Some(&[0, 0])); // focus the input inside the form
   tree.key_down("Enter", "Enter", false);
 
   assert!(*r.lock().unwrap(), "preventDefault should have been called");
@@ -285,12 +285,15 @@ fn collect_form_data_skips_unchecked_checkbox() {
   }
   tree.interaction.selection_colors = SelectionColors::default();
 
-  tree.focus(Some(&[0, 0]));  // focus the input inside the form
+  tree.focus(Some(&[0, 0])); // focus the input inside the form
   tree.key_down("Enter", "Enter", false);
 
   // Unchecked checkbox should be skipped entirely;
   // no form data stored since the only field was excluded.
-  assert!(tree.pending_form_data.is_empty(), "unchecked checkbox should produce no form data");
+  assert!(
+    tree.pending_form_data.is_empty(),
+    "unchecked checkbox should produce no form data"
+  );
 }
 
 #[test]
@@ -333,9 +336,12 @@ fn collect_form_data_skips_submit_button() {
   }
   tree.interaction.selection_colors = SelectionColors::default();
 
-  tree.focus(Some(&[0, 0]));  // focus the input inside the form
+  tree.focus(Some(&[0, 0])); // focus the input inside the form
   tree.key_down("Enter", "Enter", false);
 
   // Submit button value should be excluded; no form data stored.
-  assert!(tree.pending_form_data.is_empty(), "submit button should produce no form data");
+  assert!(
+    tree.pending_form_data.is_empty(),
+    "submit button should produce no form data"
+  );
 }

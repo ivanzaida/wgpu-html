@@ -306,10 +306,7 @@ fn ascent_is_reasonable_fraction_of_line_height() {
     .expect("shaped");
 
   let ratio = run.ascent / run.height;
-  eprintln!(
-    "ascent={:.1} height={:.1} ratio={:.2}",
-    run.ascent, run.height, ratio
-  );
+  eprintln!("ascent={:.1} height={:.1} ratio={:.2}", run.ascent, run.height, ratio);
   assert!(
     ratio > 0.5 && ratio < 0.95,
     "ascent/height ratio {ratio:.2} is outside expected range [0.5, 0.95]"

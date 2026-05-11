@@ -360,7 +360,10 @@ fn valid_and_invalid_pseudo_classes() {
   let valid_nodes = tree.query_selector_all(":valid");
   assert_eq!(valid_nodes.len(), 2, "expected 2 valid nodes");
   let valid_ids: Vec<Option<&str>> = valid_nodes.iter().map(|n| n.element.id()).collect();
-  assert!(valid_ids.contains(&Some("req-filled")), "required filled should be :valid");
+  assert!(
+    valid_ids.contains(&Some("req-filled")),
+    "required filled should be :valid"
+  );
 }
 
 #[test]
@@ -446,13 +449,11 @@ fn invalid_range_min_max() {
 
 #[test]
 fn empty_non_required_is_valid() {
-  let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(m::Input {
-      id: Some("empty".into()),
-      value: Some("".into()),
-      ..m::Input::default()
-    }),
-  ]);
+  let body = Node::new(m::Body::default()).with_children(vec![Node::new(m::Input {
+    id: Some("empty".into()),
+    value: Some("".into()),
+    ..m::Input::default()
+  })]);
   let mut tree = Tree::new(body);
   let val = tree.query_selector(":valid").unwrap();
   assert_eq!(val.element.id(), Some("empty"), "empty non-required should be :valid");
@@ -502,9 +503,17 @@ fn textarea_required_empty_is_invalid() {
   ]);
   let mut tree = Tree::new(body);
   let inv = tree.query_selector(":invalid").unwrap();
-  assert_eq!(inv.element.id(), Some("req-empty"), "empty required textarea should be :invalid");
+  assert_eq!(
+    inv.element.id(),
+    Some("req-empty"),
+    "empty required textarea should be :invalid"
+  );
   let val = tree.query_selector(":valid").unwrap();
-  assert_eq!(val.element.id(), Some("req-filled"), "filled required textarea should be :valid");
+  assert_eq!(
+    val.element.id(),
+    Some("req-filled"),
+    "filled required textarea should be :valid"
+  );
 }
 
 #[test]
@@ -538,19 +547,26 @@ fn body_is_not_valid_or_invalid() {
   let body = Node::new(m::Body::default()).with_children(vec![]);
   let mut tree = Tree::new(body);
   assert!(tree.query_selector(":valid").is_none(), "body should not match :valid");
-  assert!(tree.query_selector(":invalid").is_none(), "body should not match :invalid");
+  assert!(
+    tree.query_selector(":invalid").is_none(),
+    "body should not match :invalid"
+  );
 }
 
 #[test]
 fn non_input_elements_do_not_match_valid_invalid() {
   // Divs, spans, paragraphs — should not match :valid/:invalid
-  let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(m::Div::default()),
-    Node::new(m::P::default()),
-  ]);
+  let body =
+    Node::new(m::Body::default()).with_children(vec![Node::new(m::Div::default()), Node::new(m::P::default())]);
   let mut tree = Tree::new(body);
-  assert!(tree.query_selector(":valid").is_none(), "non-form elements should not match :valid");
-  assert!(tree.query_selector(":invalid").is_none(), "non-form elements should not match :invalid");
+  assert!(
+    tree.query_selector(":valid").is_none(),
+    "non-form elements should not match :valid"
+  );
+  assert!(
+    tree.query_selector(":invalid").is_none(),
+    "non-form elements should not match :invalid"
+  );
 }
 
 #[test]
@@ -575,7 +591,11 @@ fn number_input_min_max_applies_type_specific() {
   let mut tree = Tree::new(body);
   // Text input with value "3" and min=5 — min/max don't apply to text type
   let val = tree.query_selector(":valid").unwrap();
-  assert_eq!(val.element.id(), Some("text-below"), "min/max should not apply to text inputs");
+  assert_eq!(
+    val.element.id(),
+    Some("text-below"),
+    "min/max should not apply to text inputs"
+  );
   // Number input with value "3" and min=5 — should be invalid
   let inv = tree.query_selector(":invalid");
   assert!(inv.is_some(), "number input below min should be :invalid");
@@ -584,13 +604,11 @@ fn number_input_min_max_applies_type_specific() {
 #[test]
 fn select_element_is_never_invalid_currently() {
   // <select> is a form control but we don't implement validation for it yet
-  let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(m::Select {
-      id: Some("sel".into()),
-      required: Some(true),
-      ..m::Select::default()
-    }),
-  ]);
+  let body = Node::new(m::Body::default()).with_children(vec![Node::new(m::Select {
+    id: Some("sel".into()),
+    required: Some(true),
+    ..m::Select::default()
+  })]);
   let mut tree = Tree::new(body);
   // Select with required is currently always valid (no children checking)
   let val = tree.query_selector(":valid").unwrap();

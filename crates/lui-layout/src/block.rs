@@ -2,44 +2,38 @@
 //! cascaded node tree and produces a [`LayoutBox`] tree.  Delegates to
 //! flex, grid, table, and inline paths as appropriate.
 
-use lui_models::common::css_enums::{
-    BoxSizing, CssColor, CssLength, Display, Position, Resize,
-};
+use lui_models::common::css_enums::{BoxSizing, CssColor, CssLength, Display, Position, Resize};
 use lui_style::CascadedNode;
 use lui_tree::Element;
 
 use crate::{
-    background::resolve_background_image,
-    box_model::{
-        clamp_axis, clamp_corner_radii, compute_background_box, is_auto_margin,
-        resolve_border_widths, resolve_insets_margin, resolve_insets_padding,
-    },
-    color::{self, resolve_foreground, resolve_with_current},
-    flex,
-    form_controls::{
-        compute_placeholder_run, compute_value_run, form_control_default_line_height,
-        form_control_info, has_native_appearance, shape_input_text,
-    },
-    grid,
-    incremental::{
-        file_button_from_pseudo, lui_calendar_from_pseudo, lui_color_from_pseudo,
-        lui_popup_from_pseudo, resolve_lui_properties,
-    },
-    inline::{
-        all_children_inline_level, effective_children, layout_inline_block_children,
-    },
-    layout_profile,
-    length,
-    positioned::{
-        apply_relative_position, effective_overflow, establishes_containing_block,
-        is_out_of_flow_position, layout_out_of_flow_block, resolved_cursor,
-        resolved_opacity, resolved_pointer_events, resolved_user_select, resolved_z_index,
-    },
-    svg,
-    table,
-    text_shaping::{empty_box, font_size_px, line_height_px, make_text_leaf},
-    types::*,
-    Ctx,
+  Ctx,
+  background::resolve_background_image,
+  box_model::{
+    clamp_axis, clamp_corner_radii, compute_background_box, is_auto_margin, resolve_border_widths,
+    resolve_insets_margin, resolve_insets_padding,
+  },
+  color::{self, resolve_foreground, resolve_with_current},
+  flex,
+  form_controls::{
+    compute_placeholder_run, compute_value_run, form_control_default_line_height, form_control_info,
+    has_native_appearance, shape_input_text,
+  },
+  grid,
+  incremental::{
+    file_button_from_pseudo, lui_calendar_from_pseudo, lui_color_from_pseudo, lui_popup_from_pseudo,
+    resolve_lui_properties,
+  },
+  inline::{all_children_inline_level, effective_children, layout_inline_block_children},
+  layout_profile, length,
+  positioned::{
+    apply_relative_position, effective_overflow, establishes_containing_block, is_out_of_flow_position,
+    layout_out_of_flow_block, resolved_cursor, resolved_opacity, resolved_pointer_events, resolved_user_select,
+    resolved_z_index,
+  },
+  svg, table,
+  text_shaping::{empty_box, font_size_px, line_height_px, make_text_leaf},
+  types::*,
 };
 
 // ---------------------------------------------------------------------------
@@ -280,7 +274,13 @@ pub(crate) fn layout_block(
       let effective_h = css_h
         .or_else(|| html_img_height.map(|h| h * ctx.scale))
         .or_else(|| img_data.as_ref().map(|id| id.height as f32 * ctx.scale))
-        .or_else(|| if has_native_appearance(node) { Some(14.0 * ctx.scale) } else { None });
+        .or_else(|| {
+          if has_native_appearance(node) {
+            Some(14.0 * ctx.scale)
+          } else {
+            None
+          }
+        });
       effective_h.map(|specified| {
         let raw = match box_sizing {
           BoxSizing::ContentBox => specified,
@@ -377,9 +377,8 @@ pub(crate) fn layout_block(
 
             if in_flow && have_prev {
               let child_margin_top = resolve_insets_margin(&child.style, inner_width, ctx).top;
-              let collapse = collapsed_margin(prev_margin_bottom, child_margin_top)
-                - prev_margin_bottom
-                - child_margin_top;
+              let collapse =
+                collapsed_margin(prev_margin_bottom, child_margin_top) - prev_margin_bottom - child_margin_top;
               cursor += collapse;
             }
 
@@ -409,8 +408,7 @@ pub(crate) fn layout_block(
               apply_relative_position(&mut child_box, &child.style, inner_width, container_h, ctx);
             }
             if in_flow {
-              prev_margin_bottom =
-                (child_box.margin_rect.y + child_box.margin_rect.h)
+              prev_margin_bottom = (child_box.margin_rect.y + child_box.margin_rect.h)
                 - (child_box.border_rect.y + child_box.border_rect.h);
               cursor += child_box.margin_rect.h;
               have_prev = true;
@@ -469,7 +467,10 @@ pub(crate) fn layout_block(
   );
 
   let fg = resolve_foreground(style.color.as_ref(), color::BLACK);
-  let background = style.background_color.as_ref().and_then(|c| resolve_with_current(c, fg));
+  let background = style
+    .background_color
+    .as_ref()
+    .and_then(|c| resolve_with_current(c, fg));
   let accent_color = style.accent_color.as_ref().and_then(|c| resolve_with_current(c, fg));
   let lui = resolve_lui_properties(&style.custom_properties, fg);
   let resolve_border = |c: &CssColor| resolve_with_current(c, fg);
@@ -606,7 +607,12 @@ pub(crate) fn layout_block(
     form_control: fc,
   };
 
-  if matches!(lb.form_control.as_ref(), Some(FormControlInfo { kind: FormControlKind::File { .. } })) {
+  if matches!(
+    lb.form_control.as_ref(),
+    Some(FormControlInfo {
+      kind: FormControlKind::File { .. }
+    })
+  ) {
     let btn_label = ctx.locale.file_browse_label();
     let (btn_run, _) = shape_input_text(btn_label, false, content_rect, node, ctx);
     let fb = lb.file_button.get_or_insert_with(FileButtonStyle::default);

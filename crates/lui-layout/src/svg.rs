@@ -13,12 +13,12 @@ use std::{
   sync::{Mutex, OnceLock},
 };
 
-use resvg::{tiny_skia, usvg};
 // resvg 0.44 exposes render as a free function; there is no resvg::Tree.
 use lui_models::common::css_enums::{CssColor, CssLength};
 use lui_models::{Svg, SvgPath, common::html_enums::SvgLength};
 use lui_style::CascadedNode;
 use lui_tree::Element;
+use resvg::{tiny_skia, usvg};
 
 use crate::ImageData;
 
@@ -126,7 +126,11 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     out.push('"');
   }
   // fill: CSS cascade wins over HTML attr, which wins over no value.
-  let fill_str: Option<String> = s.svg_fill.as_ref().map(css_color_to_svg).or_else(|| p.fill.as_ref().map(|s| s.to_string()));
+  let fill_str: Option<String> = s
+    .svg_fill
+    .as_ref()
+    .map(css_color_to_svg)
+    .or_else(|| p.fill.as_ref().map(|s| s.to_string()));
   if let Some(v) = &fill_str {
     out.push_str(" fill=\"");
     out.push_str(&escape_attr(v));
@@ -144,7 +148,11 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     out.push_str(&format!(" fill-opacity=\"{}\"", v));
   }
   // stroke
-  let stroke_str: Option<String> = s.svg_stroke.as_ref().map(css_color_to_svg).or_else(|| p.stroke.as_ref().map(|s| s.to_string()));
+  let stroke_str: Option<String> = s
+    .svg_stroke
+    .as_ref()
+    .map(css_color_to_svg)
+    .or_else(|| p.stroke.as_ref().map(|s| s.to_string()));
   if let Some(v) = &stroke_str {
     out.push_str(" stroke=\"");
     out.push_str(&escape_attr(v));
@@ -188,7 +196,10 @@ fn write_svg_path(node: &CascadedNode, p: &SvgPath, out: &mut String) {
     out.push_str(&format!(" stroke-dashoffset=\"{}\"", v));
   }
   // opacity (general)
-  let opacity: Option<String> = s.opacity.map(|v| format!("{}", v)).or_else(|| p.opacity.as_ref().map(|s| s.to_string()));
+  let opacity: Option<String> = s
+    .opacity
+    .map(|v| format!("{}", v))
+    .or_else(|| p.opacity.as_ref().map(|s| s.to_string()));
   if let Some(v) = &opacity {
     out.push_str(" opacity=\"");
     out.push_str(&escape_attr(v));

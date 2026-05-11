@@ -1,7 +1,9 @@
 //! Generic accessors over the typed element variants.
 
-use lui_models::common::html_enums::{ButtonType, HtmlDirection, InputType};
-use lui_models::ArcStr;
+use lui_models::{
+  ArcStr,
+  common::html_enums::{ButtonType, HtmlDirection, InputType},
+};
 use lui_tree::Element;
 
 /// Expand `$cb!(...)` with the same comma-separated list of `Element`

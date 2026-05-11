@@ -74,7 +74,10 @@ fn parse_single(s: &str) -> Option<BoxShadow> {
     }
 
     if rest.starts_with('#') {
-      let end = rest[1..].find(|c: char| c.is_whitespace() || c == ',').map(|i| i + 1).unwrap_or(rest.len());
+      let end = rest[1..]
+        .find(|c: char| c.is_whitespace() || c == ',')
+        .map(|i| i + 1)
+        .unwrap_or(rest.len());
       color_str = Some(rest[..end].to_string());
       rest = &rest[end..];
       continue;

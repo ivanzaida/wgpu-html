@@ -3,7 +3,7 @@ mod text_input;
 
 use std::sync::Arc;
 
-use lui_driver_winit::{WinitDriver, WindowEvent};
+use lui_driver_winit::{WindowEvent, WinitDriver};
 use lui_models::common::css_enums::*;
 use lui_tree::Tree;
 use lui_ui::{
@@ -52,7 +52,8 @@ impl Component for DemoApp {
         .margin_bottom(px(40))
         .white_space(WhiteSpace::Nowrap),
       style::rule(".counters").display(Display::Flex).gap(px(24)),
-    ]).scoped("app")
+    ])
+    .scoped("app")
   }
 
   fn create(_props: &DemoProps) -> Self {

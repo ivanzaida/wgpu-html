@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, HtmlDirection, TableHeaderScope};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, HtmlDirection, TableHeaderScope},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Th {

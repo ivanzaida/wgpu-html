@@ -8,10 +8,7 @@ use lui_models::common::css_enums::{BorderStyle, Cursor, Overflow, PointerEvents
 use lui_text::{ShapedRun, TextContext};
 use lui_tree::{Node, ScrollOffset, TextCursor, Tree};
 
-use crate::color::Color;
-use crate::hit_test;
-use crate::layout_profile::LayoutProfiler;
-use crate::ImageCache;
+use crate::{ImageCache, color::Color, hit_test, layout_profile::LayoutProfiler};
 
 /// Axis-aligned rectangle in physical pixels, top-left origin.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -242,13 +239,40 @@ pub struct LayoutBox {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FormControlKind {
-  Checkbox { checked: bool },
-  Radio { checked: bool },
-  Range { value: f32, min: f32, max: f32 },
-  Color { r: f32, g: f32, b: f32, a: f32 },
-  Date { year: i32, month: u8, day: u8 },
-  DatetimeLocal { year: i32, month: u8, day: u8, hour: u8, minute: u8 },
-  File { file_name: Option<String>, file_count: usize, disabled: bool },
+  Checkbox {
+    checked: bool,
+  },
+  Radio {
+    checked: bool,
+  },
+  Range {
+    value: f32,
+    min: f32,
+    max: f32,
+  },
+  Color {
+    r: f32,
+    g: f32,
+    b: f32,
+    a: f32,
+  },
+  Date {
+    year: i32,
+    month: u8,
+    day: u8,
+  },
+  DatetimeLocal {
+    year: i32,
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+  },
+  File {
+    file_name: Option<String>,
+    file_count: usize,
+    disabled: bool,
+  },
 }
 
 #[derive(Debug, Clone, PartialEq)]

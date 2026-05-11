@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use lui_layout::LayoutBox;
+use lui_models::{ArcStr, Div, common::css_enums::*};
 use lui_renderer_wgpu::{DisplayList, Rect};
+use lui_style::{CascadedNode, CascadedTree};
 use lui_text::TextContext;
 use lui_tree::{ColorPickerField, ColorPickerState, EditCursor, Element, Tree};
-use lui_models::{ArcStr, Div};
-use lui_models::common::css_enums::*;
-use lui_style::{CascadedNode, CascadedTree};
 
 const SV_TEX_SIZE: u32 = 128;
 const HUE_TEX_W: u32 = 256;
@@ -34,7 +33,11 @@ fn hsv_to_srgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
 
 pub fn hsv_to_srgb_u8(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
   let (r, g, b) = hsv_to_srgb(h, s, v);
-  ((r * 255.0 + 0.5) as u8, (g * 255.0 + 0.5) as u8, (b * 255.0 + 0.5) as u8)
+  (
+    (r * 255.0 + 0.5) as u8,
+    (g * 255.0 + 0.5) as u8,
+    (b * 255.0 + 0.5) as u8,
+  )
 }
 
 pub fn srgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
@@ -124,17 +127,28 @@ pub fn rgba_string(cp: &ColorPickerState) -> String {
 pub fn hex_string(cp: &ColorPickerState) -> String {
   let (r, g, b) = hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
   let a = (cp.alpha * 255.0 + 0.5) as u8;
-  if a == 255 { format!("#{r:02x}{g:02x}{b:02x}") }
-  else { format!("#{r:02x}{g:02x}{b:02x}{a:02x}") }
+  if a == 255 {
+    format!("#{r:02x}{g:02x}{b:02x}")
+  } else {
+    format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
+  }
 }
 
 // ── Layout-driven painting ─────────────────────────────────────────────
 
 fn cn(element: Element, style: lui_models::Style, children: Vec<CascadedNode>) -> CascadedNode {
   CascadedNode {
-    element, style, children,
-    before: None, after: None, first_line: None, first_letter: None,
-    placeholder: None, selection: None, marker: None, lui_pseudo: vec![],
+    element,
+    style,
+    children,
+    before: None,
+    after: None,
+    first_line: None,
+    first_letter: None,
+    placeholder: None,
+    selection: None,
+    marker: None,
+    lui_pseudo: vec![],
   }
 }
 
@@ -146,19 +160,39 @@ fn text_node_colored(text: &str, color: &CssColor) -> CascadedNode {
 
 fn merge_popup_style(base: &mut lui_models::Style, popup: Option<&lui_models::LuiPopupStyle>) {
   let Some(ps) = popup else { return };
-  if ps.width.is_some() { base.width = ps.width.clone(); }
-  if ps.height.is_some() { base.height = ps.height.clone(); }
-  if ps.background_color.is_some() { base.background_color = ps.background_color.clone(); }
-  if ps.color.is_some() { base.color = ps.color.clone(); }
-  if ps.font_size.is_some() { base.font_size = ps.font_size.clone(); }
-  if ps.font_family.is_some() { base.font_family = ps.font_family.clone(); }
-  if ps.font_weight.is_some() { base.font_weight = ps.font_weight.clone(); }
+  if ps.width.is_some() {
+    base.width = ps.width.clone();
+  }
+  if ps.height.is_some() {
+    base.height = ps.height.clone();
+  }
+  if ps.background_color.is_some() {
+    base.background_color = ps.background_color.clone();
+  }
+  if ps.color.is_some() {
+    base.color = ps.color.clone();
+  }
+  if ps.font_size.is_some() {
+    base.font_size = ps.font_size.clone();
+  }
+  if ps.font_family.is_some() {
+    base.font_family = ps.font_family.clone();
+  }
+  if ps.font_weight.is_some() {
+    base.font_weight = ps.font_weight.clone();
+  }
   macro_rules! border {
     ($side:ident, $w:ident, $s:ident, $c:ident) => {
-      if ps.$w.is_some() { base.$w = ps.$w.clone(); }
-      if ps.$s.is_some() { base.$s = ps.$s.clone(); }
-      if ps.$c.is_some() { base.$c = ps.$c.clone(); }
-    }
+      if ps.$w.is_some() {
+        base.$w = ps.$w.clone();
+      }
+      if ps.$s.is_some() {
+        base.$s = ps.$s.clone();
+      }
+      if ps.$c.is_some() {
+        base.$c = ps.$c.clone();
+      }
+    };
   }
   border!(top, border_top_width, border_top_style, border_top_color);
   border!(right, border_right_width, border_right_style, border_right_color);
@@ -213,7 +247,9 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   let mut cs = lui_models::Style::default();
   cs.height = Some(CssLength::Px(240.0));
   if let Some(pks) = cp.picker_style.as_deref() {
-    if pks.canvas_height.is_some() { cs.height = pks.canvas_height.clone(); }
+    if pks.canvas_height.is_some() {
+      cs.height = pks.canvas_height.clone();
+    }
   }
   let canvas_node = cn(Element::Div(Div::default()), cs, vec![]);
 
@@ -226,7 +262,9 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   hs.border_bottom_left_radius = Some(bar_r.clone());
   hs.border_bottom_right_radius = Some(bar_r);
   if let Some(pks) = cp.picker_style.as_deref() {
-    if pks.range_height.is_some() { hs.height = pks.range_height.clone(); }
+    if pks.range_height.is_some() {
+      hs.height = pks.range_height.clone();
+    }
     if pks.range_border_radius.is_some() {
       let r = pks.range_border_radius.clone();
       hs.border_top_left_radius = r.clone();
@@ -254,9 +292,11 @@ fn build_picker_tree(cp: &ColorPickerState) -> CascadedTree {
   };
   let hex_node = build_input_node(&hex_text, cp, &text_color);
 
-  let popup = cn(Element::Div(Div::default()), ps, vec![
-    canvas_node, hue_node, alpha_node, rgba_node, hex_node,
-  ]);
+  let popup = cn(
+    Element::Div(Div::default()),
+    ps,
+    vec![canvas_node, hue_node, alpha_node, rgba_node, hex_node],
+  );
 
   CascadedTree { root: Some(popup) }
 }
@@ -292,8 +332,12 @@ fn build_input_node(text: &str, cp: &ColorPickerState, text_color: &CssColor) ->
   is.align_items = Some(AlignItems::Center);
 
   if let Some(pks) = cp.picker_style.as_deref() {
-    if pks.input_height.is_some() { is.height = pks.input_height.clone(); }
-    if pks.input_background.is_some() { is.background_color = pks.input_background.clone().map(|c| c); }
+    if pks.input_height.is_some() {
+      is.height = pks.input_height.clone();
+    }
+    if pks.input_background.is_some() {
+      is.background_color = pks.input_background.clone().map(|c| c);
+    }
     if pks.input_border_color.is_some() {
       let c = pks.input_border_color.clone();
       is.border_top_color = c.clone();
@@ -314,11 +358,17 @@ fn build_input_node(text: &str, cp: &ColorPickerState, text_color: &CssColor) ->
       is.border_bottom_left_radius = Some(r.clone());
       is.border_bottom_right_radius = Some(r.clone());
     }
-    if pks.input_font_size.is_some() { is.font_size = pks.input_font_size.clone(); }
+    if pks.input_font_size.is_some() {
+      is.font_size = pks.input_font_size.clone();
+    }
   }
 
   let effective_color = is.color.clone().unwrap_or_else(|| text_color.clone());
-  cn(Element::Div(Div::default()), is, vec![text_node_colored(text, &effective_color)])
+  cn(
+    Element::Div(Div::default()),
+    is,
+    vec![text_node_colored(text, &effective_color)],
+  )
 }
 
 /// Build/rebuild the picker layout and cache it on the state.
@@ -331,9 +381,10 @@ pub fn update_cached_layout(tree: &mut Tree, text_ctx: &mut TextContext) {
   let prev_gen = cp.layout_generation;
   let picker_tree = build_picker_tree(cp);
   let mut image_cache = lui_layout::ImageCache::default();
-  let Some(mut layout) = lui_layout::layout_with_text(
-    &picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0,
-  ) else { return };
+  let Some(mut layout) = lui_layout::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
+  else {
+    return;
+  };
   let [popup_x, popup_y, _, _] = cp.popup_rect;
   translate_layout_box(&mut layout, popup_x, popup_y);
   cp.cached_layout = lui_tree::CachedLayout(Some(Box::new(layout)));
@@ -358,7 +409,9 @@ pub fn paint_color_picker_overlay(
     Some(l) => l,
     None => return,
   };
-  if popup_box.children.len() < 5 { return; }
+  if popup_box.children.len() < 5 {
+    return;
+  }
 
   let saved_canvas_color = list.canvas_color;
   crate::paint::paint_layout_with_selection(popup_box, list, None, lui_tree::SelectionColors::default(), 0.0);
@@ -370,15 +423,31 @@ pub fn paint_color_picker_overlay(
   if cr.w > 0.0 && cr.h > 0.0 {
     let hue_q = (cp.hue * 2.0) as u16;
     let sv_data = gen_sv_texture(cp.hue);
-    list.push_image(Rect::new(cr.x, cr.y, cr.w, cr.h), image_id_sv(hue_q), Arc::new(sv_data), SV_TEX_SIZE, SV_TEX_SIZE);
+    list.push_image(
+      Rect::new(cr.x, cr.y, cr.w, cr.h),
+      image_id_sv(hue_q),
+      Arc::new(sv_data),
+      SV_TEX_SIZE,
+      SV_TEX_SIZE,
+    );
 
     // Crosshair
     let ind_x = cr.x + cp.saturation * cr.w;
     let ind_y = cr.y + (1.0 - cp.value) * cr.h;
     let ind_r = 5.0;
     let indicator = thumb_color(cp);
-    list.push_quad_stroke(Rect::new(ind_x - ind_r, ind_y - ind_r, ind_r * 2.0, ind_r * 2.0), INDICATOR_SHADOW, [ind_r + 1.0; 4], [2.0; 4]);
-    list.push_quad_stroke(Rect::new(ind_x - ind_r, ind_y - ind_r, ind_r * 2.0, ind_r * 2.0), indicator, [ind_r; 4], [1.5; 4]);
+    list.push_quad_stroke(
+      Rect::new(ind_x - ind_r, ind_y - ind_r, ind_r * 2.0, ind_r * 2.0),
+      INDICATOR_SHADOW,
+      [ind_r + 1.0; 4],
+      [2.0; 4],
+    );
+    list.push_quad_stroke(
+      Rect::new(ind_x - ind_r, ind_y - ind_r, ind_r * 2.0, ind_r * 2.0),
+      indicator,
+      [ind_r; 4],
+      [1.5; 4],
+    );
   }
 
   // Hue bar gradient
@@ -388,14 +457,24 @@ pub fn paint_color_picker_overlay(
     let hue_data = gen_hue_texture();
     let bar_r = hr.h / 2.0;
     list.push_clip(Some(Rect::new(hr.x, hr.y, hr.w, hr.h)), [bar_r; 4], [bar_r; 4]);
-    list.push_image(Rect::new(hr.x, hr.y, hr.w, hr.h), IMAGE_ID_HUE, Arc::new(hue_data), HUE_TEX_W, HUE_TEX_H);
+    list.push_image(
+      Rect::new(hr.x, hr.y, hr.w, hr.h),
+      IMAGE_ID_HUE,
+      Arc::new(hue_data),
+      HUE_TEX_W,
+      HUE_TEX_H,
+    );
     list.pop_clip(None, [0.0; 4], [0.0; 4]);
 
     let indicator = thumb_color(cp);
     let hue_frac = cp.hue / 360.0;
     let hi_x = hr.x + hue_frac * hr.w;
     let tw = thumb_w(cp);
-    list.push_quad_rounded(Rect::new(hi_x - tw * 0.5, hr.y - 1.0, tw, hr.h + 2.0), indicator, [2.0; 4]);
+    list.push_quad_rounded(
+      Rect::new(hi_x - tw * 0.5, hr.y - 1.0, tw, hr.h + 2.0),
+      indicator,
+      [2.0; 4],
+    );
   }
 
   // Alpha bar gradient
@@ -406,18 +485,31 @@ pub fn paint_color_picker_overlay(
     let alpha_data = gen_alpha_texture(sr, sg, sb);
     let bar_r = ar.h / 2.0;
     list.push_clip(Some(Rect::new(ar.x, ar.y, ar.w, ar.h)), [bar_r; 4], [bar_r; 4]);
-    list.push_image(Rect::new(ar.x, ar.y, ar.w, ar.h), image_id_alpha(sr, sg, sb), Arc::new(alpha_data), HUE_TEX_W, 2);
+    list.push_image(
+      Rect::new(ar.x, ar.y, ar.w, ar.h),
+      image_id_alpha(sr, sg, sb),
+      Arc::new(alpha_data),
+      HUE_TEX_W,
+      2,
+    );
     list.pop_clip(None, [0.0; 4], [0.0; 4]);
 
     let indicator = thumb_color(cp);
     let ai_x = ar.x + cp.alpha * ar.w;
     let tw = thumb_w(cp);
-    list.push_quad_rounded(Rect::new(ai_x - tw * 0.5, ar.y - 1.0, tw, ar.h + 2.0), indicator, [2.0; 4]);
+    list.push_quad_rounded(
+      Rect::new(ai_x - tw * 0.5, ar.y - 1.0, tw, ar.h + 2.0),
+      indicator,
+      [2.0; 4],
+    );
   }
 
   // Caret / selection overlays for focused fields
   if let Some(field) = cp.active_field {
-    let field_idx = match field { ColorPickerField::Rgba => 3, ColorPickerField::Hex => 4 };
+    let field_idx = match field {
+      ColorPickerField::Rgba => 3,
+      ColorPickerField::Hex => 4,
+    };
     let fb = &popup_box.children[field_idx];
     let fr = fb.content_rect;
     if let Some(run) = fb.children.first().and_then(|c| c.text_run.as_ref()) {
@@ -429,7 +521,10 @@ pub fn paint_color_picker_overlay(
         let (sel_start, sel_end) = cp.field_cursor.selection_range();
         let start_x = byte_to_x(run, sel_start);
         let end_x = byte_to_x(run, sel_end);
-        list.push_quad(Rect::new(text_x + start_x, text_y, end_x - start_x, font_size), SELECTION_BG);
+        list.push_quad(
+          Rect::new(text_x + start_x, text_y, end_x - start_x, font_size),
+          SELECTION_BG,
+        );
       } else {
         let elapsed = cp.field_blink_epoch.elapsed().as_millis();
         if (elapsed % 1000) < 500 {
@@ -456,24 +551,33 @@ fn translate_layout_box(b: &mut LayoutBox, dx: f32, dy: f32) {
 }
 
 fn thumb_color(cp: &ColorPickerState) -> [f32; 4] {
-  cp.picker_style.as_ref()
+  cp.picker_style
+    .as_ref()
     .and_then(|s| s.thumb_color.as_ref())
     .and_then(|c| lui_layout::color::resolve_color(c))
     .unwrap_or([1.0, 1.0, 1.0, 1.0])
 }
 
 fn thumb_w(cp: &ColorPickerState) -> f32 {
-  cp.picker_style.as_ref()
+  cp.picker_style
+    .as_ref()
     .and_then(|s| s.thumb_width.as_ref())
-    .and_then(|l| match l { CssLength::Px(v) => Some(*v), _ => None })
+    .and_then(|l| match l {
+      CssLength::Px(v) => Some(*v),
+      _ => None,
+    })
     .unwrap_or(6.0)
 }
 
 fn byte_to_x(run: &lui_text::ShapedRun, byte_offset: usize) -> f32 {
-  if byte_offset == 0 || run.glyphs.is_empty() { return 0.0; }
+  if byte_offset == 0 || run.glyphs.is_empty() {
+    return 0.0;
+  }
   for (i, &boundary) in run.byte_boundaries.iter().enumerate() {
     if boundary >= byte_offset {
-      if i < run.glyphs.len() { return run.glyphs[i].x; }
+      if i < run.glyphs.len() {
+        return run.glyphs[i].x;
+      }
       return run.width;
     }
   }
@@ -482,13 +586,25 @@ fn byte_to_x(run: &lui_text::ShapedRun, byte_offset: usize) -> f32 {
 
 // ── Hit testing (uses stored rects from compute_popup_rects) ──
 
-pub fn compute_popup_rects(cp: &mut ColorPickerState, swatch_x: f32, swatch_y: f32, swatch_h: f32, _scale: f32, viewport_w: f32, viewport_h: f32) {
+pub fn compute_popup_rects(
+  cp: &mut ColorPickerState,
+  swatch_x: f32,
+  swatch_y: f32,
+  swatch_h: f32,
+  _scale: f32,
+  viewport_w: f32,
+  viewport_h: f32,
+) {
   let pw = 260.0;
   let ph = 370.0;
   let mut px = swatch_x;
   let mut py = swatch_y + swatch_h + 4.0;
-  if px + pw > viewport_w { px = (viewport_w - pw - 4.0).max(0.0); }
-  if py + ph > viewport_h { py = (swatch_y - ph - 4.0).max(0.0); }
+  if px + pw > viewport_w {
+    px = (viewport_w - pw - 4.0).max(0.0);
+  }
+  if py + ph > viewport_h {
+    py = (swatch_y - ph - 4.0).max(0.0);
+  }
   cp.popup_rect = [px, py, pw, ph];
   let pad = 10.0;
   let gap = 8.0;
@@ -569,7 +685,9 @@ pub fn deactivate_field(cp: &mut ColorPickerState) {
 
 fn commit_field(cp: &mut ColorPickerState) {
   let text = cp.field_text.trim();
-  if text.is_empty() { return; }
+  if text.is_empty() {
+    return;
+  }
   if let Some(color) = lui_layout::color::parse_color_str(text) {
     let r = lui_layout::color::linear_to_srgb(color[0]);
     let g = lui_layout::color::linear_to_srgb(color[1]);
@@ -583,7 +701,9 @@ fn commit_field(cp: &mut ColorPickerState) {
 }
 
 pub fn field_text_input(cp: &mut ColorPickerState, text: &str) -> bool {
-  if cp.active_field.is_none() { return false; }
+  if cp.active_field.is_none() {
+    return false;
+  }
   let (new_val, new_cursor) = lui_tree::text_edit::insert_text(&cp.field_text, &cp.field_cursor, text);
   cp.field_text = new_val;
   cp.field_cursor = new_cursor;
@@ -592,45 +712,100 @@ pub fn field_text_input(cp: &mut ColorPickerState, text: &str) -> bool {
 }
 
 pub fn field_key_down(cp: &mut ColorPickerState, key: &str, code: &str, ctrl: bool, shift: bool) -> bool {
-  if cp.active_field.is_none() { return false; }
+  if cp.active_field.is_none() {
+    return false;
+  }
   use lui_tree::text_edit;
   match key {
-    "Backspace" => { let (v, c) = text_edit::delete_backward(&cp.field_text, &cp.field_cursor); cp.field_text = v; cp.field_cursor = c; cp.field_blink_epoch = std::time::Instant::now(); }
-    "Delete" => { let (v, c) = text_edit::delete_forward(&cp.field_text, &cp.field_cursor); cp.field_text = v; cp.field_cursor = c; cp.field_blink_epoch = std::time::Instant::now(); }
-    "ArrowLeft" => { cp.field_cursor = if ctrl { text_edit::move_word_left(&cp.field_text, &cp.field_cursor, shift) } else { text_edit::move_left(&cp.field_text, &cp.field_cursor, shift) }; cp.field_blink_epoch = std::time::Instant::now(); }
-    "ArrowRight" => { cp.field_cursor = if ctrl { text_edit::move_word_right(&cp.field_text, &cp.field_cursor, shift) } else { text_edit::move_right(&cp.field_text, &cp.field_cursor, shift) }; cp.field_blink_epoch = std::time::Instant::now(); }
-    "Home" => { cp.field_cursor = text_edit::move_home(&cp.field_text, &cp.field_cursor, shift); cp.field_blink_epoch = std::time::Instant::now(); }
-    "End" => { cp.field_cursor = text_edit::move_end(&cp.field_text, &cp.field_cursor, shift); cp.field_blink_epoch = std::time::Instant::now(); }
-    "Enter" => { commit_field(cp); cp.active_field = None; cp.field_text.clear(); }
-    "Escape" => { cp.active_field = None; cp.field_text.clear(); }
+    "Backspace" => {
+      let (v, c) = text_edit::delete_backward(&cp.field_text, &cp.field_cursor);
+      cp.field_text = v;
+      cp.field_cursor = c;
+      cp.field_blink_epoch = std::time::Instant::now();
+    }
+    "Delete" => {
+      let (v, c) = text_edit::delete_forward(&cp.field_text, &cp.field_cursor);
+      cp.field_text = v;
+      cp.field_cursor = c;
+      cp.field_blink_epoch = std::time::Instant::now();
+    }
+    "ArrowLeft" => {
+      cp.field_cursor = if ctrl {
+        text_edit::move_word_left(&cp.field_text, &cp.field_cursor, shift)
+      } else {
+        text_edit::move_left(&cp.field_text, &cp.field_cursor, shift)
+      };
+      cp.field_blink_epoch = std::time::Instant::now();
+    }
+    "ArrowRight" => {
+      cp.field_cursor = if ctrl {
+        text_edit::move_word_right(&cp.field_text, &cp.field_cursor, shift)
+      } else {
+        text_edit::move_right(&cp.field_text, &cp.field_cursor, shift)
+      };
+      cp.field_blink_epoch = std::time::Instant::now();
+    }
+    "Home" => {
+      cp.field_cursor = text_edit::move_home(&cp.field_text, &cp.field_cursor, shift);
+      cp.field_blink_epoch = std::time::Instant::now();
+    }
+    "End" => {
+      cp.field_cursor = text_edit::move_end(&cp.field_text, &cp.field_cursor, shift);
+      cp.field_blink_epoch = std::time::Instant::now();
+    }
+    "Enter" => {
+      commit_field(cp);
+      cp.active_field = None;
+      cp.field_text.clear();
+    }
+    "Escape" => {
+      cp.active_field = None;
+      cp.field_text.clear();
+    }
     "Tab" => {
       commit_field(cp);
-      let next = match cp.active_field { Some(ColorPickerField::Rgba) => ColorPickerField::Hex, _ => ColorPickerField::Rgba };
-      let text = match next { ColorPickerField::Rgba => rgba_string(cp), ColorPickerField::Hex => hex_string(cp) };
+      let next = match cp.active_field {
+        Some(ColorPickerField::Rgba) => ColorPickerField::Hex,
+        _ => ColorPickerField::Rgba,
+      };
+      let text = match next {
+        ColorPickerField::Rgba => rgba_string(cp),
+        ColorPickerField::Hex => hex_string(cp),
+      };
       cp.field_cursor = text_edit::select_all(&text);
       cp.field_text = text;
       cp.active_field = Some(next);
       cp.field_blink_epoch = std::time::Instant::now();
     }
     _ => {
-      if ctrl && code == "KeyA" { cp.field_cursor = text_edit::select_all(&cp.field_text); cp.field_blink_epoch = std::time::Instant::now(); }
-      else { return false; }
+      if ctrl && code == "KeyA" {
+        cp.field_cursor = text_edit::select_all(&cp.field_text);
+        cp.field_blink_epoch = std::time::Instant::now();
+      } else {
+        return false;
+      }
     }
   }
   true
 }
 
 pub fn field_selected_text(cp: &ColorPickerState) -> Option<String> {
-  if cp.active_field.is_none() || !cp.field_cursor.has_selection() { return None; }
+  if cp.active_field.is_none() || !cp.field_cursor.has_selection() {
+    return None;
+  }
   let (start, end) = cp.field_cursor.selection_range();
   let start = start.min(cp.field_text.len());
   let end = end.min(cp.field_text.len());
-  if start >= end { return None; }
+  if start >= end {
+    return None;
+  }
   Some(cp.field_text[start..end].to_string())
 }
 
 pub fn sync_field_text_from_color(cp: &mut ColorPickerState) {
-  if cp.active_field.is_none() { return; }
+  if cp.active_field.is_none() {
+    return;
+  }
   let text = match cp.active_field {
     Some(ColorPickerField::Rgba) => rgba_string(cp),
     Some(ColorPickerField::Hex) => hex_string(cp),

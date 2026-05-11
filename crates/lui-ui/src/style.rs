@@ -171,7 +171,10 @@ pub struct Stylesheet {
 impl Stylesheet {
   /// An empty stylesheet (no rules, no scope).
   pub fn empty() -> Self {
-    Self { rules: Vec::new(), scope: "" }
+    Self {
+      rules: Vec::new(),
+      scope: "",
+    }
   }
 
   /// Returns true if there are no rules.

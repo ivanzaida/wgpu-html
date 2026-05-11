@@ -1,11 +1,13 @@
 use lui_models::common::{Display, Overflow};
-use lui_ui::{el, el::El, style, Component, Ctx, ShouldRender};
+use lui_ui::{Component, Ctx, ShouldRender, el, el::El, style};
 
-use super::store::DevtoolsStore;
-use super::styles_panel::{StylesPanel, StylesPanelProps};
-use super::top_bar::{Toolbar, ToolbarProps};
-use super::tree_panel::{TreePanel, TreePanelProps};
-use super::theme::Theme;
+use super::{
+  store::DevtoolsStore,
+  styles_panel::{StylesPanel, StylesPanelProps},
+  theme::Theme,
+  top_bar::{Toolbar, ToolbarProps},
+  tree_panel::{TreePanel, TreePanelProps},
+};
 
 #[derive(Clone)]
 pub struct DevtoolsProps {
@@ -58,8 +60,7 @@ impl Component for DevtoolsComponent {
         .font_size(style::px(10))
         .white_space(WhiteSpace::Nowrap)
         .flex_shrink(0.0),
-      style::rule(".crumb")
-        .color(Theme::TEXT_MUTED),
+      style::rule(".crumb").color(Theme::TEXT_MUTED),
       style::rule(".crumb.active")
         .color(Theme::ACCENT_BLUE)
         .font_weight(FontWeight::Weight(600)),
@@ -69,7 +70,8 @@ impl Component for DevtoolsComponent {
         .font_size(style::px(10))
         .color(Theme::TEXT_MUTED)
         .prop("line-height", "10px"),
-    ]).scoped("devtools")
+    ])
+    .scoped("devtools")
   }
 
   fn view(&self, props: &DevtoolsProps, ctx: &Ctx<DevtoolsMsg>) -> El {

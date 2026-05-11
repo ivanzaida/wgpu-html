@@ -7,10 +7,7 @@ use std::{
   io::BufRead,
   path::PathBuf,
   process::ExitCode,
-  sync::{
-    Arc,
-    Mutex,
-  },
+  sync::{Arc, Mutex},
   time::{Duration, Instant},
 };
 
@@ -171,10 +168,7 @@ fn timestamp() -> u64 {
 
 // ── JSON dump ───────────────────────────────────────────────────────────────
 
-fn cascaded_at_path<'a>(
-  root: &'a lui_style::CascadedNode,
-  path: &[usize],
-) -> Option<&'a lui_style::CascadedNode> {
+fn cascaded_at_path<'a>(root: &'a lui_style::CascadedNode, path: &[usize]) -> Option<&'a lui_style::CascadedNode> {
   let mut cur = root;
   for &i in path {
     cur = cur.children.get(i)?;
@@ -525,9 +519,7 @@ impl ApplicationHandler for DemoApp {
 
         // Always run at ~60 fps so the profiling overlay stays live
         // and animations/caret blink stay smooth.
-        event_loop.set_control_flow(ControlFlow::WaitUntil(
-          Instant::now() + Duration::from_millis(16),
-        ));
+        event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)));
       }
 
       // Keyboard is handled before dispatch to intercept F9/Esc/etc.
@@ -545,7 +537,8 @@ impl ApplicationHandler for DemoApp {
             WindowEvent::CursorMoved { position, .. } => {
               let pos = (position.x as f32, position.y as f32);
               if let Some(layout) = self.driver.rt.layout() {
-                let doc_pos = lui::scroll::viewport_to_document(pos, self.driver.rt.scroll_x(), self.driver.rt.scroll_y());
+                let doc_pos =
+                  lui::scroll::viewport_to_document(pos, self.driver.rt.scroll_x(), self.driver.rt.scroll_y());
                 let path = layout.hit_path_scrolled(doc_pos, &self.driver.tree.interaction.scroll_offsets);
                 if let Some(devtools) = &mut self.devtools {
                   devtools.set_hover_path(path);
@@ -630,7 +623,6 @@ pub(crate) fn run(mut tree: Tree, doc_source: String, profiling_enabled: bool) -
   if profiling_enabled {
     eprintln!("demo: profiling enabled via --profile");
   }
-
 
   if profiling_enabled {
     tree.profiler = Some(lui_tree::Profiler::tagged("demo app"));

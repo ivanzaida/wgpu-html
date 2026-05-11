@@ -82,7 +82,8 @@ impl Component for Counter {
         .background_color("var(--bg-hover)")
         .cursor(Cursor::Pointer),
       style::rule("button.wide").width(px(64)),
-    ]).scoped("counter")
+    ])
+    .scoped("counter")
   }
 
   fn view(&self, _props: &CounterProps, ctx: &lui_ui::Ctx<CounterMsg>) -> lui_ui::El {

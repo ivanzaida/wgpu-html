@@ -26,13 +26,13 @@ pub mod tree_hook;
 pub use dispatch::{
   blur, clipboard_event, cut_selection, dispatch_mouse_down, dispatch_mouse_up, dispatch_pointer_leave,
   dispatch_pointer_move, flush_date_to_iso, focus, focus_next, key_down, key_up, resize_event, scroll_event,
-  select_event, selectionchange_event, set_color_value, set_date_value, set_file_value,
-  set_range_value_by_fraction, submit_form, text_input, wheel_event,
+  select_event, selectionchange_event, set_color_value, set_date_value, set_file_value, set_range_value_by_fraction,
+  submit_form, text_input, wheel_event,
 };
 pub use events::{
-  CachedLayout, ColorPickerDragTarget, ColorPickerField, ColorPickerState, DatePickerState, EditCursor, EventCallback, HtmlEvent, HtmlEventType, InteractionSnapshot,
-  InteractionState, Modifier, Modifiers, MouseButton, MouseCallback, MouseEvent, RangeDrag, ScrollOffset,
-  SelectionColors, TextCursor, TextSelection, UndoEntry, UndoStack,
+  CachedLayout, ColorPickerDragTarget, ColorPickerField, ColorPickerState, DatePickerState, EditCursor, EventCallback,
+  HtmlEvent, HtmlEventType, InteractionSnapshot, InteractionState, Modifier, Modifiers, MouseButton, MouseCallback,
+  MouseEvent, RangeDrag, ScrollOffset, SelectionColors, TextCursor, TextSelection, UndoEntry, UndoStack,
 };
 pub use focus::{
   focusable_paths, is_focusable, is_keyboard_focusable, keyboard_focusable_paths, next_in_order, prev_in_order,
@@ -69,7 +69,9 @@ impl std::fmt::Debug for CustomElementRegistry {
 
 impl CustomElementRegistry {
   pub fn new() -> Self {
-    Self { factories: HashMap::new() }
+    Self {
+      factories: HashMap::new(),
+    }
   }
 
   pub fn register(&mut self, tag: impl Into<ArcStr>, factory: impl Fn(&Node) -> Node + Send + Sync + 'static) {
@@ -614,7 +616,9 @@ impl Tree {
     let Some(other_root) = other.root else { return };
     match self.root.as_mut() {
       Some(root) => {
-        if other_root.children.is_empty() { return; }
+        if other_root.children.is_empty() {
+          return;
+        }
         root.children.extend(other_root.children);
       }
       None => {
@@ -2045,10 +2049,7 @@ pub fn wrap_in_document(node: Node) -> Node {
   } else {
     Node::new(m::Body::default()).with_children(vec![node])
   };
-  Node::new(m::Html::default()).with_children(vec![
-    Node::new(m::Head::default()),
-    body,
-  ])
+  Node::new(m::Html::default()).with_children(vec![Node::new(m::Head::default()), body])
 }
 
 /// Two trees with the same fingerprint produce identical cascade

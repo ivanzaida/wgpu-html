@@ -1,5 +1,6 @@
-use crate::ArcStr;
 use std::{fmt, str::FromStr};
+
+use crate::ArcStr;
 
 #[derive(Debug, Clone)]
 pub enum HtmlDirection {

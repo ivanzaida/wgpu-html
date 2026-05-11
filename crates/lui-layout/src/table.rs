@@ -5,21 +5,16 @@
 //! - `display: table` wrapper — establishes table formatting context
 //! - `display: table-row-group` (thead/tbody/tfoot), `table-row`, `table-cell`
 //! - `display: table-caption` — laid out as a block above the table grid
-//! - Column width distribution: measures min/max content per column,
-//!   distributes remaining space proportionally
+//! - Column width distribution: measures min/max content per column, distributes remaining space proportionally
 //! - `colspan` / `rowspan` attribute support
 //! - `gap` / `border-spacing` between cells
 //! - Nested tables (cells delegate back to `layout_block_at_with`)
 
-use lui_models::{
-  Style,
-  common::css_enums::Display,
-};
+use lui_models::{Style, common::css_enums::Display};
 use lui_style::CascadedNode;
 
 use crate::{
-  BlockOverrides, Ctx, LayoutBox, layout_block_at_with, length,
-  translate_box_x_in_place, translate_box_y_in_place,
+  BlockOverrides, Ctx, LayoutBox, layout_block_at_with, length, translate_box_x_in_place, translate_box_y_in_place,
 };
 
 // ---------------------------------------------------------------------------
@@ -56,7 +51,15 @@ pub(crate) fn layout_table_children(
     let mut result = Vec::new();
     let mut cursor_y = 0.0_f32;
     for cap in &captions {
-      let b = layout_block_at_with(cap, content_x, content_y + cursor_y, inner_width, 0.0, BlockOverrides::default(), ctx);
+      let b = layout_block_at_with(
+        cap,
+        content_x,
+        content_y + cursor_y,
+        inner_width,
+        0.0,
+        BlockOverrides::default(),
+        ctx,
+      );
       cursor_y += b.margin_rect.h;
       result.push(b);
     }
@@ -72,7 +75,15 @@ pub(crate) fn layout_table_children(
 
   // Captions above.
   for cap in &captions {
-    let b = layout_block_at_with(cap, content_x, content_y + cursor_y, inner_width, 0.0, BlockOverrides::default(), ctx);
+    let b = layout_block_at_with(
+      cap,
+      content_x,
+      content_y + cursor_y,
+      inner_width,
+      0.0,
+      BlockOverrides::default(),
+      ctx,
+    );
     cursor_y += b.margin_rect.h;
     all_boxes.push(b);
   }
@@ -95,13 +106,7 @@ pub(crate) fn layout_table_children(
       let colspan = cell_info.colspan;
       let cell_w = cell_width(&col_widths, ci, colspan, spacing);
 
-      let b = layout_block_at_with(
-        cell_node,
-        0.0, 0.0,
-        cell_w, 0.0,
-        BlockOverrides::default(),
-        ctx,
-      );
+      let b = layout_block_at_with(cell_node, 0.0, 0.0, cell_w, 0.0, BlockOverrides::default(), ctx);
 
       let rowspan = cell_info.rowspan;
       if rowspan == 1 {
@@ -123,7 +128,9 @@ pub(crate) fn layout_table_children(
         continue;
       }
       let rowspan = cell_info.rowspan;
-      if rowspan <= 1 { continue; }
+      if rowspan <= 1 {
+        continue;
+      }
 
       let b = match &cell_boxes[ri][ci] {
         Some(b) => b,
@@ -131,10 +138,8 @@ pub(crate) fn layout_table_children(
       };
 
       let span_end = (ri + rowspan).min(num_rows);
-      let spanned_h: f32 = (ri..span_end)
-        .map(|r| row_heights[r])
-        .sum::<f32>()
-        + spacing * (span_end - ri - 1).max(0) as f32;
+      let spanned_h: f32 =
+        (ri..span_end).map(|r| row_heights[r]).sum::<f32>() + spacing * (span_end - ri - 1).max(0) as f32;
 
       if b.margin_rect.h > spanned_h {
         let extra = b.margin_rect.h - spanned_h;
@@ -163,7 +168,9 @@ pub(crate) fn layout_table_children(
       if cell_info.origin_row != ri || cell_info.origin_col != ci {
         continue;
       }
-      let Some(mut b) = cell_boxes[ri][ci].take() else { continue };
+      let Some(mut b) = cell_boxes[ri][ci].take() else {
+        continue;
+      };
 
       let cell_x = col_x_offset(&col_widths, ci, spacing);
       translate_box_x_in_place(&mut b, content_x + cell_x);
@@ -173,10 +180,8 @@ pub(crate) fn layout_table_children(
       let rowspan = cell_info.rowspan;
       if rowspan > 1 {
         let span_end = (ri + rowspan).min(num_rows);
-        let spanned_h: f32 = (ri..span_end)
-          .map(|r| row_heights[r])
-          .sum::<f32>()
-          + spacing * (span_end - ri).saturating_sub(1) as f32;
+        let spanned_h: f32 =
+          (ri..span_end).map(|r| row_heights[r]).sum::<f32>() + spacing * (span_end - ri).saturating_sub(1) as f32;
         let dh = spanned_h - b.margin_rect.h;
         if dh > 0.0 {
           b.margin_rect.h = spanned_h;
@@ -190,8 +195,7 @@ pub(crate) fn layout_table_children(
     }
   }
 
-  let total_rows_h = row_y_offsets.last().copied().unwrap_or(0.0)
-    + row_heights.last().copied().unwrap_or(0.0);
+  let total_rows_h = row_y_offsets.last().copied().unwrap_or(0.0) + row_heights.last().copied().unwrap_or(0.0);
   cursor_y += total_rows_h;
 
   // Remove trailing spacing.
@@ -219,11 +223,7 @@ struct CellGrid<'a> {
   num_cols: usize,
 }
 
-fn collect_rows<'a>(
-  parent: &'a CascadedNode,
-  captions: &mut Vec<&'a CascadedNode>,
-  rows: &mut Vec<&'a CascadedNode>,
-) {
+fn collect_rows<'a>(parent: &'a CascadedNode, captions: &mut Vec<&'a CascadedNode>, rows: &mut Vec<&'a CascadedNode>) {
   for child in &parent.children {
     let d = child.style.display.as_ref();
     match d {
@@ -285,7 +285,9 @@ fn build_cell_grid<'a>(rows: &[&'a CascadedNode]) -> CellGrid<'a> {
       while ci < max_cols && grid[ri][ci].node.is_some() {
         ci += 1;
       }
-      if ci >= max_cols { break; }
+      if ci >= max_cols {
+        break;
+      }
 
       let colspan = cell_colspan(cell).max(1);
       let rowspan = cell_rowspan(cell).max(1);
@@ -293,10 +295,14 @@ fn build_cell_grid<'a>(rows: &[&'a CascadedNode]) -> CellGrid<'a> {
       // Fill the grid slots this cell spans.
       for dr in 0..rowspan {
         let r = ri + dr;
-        if r >= num_rows { break; }
+        if r >= num_rows {
+          break;
+        }
         for dc in 0..colspan {
           let c = ci + dc;
-          if c >= max_cols { break; }
+          if c >= max_cols {
+            break;
+          }
           grid[r][c] = CellInfo {
             node: if dr == 0 && dc == 0 { Some(cell) } else { None },
             colspan,
@@ -314,7 +320,10 @@ fn build_cell_grid<'a>(rows: &[&'a CascadedNode]) -> CellGrid<'a> {
     }
   }
 
-  CellGrid { cells: grid, num_cols: max_cols }
+  CellGrid {
+    cells: grid,
+    num_cols: max_cols,
+  }
 }
 
 fn row_cells<'a>(row: &'a CascadedNode) -> Vec<&'a CascadedNode> {
@@ -349,13 +358,7 @@ fn cell_rowspan(cell: &CascadedNode) -> usize {
 // Column width resolution
 // ---------------------------------------------------------------------------
 
-fn resolve_column_widths(
-  grid: &CellGrid,
-  num_cols: usize,
-  table_width: f32,
-  spacing: f32,
-  ctx: &mut Ctx,
-) -> Vec<f32> {
+fn resolve_column_widths(grid: &CellGrid, num_cols: usize, table_width: f32, spacing: f32, ctx: &mut Ctx) -> Vec<f32> {
   let total_spacing = spacing * (num_cols.saturating_sub(1)) as f32;
   let available = (table_width - total_spacing).max(0.0);
 
@@ -381,11 +384,7 @@ fn resolve_column_widths(
       }
 
       // Measure intrinsic minimum.
-      let probe = layout_block_at_with(
-        cell, 0.0, 0.0, 0.0, 0.0,
-        BlockOverrides::default(),
-        ctx,
-      );
+      let probe = layout_block_at_with(cell, 0.0, 0.0, 0.0, 0.0, BlockOverrides::default(), ctx);
       min_widths[ci] = min_widths[ci].max(probe.margin_rect.w);
     }
   }
@@ -451,7 +450,9 @@ fn resolve_spacing(style: &Style, container_w: f32, ctx: &Ctx) -> f32 {
     }
   }
   length::resolve(
-    style.gap.as_ref()
+    style
+      .gap
+      .as_ref()
       .or(style.row_gap.as_ref())
       .or(style.column_gap.as_ref()),
     container_w,

@@ -92,7 +92,12 @@ pub struct Ctx<Msg: 'static> {
 }
 
 impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
-  pub(crate) fn new(sender: MsgSender<Msg>, scope_prefix: &'static str, scoped_cache: ScopedClassCache, inherited_context: ContextMap) -> Self {
+  pub(crate) fn new(
+    sender: MsgSender<Msg>,
+    scope_prefix: &'static str,
+    scoped_cache: ScopedClassCache,
+    inherited_context: ContextMap,
+  ) -> Self {
     Self {
       sender,
       children: RefCell::new(Vec::new()),
@@ -131,14 +136,19 @@ impl<Msg: Clone + Send + Sync + 'static> Ctx<Msg> {
   /// [`use_context`](Ctx::use_context).  Overwrites any previous value
   /// of the same type at this level.
   pub fn provide_context<T: Send + Sync + 'static>(&self, value: T) {
-    self.provided_context.borrow_mut().insert(TypeId::of::<T>(), Arc::new(value));
+    self
+      .provided_context
+      .borrow_mut()
+      .insert(TypeId::of::<T>(), Arc::new(value));
   }
 
   /// Look up a context value provided by an ancestor (or this component).
   /// Returns `None` if no ancestor provided a value of type `T`.
   pub fn use_context<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
     let type_id = TypeId::of::<T>();
-    self.provided_context.borrow()
+    self
+      .provided_context
+      .borrow()
       .get(&type_id)
       .cloned()
       .or_else(|| self.inherited_context.get(&type_id).cloned())

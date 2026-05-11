@@ -220,12 +220,20 @@ pub fn parse_color_str(s: &str) -> Option<Color> {
 }
 
 fn linearize(srgb: [f32; 4]) -> Color {
-  [srgb_to_linear(srgb[0]), srgb_to_linear(srgb[1]), srgb_to_linear(srgb[2]), srgb[3]]
+  [
+    srgb_to_linear(srgb[0]),
+    srgb_to_linear(srgb[1]),
+    srgb_to_linear(srgb[2]),
+    srgb[3],
+  ]
 }
 
 fn split_color_args(s: &str) -> Vec<String> {
   if s.contains(',') {
-    s.split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect()
+    s.split(',')
+      .map(|p| p.trim().to_string())
+      .filter(|p| !p.is_empty())
+      .collect()
   } else {
     s.split(|c: char| c.is_whitespace() || c == '/')
       .map(|p| p.trim().to_string())
@@ -264,7 +272,11 @@ fn parse_rgb_args(inner: &str) -> Option<Color> {
   let r = parse_color_component(&args[0], 255.0)?;
   let g = parse_color_component(&args[1], 255.0)?;
   let b = parse_color_component(&args[2], 255.0)?;
-  let a = if args.len() >= 4 { parse_alpha_component(&args[3])? } else { 1.0 };
+  let a = if args.len() >= 4 {
+    parse_alpha_component(&args[3])?
+  } else {
+    1.0
+  };
   Some([srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), a])
 }
 
@@ -276,7 +288,11 @@ fn parse_hsl_args(inner: &str) -> Option<Color> {
   let h: f32 = args[0].trim().trim_end_matches("deg").parse().ok()?;
   let s: f32 = args[1].trim().trim_end_matches('%').parse().ok()?;
   let l: f32 = args[2].trim().trim_end_matches('%').parse().ok()?;
-  let a = if args.len() >= 4 { parse_alpha_component(&args[3])? } else { 1.0 };
+  let a = if args.len() >= 4 {
+    parse_alpha_component(&args[3])?
+  } else {
+    1.0
+  };
   let srgb = hsl_to_rgb(h, s, l, a);
   Some(linearize(srgb))
 }

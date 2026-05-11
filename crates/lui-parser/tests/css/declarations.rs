@@ -495,10 +495,7 @@ fn animation_shorthand_none_can_be_name_and_scroll_function_is_timeline() {
     Some("none")
   );
   assert_eq!(
-    style
-      .deferred_longhands
-      .get("animation-timing-function")
-      .map(|s| &**s),
+    style.deferred_longhands.get("animation-timing-function").map(|s| &**s),
     Some("linear")
   );
   assert_eq!(
@@ -561,10 +558,7 @@ fn transition_shorthand_linear_is_timing_function_not_property() {
     Some("opacity")
   );
   assert_eq!(
-    style
-      .deferred_longhands
-      .get("transition-timing-function")
-      .map(|s| &**s),
+    style.deferred_longhands.get("transition-timing-function").map(|s| &**s),
     Some("linear")
   );
 }
@@ -585,10 +579,7 @@ fn transition_shorthand_none_can_be_property_and_layers_keep_defaults() {
     Some("0s, 0s")
   );
   assert_eq!(
-    style
-      .deferred_longhands
-      .get("transition-timing-function")
-      .map(|s| &**s),
+    style.deferred_longhands.get("transition-timing-function").map(|s| &**s),
     Some("ease-out, ease")
   );
 }

@@ -19,20 +19,18 @@
 
 use std::sync::Arc;
 
-use lui::layout::Cursor;
-use lui::PipelineTimings;
+use lui::{PipelineTimings, layout::Cursor};
 use lui_driver::{Driver, Runtime};
 use lui_tree::{Modifier, MouseButton, Tree};
-
-pub use winit::{
-  event::{KeyEvent, WindowEvent},
-  event_loop::ActiveEventLoop,
-  window::WindowId,
-};
 use winit::{
   event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta},
   keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
   window::Window,
+};
+pub use winit::{
+  event::{KeyEvent, WindowEvent},
+  event_loop::ActiveEventLoop,
+  window::WindowId,
 };
 
 // ── WinitDriver ────────────────────────────────────────────────────────────
@@ -52,10 +50,15 @@ impl WinitDriver {
   /// Wire a winit window to a tree.
   pub fn bind(window: Arc<Window>, tree: Tree) -> Self {
     let size = window.inner_size();
-    let renderer = pollster::block_on(
-      lui_renderer_wgpu::Renderer::new(window.clone(), size.width, size.height),
-    );
-    let driver = Lui { window, clipboard: std::cell::RefCell::new(None) };
+    let renderer = pollster::block_on(lui_renderer_wgpu::Renderer::new(
+      window.clone(),
+      size.width,
+      size.height,
+    ));
+    let driver = Lui {
+      window,
+      clipboard: std::cell::RefCell::new(None),
+    };
     let rt = Runtime::new(driver, renderer);
     Self { rt, tree }
   }
@@ -117,7 +120,6 @@ impl WinitDriver {
   pub fn request_redraw(&self) {
     self.rt.driver.window.request_redraw();
   }
-
 }
 
 // ── Internal Driver impl ───────────────────────────────────────────────────
@@ -189,14 +191,9 @@ fn dispatch(event: &WindowEvent, rt: &mut Runtime<Lui, lui_renderer_wgpu::Render
     WindowEvent::MouseWheel { delta, .. } => {
       let scale = tree.effective_dpi_scale(rt.driver.scale_factor() as f32);
       let prevented = match delta {
-        MouseScrollDelta::LineDelta(x, y) => rt.on_wheel_event(
-          tree,
-          0.0,
-          0.0,
-          *x as f64,
-          *y as f64,
-          lui::events::WheelDeltaMode::Line,
-        ),
+        MouseScrollDelta::LineDelta(x, y) => {
+          rt.on_wheel_event(tree, 0.0, 0.0, *x as f64, *y as f64, lui::events::WheelDeltaMode::Line)
+        }
         MouseScrollDelta::PixelDelta(phys_pos) => rt.on_wheel_event(
           tree,
           0.0,
@@ -291,36 +288,90 @@ fn update_modifiers(tree: &mut Tree, event: &KeyEvent) {
 fn keycode_to_dom_code(key: KeyCode) -> &'static str {
   use KeyCode::*;
   match key {
-    KeyA => "KeyA", KeyB => "KeyB", KeyC => "KeyC", KeyD => "KeyD",
-    KeyE => "KeyE", KeyF => "KeyF", KeyG => "KeyG", KeyH => "KeyH",
-    KeyI => "KeyI", KeyJ => "KeyJ", KeyK => "KeyK", KeyL => "KeyL",
-    KeyM => "KeyM", KeyN => "KeyN", KeyO => "KeyO", KeyP => "KeyP",
-    KeyQ => "KeyQ", KeyR => "KeyR", KeyS => "KeyS", KeyT => "KeyT",
-    KeyU => "KeyU", KeyV => "KeyV", KeyW => "KeyW", KeyX => "KeyX",
-    KeyY => "KeyY", KeyZ => "KeyZ",
-    Digit0 => "Digit0", Digit1 => "Digit1", Digit2 => "Digit2",
-    Digit3 => "Digit3", Digit4 => "Digit4", Digit5 => "Digit5",
-    Digit6 => "Digit6", Digit7 => "Digit7", Digit8 => "Digit8",
+    KeyA => "KeyA",
+    KeyB => "KeyB",
+    KeyC => "KeyC",
+    KeyD => "KeyD",
+    KeyE => "KeyE",
+    KeyF => "KeyF",
+    KeyG => "KeyG",
+    KeyH => "KeyH",
+    KeyI => "KeyI",
+    KeyJ => "KeyJ",
+    KeyK => "KeyK",
+    KeyL => "KeyL",
+    KeyM => "KeyM",
+    KeyN => "KeyN",
+    KeyO => "KeyO",
+    KeyP => "KeyP",
+    KeyQ => "KeyQ",
+    KeyR => "KeyR",
+    KeyS => "KeyS",
+    KeyT => "KeyT",
+    KeyU => "KeyU",
+    KeyV => "KeyV",
+    KeyW => "KeyW",
+    KeyX => "KeyX",
+    KeyY => "KeyY",
+    KeyZ => "KeyZ",
+    Digit0 => "Digit0",
+    Digit1 => "Digit1",
+    Digit2 => "Digit2",
+    Digit3 => "Digit3",
+    Digit4 => "Digit4",
+    Digit5 => "Digit5",
+    Digit6 => "Digit6",
+    Digit7 => "Digit7",
+    Digit8 => "Digit8",
     Digit9 => "Digit9",
-    Space => "Space", Minus => "Minus", Equal => "Equal",
-    BracketLeft => "BracketLeft", BracketRight => "BracketRight",
-    Backslash => "Backslash", Semicolon => "Semicolon", Quote => "Quote",
-    Comma => "Comma", Period => "Period", Slash => "Slash",
+    Space => "Space",
+    Minus => "Minus",
+    Equal => "Equal",
+    BracketLeft => "BracketLeft",
+    BracketRight => "BracketRight",
+    Backslash => "Backslash",
+    Semicolon => "Semicolon",
+    Quote => "Quote",
+    Comma => "Comma",
+    Period => "Period",
+    Slash => "Slash",
     Backquote => "Backquote",
-    Enter => "Enter", NumpadEnter => "NumpadEnter", Tab => "Tab",
-    Backspace => "Backspace", Delete => "Delete", Escape => "Escape",
-    Home => "Home", End => "End", PageUp => "PageUp", PageDown => "PageDown",
-    ArrowUp => "ArrowUp", ArrowDown => "ArrowDown",
-    ArrowLeft => "ArrowLeft", ArrowRight => "ArrowRight",
+    Enter => "Enter",
+    NumpadEnter => "NumpadEnter",
+    Tab => "Tab",
+    Backspace => "Backspace",
+    Delete => "Delete",
+    Escape => "Escape",
+    Home => "Home",
+    End => "End",
+    PageUp => "PageUp",
+    PageDown => "PageDown",
+    ArrowUp => "ArrowUp",
+    ArrowDown => "ArrowDown",
+    ArrowLeft => "ArrowLeft",
+    ArrowRight => "ArrowRight",
     Insert => "Insert",
-    ShiftLeft => "ShiftLeft", ShiftRight => "ShiftRight",
-    ControlLeft => "ControlLeft", ControlRight => "ControlRight",
-    AltLeft => "AltLeft", AltRight => "AltRight",
-    SuperLeft => "MetaLeft", SuperRight => "MetaRight",
+    ShiftLeft => "ShiftLeft",
+    ShiftRight => "ShiftRight",
+    ControlLeft => "ControlLeft",
+    ControlRight => "ControlRight",
+    AltLeft => "AltLeft",
+    AltRight => "AltRight",
+    SuperLeft => "MetaLeft",
+    SuperRight => "MetaRight",
     CapsLock => "CapsLock",
-    F1 => "F1", F2 => "F2", F3 => "F3", F4 => "F4",
-    F5 => "F5", F6 => "F6", F7 => "F7", F8 => "F8",
-    F9 => "F9", F10 => "F10", F11 => "F11", F12 => "F12",
+    F1 => "F1",
+    F2 => "F2",
+    F3 => "F3",
+    F4 => "F4",
+    F5 => "F5",
+    F6 => "F6",
+    F7 => "F7",
+    F8 => "F8",
+    F9 => "F9",
+    F10 => "F10",
+    F11 => "F11",
+    F12 => "F12",
     _ => "Unidentified",
   }
 }
@@ -334,22 +385,42 @@ fn wheel_delta_to_pixels(delta: MouseScrollDelta, scale: f32) -> f32 {
 
 fn named_key_to_dom(key: &NamedKey) -> &'static str {
   match key {
-    NamedKey::Alt => "Alt", NamedKey::ArrowDown => "ArrowDown",
-    NamedKey::ArrowLeft => "ArrowLeft", NamedKey::ArrowRight => "ArrowRight",
-    NamedKey::ArrowUp => "ArrowUp", NamedKey::Backspace => "Backspace",
-    NamedKey::CapsLock => "CapsLock", NamedKey::Control => "Control",
-    NamedKey::Delete => "Delete", NamedKey::End => "End",
-    NamedKey::Enter => "Enter", NamedKey::Escape => "Escape",
-    NamedKey::F1 => "F1", NamedKey::F2 => "F2", NamedKey::F3 => "F3",
-    NamedKey::F4 => "F4", NamedKey::F5 => "F5", NamedKey::F6 => "F6",
-    NamedKey::F7 => "F7", NamedKey::F8 => "F8", NamedKey::F9 => "F9",
-    NamedKey::F10 => "F10", NamedKey::F11 => "F11", NamedKey::F12 => "F12",
-    NamedKey::Home => "Home", NamedKey::Insert => "Insert",
-    NamedKey::Meta => "Meta", NamedKey::NumLock => "NumLock",
-    NamedKey::PageDown => "PageDown", NamedKey::PageUp => "PageUp",
-    NamedKey::Pause => "Pause", NamedKey::PrintScreen => "PrintScreen",
-    NamedKey::ScrollLock => "ScrollLock", NamedKey::Shift => "Shift",
-    NamedKey::Space => " ", NamedKey::Tab => "Tab",
+    NamedKey::Alt => "Alt",
+    NamedKey::ArrowDown => "ArrowDown",
+    NamedKey::ArrowLeft => "ArrowLeft",
+    NamedKey::ArrowRight => "ArrowRight",
+    NamedKey::ArrowUp => "ArrowUp",
+    NamedKey::Backspace => "Backspace",
+    NamedKey::CapsLock => "CapsLock",
+    NamedKey::Control => "Control",
+    NamedKey::Delete => "Delete",
+    NamedKey::End => "End",
+    NamedKey::Enter => "Enter",
+    NamedKey::Escape => "Escape",
+    NamedKey::F1 => "F1",
+    NamedKey::F2 => "F2",
+    NamedKey::F3 => "F3",
+    NamedKey::F4 => "F4",
+    NamedKey::F5 => "F5",
+    NamedKey::F6 => "F6",
+    NamedKey::F7 => "F7",
+    NamedKey::F8 => "F8",
+    NamedKey::F9 => "F9",
+    NamedKey::F10 => "F10",
+    NamedKey::F11 => "F11",
+    NamedKey::F12 => "F12",
+    NamedKey::Home => "Home",
+    NamedKey::Insert => "Insert",
+    NamedKey::Meta => "Meta",
+    NamedKey::NumLock => "NumLock",
+    NamedKey::PageDown => "PageDown",
+    NamedKey::PageUp => "PageUp",
+    NamedKey::Pause => "Pause",
+    NamedKey::PrintScreen => "PrintScreen",
+    NamedKey::ScrollLock => "ScrollLock",
+    NamedKey::Shift => "Shift",
+    NamedKey::Space => " ",
+    NamedKey::Tab => "Tab",
     _ => "Unidentified",
   }
 }

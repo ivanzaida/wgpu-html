@@ -8,15 +8,16 @@
 //! `devtools.tree()`.
 
 use std::sync::{
-  atomic::{AtomicBool, Ordering},
   Arc,
+  atomic::{AtomicBool, Ordering},
 };
 
-use crate::ui::{DevtoolsComponent, DevtoolsProps, DevtoolsStore};
 use lui_events::HtmlEvent;
 use lui_layout::LayoutBox;
 use lui_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use lui_ui::Mount;
+
+use crate::ui::{DevtoolsComponent, DevtoolsProps, DevtoolsStore};
 
 /// Lucide icon font embedded at compile time (ISC license).
 static LUCIDE_FONT: &[u8] = include_bytes!("../fonts/lucide.ttf");
@@ -67,9 +68,7 @@ impl Devtools {
     }
 
     let store = DevtoolsStore::new();
-    let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps {
-      store: store.clone(),
-    });
+    let mount = Mount::<DevtoolsComponent>::new(DevtoolsProps { store: store.clone() });
 
     let dump_html_requested = Arc::new(AtomicBool::new(false));
     tree.hooks.push(TreeHookHandle::new(crate::devtools_hook::DumpHtmlHook {
@@ -159,7 +158,9 @@ impl Devtools {
     }
 
     self.store.bind_host_tree(host_tree);
-    if let Some(l) = layout { self.store.bind_layout(l); }
+    if let Some(l) = layout {
+      self.store.bind_layout(l);
+    }
 
     let cascade_changed = self.last_cascade_gen != Some(host_tree.cascade_generation);
     let dom_changed = self.last_inspected_gen != Some(host_tree.generation);

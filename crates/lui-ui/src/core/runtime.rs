@@ -98,7 +98,12 @@ where
   }
 
   fn render(&self, inherited_context: &ContextMap) -> (Node, Vec<ChildSlot>, ContextMap) {
-    let ctx = Ctx::new(self.sender.clone(), self.cached_scope, self.scoped_cache.clone(), inherited_context.clone());
+    let ctx = Ctx::new(
+      self.sender.clone(),
+      self.cached_scope,
+      self.scoped_cache.clone(),
+      inherited_context.clone(),
+    );
     let el = self.component.view(&self.props, &ctx);
     let children = ctx.children.into_inner();
     let provided = ctx.provided_context.into_inner();
@@ -408,7 +413,11 @@ impl Runtime {
   ///
   /// 3. **Full render** (`needs_render`, or first render): Call `view()`, reconcile the child set (add/remove/update),
   ///    store the raw output as `skeleton_node`, substitute children, cache the resolved result as `last_node`.
-  fn render_component(mounted: &mut MountedComponent, wake: &Arc<dyn Fn() + Send + Sync>, inherited_context: &ContextMap) -> Node {
+  fn render_component(
+    mounted: &mut MountedComponent,
+    wake: &Arc<dyn Fn() + Send + Sync>,
+    inherited_context: &ContextMap,
+  ) -> Node {
     // ── Path 1: clean fast-path ─────────────────────────────────────
     if !mounted.needs_render && !mounted.subtree_dirty {
       if let Some(cached) = &mounted.last_node {

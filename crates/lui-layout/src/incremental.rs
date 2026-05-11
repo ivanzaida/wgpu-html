@@ -2,15 +2,11 @@
 //! siblings. Also contains paint-only colour patching and LUI pseudo-element
 //! helpers.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use lui_models::{
+  ArcStr, LuiCalendarStyle, LuiColorPickerStyle, LuiPopupStyle,
   common::css_enums::{CssColor, CssLength, Display, FlexDirection, Position},
-  ArcStr,
-  LuiCalendarStyle,
-  LuiColorPickerStyle,
-  LuiPopupStyle,
 };
 use lui_style::{CascadedNode, CascadedTree};
 use lui_tree::{Node, Tree};
@@ -87,7 +83,9 @@ fn path_is_dirty(dirty_paths: &[Vec<usize>], path: &[usize]) -> bool {
 }
 
 fn path_is_ancestor_of_dirty(dirty_paths: &[Vec<usize>], path: &[usize]) -> bool {
-  dirty_paths.iter().any(|dp| dp.len() > path.len() && dp.starts_with(path))
+  dirty_paths
+    .iter()
+    .any(|dp| dp.len() > path.len() && dp.starts_with(path))
 }
 
 fn needs_full_relayout(node: &CascadedNode) -> bool {
@@ -129,12 +127,7 @@ fn relayout_children(
 
   let mut cursor_dy = 0.0_f32;
 
-  for (i, (child_box, child_node)) in parent_box
-    .children
-    .iter_mut()
-    .zip(effective.iter())
-    .enumerate()
-  {
+  for (i, (child_box, child_node)) in parent_box.children.iter_mut().zip(effective.iter()).enumerate() {
     let mut child_path = current_path.to_vec();
     child_path.push(i);
 
@@ -201,9 +194,11 @@ fn relayout_children(
           ctx,
         );
         let new_h = child_box.margin_rect.h;
-        let child_position = child_node.style.position.clone().unwrap_or(
-          lui_models::common::css_enums::Position::Static,
-        );
+        let child_position = child_node
+          .style
+          .position
+          .clone()
+          .unwrap_or(lui_models::common::css_enums::Position::Static);
         if !is_out_of_flow_position(child_position) {
           cursor_dy += new_h - old_h;
         }
@@ -218,9 +213,11 @@ fn relayout_children(
             child_box.border_rect.h += dy;
             child_box.margin_rect.h += dy;
             child_box.background_rect.h += dy;
-            let child_position = child_node.style.position.clone().unwrap_or(
-              lui_models::common::css_enums::Position::Static,
-            );
+            let child_position = child_node
+              .style
+              .position
+              .clone()
+              .unwrap_or(lui_models::common::css_enums::Position::Static);
             if !is_out_of_flow_position(child_position) {
               cursor_dy += dy;
             }
@@ -255,7 +252,10 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Co
 
   let fg = resolve_foreground(style.color.as_ref(), inherited_color);
 
-  b.background = style.background_color.as_ref().and_then(|c| resolve_with_current(c, fg));
+  b.background = style
+    .background_color
+    .as_ref()
+    .and_then(|c| resolve_with_current(c, fg));
   b.opacity = resolved_opacity(style);
   b.pointer_events = resolved_pointer_events(style);
   b.user_select = resolved_user_select(style);
@@ -275,8 +275,16 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Co
     left: style.border_left_color.as_ref().and_then(resolve_border).or(Some(fg)),
   };
 
-  b.first_line_color = node.first_line.as_ref().and_then(|s| s.color.as_ref()).and_then(resolve_color);
-  b.first_letter_color = node.first_letter.as_ref().and_then(|s| s.color.as_ref()).and_then(resolve_color);
+  b.first_line_color = node
+    .first_line
+    .as_ref()
+    .and_then(|s| s.color.as_ref())
+    .and_then(resolve_color);
+  b.first_letter_color = node
+    .first_letter
+    .as_ref()
+    .and_then(|s| s.color.as_ref())
+    .and_then(resolve_color);
   b.selection_bg = node
     .selection
     .as_ref()
@@ -297,20 +305,13 @@ fn patch_node_colors(b: &mut LayoutBox, node: &CascadedNode, inherited_color: Co
 // LUI pseudo-element helpers
 // ---------------------------------------------------------------------------
 
-fn resolve_lui_color(
-  custom_properties: &HashMap<ArcStr, ArcStr>,
-  name: &str,
-  current: Color,
-) -> Option<Color> {
+fn resolve_lui_color(custom_properties: &HashMap<ArcStr, ArcStr>, name: &str, current: Color) -> Option<Color> {
   let val = custom_properties.get(name)?;
   let css_color = lui_parser::parse_css_color(val.trim())?;
   color::resolve_with_current(&css_color, current)
 }
 
-pub fn resolve_lui_properties(
-  cp: &HashMap<ArcStr, ArcStr>,
-  fg: Color,
-) -> LuiProperties {
+pub fn resolve_lui_properties(cp: &HashMap<ArcStr, ArcStr>, fg: Color) -> LuiProperties {
   LuiProperties {
     track_color: resolve_lui_color(cp, "--lui-track-color", fg),
     thumb_color: resolve_lui_color(cp, "--lui-thumb-color", fg),
@@ -407,7 +408,9 @@ pub fn lui_calendar_from_pseudo(node: &CascadedNode) -> Option<Arc<LuiCalendarSt
   }
   if let Some(s) = node.lui_style(PseudoElement::LuiCalendarNav) {
     p.nav_size = s.width.clone().or_else(|| s.font_size.clone());
-    if p.dim.is_none() { p.dim = s.color.clone(); }
+    if p.dim.is_none() {
+      p.dim = s.color.clone();
+    }
     any = true;
   }
   if let Some(s) = node.lui_style(PseudoElement::LuiCalendarTime) {
@@ -431,7 +434,9 @@ pub fn lui_calendar_from_pseudo(node: &CascadedNode) -> Option<Arc<LuiCalendarSt
     any = true;
   }
   if let Some(s) = node.lui_style(PseudoElement::LuiCalendarIcon) {
-    if p.dim.is_none() { p.dim = s.color.clone(); }
+    if p.dim.is_none() {
+      p.dim = s.color.clone();
+    }
     p.padding = s.width.clone();
     any = true;
   }
@@ -454,10 +459,18 @@ pub fn file_button_from_pseudo(node: &CascadedNode) -> Option<FileButtonStyle> {
     fb.border_radius = r;
   }
   let fs = 16.0;
-  if let Some(v) = resolve_length_px(s.padding_top.as_ref(), fs) { fb.padding[0] = v; }
-  if let Some(v) = resolve_length_px(s.padding_right.as_ref(), fs) { fb.padding[1] = v; }
-  if let Some(v) = resolve_length_px(s.padding_bottom.as_ref(), fs) { fb.padding[2] = v; }
-  if let Some(v) = resolve_length_px(s.padding_left.as_ref(), fs) { fb.padding[3] = v; }
+  if let Some(v) = resolve_length_px(s.padding_top.as_ref(), fs) {
+    fb.padding[0] = v;
+  }
+  if let Some(v) = resolve_length_px(s.padding_right.as_ref(), fs) {
+    fb.padding[1] = v;
+  }
+  if let Some(v) = resolve_length_px(s.padding_bottom.as_ref(), fs) {
+    fb.padding[2] = v;
+  }
+  if let Some(v) = resolve_length_px(s.padding_left.as_ref(), fs) {
+    fb.padding[3] = v;
+  }
   if let Some(c) = s.cursor.clone() {
     fb.cursor = c;
   }

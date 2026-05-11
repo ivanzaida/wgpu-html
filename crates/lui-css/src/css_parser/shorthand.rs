@@ -1,15 +1,15 @@
-use lui_models::{ArcStr, Style, common::css_enums::*};
-
 use super::{
   apply_css_property, parse_align_content, parse_align_items, parse_align_self, parse_border_style,
-  parse_box_shorthand, parse_css_color, parse_css_image, parse_css_length, parse_definite_length,
-  parse_flex_direction, parse_flex_wrap, parse_font_style, parse_font_weight, parse_grid_line,
-  parse_justify_content, parse_justify_items, parse_justify_self, parse_list_style_position,
-  parse_list_style_type, parse_white_space, split_top_level_commas, split_top_level_whitespace,
-  strip_function,
+  parse_box_shorthand, parse_css_color, parse_css_image, parse_css_length, parse_definite_length, parse_flex_direction,
+  parse_flex_wrap, parse_font_style, parse_font_weight, parse_grid_line, parse_justify_content, parse_justify_items,
+  parse_justify_self, parse_list_style_position, parse_list_style_type, parse_white_space, split_top_level_commas,
+  split_top_level_whitespace, strip_function,
 };
-
-use crate::shorthands::{is_deferred_longhand, shorthand_members};
+use crate::{
+  shorthands::{is_deferred_longhand, shorthand_members},
+  style::Style,
+  values::*,
+};
 
 pub(crate) fn apply_generic_shorthand(style: &mut Style, property: &str, value: &str) {
   match property {
@@ -236,7 +236,9 @@ pub(crate) fn mark_shorthand_reset(style: &mut Style, property: &str) {
 }
 
 pub(crate) fn set_deferred(style: &mut Style, property: &str, value: impl AsRef<str>) {
-  style.deferred_longhands.insert(ArcStr::from(property), ArcStr::from(value.as_ref()));
+  style
+    .deferred_longhands
+    .insert(ArcStr::from(property), ArcStr::from(value.as_ref()));
 }
 
 fn apply_placeholder_shorthand(style: &mut Style, property: &str, value: &str) {
@@ -260,10 +262,11 @@ fn apply_pair_raw_shorthand(
   let tokens = split_top_level_whitespace(value);
   mark_property_resets(style, &[first, second]);
   let first_value = tokens.first().copied().unwrap_or("");
-  let second_value = tokens
-    .get(1)
-    .copied()
-    .unwrap_or_else(|| if duplicate_second_when_missing { first_value } else { "" });
+  let second_value =
+    tokens
+      .get(1)
+      .copied()
+      .unwrap_or_else(|| if duplicate_second_when_missing { first_value } else { "" });
   if !first_value.is_empty() {
     set_deferred(style, first, first_value);
   }
@@ -705,9 +708,7 @@ fn apply_list_style_shorthand(style: &mut Style, value: &str) {
     match token.to_ascii_lowercase().as_str() {
       "inside" | "outside" => style.list_style_position = parse_list_style_position(token),
       _ if parse_list_style_type(token).is_some() => style.list_style_type = parse_list_style_type(token),
-      _ if parse_css_image(token).is_some() => {
-        set_deferred(style, "list-style-image", token)
-      }
+      _ if parse_css_image(token).is_some() => set_deferred(style, "list-style-image", token),
       "none" => style.list_style_type = Some(ListStyleType::None),
       _ => set_deferred(style, "list-style-type", token),
     }

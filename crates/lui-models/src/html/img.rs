@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, ImageDecoding, Loading, ReferrerPolicy};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, ImageDecoding, Loading, ReferrerPolicy},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Img {

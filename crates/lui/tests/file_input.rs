@@ -61,7 +61,10 @@ fn file_input_has_button_text_run() {
   let path = input_path(&tree);
   let lb = lui::layout_at_path(&root, &path).unwrap();
   let fb = lb.file_button.as_ref().expect("file input should have FileButtonStyle");
-  let btn_run = fb.text_run.as_ref().expect("FileButtonStyle should have its own text run");
+  let btn_run = fb
+    .text_run
+    .as_ref()
+    .expect("FileButtonStyle should have its own text run");
   assert!(
     btn_run.text.contains("Browse"),
     "button text should contain 'Browse', got: {:?}",

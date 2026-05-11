@@ -1,6 +1,9 @@
-use crate::ArcStr;
-use crate::common::html_enums::{AriaRole, HtmlDirection};
 use std::collections::HashMap;
+
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, HtmlDirection},
+};
 
 /// Generic SVG child element (circle, rect, g, defs, text, etc.).
 /// Stores the tag name and all attributes as raw key-value pairs

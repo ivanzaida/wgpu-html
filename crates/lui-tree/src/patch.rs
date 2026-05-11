@@ -16,7 +16,10 @@ impl PatchResult {
 pub fn patch_node(old: &mut Node, new: Node) -> PatchResult {
   if !old.element.same_tag(&new.element) {
     *old = new;
-    return PatchResult { selector_changed: true, any_change: true };
+    return PatchResult {
+      selector_changed: true,
+      any_change: true,
+    };
   }
 
   let mut result = PatchResult::default();
@@ -139,8 +142,9 @@ fn patch_children(old_children: &mut Vec<Node>, new_children: Vec<Node>) -> Patc
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use lui_models::html as m;
+
+  use super::*;
 
   fn with_kids(mut node: Node, children: Vec<Node>) -> Node {
     node.children = children;
@@ -194,7 +198,12 @@ mod tests {
   #[test]
   fn preserves_rect_on_same_tag() {
     let mut old = div_node();
-    old.rect = Some(crate::NodeRect { x: 1.0, y: 2.0, width: 3.0, height: 4.0 });
+    old.rect = Some(crate::NodeRect {
+      x: 1.0,
+      y: 2.0,
+      width: 3.0,
+      height: 4.0,
+    });
     let new = div_node();
     patch_node(&mut old, new);
     assert!(old.rect.is_some());

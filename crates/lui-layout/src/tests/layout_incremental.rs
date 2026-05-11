@@ -12,8 +12,7 @@ fn full_and_incremental(
   let cascaded = lui_style::cascade(&tree);
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut image_cache = ImageCache::default();
-  let mut prev =
-    layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, vw, vh, 1.0).unwrap();
+  let mut prev = layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, vw, vh, 1.0).unwrap();
 
   mutate(&mut tree);
   let cascaded2 = lui_style::cascade(&tree);
@@ -45,13 +44,16 @@ fn full_and_incremental(
 fn assert_rects_close(a: &Rect, b: &Rect, label: &str) {
   let eps = 0.5;
   assert!(
-    (a.x - b.x).abs() < eps
-      && (a.y - b.y).abs() < eps
-      && (a.w - b.w).abs() < eps
-      && (a.h - b.h).abs() < eps,
+    (a.x - b.x).abs() < eps && (a.y - b.y).abs() < eps && (a.w - b.w).abs() < eps && (a.h - b.h).abs() < eps,
     "{label}: rects differ\n  incremental: ({:.1}, {:.1}, {:.1}, {:.1})\n  full:        ({:.1}, {:.1}, {:.1}, {:.1})",
-    a.x, a.y, a.w, a.h,
-    b.x, b.y, b.w, b.h,
+    a.x,
+    a.y,
+    a.w,
+    a.h,
+    b.x,
+    b.y,
+    b.w,
+    b.h,
   );
 }
 
@@ -483,8 +485,7 @@ fn empty_dirty_paths_is_noop() {
   let cascaded = lui_style::cascade(&tree);
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut image_cache = ImageCache::default();
-  let mut prev =
-    layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0).unwrap();
+  let mut prev = layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0).unwrap();
 
   let original_h = prev.margin_rect.h;
   let changed = layout_incremental(

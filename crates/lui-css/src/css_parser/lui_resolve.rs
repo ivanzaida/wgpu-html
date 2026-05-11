@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 
-use lui_models::{ArcStr, LuiCalendarStyle, LuiColorPickerStyle, LuiPopupStyle};
-
-use super::{parse_css_color, parse_css_length, parse_border_style, parse_font_weight};
-use super::border::parse_border_pieces;
+use super::{border::parse_border_pieces, parse_border_style, parse_css_color, parse_css_length, parse_font_weight};
+use crate::{
+  style::{LuiCalendarStyle, LuiColorPickerStyle, LuiPopupStyle},
+  values::ArcStr,
+};
 
 // ---------------------------------------------------------------------------
 // --lui-popup-* / --lui-color-* vendor property dispatch
 // ---------------------------------------------------------------------------
 
 /// Resolve `--lui-popup-*` custom properties into a typed struct.
-pub fn resolve_lui_popup_style(
-  props: &HashMap<ArcStr, ArcStr>,
-) -> LuiPopupStyle {
+pub fn resolve_lui_popup_style(props: &HashMap<ArcStr, ArcStr>) -> LuiPopupStyle {
   let mut p = LuiPopupStyle::default();
   for (key, value) in props {
-    let Some(sub) = key.strip_prefix("--lui-popup-") else { continue };
+    let Some(sub) = key.strip_prefix("--lui-popup-") else {
+      continue;
+    };
     match sub {
       "width" => p.width = parse_css_length(value),
       "height" => p.height = parse_css_length(value),
@@ -86,12 +87,12 @@ pub fn resolve_lui_popup_style(
 }
 
 /// Resolve `--lui-color-*` custom properties into a typed struct.
-pub fn resolve_lui_color_picker_style(
-  props: &HashMap<ArcStr, ArcStr>,
-) -> LuiColorPickerStyle {
+pub fn resolve_lui_color_picker_style(props: &HashMap<ArcStr, ArcStr>) -> LuiColorPickerStyle {
   let mut p = LuiColorPickerStyle::default();
   for (key, value) in props {
-    let Some(sub) = key.strip_prefix("--lui-color-") else { continue };
+    let Some(sub) = key.strip_prefix("--lui-color-") else {
+      continue;
+    };
     match sub {
       "canvas-width" => p.canvas_width = parse_css_length(value),
       "canvas-height" => p.canvas_height = parse_css_length(value),
@@ -113,12 +114,12 @@ pub fn resolve_lui_color_picker_style(
 }
 
 /// Resolve `--lui-calendar-*` custom properties into a typed struct.
-pub fn resolve_lui_calendar_style(
-  props: &HashMap<ArcStr, ArcStr>,
-) -> LuiCalendarStyle {
+pub fn resolve_lui_calendar_style(props: &HashMap<ArcStr, ArcStr>) -> LuiCalendarStyle {
   let mut p = LuiCalendarStyle::default();
   for (key, value) in props {
-    let Some(sub) = key.strip_prefix("--lui-calendar-") else { continue };
+    let Some(sub) = key.strip_prefix("--lui-calendar-") else {
+      continue;
+    };
     match sub {
       "padding" => p.padding = parse_css_length(value),
       "gap" => p.gap = parse_css_length(value),

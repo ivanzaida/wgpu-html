@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, ReferrerPolicy};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, ReferrerPolicy},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Script {

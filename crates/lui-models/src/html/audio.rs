@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, Preload};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, CrossOrigin, HtmlDirection, Preload},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Audio {

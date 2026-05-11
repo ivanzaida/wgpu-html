@@ -1414,9 +1414,7 @@ pub fn text(t: impl Into<ArcStr>) -> El {
 /// Create an empty node that renders nothing.
 #[inline]
 pub fn empty() -> El {
-  El {
-    node: Node::new(""),
-  }
+  El { node: Node::new("") }
 }
 
 // ── Custom properties ───────────────────────────────────────────────────────

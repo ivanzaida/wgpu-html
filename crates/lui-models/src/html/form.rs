@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, AutoComplete, FormEncoding, FormMethod, HtmlDirection, LinkTarget};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, AutoComplete, FormEncoding, FormMethod, HtmlDirection, LinkTarget},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Form {

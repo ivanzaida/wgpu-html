@@ -5,11 +5,13 @@
 //! `CssImage::Function`. Rasterizes to an RGBA8 sRGB pixel buffer that the
 //! existing image pipeline renders unchanged.
 
-use std::collections::hash_map::DefaultHasher;
-use std::f32::consts::PI;
-use std::hash::{Hash, Hasher};
+use std::{
+  collections::hash_map::DefaultHasher,
+  f32::consts::PI,
+  hash::{Hash, Hasher},
+};
 
-use crate::color::{color_to_srgb_u8, parse_color_str, Color};
+use crate::color::{Color, color_to_srgb_u8, parse_color_str};
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -21,8 +23,17 @@ pub(crate) struct Gradient {
 
 enum GradientKind {
   Linear(LinearDirection),
-  Radial { shape: RadialShape, size: RadialSize, cx: f32, cy: f32 },
-  Conic { from_angle: f32, cx: f32, cy: f32 },
+  Radial {
+    shape: RadialShape,
+    size: RadialSize,
+    cx: f32,
+    cy: f32,
+  },
+  Conic {
+    from_angle: f32,
+    cx: f32,
+    cy: f32,
+  },
 }
 
 enum LinearDirection {
@@ -94,15 +105,28 @@ pub(crate) fn rasterize(gradient: &Gradient, w: u32, h: u32) -> Vec<u8> {
   let mut pixels = Vec::with_capacity(cap);
 
   match &gradient.kind {
-    GradientKind::Linear(dir) => {
-      rasterize_linear(dir, &gradient.raw_stops, gradient.repeating, w, h, &mut pixels)
-    }
-    GradientKind::Radial { shape, size, cx, cy } => {
-      rasterize_radial(shape, size, *cx, *cy, &gradient.raw_stops, gradient.repeating, w, h, &mut pixels)
-    }
-    GradientKind::Conic { from_angle, cx, cy } => {
-      rasterize_conic(*from_angle, *cx, *cy, &gradient.raw_stops, gradient.repeating, w, h, &mut pixels)
-    }
+    GradientKind::Linear(dir) => rasterize_linear(dir, &gradient.raw_stops, gradient.repeating, w, h, &mut pixels),
+    GradientKind::Radial { shape, size, cx, cy } => rasterize_radial(
+      shape,
+      size,
+      *cx,
+      *cy,
+      &gradient.raw_stops,
+      gradient.repeating,
+      w,
+      h,
+      &mut pixels,
+    ),
+    GradientKind::Conic { from_angle, cx, cy } => rasterize_conic(
+      *from_angle,
+      *cx,
+      *cy,
+      &gradient.raw_stops,
+      gradient.repeating,
+      w,
+      h,
+      &mut pixels,
+    ),
   }
 
   pixels
@@ -172,7 +196,11 @@ fn parse_linear(args: &str, repeating: bool) -> Option<Gradient> {
   };
 
   let raw_stops = parse_color_stops(&parts[stop_start..])?;
-  Some(Gradient { kind: GradientKind::Linear(direction), raw_stops, repeating })
+  Some(Gradient {
+    kind: GradientKind::Linear(direction),
+    raw_stops,
+    repeating,
+  })
 }
 
 fn parse_linear_direction(s: &str) -> Option<LinearDirection> {
@@ -212,7 +240,11 @@ fn parse_radial(args: &str, repeating: bool) -> Option<Gradient> {
   };
 
   let raw_stops = parse_color_stops(&parts[stop_start..])?;
-  Some(Gradient { kind: GradientKind::Radial { shape, size, cx, cy }, raw_stops, repeating })
+  Some(Gradient {
+    kind: GradientKind::Radial { shape, size, cx, cy },
+    raw_stops,
+    repeating,
+  })
 }
 
 fn parse_radial_config(s: &str) -> Option<(RadialShape, RadialSize, f32, f32)> {
@@ -276,7 +308,11 @@ fn parse_radial_config(s: &str) -> Option<(RadialShape, RadialSize, f32, f32)> {
   }
 
   if !explicit_lengths.is_empty() {
-    let second = if explicit_lengths.len() > 1 { Some(explicit_lengths[1]) } else { None };
+    let second = if explicit_lengths.len() > 1 {
+      Some(explicit_lengths[1])
+    } else {
+      None
+    };
     size = RadialSize::Lengths(explicit_lengths[0], second);
   }
 
@@ -338,7 +374,11 @@ fn parse_conic(args: &str, repeating: bool) -> Option<Gradient> {
   };
 
   let raw_stops = parse_color_stops(&parts[stop_start..])?;
-  Some(Gradient { kind: GradientKind::Conic { from_angle, cx, cy }, raw_stops, repeating })
+  Some(Gradient {
+    kind: GradientKind::Conic { from_angle, cx, cy },
+    raw_stops,
+    repeating,
+  })
 }
 
 fn parse_conic_config(s: &str) -> Option<(f32, f32, f32)> {
@@ -483,7 +523,10 @@ fn resolve_positions(raw: &[RawColorStop], gradient_length: f32) -> Vec<ColorSto
     .map(|(stop, pos)| {
       let p = pos.unwrap_or(0.0).max(last);
       last = p;
-      ColorStop { color: stop.color, position: p }
+      ColorStop {
+        color: stop.color,
+        position: p,
+      }
     })
     .collect()
 }
@@ -526,7 +569,12 @@ fn sample(stops: &[ColorStop], mut t: f32, repeating: bool) -> Color {
 }
 
 fn lerp(a: Color, b: Color, t: f32) -> Color {
-  [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t]
+  [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t,
+    a[3] + (b[3] - a[3]) * t,
+  ]
 }
 
 // ─── Linear rasterization ────────────────────────────────────────────────
@@ -556,7 +604,11 @@ fn rasterize_linear(
       let px = x as f32 + 0.5;
       let py = y as f32 + 0.5;
       let dot = (px - cx) * dx + (py - cy) * dy;
-      let t = if half_len > 0.0 { dot / half_len * 0.5 + 0.5 } else { 0.5 };
+      let t = if half_len > 0.0 {
+        dot / half_len * 0.5 + 0.5
+      } else {
+        0.5
+      };
       let color = sample(&stops, t, repeating);
       out.extend_from_slice(&color_to_srgb_u8(color));
     }
@@ -649,7 +701,9 @@ fn compute_radial_radii(shape: &RadialShape, size: &RadialSize, cx: f32, cy: f32
           let ratio = if h > 0.0 { w / h } else { 1.0 };
           let closest_x = left.min(right);
           let closest_y = top.min(bottom);
-          let ry = ((closest_x * closest_x) / (ratio * ratio) + closest_y * closest_y).sqrt().max(1.0);
+          let ry = ((closest_x * closest_x) / (ratio * ratio) + closest_y * closest_y)
+            .sqrt()
+            .max(1.0);
           let rx = (ry * ratio).max(1.0);
           (rx, ry)
         }

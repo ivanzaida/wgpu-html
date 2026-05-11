@@ -1,7 +1,9 @@
-use crate::ArcStr;
 use std::collections::HashMap;
 
-use crate::common::html_enums::{AriaRole, CaptureMode, HtmlDirection, InputType};
+use crate::{
+  ArcStr,
+  common::html_enums::{AriaRole, CaptureMode, HtmlDirection, InputType},
+};
 
 #[derive(Debug, Clone)]
 pub struct FileInfo {

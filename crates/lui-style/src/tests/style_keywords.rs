@@ -168,11 +168,7 @@ fn deferred_longhand_value_after_shorthand_keyword_clears_covering_keyword() {
   );
   let div = first_div(&tree);
   assert_eq!(
-    div
-      .style
-      .deferred_longhands
-      .get("transition-duration")
-      .map(|s| &**s),
+    div.style.deferred_longhands.get("transition-duration").map(|s| &**s),
     Some("200ms")
   );
   assert!(!div.style.deferred_longhands.contains_key("transition-property"));
@@ -208,11 +204,7 @@ fn deferred_inherited_longhand_flows_through_cascade() {
   );
   let div = first_div(&tree);
   assert_eq!(
-    div
-      .style
-      .deferred_longhands
-      .get("white-space-collapse")
-      .map(|s| &**s),
+    div.style.deferred_longhands.get("white-space-collapse").map(|s| &**s),
     Some("preserve")
   );
   assert_eq!(

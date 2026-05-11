@@ -71,7 +71,11 @@ fn checkbox_has_intrinsic_height() {
   let tree = make(r#"<body style="margin:0;"><input type="checkbox" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let b = find_box_with_form_control(&root).expect("checkbox box");
-  assert!(b.border_rect.h > 5.0, "checkbox should have height, got {}", b.border_rect.h);
+  assert!(
+    b.border_rect.h > 5.0,
+    "checkbox should have height, got {}",
+    b.border_rect.h
+  );
 }
 
 #[test]
@@ -127,7 +131,10 @@ fn range_has_form_control_info_with_defaults() {
     FormControlKind::Range { value, min, max } => {
       assert_eq!(min, 0.0);
       assert_eq!(max, 100.0);
-      assert!((value - 50.0).abs() < 0.01, "default range value should be 50, got {value}");
+      assert!(
+        (value - 50.0).abs() < 0.01,
+        "default range value should be 50, got {value}"
+      );
     }
     _ => panic!("expected Range, got {:?}", fc.kind),
   }
@@ -135,9 +142,7 @@ fn range_has_form_control_info_with_defaults() {
 
 #[test]
 fn range_respects_min_max_value() {
-  let tree = make(
-    r#"<body style="margin:0;"><input type="range" min="10" max="20" value="15" /></body>"#,
-  );
+  let tree = make(r#"<body style="margin:0;"><input type="range" min="10" max="20" value="15" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let fc = find_form_control(&root).expect("range");
   match fc.kind {
@@ -152,9 +157,7 @@ fn range_respects_min_max_value() {
 
 #[test]
 fn range_clamps_value_to_bounds() {
-  let tree = make(
-    r#"<body style="margin:0;"><input type="range" min="0" max="10" value="999" /></body>"#,
-  );
+  let tree = make(r#"<body style="margin:0;"><input type="range" min="0" max="10" value="999" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let fc = find_form_control(&root).expect("range");
   match fc.kind {
@@ -261,7 +264,10 @@ fn hidden_input_has_no_layout() {
 fn text_input_has_no_form_control_info() {
   let tree = make(r#"<body style="margin:0;"><input type="text" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
-  assert!(find_form_control(&root).is_none(), "text input should not have FormControlInfo");
+  assert!(
+    find_form_control(&root).is_none(),
+    "text input should not have FormControlInfo"
+  );
 }
 
 #[test]
@@ -269,7 +275,10 @@ fn text_input_has_inline_block_display() {
   let tree = make(r#"<body style="margin:0;"><input type="text" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let input = &root.children[0];
-  assert!(input.border_rect.h > 0.0, "text input should have height from UA line-height");
+  assert!(
+    input.border_rect.h > 0.0,
+    "text input should have height from UA line-height"
+  );
 }
 
 #[test]
@@ -285,7 +294,10 @@ fn email_input_has_no_form_control_info() {
 fn submit_input_has_no_form_control_info() {
   let tree = make(r#"<body style="margin:0;"><input type="submit" /></body>"#);
   let root = layout(&tree, 800.0, 600.0).unwrap();
-  assert!(find_form_control(&root).is_none(), "submit should not have FormControlInfo");
+  assert!(
+    find_form_control(&root).is_none(),
+    "submit should not have FormControlInfo"
+  );
 }
 
 #[test]
@@ -323,19 +335,21 @@ fn submit_shows_default_label() {
     600.0,
   );
   let input = &root.children[0];
-  let run = input.text_run.as_ref().expect("submit should have text run with default label");
+  let run = input
+    .text_run
+    .as_ref()
+    .expect("submit should have text run with default label");
   assert_eq!(run.text, "Submit");
 }
 
 #[test]
 fn reset_shows_default_label() {
-  let root = layout_with_fonts(
-    r#"<body style="margin:0;"><input type="reset" /></body>"#,
-    800.0,
-    600.0,
-  );
+  let root = layout_with_fonts(r#"<body style="margin:0;"><input type="reset" /></body>"#, 800.0, 600.0);
   let input = &root.children[0];
-  let run = input.text_run.as_ref().expect("reset should have text run with default label");
+  let run = input
+    .text_run
+    .as_ref()
+    .expect("reset should have text run with default label");
   assert_eq!(run.text, "Reset");
 }
 
@@ -368,7 +382,11 @@ fn form_with_mixed_inputs_has_correct_form_controls() {
   let root = layout(&tree, 800.0, 600.0).unwrap();
   let mut fcs = Vec::new();
   find_all_form_controls(&root, &mut fcs);
-  assert_eq!(fcs.len(), 4, "should have 4 form controls (checkbox, radio, range, color)");
+  assert_eq!(
+    fcs.len(),
+    4,
+    "should have 4 form controls (checkbox, radio, range, color)"
+  );
   assert!(matches!(fcs[0].kind, FormControlKind::Checkbox { .. }));
   assert!(matches!(fcs[1].kind, FormControlKind::Radio { .. }));
   assert!(matches!(fcs[2].kind, FormControlKind::Range { .. }));
@@ -415,12 +433,14 @@ fn range_content_rect_fits_inside_parent() {
   assert!(
     range.content_rect.x >= parent_left - 0.5,
     "range content left ({}) should be >= parent left ({})",
-    range.content_rect.x, parent_left,
+    range.content_rect.x,
+    parent_left,
   );
   assert!(
     range.content_rect.x + range.content_rect.w <= parent_right + 0.5,
     "range content right ({}) should be <= parent right ({})",
-    range.content_rect.x + range.content_rect.w, parent_right,
+    range.content_rect.x + range.content_rect.w,
+    parent_right,
   );
 }
 
@@ -440,7 +460,8 @@ fn checkbox_content_rect_fits_inside_parent() {
   assert!(
     cb.content_rect.x + cb.content_rect.w <= parent_right + 0.5,
     "checkbox content right ({}) should be <= parent right ({})",
-    cb.content_rect.x + cb.content_rect.w, parent_right,
+    cb.content_rect.x + cb.content_rect.w,
+    parent_right,
   );
 }
 
@@ -452,7 +473,8 @@ fn range_has_zero_border_width() {
   assert!(
     b.border.left < 0.01 && b.border.right < 0.01,
     "range should have zero border, got left={} right={}",
-    b.border.left, b.border.right,
+    b.border.left,
+    b.border.right,
   );
 }
 
@@ -482,32 +504,49 @@ fn range_in_flex_column_matches_sibling_width() {
   // Walk up to find the flex container (the div wrapping the range)
   fn find_parent_of_fc(b: &LayoutBox) -> Option<&LayoutBox> {
     for c in &b.children {
-      if c.form_control.is_some() { return Some(b); }
-      if let Some(p) = find_parent_of_fc(c) { return Some(p); }
+      if c.form_control.is_some() {
+        return Some(b);
+      }
+      if let Some(p) = find_parent_of_fc(c) {
+        return Some(p);
+      }
     }
     None
   }
   let container = find_parent_of_fc(&root).expect("flex container");
 
-  eprintln!("container content: x={} w={}", container.content_rect.x, container.content_rect.w);
+  eprintln!(
+    "container content: x={} w={}",
+    container.content_rect.x, container.content_rect.w
+  );
   eprintln!("range border:     x={} w={}", range.border_rect.x, range.border_rect.w);
-  eprintln!("range content:    x={} w={}", range.content_rect.x, range.content_rect.w);
-  eprintln!("range border insets: l={} r={} t={} b={}", range.border.left, range.border.right, range.border.top, range.border.bottom);
-  eprintln!("range padding:    l={} r={}",
+  eprintln!(
+    "range content:    x={} w={}",
+    range.content_rect.x, range.content_rect.w
+  );
+  eprintln!(
+    "range border insets: l={} r={} t={} b={}",
+    range.border.left, range.border.right, range.border.top, range.border.bottom
+  );
+  eprintln!(
+    "range padding:    l={} r={}",
     range.content_rect.x - range.border_rect.x - range.border.left,
-    (range.border_rect.x + range.border_rect.w) - (range.content_rect.x + range.content_rect.w) - range.border.right);
+    (range.border_rect.x + range.border_rect.w) - (range.content_rect.x + range.content_rect.w) - range.border.right
+  );
 
   let container_left = container.content_rect.x;
   let container_right = container_left + container.content_rect.w;
   assert!(
     (range.content_rect.x - container_left).abs() < 1.0,
     "range content should start at container left: range.x={} container.x={}",
-    range.content_rect.x, container_left,
+    range.content_rect.x,
+    container_left,
   );
   assert!(
     ((range.content_rect.x + range.content_rect.w) - container_right).abs() < 1.0,
     "range content should end at container right: range.right={} container.right={}",
-    range.content_rect.x + range.content_rect.w, container_right,
+    range.content_rect.x + range.content_rect.w,
+    container_right,
   );
 }
 
@@ -519,6 +558,7 @@ fn checkbox_has_zero_border_width() {
   assert!(
     b.border.left < 0.01 && b.border.right < 0.01,
     "checkbox should have zero border, got left={} right={}",
-    b.border.left, b.border.right,
+    b.border.left,
+    b.border.right,
   );
 }

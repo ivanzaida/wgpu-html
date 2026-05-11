@@ -23,7 +23,6 @@ const TOOLTIP_FONT_SIZE: f32 = 11.0;
 const TOOLTIP_PAD_H: f32 = 8.0;
 const TOOLTIP_PAD_V: f32 = 4.0;
 
-
 pub fn paint_inspect_overlay(
   list: &mut DisplayList,
   root: &LayoutBox,

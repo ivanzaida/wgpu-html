@@ -1,5 +1,4 @@
-use lui::paint::*;
-use lui::text::TextContext;
+use lui::{paint::*, text::TextContext};
 
 fn approx(a: f32, b: f32) -> bool {
   (a - b).abs() < 1.0
@@ -18,13 +17,20 @@ fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui::renderer::DisplayList {
 #[test]
 fn shadow_quad_inherits_rotation() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(45deg);box-shadow:0 4px 8px black;width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   // shadow + background = 2 quads minimum
-  assert!(list.quads.len() >= 2, "need shadow + bg quads: got {}", list.quads.len());
+  assert!(
+    list.quads.len() >= 2,
+    "need shadow + bg quads: got {}",
+    list.quads.len()
+  );
   let cos45 = std::f32::consts::FRAC_1_SQRT_2;
   let shadow = &list.quads[0];
   let bg = &list.quads[1];
@@ -40,10 +46,13 @@ fn shadow_quad_inherits_rotation() {
 #[test]
 fn shadow_quad_inherits_scale() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:scale(2);transform-origin:left top;box-shadow:0 0 10px black;width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert!(list.quads.len() >= 2);
   let shadow = &list.quads[0];
@@ -55,10 +64,13 @@ fn shadow_quad_inherits_scale() {
 #[test]
 fn shadow_with_sigma_on_rotated_element() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(30deg);box-shadow:0 4px 16px rgba(0,0,0,0.5);width:100px;height:50px;background:white"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert!(list.quads.len() >= 2);
   let shadow = &list.quads[0];
@@ -76,7 +88,8 @@ fn glyphs_in_shadowed_rotated_box_get_transform() {
         <span>Hello shadow</span>
       </div>
     </body>"#,
-    400.0, 400.0,
+    400.0,
+    400.0,
   );
   assert!(!list.glyphs.is_empty(), "should have glyphs");
   // Shadow quads should exist
@@ -84,8 +97,10 @@ fn glyphs_in_shadowed_rotated_box_get_transform() {
   assert!(shadow_count >= 1, "should have shadow quad(s)");
   // All glyphs should carry the rotation
   for (i, g) in list.glyphs.iter().enumerate() {
-    assert!(g.transform != [1.0, 0.0, 0.0, 1.0],
-      "glyph {i} should be rotated, got identity");
+    assert!(
+      g.transform != [1.0, 0.0, 0.0, 1.0],
+      "glyph {i} should be rotated, got identity"
+    );
   }
 }
 
@@ -94,18 +109,24 @@ fn glyphs_in_shadowed_rotated_box_get_transform() {
 #[test]
 fn child_shadow_inside_rotated_parent() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:rotate(10deg);width:300px;height:200px">
         <div style="box-shadow:0 2px 6px black;width:100px;height:50px;background:blue"></div>
       </div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   // Child should have shadow + background, both rotated
   assert!(list.quads.len() >= 2, "need shadow + bg: got {}", list.quads.len());
   for (i, q) in list.quads.iter().enumerate() {
-    assert!(q.transform != [1.0, 0.0, 0.0, 1.0],
-      "quad {i} (sigma={}) should be rotated", q.shadow_sigma);
+    assert!(
+      q.transform != [1.0, 0.0, 0.0, 1.0],
+      "quad {i} (sigma={}) should be rotated",
+      q.shadow_sigma
+    );
   }
 }
 
@@ -114,10 +135,13 @@ fn child_shadow_inside_rotated_parent() {
 #[test]
 fn shadow_on_skewed_element() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="transform:skewX(15deg);box-shadow:0 4px 12px black;width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert!(list.quads.len() >= 2);
   let shadow = &list.quads[0];
@@ -131,10 +155,13 @@ fn shadow_on_skewed_element() {
 #[test]
 fn shadow_without_transform_has_identity() {
   let list = paint_tree(
-    &lui_parser::parse(r#"<body style="margin:0">
+    &lui_parser::parse(
+      r#"<body style="margin:0">
       <div style="box-shadow:0 4px 8px black;width:100px;height:50px;background:red"></div>
-    </body>"#),
-    400.0, 400.0,
+    </body>"#,
+    ),
+    400.0,
+    400.0,
   );
   assert!(list.quads.len() >= 2);
   let shadow = &list.quads[0];

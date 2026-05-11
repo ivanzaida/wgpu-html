@@ -84,13 +84,10 @@ pub fn paint_tree_with_text(
     image_cache.preload(url);
   }
   let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
-  let media =
-    lui_style::MediaContext::screen((viewport_w / scale).max(0.0), (viewport_h / scale).max(0.0), scale);
+  let media = lui_style::MediaContext::screen((viewport_w / scale).max(0.0), (viewport_h / scale).max(0.0), scale);
   let cascaded = lui_style::cascade_with_media(tree, &media);
   let mut list = DisplayList::new();
-  if let Some(root) =
-    lui_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale)
-  {
+  if let Some(root) = lui_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale) {
     list.canvas_color = root
       .background
       .or_else(|| root.children.first().and_then(|body| body.background));
@@ -321,11 +318,15 @@ fn paint_box_in_clip(
     let (ox, oy) = b.transform_origin;
     let pox = paint_offset_x + t.tx;
     let poy = paint_offset_y + t.ty;
-    (pox, poy, PaintTransform {
-      matrix_2x2: [t.a, t.b, t.c, t.d],
-      origin_x: b.border_rect.x + pox + ox,
-      origin_y: b.border_rect.y + poy + oy,
-    })
+    (
+      pox,
+      poy,
+      PaintTransform {
+        matrix_2x2: [t.a, t.b, t.c, t.d],
+        origin_x: b.border_rect.x + pox + ox,
+        origin_y: b.border_rect.y + poy + oy,
+      },
+    )
   } else {
     (paint_offset_x, paint_offset_y, parent_xform)
   };
@@ -514,9 +515,23 @@ fn paint_box_in_clip(
       .map(|(sb, eb)| (byte_offset_to_glyph_index(run, sb), byte_offset_to_glyph_index(run, eb)));
 
     if let Some(fb) = &b.file_button {
-      if b.form_control.as_ref().is_some_and(|fc| matches!(fc.kind, FormControlKind::File { .. })) {
+      if b
+        .form_control
+        .as_ref()
+        .is_some_and(|fc| matches!(fc.kind, FormControlKind::File { .. }))
+      {
         let o = Rect::new(origin.x, origin.y, origin.w, origin.h);
-        paint_file_input(b, fb, run, &o, text_scroll_x, opacity, out, paint_offset_x, paint_offset_y);
+        paint_file_input(
+          b,
+          fb,
+          run,
+          &o,
+          text_scroll_x,
+          opacity,
+          out,
+          paint_offset_x,
+          paint_offset_y,
+        );
         // Skip normal glyph loop — file input paints its own glyphs.
         if let Some(ref fc) = b.form_control {
           paint_form_control(fc, b, out, paint_offset_x, paint_offset_y, opacity);
@@ -634,10 +649,7 @@ fn paint_box_in_clip(
             .or_else(|| run.lines.last().map(|l| (l.top, l.height)))
             .unwrap_or((0.0, run.height.max(16.0)));
           let caret_color = apply_opacity(color, opacity);
-          out.push_quad(
-            Rect::new(caret_screen_x, origin.y + caret_y, 1.5, caret_h),
-            caret_color,
-          );
+          out.push_quad(Rect::new(caret_screen_x, origin.y + caret_y, 1.5, caret_h), caret_color);
         }
       }
     }
@@ -746,7 +758,16 @@ fn paint_box_in_clip(
     );
   }
 
-  paint_scrollbars(b, out, paint_offset_x, paint_offset_y, scroll_x, scroll_y, opacity, path);
+  paint_scrollbars(
+    b,
+    out,
+    paint_offset_x,
+    paint_offset_y,
+    scroll_x,
+    scroll_y,
+    opacity,
+    path,
+  );
 }
 
 /// Paint the CSS resize handle (three diagonal lines) in the
@@ -778,13 +799,7 @@ fn paint_resize_handle(b: &LayoutBox, out: &mut DisplayList, paint_offset_x: f32
   }
 }
 
-fn stroke_line(
-  out: &mut DisplayList,
-  x1: f32, y1: f32,
-  x2: f32, y2: f32,
-  thickness: f32,
-  color: [f32; 4],
-) {
+fn stroke_line(out: &mut DisplayList, x1: f32, y1: f32, x2: f32, y2: f32, thickness: f32, color: [f32; 4]) {
   let dx = x2 - x1;
   let dy = y2 - y1;
   let len = (dx * dx + dy * dy).sqrt();
@@ -794,11 +809,7 @@ fn stroke_line(
     let frac = i as f32 / steps as f32;
     let px = x1 + dx * frac;
     let py = y1 + dy * frac;
-    out.push_quad_rounded(
-      Rect::new(px - r, py - r, thickness, thickness),
-      color,
-      [r; 4],
-    );
+    out.push_quad_rounded(Rect::new(px - r, py - r, thickness, thickness), color, [r; 4]);
   }
 }
 
@@ -837,10 +848,7 @@ fn paint_form_control(
   let accent_raw = b.accent_color.unwrap_or(FC_DEFAULT_ACCENT);
   let accent = apply_opacity(accent_raw, opacity);
   let mark = apply_opacity(accent_mark_color(accent_raw), opacity);
-  let border_color = apply_opacity(
-    b.border_colors.top.unwrap_or(FC_DEFAULT_BORDER),
-    opacity,
-  );
+  let border_color = apply_opacity(b.border_colors.top.unwrap_or(FC_DEFAULT_BORDER), opacity);
 
   match &fc.kind {
     FormControlKind::Checkbox { checked } => {
@@ -862,12 +870,7 @@ fn paint_form_control(
       } else {
         let bg = apply_opacity(FC_BG, opacity);
         out.push_quad_rounded(Rect::new(bx, by, size, size), bg, [r; 4]);
-        out.push_quad_stroke_ellipse(
-          Rect::new(bx, by, size, size),
-          border_color,
-          [r; 4], [r; 4],
-          [1.5; 4],
-        );
+        out.push_quad_stroke_ellipse(Rect::new(bx, by, size, size), border_color, [r; 4], [r; 4], [1.5; 4]);
       }
     }
     FormControlKind::Radio { checked } => {
@@ -904,25 +907,18 @@ fn paint_form_control(
       let track_y = cy + (ch - track_h) / 2.0;
       let track_r = track_h / 2.0;
       let track_bg = apply_opacity(b.lui.track_color.unwrap_or(FC_BG), opacity);
-      out.push_quad_rounded(
-        Rect::new(cx, track_y, cw, track_h),
-        track_bg,
-        [track_r; 4],
-      );
+      out.push_quad_rounded(Rect::new(cx, track_y, cw, track_h), track_bg, [track_r; 4]);
       out.push_quad_stroke_ellipse(
         Rect::new(cx, track_y, cw, track_h),
         border_color,
-        [track_r; 4], [track_r; 4],
+        [track_r; 4],
+        [track_r; 4],
         [1.0; 4],
       );
 
       let fill_w = cw * frac;
       if fill_w > 0.5 {
-        out.push_quad_rounded(
-          Rect::new(cx, track_y, fill_w, track_h),
-          accent,
-          [track_r; 4],
-        );
+        out.push_quad_rounded(Rect::new(cx, track_y, fill_w, track_h), accent, [track_r; 4]);
       }
 
       let thumb_r = (ch * 0.35).clamp(5.0, 10.0);
@@ -950,18 +946,15 @@ fn paint_form_control(
         out.push_quad_stroke_ellipse(
           Rect::new(cx, cy, cw, ch),
           border_color,
-          [r_corner; 4], [r_corner; 4],
+          [r_corner; 4],
+          [r_corner; 4],
           [1.0; 4],
         );
         let iw = (cw - inset * 2.0).max(0.0);
         let ih = (ch - inset * 2.0).max(0.0);
         if iw > 0.0 && ih > 0.0 {
           let color = apply_opacity([*r, *g, *bl, *a], opacity);
-          out.push_quad_rounded(
-            Rect::new(cx + inset, cy + inset, iw, ih),
-            color,
-            [1.5; 4],
-          );
+          out.push_quad_rounded(Rect::new(cx + inset, cy + inset, iw, ih), color, [1.5; 4]);
         }
       }
     }
@@ -1006,7 +999,9 @@ fn paint_file_input(
 ) {
   let cr = b.content_rect;
   let br = b.border_rect;
-  if br.w <= 0.0 || br.h <= 0.0 { return; }
+  if br.w <= 0.0 || br.h <= 0.0 {
+    return;
+  }
 
   let pad = fb.padding;
   let btn_text_w = fb.text_run.as_ref().map(|r| r.width).unwrap_or(0.0);
@@ -1028,12 +1023,7 @@ fn paint_file_input(
     let glyph_origin_y = btn_y + pad[0];
     for g in &btn_run.glyphs {
       out.push_glyph(
-        Rect::new(
-          (glyph_origin_x + g.x).round(),
-          (glyph_origin_y + g.y).round(),
-          g.w,
-          g.h,
-        ),
+        Rect::new((glyph_origin_x + g.x).round(), (glyph_origin_y + g.y).round(), g.w, g.h),
         btn_color,
         g.uv_min,
         g.uv_max,
@@ -1043,16 +1033,15 @@ fn paint_file_input(
 
   let gap = 8.0;
   let label_offset_x = btn_w + gap;
-  let label_color = apply_opacity(
-    b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]),
-    opacity,
-  );
+  let label_color = apply_opacity(b.text_color.unwrap_or([0.0, 0.0, 0.0, 1.0]), opacity);
   let label_origin_x = cr.x + paint_offset_x + label_offset_x;
   let label_origin_y = origin.y;
   let box_right = origin.x + origin.w;
   for g in &label_run.glyphs {
     let gx = (label_origin_x + g.x).round();
-    if gx + g.w < origin.x || gx > box_right { continue; }
+    if gx + g.w < origin.x || gx > box_right {
+      continue;
+    }
     out.push_glyph(
       Rect::new(gx, (label_origin_y + g.y).round(), g.w, g.h),
       label_color,
@@ -1565,12 +1554,7 @@ impl Side {
   /// adjacent corner radii. With zero radii this collapses to the
   /// regular corner-owning rectangle, so it's safe for the rounded
   /// path even when only some corners are rounded.
-  fn edge_rect_rounded(
-    self,
-    r: lui_layout::Rect,
-    bd: lui_layout::Insets,
-    radii: &lui_layout::CornerRadii,
-  ) -> Rect {
+  fn edge_rect_rounded(self, r: lui_layout::Rect, bd: lui_layout::Insets, radii: &lui_layout::CornerRadii) -> Rect {
     match self {
       Side::Top => {
         let x_start = radii.top_left.h;

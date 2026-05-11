@@ -95,9 +95,15 @@ fn each_input_type_gets_its_own_value_via_text_input() {
       if is_date {
         // Date inputs use overwrite mode — only digits accepted. Test with '5'.
         let mutated2 = lui_tree::text_input(&mut tree, "5");
-        assert!(mutated2, "type={type_name}: text_input('5') should have mutated the display value");
+        assert!(
+          mutated2,
+          "type={type_name}: text_input('5') should have mutated the display value"
+        );
         let dv = tree.interaction.date_display_value.as_deref().unwrap_or("");
-        assert!(dv.contains('5'), "type={type_name}: date_display_value should contain '5', got {dv:?}");
+        assert!(
+          dv.contains('5'),
+          "type={type_name}: date_display_value should contain '5', got {dv:?}"
+        );
       } else {
         assert!(mutated, "type={type_name}: text_input should have mutated the value");
         let v = value.unwrap_or_default();

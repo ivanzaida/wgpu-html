@@ -39,15 +39,14 @@
 use std::time::{Duration, Instant};
 
 use lui::{
-  events as ev, interactivity, layout::{Cursor, LayoutBox}, renderer::{DisplayList, FrameOutcome, Rect},
+  PipelineCache, PipelineTimings, events as ev, interactivity,
+  layout::{Cursor, LayoutBox},
+  renderer::{DisplayList, FrameOutcome, Rect},
   scroll::{
-    clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at, translate_display_list_x
-    , translate_display_list_y, viewport_to_document,
-    ElementScrollbarDrag,
+    ElementScrollbarDrag, clamp_scroll_x, clamp_scroll_y, rect_contains, scroll_element_at, translate_display_list_x,
+    translate_display_list_y, viewport_to_document,
   },
-  select_all_text,
-  selected_text,
-  PipelineCache, PipelineTimings,
+  select_all_text, selected_text,
 };
 use lui_render_api::RenderBackend;
 use lui_text::TextContext;
@@ -474,11 +473,22 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
 
     self.last_layout = self.pipeline_cache.layout().cloned();
 
-    let body_scroll = tree.interaction.scroll_offsets
-      .values().next().map(|s| s.y).unwrap_or(0.0);
-    let effective_scroll_y = if self.scroll_y.abs() > 0.5 { self.scroll_y } else { body_scroll };
+    let body_scroll = tree
+      .interaction
+      .scroll_offsets
+      .values()
+      .next()
+      .map(|s| s.y)
+      .unwrap_or(0.0);
+    let effective_scroll_y = if self.scroll_y.abs() > 0.5 {
+      self.scroll_y
+    } else {
+      body_scroll
+    };
 
-    let max_scroll_y = self.last_layout.as_ref()
+    let max_scroll_y = self
+      .last_layout
+      .as_ref()
       .map(|l| {
         let driver_max = lui::scroll::max_scroll_y(l, h as f32);
         if driver_max > 0.5 {
@@ -488,7 +498,9 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         }
       })
       .unwrap_or(0.0);
-    let max_scroll_x = self.last_layout.as_ref()
+    let max_scroll_x = self
+      .last_layout
+      .as_ref()
       .map(|l| lui::scroll::max_scroll_x(l, w as f32))
       .unwrap_or(0.0);
 
@@ -519,28 +531,17 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
     }
 
     if let Some(ref layout) = self.last_layout {
-      lui::color_picker_overlay::paint_color_picker_overlay(
-        &mut list,
-        layout,
-        tree,
-        0.0,
-        scale,
-        content_w,
-        paint_h,
-      );
-      lui::date_picker_overlay::paint_date_picker_overlay(
-        &mut list,
-        layout,
-        tree,
-        &mut self.text_ctx,
-      );
+      lui::color_picker_overlay::paint_color_picker_overlay(&mut list, layout, tree, 0.0, scale, content_w, paint_h);
+      lui::date_picker_overlay::paint_date_picker_overlay(&mut list, layout, tree, &mut self.text_ctx);
     }
 
     translate_display_list_x(&mut list, -self.scroll_x);
     translate_display_list_y(&mut list, -self.scroll_y);
 
     // Paint viewport scrollbars.
-    let thumb_color = self.last_layout.as_ref()
+    let thumb_color = self
+      .last_layout
+      .as_ref()
       .and_then(|l| l.overflow.scrollbar_thumb)
       .unwrap_or(lui::scroll::DEFAULT_THUMB);
     let vw = w as f32;
@@ -553,7 +554,11 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       list.push_clip(None, [0.0; 4], [0.0; 4]);
     }
     if self.needs_viewport_scrollbar_y {
-      let bar_h = if self.needs_viewport_scrollbar_x { vh - track_w } else { vh };
+      let bar_h = if self.needs_viewport_scrollbar_x {
+        vh - track_w
+      } else {
+        vh
+      };
       let doc_h = max_scroll_y + vh;
       let track_h = bar_h - margin * 2.0;
       let thumb_h = (track_h * vh / doc_h).clamp(24.0, track_h);
@@ -562,14 +567,14 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       let thumb_x = vw - track_w - margin + inset;
       let thumb_w = track_w - inset * 2.0;
       let radius = thumb_w * 0.5;
-      list.push_quad_rounded(
-        Rect::new(thumb_x, thumb_y, thumb_w, thumb_h),
-        thumb_color,
-        [radius; 4],
-      );
+      list.push_quad_rounded(Rect::new(thumb_x, thumb_y, thumb_w, thumb_h), thumb_color, [radius; 4]);
     }
     if self.needs_viewport_scrollbar_x {
-      let bar_w = if self.needs_viewport_scrollbar_y { vw - track_w } else { vw };
+      let bar_w = if self.needs_viewport_scrollbar_y {
+        vw - track_w
+      } else {
+        vw
+      };
       let doc_w = max_scroll_x + vw;
       let track_w_h = bar_w - margin * 2.0;
       let thumb_w = (track_w_h * vw / doc_w).clamp(24.0, track_w_h);
@@ -578,11 +583,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       let thumb_y = vh - track_w - margin + inset;
       let thumb_h = track_w - inset * 2.0;
       let radius = thumb_h * 0.5;
-      list.push_quad_rounded(
-        Rect::new(thumb_x, thumb_y, thumb_w, thumb_h),
-        thumb_color,
-        [radius; 4],
-      );
+      list.push_quad_rounded(Rect::new(thumb_x, thumb_y, thumb_w, thumb_h), thumb_color, [radius; 4]);
     }
     if self.needs_viewport_scrollbar_y || self.needs_viewport_scrollbar_x {
       list.finalize();
@@ -671,12 +672,9 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
 
   /// Upload pending glyph atlas rasters to the GPU.
   pub fn upload_glyphs(&mut self) {
-    self
-      .text_ctx
-      .atlas
-      .flush_dirty(|rect, data| {
-        self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
-      });
+    self.text_ctx.atlas.flush_dirty(|rect, data| {
+      self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+    });
   }
 
   /// Submit a pre-built [`DisplayList`] to the GPU and present.
@@ -872,7 +870,12 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       let shift = tree.modifiers().shift;
 
       // Color picker field intercept
-      if tree.interaction.color_picker.as_ref().is_some_and(|cp| cp.active_field.is_some()) {
+      if tree
+        .interaction
+        .color_picker
+        .as_ref()
+        .is_some_and(|cp| cp.active_field.is_some())
+      {
         if ctrl && !repeat {
           match code {
             "KeyA" | "KeyC" | "KeyX" | "KeyV" => {

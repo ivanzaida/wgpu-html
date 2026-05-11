@@ -1,6 +1,6 @@
 use std::sync::{
-  atomic::{AtomicBool, AtomicPtr, Ordering},
   Arc,
+  atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
 use lui_layout::LayoutBox;
@@ -47,7 +47,9 @@ impl DevtoolsStore {
   }
 
   pub(crate) fn bind_host_tree(&self, tree: &Tree) {
-    self.host_tree_ptr.store(tree as *const Tree as *mut Tree, Ordering::Relaxed);
+    self
+      .host_tree_ptr
+      .store(tree as *const Tree as *mut Tree, Ordering::Relaxed);
   }
 
   pub(crate) fn unbind_host_tree(&self) {
@@ -60,7 +62,9 @@ impl DevtoolsStore {
   }
 
   pub(crate) fn bind_layout(&self, layout: &LayoutBox) {
-    self.layout_root_ptr.store(layout as *const LayoutBox as *mut LayoutBox, Ordering::Relaxed);
+    self
+      .layout_root_ptr
+      .store(layout as *const LayoutBox as *mut LayoutBox, Ordering::Relaxed);
   }
 
   pub(crate) fn unbind_layout(&self) {

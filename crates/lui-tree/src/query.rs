@@ -1659,10 +1659,14 @@ fn el_is_invalid_helper(el: &Element) -> bool {
       // ── minlength / maxlength ──
       let chars = val.chars().count();
       if let Some(min) = e.minlength {
-        if chars < min as usize { return true; }
+        if chars < min as usize {
+          return true;
+        }
       }
       if let Some(max) = e.maxlength {
-        if chars > max as usize { return true; }
+        if chars > max as usize {
+          return true;
+        }
       }
 
       // ── min / max / step for number-like inputs ──
@@ -1672,12 +1676,16 @@ fn el_is_invalid_helper(el: &Element) -> bool {
         if applies {
           if let Some(min_str) = e.min.as_deref() {
             if let Ok(min) = min_str.parse::<f64>() {
-              if v < min { return true; }
+              if v < min {
+                return true;
+              }
             }
           }
           if let Some(max_str) = e.max.as_deref() {
             if let Ok(max) = max_str.parse::<f64>() {
-              if v > max { return true; }
+              if v > max {
+                return true;
+              }
             }
           }
           if let Some(step_str) = e.step.as_deref() {
@@ -1699,7 +1707,9 @@ fn el_is_invalid_helper(el: &Element) -> bool {
     Element::Textarea(e) => {
       if e.required == Some(true) {
         let val = e.value.as_deref().unwrap_or("");
-        if val.is_empty() { return true; }
+        if val.is_empty() {
+          return true;
+        }
       }
       false
     }

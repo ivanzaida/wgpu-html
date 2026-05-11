@@ -1,11 +1,4 @@
-use lui_models::{
-  ArcStr, Style,
-  common::{
-    css_enums::*,
-    CssColor, CssContent, CssImage, CssLength, CssMathExpr, CssNumericFunction, GridLine,
-    GridTrackSize,
-  },
-};
+use crate::{style::Style, values::*};
 pub fn parse_css_length(value: &str) -> Option<CssLength> {
   let v = value.trim();
   if v.is_empty() {
@@ -105,7 +98,11 @@ fn parse_css_math_expr(input: &str) -> Option<CssMathExpr> {
   let mut parser = MathParser::new(input);
   let expr = parser.parse_sum()?;
   parser.skip_ws();
-  if parser.is_eof() { Some(expr) } else { None }
+  if parser.is_eof() {
+    Some(expr)
+  } else {
+    None
+  }
 }
 
 struct MathParser<'a> {
@@ -718,7 +715,7 @@ pub(crate) fn parse_grid_track_list(value: &str) -> Vec<GridTrackSize> {
           }
           continue;
         }
-        // `auto-fill` / `auto-fit` — single Auto placeholder
+        // `auto-fill` / `auto-fit` -- single Auto placeholder
         // for now. Track-count resolution is a future job.
         if count_tok.eq_ignore_ascii_case("auto-fill") || count_tok.eq_ignore_ascii_case("auto-fit") {
           out.push(GridTrackSize::Auto);
@@ -728,7 +725,7 @@ pub(crate) fn parse_grid_track_list(value: &str) -> Vec<GridTrackSize> {
       continue;
     }
     if let Some(rest) = strip_function(&tok, "minmax") {
-      // `minmax(<min>, <max>)` — for v1 we use the max as the
+      // `minmax(<min>, <max>)` -- for v1 we use the max as the
       // track size. Real two-bound clamping is deferred.
       let parts: Vec<&str> = split_top_level_commas(&rest);
       if let Some(max_tok) = parts.get(1) {
@@ -741,7 +738,7 @@ pub(crate) fn parse_grid_track_list(value: &str) -> Vec<GridTrackSize> {
       continue;
     }
     if let Some(rest) = strip_function(&tok, "fit-content") {
-      // `fit-content(<length>)` — degrade to the inner length
+      // `fit-content(<length>)` -- degrade to the inner length
       // for v1; the ceiling-by-content semantics are deferred.
       if let Some(s) = parse_grid_track_size(rest.trim()) {
         out.push(s);
@@ -790,7 +787,7 @@ fn split_track_tokens(s: &str) -> Vec<String> {
 }
 
 /// Split a string on commas at parenthesis depth 0. Used inside
-/// `repeat(…)` / `minmax(…)` argument lists.
+/// `repeat(...)` / `minmax(...)` argument lists.
 pub(crate) fn split_top_level_commas(s: &str) -> Vec<&str> {
   let mut out = Vec::new();
   let bytes = s.as_bytes();
@@ -852,8 +849,8 @@ pub(crate) enum GridAxis {
 
 /// Expand `grid-column` / `grid-row` shorthand into the start / end
 /// longhands. Accepts:
-/// - `<line>` → start=line, end=auto
-/// - `<line> / <line>` → start, end
+/// - `<line>` -> start=line, end=auto
+/// - `<line> / <line>` -> start, end
 /// - `span <n> / <line>` (and the reverse), etc.
 pub(crate) fn apply_grid_axis_shorthand(value: &str, style: &mut Style, axis: GridAxis) {
   // Round-trip the raw value for cascade introspection.
@@ -885,16 +882,16 @@ pub(crate) fn apply_grid_axis_shorthand(value: &str, style: &mut Style, axis: Gr
 }
 
 /// Expand the `flex` shorthand into the three longhands per CSS-Flex-1
-/// §7.2 (`flex` shorthand).
+/// S7.2 (`flex` shorthand).
 ///
 /// Recognized forms:
-/// - `none`    → 0 0 auto
-/// - `auto`    → 1 1 auto
-/// - `initial` → 0 1 auto
-/// - `<number>`            → grow=<n>, shrink=1, basis=0%
-/// - `<basis>`             → grow=1, shrink=1, basis=<basis>
-/// - `<grow> <shrink>`     → grow, shrink, basis=0%
-/// - `<grow> <basis>`      → grow, shrink=1, basis
+/// - `none`    -> 0 0 auto
+/// - `auto`    -> 1 1 auto
+/// - `initial` -> 0 1 auto
+/// - `<number>`            -> grow=<n>, shrink=1, basis=0%
+/// - `<basis>`             -> grow=1, shrink=1, basis=<basis>
+/// - `<grow> <shrink>`     -> grow, shrink, basis=0%
+/// - `<grow> <basis>`      -> grow, shrink=1, basis
 /// - `<grow> <shrink> <basis>` (full form)
 ///
 /// Token classification:
@@ -959,7 +956,7 @@ pub(crate) fn apply_flex_shorthand(value: &str, style: &mut Style) {
       }
     }
     _ => {
-      // Three (or more — extra ignored) tokens: grow shrink basis.
+      // Three (or more -- extra ignored) tokens: grow shrink basis.
       grow = tokens[0].parse().ok();
       shrink = tokens[1].parse().ok();
       basis = parse_css_length(tokens[2]);

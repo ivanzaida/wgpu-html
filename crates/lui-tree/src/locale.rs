@@ -28,9 +28,15 @@ pub fn format_date_pattern(pattern: &str, y: i32, m: u8, d: u8) -> String {
 }
 
 pub trait Locale: Send + Sync + std::fmt::Debug {
-  fn key(&self) -> &str { "en-US" }
-  fn date_pattern(&self) -> &str { "mm/dd/yyyy" }
-  fn datetime_pattern(&self) -> &str { "mm/dd/yyyy HH:MM" }
+  fn key(&self) -> &str {
+    "en-US"
+  }
+  fn date_pattern(&self) -> &str {
+    "mm/dd/yyyy"
+  }
+  fn datetime_pattern(&self) -> &str {
+    "mm/dd/yyyy HH:MM"
+  }
   fn format_date(&self, y: i32, m: u8, d: u8) -> String {
     format_date_pattern(self.date_pattern(), y, m, d)
   }
@@ -47,12 +53,24 @@ pub trait Locale: Send + Sync + std::fmt::Debug {
   fn month_short(&self, month: u8) -> &str;
   fn weekday_name(&self, weekday: u8) -> &str;
   fn weekday_short(&self, weekday: u8) -> &str;
-  fn first_day_of_week(&self) -> u8 { 0 }
-  fn file_browse_label(&self) -> &str { "Browse\u{2026}" }
-  fn file_no_file_label(&self) -> &str { "No file chosen" }
-  fn color_picker_rgba_label(&self) -> &str { "RGBA" }
-  fn color_picker_hex_label(&self) -> &str { "Hex" }
-  fn date_picker_reset_label(&self) -> &str { "Reset" }
+  fn first_day_of_week(&self) -> u8 {
+    0
+  }
+  fn file_browse_label(&self) -> &str {
+    "Browse\u{2026}"
+  }
+  fn file_no_file_label(&self) -> &str {
+    "No file chosen"
+  }
+  fn color_picker_rgba_label(&self) -> &str {
+    "RGBA"
+  }
+  fn color_picker_hex_label(&self) -> &str {
+    "Hex"
+  }
+  fn date_picker_reset_label(&self) -> &str {
+    "Reset"
+  }
 }
 
 #[derive(Debug)]
@@ -65,22 +83,35 @@ impl DefaultLocale {
 }
 
 const MONTHS: [&str; 12] = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const MONTHS_SHORT: [&str; 12] = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 const WEEKDAYS: [&str; 7] = [
-  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
 ];
 
-const WEEKDAYS_SHORT: [&str; 7] = [
-  "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
-];
+const WEEKDAYS_SHORT: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 impl Locale for DefaultLocale {
   fn month_name(&self, month: u8) -> &str {

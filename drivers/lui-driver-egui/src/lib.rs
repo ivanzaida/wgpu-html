@@ -25,7 +25,6 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, Event, FontId, PointerButton, Pos2, Rect as EguiRect, Response, Sense, Ui, Vec2};
-use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use lui::{
   PipelineTimings, interactivity,
   layout::LayoutBox,
@@ -34,6 +33,7 @@ use lui::{
 use lui_driver::{Driver, Runtime};
 use lui_renderer_wgpu::Renderer;
 use lui_tree::{Modifier, MouseButton, Tree};
+use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 
 // ── Driver ──────────────────────────────────────────────────────────────────
 

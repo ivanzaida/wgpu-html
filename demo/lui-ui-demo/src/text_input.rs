@@ -1,6 +1,4 @@
-use lui_models::common::{
-  AlignItems, BoxSizing, Display, FlexDirection, InputType, JustifyContent::SpaceBetween,
-};
+use lui_models::common::{AlignItems, BoxSizing, Display, FlexDirection, InputType, JustifyContent::SpaceBetween};
 use lui_ui::{Component, Ctx, El, InputAttrs, ShouldRender, el, style, style::Stylesheet};
 
 pub struct TextInput {
@@ -56,6 +54,7 @@ impl Component for TextInput {
         .display(Display::Flex)
         .align_items(AlignItems::Center)
         .justify_content(SpaceBetween),
-    ]).scoped("text-input")
+    ])
+    .scoped("text-input")
   }
 }

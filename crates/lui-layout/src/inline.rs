@@ -5,47 +5,37 @@
 //! alignment, atomic inlines, and the rich-text paragraph path that
 //! feeds cosmic-text's `set_rich_text`.
 
-
 use lui_models::{
-    common::css_enums::{
-        BoxSizing, CssColor, CssLength, Cursor, Display, PointerEvents, Resize, UserSelect, VerticalAlign,
-    },
-    Style,
+  Style,
+  common::css_enums::{
+    BoxSizing, CssColor, CssLength, Cursor, Display, PointerEvents, Resize, UserSelect, VerticalAlign,
+  },
 };
 use lui_style::{CascadedNode, PseudoElementStyle};
 use lui_text::{ParagraphSpan, PositionedGlyph, ShapedLine, ShapedRun};
 use lui_tree::Element;
 
 use crate::{
-    box_model::{
-        clamp_corner_radii, compute_background_box, resolve_border_widths,
-        resolve_insets_margin, resolve_insets_padding,
-    },
-    color::{self, resolve_color, Color},
-    incremental::{
-        file_button_from_pseudo, lui_calendar_from_pseudo,
-        lui_color_from_pseudo, lui_popup_from_pseudo, resolve_lui_properties,
-    },
-    layout_profile,
-    length,
-    positioned::{
-        resolved_cursor, resolved_opacity, resolved_pointer_events,
-        resolved_user_select, resolved_z_index,
-    },
-    types::*,
-    BlockOverrides, Ctx, LayoutBox,
+  BlockOverrides, Ctx, LayoutBox,
+  box_model::{
+    clamp_corner_radii, compute_background_box, resolve_border_widths, resolve_insets_margin, resolve_insets_padding,
+  },
+  color::{self, Color, resolve_color},
+  incremental::{
+    file_button_from_pseudo, lui_calendar_from_pseudo, lui_color_from_pseudo, lui_popup_from_pseudo,
+    resolve_lui_properties,
+  },
+  layout_profile, length,
+  positioned::{resolved_cursor, resolved_opacity, resolved_pointer_events, resolved_user_select, resolved_z_index},
+  types::*,
 };
-
 // These are all in crate root (lib.rs or text_shaping.rs with pub(crate) use):
 use crate::{
-    apply_text_transform, compute_placeholder_run, compute_value_run,
-    empty_box, font_size_px, font_style_axis, font_weight_value,
-    form_control_default_line_height, form_control_info, has_native_appearance,
-    layout_block, line_height_px, make_text_leaf, normalize_text_for_style,
-    parse_family_list, resolve_text_decorations,
-    split_collapsed_first_word_prefix_and_tail,
-    style_collapses_whitespace, style_wraps_text, style_breaks_all,
-    trim_collapsed_whitespace_edges,
+  apply_text_transform, compute_placeholder_run, compute_value_run, empty_box, font_size_px, font_style_axis,
+  font_weight_value, form_control_default_line_height, form_control_info, has_native_appearance, layout_block,
+  line_height_px, make_text_leaf, normalize_text_for_style, parse_family_list, resolve_text_decorations,
+  split_collapsed_first_word_prefix_and_tail, style_breaks_all, style_collapses_whitespace, style_wraps_text,
+  trim_collapsed_whitespace_edges,
 };
 
 /// Inline-level test: an element whose default formatting puts it on
@@ -160,9 +150,13 @@ pub(crate) fn all_children_inline_level(node: &CascadedNode) -> bool {
   }
   let real_inline = node.children.iter().all(is_inline_level);
   let pseudo_inline = node.before.as_ref().map_or(true, |pe| {
-    pe.style.display.map_or(true, |d| matches!(d, Display::Inline | Display::InlineBlock))
+    pe.style
+      .display
+      .map_or(true, |d| matches!(d, Display::Inline | Display::InlineBlock))
   }) && node.after.as_ref().map_or(true, |pe| {
-    pe.style.display.map_or(true, |d| matches!(d, Display::Inline | Display::InlineBlock))
+    pe.style
+      .display
+      .map_or(true, |d| matches!(d, Display::Inline | Display::InlineBlock))
   });
   real_inline && pseudo_inline
 }
@@ -444,8 +438,14 @@ fn layout_atomic_inline_subtree(
   );
 
   let fg = color::resolve_foreground(style.color.as_ref(), color::BLACK);
-  let background = style.background_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
-  let accent_color = style.accent_color.as_ref().and_then(|c| color::resolve_with_current(c, fg));
+  let background = style
+    .background_color
+    .as_ref()
+    .and_then(|c| color::resolve_with_current(c, fg));
+  let accent_color = style
+    .accent_color
+    .as_ref()
+    .and_then(|c| color::resolve_with_current(c, fg));
   let lui = resolve_lui_properties(&style.custom_properties, fg);
   let resolve_border = |c: &CssColor| color::resolve_with_current(c, fg);
   let border_colors = BorderColors {
@@ -534,9 +534,9 @@ fn layout_atomic_inline_subtree(
       overflow: OverflowAxes::visible(),
       resize: Resize::None,
       text_overflow: None,
-    transform: None,
-    transform_origin: (0.0, 0.0),
-    box_shadows: Vec::new(),
+      transform: None,
+      transform_origin: (0.0, 0.0),
+      box_shadows: Vec::new(),
       opacity: resolved_opacity(style),
       pointer_events: resolved_pointer_events(style),
       user_select: resolved_user_select(style),
@@ -779,11 +779,11 @@ fn layout_inline_mixed_children(
       && !current.items.is_empty()
       && matches!(&child.element, Element::Text(_))
       && cl
-      .box_
-      .text_run
-      .as_ref()
-      .map(|run| run.lines.len() > 1)
-      .unwrap_or(false);
+        .box_
+        .text_run
+        .as_ref()
+        .map(|run| run.lines.len() > 1)
+        .unwrap_or(false);
     if wrapped_under_remainder {
       let mut kept_head_on_line = false;
       if let Element::Text(raw) = &child.element {
@@ -914,36 +914,36 @@ fn is_empty_inline_img(node: &CascadedNode) -> bool {
 /// All length parameters (`font_size`, `line_ascent`, etc.) must be in
 /// physical pixels (CSS px × scale).
 fn vertical_align_dy(
-    va: &Option<VerticalAlign>,
-    child_ascent: f32,
-    child_descent: f32,
-    line_ascent: f32,
-    line_descent: f32,
-    line_h: f32,
-    font_size: f32,
-    scale: f32,
+  va: &Option<VerticalAlign>,
+  child_ascent: f32,
+  child_descent: f32,
+  line_ascent: f32,
+  line_descent: f32,
+  line_h: f32,
+  font_size: f32,
+  scale: f32,
 ) -> f32 {
-    let va = match va {
-        Some(v) => v,
-        None => return 0.0,
-    };
-    match va {
-        VerticalAlign::Baseline => 0.0,
-        VerticalAlign::Sub => -font_size * 0.2,
-        VerticalAlign::Super => font_size * 0.4,
-        VerticalAlign::Top => line_ascent - child_ascent,
-        VerticalAlign::Bottom => child_descent - line_descent,
-        VerticalAlign::Middle => child_ascent * 0.5 - font_size * 0.25,
-        VerticalAlign::TextTop => font_size - child_ascent,
-        VerticalAlign::TextBottom => line_descent - child_descent,
-        VerticalAlign::Length(len) => match len {
-            CssLength::Px(v) => *v * scale,
-            CssLength::Em(v) => *v * font_size,
-            CssLength::Rem(v) => *v * 16.0 * scale,
-            CssLength::Percent(v) => *v * 0.01 * line_h,
-            _ => 0.0,
-        },
-    }
+  let va = match va {
+    Some(v) => v,
+    None => return 0.0,
+  };
+  match va {
+    VerticalAlign::Baseline => 0.0,
+    VerticalAlign::Sub => -font_size * 0.2,
+    VerticalAlign::Super => font_size * 0.4,
+    VerticalAlign::Top => line_ascent - child_ascent,
+    VerticalAlign::Bottom => child_descent - line_descent,
+    VerticalAlign::Middle => child_ascent * 0.5 - font_size * 0.25,
+    VerticalAlign::TextTop => font_size - child_ascent,
+    VerticalAlign::TextBottom => line_descent - child_descent,
+    VerticalAlign::Length(len) => match len {
+      CssLength::Px(v) => *v * scale,
+      CssLength::Em(v) => *v * font_size,
+      CssLength::Rem(v) => *v * 16.0 * scale,
+      CssLength::Percent(v) => *v * 0.01 * line_h,
+      _ => 0.0,
+    },
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -344,10 +344,19 @@ fn ua_form_font_initial_resets_inherited_text_styles() {
   );
   let cascaded = cascade(&tree);
   let input = find_style(cascaded.root.as_ref().unwrap(), &|el| matches!(el, Element::Input(_))).unwrap();
-  assert!(input.font_size.is_some(), "UA should set explicit font-size on form controls");
+  assert!(
+    input.font_size.is_some(),
+    "UA should set explicit font-size on form controls"
+  );
   assert!(matches!(input.color, Some(CssColor::Named(ref v)) if &**v == "fieldtext"));
-  assert!(input.font_weight.is_some(), "UA should reset font-weight on form controls");
-  assert!(input.font_style.is_some(), "UA should reset font-style on form controls");
+  assert!(
+    input.font_weight.is_some(),
+    "UA should reset font-weight on form controls"
+  );
+  assert!(
+    input.font_style.is_some(),
+    "UA should reset font-style on form controls"
+  );
   assert!(matches!(input.line_height, Some(CssLength::Raw(ref v)) if &**v == "normal"));
   assert!(matches!(
       input.letter_spacing,
@@ -361,9 +370,10 @@ fn cascade_range_input_overrides_generic_input_styles() {
   use lui_models::common::html_enums::InputType;
   let tree = lui_parser::parse(r#"<input type="range" />"#);
   let cascaded = cascade(&tree);
-  let style = find_style(cascaded.root.as_ref().unwrap(), &|el| {
-    matches!(el, Element::Input(inp) if matches!(inp.r#type, Some(InputType::Range)))
-  })
+  let style = find_style(
+    cascaded.root.as_ref().unwrap(),
+    &|el| matches!(el, Element::Input(inp) if matches!(inp.r#type, Some(InputType::Range))),
+  )
   .expect("should find range input");
 
   eprintln!("range padding_left: {:?}", style.padding_left);
@@ -412,8 +422,16 @@ fn cascade_child_combinator() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let direct = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("direct"))).unwrap();
-  let nested = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("nested"))).unwrap();
+  let direct = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("direct")),
+  )
+  .unwrap();
+  let nested = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("nested")),
+  )
+  .unwrap();
   assert!(matches!(direct.width, Some(CssLength::Px(v)) if (v - 42.0).abs() < 0.01));
   assert!(nested.width.is_none());
 }
@@ -434,8 +452,16 @@ fn cascade_adjacent_sibling_combinator() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let adj = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("adjacent"))).unwrap();
-  let nonadj = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("nonadjacent"))).unwrap();
+  let adj = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("adjacent")),
+  )
+  .unwrap();
+  let nonadj = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("nonadjacent")),
+  )
+  .unwrap();
   assert!(matches!(adj.height, Some(CssLength::Px(v)) if (v - 10.0).abs() < 0.01));
   assert!(nonadj.height.is_none());
 }
@@ -456,7 +482,11 @@ fn cascade_general_sibling_combinator() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let sib = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("sib"))).unwrap();
+  let sib = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("sib")),
+  )
+  .unwrap();
   assert!(matches!(sib.width, Some(CssLength::Px(v)) if (v - 5.0).abs() < 0.01));
 }
 
@@ -476,9 +506,21 @@ fn cascade_nth_child_pseudo_class() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let first = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("first"))).unwrap();
-  let second = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("second"))).unwrap();
-  let third = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("third"))).unwrap();
+  let first = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("first")),
+  )
+  .unwrap();
+  let second = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("second")),
+  )
+  .unwrap();
+  let third = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("third")),
+  )
+  .unwrap();
   assert!(first.width.is_none());
   assert!(matches!(second.width, Some(CssLength::Px(v)) if (v - 99.0).abs() < 0.01));
   assert!(third.width.is_none());
@@ -497,8 +539,16 @@ fn cascade_not_pseudo_class() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let yes = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("yes"))).unwrap();
-  let no = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("no"))).unwrap();
+  let yes = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("yes")),
+  )
+  .unwrap();
+  let no = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("no")),
+  )
+  .unwrap();
   assert!(matches!(yes.height, Some(CssLength::Px(v)) if (v - 77.0).abs() < 0.01));
   assert!(no.height.is_none());
 }
@@ -517,9 +567,21 @@ fn cascade_is_pseudo_class() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let a = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("a"))).unwrap();
-  let b = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("b"))).unwrap();
-  let c = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("c"))).unwrap();
+  let a = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("a")),
+  )
+  .unwrap();
+  let b = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("b")),
+  )
+  .unwrap();
+  let c = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("c")),
+  )
+  .unwrap();
   assert!(matches!(a.width, Some(CssLength::Px(v)) if (v - 11.0).abs() < 0.01));
   assert!(matches!(b.width, Some(CssLength::Px(v)) if (v - 11.0).abs() < 0.01));
   assert!(c.width.is_none());
@@ -538,8 +600,16 @@ fn cascade_attribute_selector() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let hidden = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("h"))).unwrap();
-  let text = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("t"))).unwrap();
+  let hidden = find_style(
+    root,
+    &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("h")),
+  )
+  .unwrap();
+  let text = find_style(
+    root,
+    &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("t")),
+  )
+  .unwrap();
   assert!(matches!(hidden.display, Some(Display::None)));
   assert!(!matches!(text.display, Some(Display::None)));
 }
@@ -557,8 +627,16 @@ fn cascade_disabled_pseudo_class() {
   );
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let dis = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("dis"))).unwrap();
-  let en = find_style(root, &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("en"))).unwrap();
+  let dis = find_style(
+    root,
+    &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("dis")),
+  )
+  .unwrap();
+  let en = find_style(
+    root,
+    &|el| matches!(el, Element::Input(i) if i.id.as_deref() == Some("en")),
+  )
+  .unwrap();
   assert!(matches!(dis.width, Some(CssLength::Px(v)) if (v - 50.0).abs() < 0.01));
   assert!(en.width.is_none());
 }
@@ -578,6 +656,10 @@ fn cascade_focus_within_pseudo_class() {
   tree.interaction.focus_path = Some(vec![0, 0]);
   let cascaded = cascade(&tree);
   let root = cascaded.root.as_ref().unwrap();
-  let container = find_style(root, &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("c"))).unwrap();
+  let container = find_style(
+    root,
+    &|el| matches!(el, Element::Div(d) if d.id.as_deref() == Some("c")),
+  )
+  .unwrap();
   assert!(matches!(container.width, Some(CssLength::Px(v)) if (v - 200.0).abs() < 0.01));
 }

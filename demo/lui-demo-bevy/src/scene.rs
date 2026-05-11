@@ -17,7 +17,11 @@ pub fn setup(
     Transform::from_xyz(0.0, 0.5, 0.0),
   ));
   commands.spawn((
-    PointLight { shadows_enabled: true, intensity: 2_000_000.0, ..default() },
+    PointLight {
+      shadows_enabled: true,
+      intensity: 2_000_000.0,
+      ..default()
+    },
     Transform::from_xyz(4.0, 8.0, 4.0),
   ));
   commands.spawn((
@@ -26,7 +30,8 @@ pub fn setup(
     IsDefaultUiCamera,
   ));
 
-  let parsed = lui::parser::parse(r#"
+  let parsed = lui::parser::parse(
+    r#"
 <style>
   .hud {
     font-family: system-ui, sans-serif;
@@ -112,7 +117,8 @@ pub fn setup(
     </div>
   </div>
 </div>
-"#);
+"#,
+  );
 
   html.tree_mut().merge(parsed);
 }

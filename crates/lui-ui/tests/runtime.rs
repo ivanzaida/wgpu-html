@@ -613,7 +613,7 @@ fn path3_parent_dirty_does_not_re_render_clean_child() {
   impl Component for ObservableParent {
     type Props = ObservableParentProps;
     type Msg = ParentMsg;
-  
+
     fn create(p: &ObservableParentProps) -> Self {
       let s = p.parent_slot.clone();
       ObservableParent {
@@ -878,7 +878,7 @@ fn props_changed_default_rerenders_child() {
   impl Component for PokableParent {
     type Props = PokableParentProps;
     type Msg = ParentMsg;
-  
+
     fn create(p: &PokableParentProps) -> Self {
       let s = p.parent_slot.clone();
       PokableParent {

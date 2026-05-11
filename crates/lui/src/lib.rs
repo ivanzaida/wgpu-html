@@ -20,12 +20,12 @@ pub mod inspect_overlay;
 pub mod interactivity;
 pub mod paint;
 pub mod scroll;
-pub use paint::{paint_tree, paint_tree_with_text};
 use lui_layout::{LayoutBox, UserSelect};
 use lui_renderer_wgpu::{DisplayList, Renderer, ScreenshotError};
 use lui_style::MediaContext;
 use lui_text::TextContext;
 use lui_tree::{InteractionSnapshot, TextCursor, TextSelection, Tree};
+pub use paint::{paint_tree, paint_tree_with_text};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PipelineTimings {
@@ -112,7 +112,17 @@ pub fn compute_layout_profiled(
   let layout;
   {
     lui_tree::prof_scope!(&tree.profiler, "layout");
-    layout = lui_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree));
+    layout = lui_layout::layout_with_text_locale_date(
+      &cascaded,
+      text_ctx,
+      image_cache,
+      viewport_w,
+      viewport_h,
+      scale,
+      tree.locale.as_ref(),
+      tree.interaction.date_display_value.clone(),
+      focused_input_value(tree),
+    );
   }
   let layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -172,8 +182,13 @@ pub fn paint_tree_returning_layout_profiled(
       let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
         let fp = tree.interaction.focus_path.as_deref()?;
         let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
-        let sel = date_segment_selection(tree, ec)
-          .or_else(|| if ec.has_selection() { Some(ec.selection_range()) } else { None });
+        let sel = date_segment_selection(tree, ec).or_else(|| {
+          if ec.has_selection() {
+            Some(ec.selection_range())
+          } else {
+            None
+          }
+        });
         Some(paint::EditCaretInfo {
           focus_path: fp,
           cursor_byte: ec.cursor,
@@ -304,9 +319,7 @@ pub fn classify_frame(
   {
     return PipelineAction::FullPipeline;
   }
-  if tree.generation == cache.tree_generation
-    && tree.form_control_generation != cache.form_control_generation
-  {
+  if tree.generation == cache.tree_generation && tree.form_control_generation != cache.form_control_generation {
     return PipelineAction::PatchFormControls;
   }
   if tree.generation != cache.tree_generation {
@@ -369,7 +382,17 @@ pub fn paint_tree_cached<'c>(
       let layout;
       {
         lui_tree::prof_scope!(&tree.profiler, "layout");
-        layout = lui_layout::layout_with_text_locale_date(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree));
+        layout = lui_layout::layout_with_text_locale_date(
+          &cascaded,
+          text_ctx,
+          image_cache,
+          viewport_w,
+          viewport_h,
+          scale,
+          tree.locale.as_ref(),
+          tree.interaction.date_display_value.clone(),
+          focused_input_value(tree),
+        );
       }
       timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
 
@@ -418,8 +441,15 @@ pub fn paint_tree_cached<'c>(
           {
             lui_tree::prof_scope!(&tree.profiler, "layout");
             if let Some(cascaded) = &cache.cascaded {
-              cache.layout =
-                lui_layout::layout_with_text_locale(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
+              cache.layout = lui_layout::layout_with_text_locale(
+                cascaded,
+                text_ctx,
+                image_cache,
+                viewport_w,
+                viewport_h,
+                scale,
+                tree.locale.as_ref(),
+              );
             }
           }
           timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
@@ -449,8 +479,17 @@ pub fn paint_tree_cached<'c>(
         let did_incremental = if !dirty.is_empty() {
           if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
             lui_layout::layout_incremental(
-              cascaded, layout, &dirty, text_ctx, image_cache, viewport_w, viewport_h, scale,
-              tree.locale.as_ref(), tree.interaction.date_display_value.clone(), focused_input_value(tree),
+              cascaded,
+              layout,
+              &dirty,
+              text_ctx,
+              image_cache,
+              viewport_w,
+              viewport_h,
+              scale,
+              tree.locale.as_ref(),
+              tree.interaction.date_display_value.clone(),
+              focused_input_value(tree),
             );
             true
           } else {
@@ -466,8 +505,15 @@ pub fn paint_tree_cached<'c>(
           cache.cascaded = Some(cascaded);
           timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
           if let Some(cascaded) = &cache.cascaded {
-            cache.layout =
-              lui_layout::layout_with_text_locale(cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale, tree.locale.as_ref());
+            cache.layout = lui_layout::layout_with_text_locale(
+              cascaded,
+              text_ctx,
+              image_cache,
+              viewport_w,
+              viewport_h,
+              scale,
+              tree.locale.as_ref(),
+            );
           }
         }
       }
@@ -497,8 +543,13 @@ pub fn paint_tree_cached<'c>(
       let edit_caret_info = tree.interaction.edit_cursor.as_ref().and_then(|ec| {
         let fp = tree.interaction.focus_path.as_deref()?;
         let elapsed_ms = tree.interaction.caret_blink_epoch.elapsed().as_millis();
-        let sel = date_segment_selection(tree, ec)
-          .or_else(|| if ec.has_selection() { Some(ec.selection_range()) } else { None });
+        let sel = date_segment_selection(tree, ec).or_else(|| {
+          if ec.has_selection() {
+            Some(ec.selection_range())
+          } else {
+            None
+          }
+        });
         Some(paint::EditCaretInfo {
           focus_path: fp,
           cursor_byte: ec.cursor,
@@ -536,14 +587,15 @@ fn focused_input_value(tree: &Tree) -> Option<String> {
   }
 }
 
-fn date_segment_selection(
-  tree: &Tree,
-  ec: &lui_tree::EditCursor,
-) -> Option<(usize, usize)> {
+fn date_segment_selection(tree: &Tree, ec: &lui_tree::EditCursor) -> Option<(usize, usize)> {
   tree.interaction.date_display_value.as_ref()?;
   let pattern = lui_tree::date::focused_date_pattern_from_tree(tree);
   let segs = lui_tree::date::parse_pattern_segments(&pattern);
-  let pos = if ec.has_selection() { ec.selection_range().0 } else { ec.cursor };
+  let pos = if ec.has_selection() {
+    ec.selection_range().0
+  } else {
+    ec.cursor
+  };
   let (start, end) = lui_tree::date::select_segment_near(&segs, pos);
   if start < end { Some((start, end)) } else { None }
 }
@@ -611,11 +663,7 @@ pub fn update_edit_scroll(tree: &mut Tree, layout: &layout::LayoutBox) {
 
 /// Patch the Element data at `path` in the cached CascadedTree from
 /// the live Tree, so layout sees fresh values without a full re-cascade.
-fn patch_cascaded_element(
-  cascaded: &mut lui_style::CascadedNode,
-  tree_node: &lui_tree::Node,
-  path: &[usize],
-) {
+fn patch_cascaded_element(cascaded: &mut lui_style::CascadedNode, tree_node: &lui_tree::Node, path: &[usize]) {
   if path.is_empty() {
     cascaded.element = tree_node.element.clone();
     return;

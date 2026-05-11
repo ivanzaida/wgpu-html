@@ -1,8 +1,14 @@
-use super::lucide_icon::lucide;
-use super::theme::Theme;
-use lui_models::common::{AlignItems, BoxSizing, Display, UserSelect};
-use lui_models::ArcStr;
-use lui_ui::{el::{self, div}, style::{self, pct, px, Stylesheet}, Component, Ctx, El, InputAttrs, MsgSender, Observable, ShouldRender, Subscriptions};
+use lui_models::{
+  ArcStr,
+  common::{AlignItems, BoxSizing, Display, UserSelect},
+};
+use lui_ui::{
+  Component, Ctx, El, InputAttrs, MsgSender, Observable, ShouldRender, Subscriptions,
+  el::{self, div},
+  style::{self, Stylesheet, pct, px},
+};
+
+use super::{lucide_icon::lucide, theme::Theme};
 
 #[derive(Clone)]
 pub struct ToolbarProps;
@@ -27,7 +33,6 @@ impl Component for Toolbar {
   fn update(&mut self, msg: ToolbarMsg, _props: &ToolbarProps) -> ShouldRender {
     match msg {}
   }
-
 
   fn view(&self, _props: &ToolbarProps, ctx: &Ctx<ToolbarMsg>) -> El {
     div().class(ctx.scoped("bar")).children([
@@ -106,6 +111,7 @@ impl Component for Toolbar {
         .font_size(px(11))
         .prop("outline", "none")
         .padding(px(0)),
-    ]).scoped("toolbar")
+    ])
+    .scoped("toolbar")
   }
 }

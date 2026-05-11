@@ -3,8 +3,8 @@
 use std::{
   process::ExitCode,
   sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
   },
   time::{Duration, Instant},
 };
