@@ -1,4 +1,5 @@
 use crate::css_function::CssFunction;
+use crate::unit::CssUnit;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CssValue {
@@ -6,13 +7,14 @@ pub enum CssValue {
     Percentage(f64),
     Dimension {
         value: f64,
-        unit: String,
+        unit: CssUnit,
     },
     String(String),
     Function {
         function: CssFunction,
         args: Vec<CssValue>,
     },
+    Unknown(String),
 }
 
 impl CssValue {
