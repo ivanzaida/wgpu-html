@@ -1,0 +1,1164 @@
+[
+  {
+    "name": "-webkit-image-set()",
+    "prose": "Implementations must accept -webkit-image-set() as a parse-time alias of image-set(). (It’s a valid value, with identical arguments to image-set(), and is turned into image-set() during parsing.)",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef--webkit-image-set",
+    "extended": []
+  },
+  {
+    "name": "abs()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-abs",
+    "syntax": "abs( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "acos()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-acos",
+    "syntax": "acos( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "alpha()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-alpha",
+    "syntax": "alpha([from <color>] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "anchor-size()",
+    "prose": "An absolutely positioned box can use the anchor-size() function in its sizing properties to refer to the size of one or more anchor boxes. The anchor-size() function resolves to a <length>. It is only allowed in the accepted @position-try properties (and is otherwise invalid).",
+    "href": "https://drafts.csswg.org/css-anchor-position-1/#funcdef-anchor-size",
+    "syntax": "anchor-size( [ <anchor-name> || <anchor-size> ]? , <length-percentage>? )",
+    "extended": []
+  },
+  {
+    "name": "anchor()",
+    "prose": "An absolutely positioned box can use the anchor() function as a value in its inset properties to refer to the position of one or more anchor boxes. The anchor() function resolves to a <length>. It is only allowed in the inset properties (and is otherwise invalid).",
+    "href": "https://drafts.csswg.org/css-anchor-position-1/#funcdef-anchor",
+    "syntax": "anchor( <anchor-name>? && <anchor-side>, <length-percentage>? )",
+    "extended": []
+  },
+  {
+    "name": "asin()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-asin",
+    "syntax": "asin( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "atan()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-atan",
+    "syntax": "atan( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "atan2()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-atan2",
+    "syntax": "atan2( <calc-sum>, <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "attr()",
+    "prose": "The attr() function substitutes the value of an attribute on an element into a property, similar to how the var() function substitutes a custom property value into a function.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-attr",
+    "syntax": "attr( <attr-name> <attr-type>? , <declaration-value>?)",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "blur()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-blur",
+    "syntax": "blur( <length>? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "brightness()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-brightness",
+    "syntax": "brightness( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "name": "calc-interpolate()",
+    "prose": "The calc-interpolate() interpolation notation represents an interpolated numeric or dimensional value. Like calc(), it is a math function, with the following syntax:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-calc-interpolate",
+    "syntax": "calc-interpolate( [ <progress-source> && [ by <easing-function> ]? && <easing-function>? ] , <input-position>{1,2} : <calc-sum> , [ <easing-function>? , <input-position>{1,2} : <calc-sum> ]#? )",
+    "extended": []
+  },
+  {
+    "name": "calc-mix()",
+    "prose": "The calc-mix() mix notation represents a weighted average of numeric or dimensional value. Like calc(), it is a math function, with the following syntactic form:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-calc-mix",
+    "syntax": "calc-mix( [ <calc-sum> <percentage [0,100]>? ]# )",
+    "extended": []
+  },
+  {
+    "name": "calc-size()",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-calc-size",
+    "syntax": "calc-size( <calc-size-basis>, <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "calc()",
+    "prose": "The calc() function is a math function that allows basic arithmetic to be performed on numerical values, using addition (+), subtraction (-), multiplication (*), division (/), and parentheses.",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-calc",
+    "syntax": "calc( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "circle()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-circle",
+    "syntax": "circle( <radial-size>? [ at <position> ]? )",
+    "extended": []
+  },
+  {
+    "name": "clamp()",
+    "prose": "The clamp() function takes three calculations—​a minimum value, a central value, and a maximum value—​and represents its central calculation, clamped according to its min and max calculations, favoring the min calculation if it conflicts with the max. (That is, given clamp(MIN, VAL, MAX), it represents exactly the same value as max(MIN, min(VAL, MAX))).",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-clamp",
+    "syntax": "clamp( [ <calc-sum> | none ], <calc-sum>, [ <calc-sum> | none ] )",
+    "extended": []
+  },
+  {
+    "name": "color-interpolate()",
+    "prose": "The color-interpolate() interpolation notation represents an interpolated <color> value, with the following syntax:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-color-interpolate",
+    "syntax": "color-interpolate( [ <progress-source> && [ by <easing-function> ]? && <easing-function>? && <color-interpolation-method>? ] , <input-position>{1,2} : <color>, [ [ <easing-function> || <color-interpolation-method> ]?, <input-position>{1,2} : <color> ]#? )",
+    "extended": []
+  },
+  {
+    "name": "color-layers()",
+    "prose": "The color-layers() functional notation takes an optional <blend-mode> followed by a list of two or more <color> layers.",
+    "href": "https://drafts.csswg.org/css-color-6/#funcdef-color-layers",
+    "syntax": "color-layers([ <blend-mode>, ]? <color># )",
+    "extended": []
+  },
+  {
+    "name": "color-mix()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-color-mix",
+    "syntax": "color-mix( <color-interpolation-method>? , [ <color> && <percentage [0,100]>? ]#)",
+    "extended": []
+  },
+  {
+    "name": "color()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-color",
+    "syntax": "color( [from <color>]? <colorspace-params> [ / [ <alpha-value> | none ] ]? )",
+    "extended": []
+  },
+  {
+    "name": "conic-gradient()",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-conic-gradient",
+    "syntax": "conic-gradient( [ <conic-gradient-syntax> ] )",
+    "extended": []
+  },
+  {
+    "name": "content()",
+    "href": "https://drafts.csswg.org/css-content-3/#funcdef-content",
+    "syntax": "content( [ text | before | after | first-letter | marker ]? )",
+    "extended": []
+  },
+  {
+    "name": "contrast-color()",
+    "prose": "The contrast-color() functional notation identifies a sufficiently contrasting color against a specified background or foreground color without requiring manual computation.",
+    "href": "https://drafts.csswg.org/css-color-6/#funcdef-contrast-color",
+    "syntax": "contrast-color( [ [ <color> && [ tbd-fg | tbd-bg ] && <target-contrast>? ] | [ <color> && [ tbd-fg | tbd-bg ] && <target-contrast>, <color># ] ] )",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "contrast()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-contrast",
+    "syntax": "contrast( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "name": "control-value()",
+    "prose": "The control-value() function computes to the current value of the form control it is on. If it is used on an element that is not a form control, it returns an empty string.",
+    "href": "https://drafts.csswg.org/css-forms-1/#funcdef-control-value",
+    "syntax": "control-value( <type>? )",
+    "extended": []
+  },
+  {
+    "name": "cos()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-cos",
+    "syntax": "cos( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "counter()",
+    "prose": "Counters have no visible effect by themselves, but their values can be used with the counter() and counters() functions, whose used values represent counter values as strings or images. They are defined as follows:",
+    "href": "https://drafts.csswg.org/css-lists-3/#funcdef-counter",
+    "syntax": "counter( <counter-name>, <counter-style>? )",
+    "extended": []
+  },
+  {
+    "name": "counters()",
+    "prose": "Counters have no visible effect by themselves, but their values can be used with the counter() and counters() functions, whose used values represent counter values as strings or images. They are defined as follows:",
+    "href": "https://drafts.csswg.org/css-lists-3/#funcdef-counters",
+    "syntax": "counters( <counter-name>, <string>, <counter-style>? )",
+    "extended": []
+  },
+  {
+    "name": "cross-fade()",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-cross-fade",
+    "syntax": "cross-fade( <cf-image># )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<request-url-modifier>"
+    ],
+    "name": "cross-origin()",
+    "prose": "<cross-origin-modifier> = cross-origin(anonymous | use-credentials)",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-request-url-modifier-cross-origin",
+    "extended": []
+  },
+  {
+    "name": "cubic-bezier()",
+    "href": "https://drafts.csswg.org/css-easing-2/#funcdef-cubic-bezier",
+    "syntax": "cubic-bezier( [ <number [0,1]>, <number> ]#{2} )",
+    "extended": []
+  },
+  {
+    "name": "device-cmyk()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-device-cmyk",
+    "syntax": "<legacy-device-cmyk-syntax> | <modern-device-cmyk-syntax>",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "drop-shadow()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-drop-shadow",
+    "syntax": "drop-shadow( [ <color>? && <length>{2,3} ] )",
+    "extended": []
+  },
+  {
+    "name": "dynamic-range-limit-mix()",
+    "href": "https://drafts.csswg.org/css-color-hdr-1/#funcdef-dynamic-range-limit-mix",
+    "syntax": "dynamic-range-limit-mix( [ <'dynamic-range-limit'> && <percentage [0,100]> ]#{2,} )",
+    "extended": []
+  },
+  {
+    "name": "element()",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-element",
+    "syntax": "element( <id-selector> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "ellipse()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-ellipse",
+    "syntax": "ellipse( <radial-size>? [ at <position> ]? )",
+    "extended": []
+  },
+  {
+    "name": "env()",
+    "href": "https://drafts.csswg.org/css-env-1/#funcdef-env",
+    "syntax": "env( <custom-ident> <integer [0,∞]>*, <declaration-value>? )",
+    "extended": []
+  },
+  {
+    "name": "exp()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-exp",
+    "syntax": "exp( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "text-overflow"
+    ],
+    "name": "fade()",
+    "href": "https://drafts.csswg.org/css-overflow-4/#funcdef-text-overflow-fade",
+    "syntax": "fade( [ <length-percentage> ] )",
+    "extended": []
+  },
+  {
+    "name": "filter()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter",
+    "syntax": "filter( [ <image> | <string> ], <filter-value-list> )",
+    "extended": []
+  },
+  {
+    "name": "first-valid()",
+    "prose": "The first-valid() functional notation inlines the fallback behavior intrinsic to parsing declarations. Unlike most notations, it can accept any valid or invalid syntax in its arguments, and represents the first value among its arguments that is supported (parsed as valid) by the UA as the whole value of the property it’s used in.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-first-valid",
+    "syntax": "first-valid( <declaration-value># )",
+    "extended": []
+  },
+  {
+    "for": [
+      "grid-template-columns",
+      "grid-template-rows"
+    ],
+    "name": "fit-content()",
+    "href": "https://drafts.csswg.org/css-grid-2/#funcdef-grid-template-columns-fit-content",
+    "syntax": "fit-content( <length-percentage> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "height",
+      "max-height",
+      "max-width",
+      "min-height",
+      "min-width",
+      "width"
+    ],
+    "name": "fit-content()",
+    "href": "https://drafts.csswg.org/css-sizing-3/#funcdef-width-fit-content",
+    "syntax": "fit-content(<length-percentage [0,∞]>)",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "grayscale()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-grayscale",
+    "syntax": "grayscale( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "name": "hdr-color()",
+    "href": "https://drafts.csswg.org/css-color-hdr-1/#funcdef-hdr-color",
+    "syntax": "color-hdr([ <color> && <number [0,∞]>? ]#{2})",
+    "extended": []
+  },
+  {
+    "name": "hsl()",
+    "href": "https://drafts.csswg.org/css-color-4/#funcdef-hsl",
+    "syntax": "[ <legacy-hsl-syntax> | <modern-hsl-syntax> ]",
+    "extended": []
+  },
+  {
+    "name": "hsla()",
+    "href": "https://drafts.csswg.org/css-color-4/#funcdef-hsla",
+    "syntax": "[ <legacy-hsla-syntax> | <modern-hsla-syntax> ]",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "hue-rotate()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-hue-rotate",
+    "syntax": "hue-rotate( [ <angle> | <zero> ]? )",
+    "extended": []
+  },
+  {
+    "name": "hwb()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-hwb",
+    "syntax": "hwb([from <color>]? [<hue> | none] [<percentage> | <number> | none] [<percentage> | <number> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "hypot()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-hypot",
+    "syntax": "hypot( <calc-sum># )",
+    "extended": []
+  },
+  {
+    "name": "ictcp()",
+    "href": "https://drafts.csswg.org/css-color-hdr-1/#funcdef-ictcp",
+    "syntax": "ictcp([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<percentage> | <number> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "ident()",
+    "prose": "The ident() function represents an <ident>, and can be used to manually construct <custom-ident> values from several parts.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-ident",
+    "syntax": "ident( <ident-arg>+ )",
+    "extended": []
+  },
+  {
+    "name": "if()",
+    "prose": "The if() function is an arbitrary substitution function that represents conditional values. Its argument consists of an ordered semi-colon–separated list of statements, each consisting of a condition followed by a colon followed by a value. An if() function represents the value corresponding to the first condition in its argument list to be true; if no condition matches, then the if() function represents an empty token stream.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-if",
+    "syntax": "if( [ <if-branch> ; ]* <if-branch> ;? )",
+    "extended": []
+  },
+  {
+    "name": "image-set()",
+    "prose": "Delivering the most appropriate image resolution for a user’s device can be a difficult task. Ideally, images should be in the same resolution as the device they’re being viewed in, which can vary between users. However, other factors can factor into the decision of which image to send; for example, if the user is on a slow mobile connection, they may prefer to receive lower-res images rather than waiting for a large proper-res image to load. The image-set() function allows an author to ignore most of these issues, simply providing multiple resolutions of an image and letting the UA decide which is most appropriate in a given situation.",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-image-set",
+    "syntax": "image-set( <image-set-option># )",
+    "extended": []
+  },
+  {
+    "name": "image()",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-image",
+    "syntax": "image( <image-tags>? [ <image-src>? , <color>? ]! )",
+    "extended": []
+  },
+  {
+    "name": "inherit()",
+    "prose": "Like the inherit keyword, the inherit() functional notation resolves to the computed value of a property on the parent. Rather than resolving to the value of the same property, however, it resolves to a sequence of component values representing the computed value of the property specified as its first argument. Its second argument, if present, is used as a fallback in case the first argument resolves to the guaranteed-invalid value.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-inherit",
+    "syntax": "inherit( <custom-property-name>, <declaration-value>? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "inset()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-inset",
+    "syntax": "inset( <length-percentage>{1,4} [ round <'border-radius'> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<request-url-modifier>"
+    ],
+    "name": "integrity()",
+    "prose": "<integrity-modifier> = integrity(<string>)",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-request-url-modifier-integrity",
+    "extended": []
+  },
+  {
+    "name": "interpolate()",
+    "prose": "The interpolate() interpolation notation represents the interpolation of entire property values, which supports two alternative syntax patterns:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-interpolate",
+    "syntax": "interpolate( [ <progress-source> && [ by <easing-function> ]? && <easing-function>? ] , <input-position>{1,2} : <whole-value>, [ <easing-function>?, <input-position>{1,2} : <whole-value> ]#? ) | interpolate( <progress-source> && [ by <easing-function> ]? && <easing-function>? of <keyframes-name> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "invert()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-invert",
+    "syntax": "invert( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "name": "jzazbz()",
+    "href": "https://drafts.csswg.org/css-color-hdr-1/#funcdef-jzazbz",
+    "syntax": "jzazbz([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<percentage> | <number> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "jzczhz()",
+    "href": "https://drafts.csswg.org/css-color-hdr-1/#funcdef-jzczhz",
+    "syntax": "jzczhz([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<hue> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "lab()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-lab",
+    "syntax": "lab([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<percentage> | <number> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "lch()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-lch",
+    "syntax": "lch([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<hue> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "leader()",
+    "href": "https://drafts.csswg.org/css-content-3/#funcdef-leader",
+    "syntax": "leader( <leader-type> )",
+    "extended": []
+  },
+  {
+    "name": "light-dark()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-light-dark",
+    "syntax": "<light-dark-color> | <light-dark-image>",
+    "extended": []
+  },
+  {
+    "name": "linear-gradient()",
+    "prose": "The linear-gradient() notation specifies a linear gradient in CSS. Its syntax is as follows:",
+    "href": "https://drafts.csswg.org/css-images-3/#funcdef-linear-gradient",
+    "syntax": "linear-gradient( [ <linear-gradient-syntax> ] )",
+    "extended": []
+  },
+  {
+    "name": "linear()",
+    "href": "https://drafts.csswg.org/css-easing-2/#funcdef-linear",
+    "syntax": "linear( [ <number> && <percentage>{0,2} ]# )",
+    "extended": []
+  },
+  {
+    "name": "log()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-log",
+    "syntax": "log( <calc-sum>, <calc-sum>? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "matrix()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-matrix",
+    "syntax": "matrix( <number>#{6} )",
+    "extended": []
+  },
+  {
+    "name": "matrix3d()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-matrix3d",
+    "syntax": "matrix3d( <number>#{16} )",
+    "extended": []
+  },
+  {
+    "name": "max()",
+    "prose": "The min() or max() functions contain one or more comma-separated calculations, and represent the smallest (most negative) or largest (most positive) of them, respectively.",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-max",
+    "syntax": "max( <calc-sum># )",
+    "extended": []
+  },
+  {
+    "name": "media()",
+    "href": "https://drafts.csswg.org/css-conditional-5/#funcdef-media",
+    "syntax": "media( [ <mf-plain> | <mf-boolean> | <mf-range> ] )",
+    "extended": []
+  },
+  {
+    "name": "min()",
+    "prose": "The min() or max() functions contain one or more comma-separated calculations, and represent the smallest (most negative) or largest (most positive) of them, respectively.",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-min",
+    "syntax": "min( <calc-sum># )",
+    "extended": []
+  },
+  {
+    "for": [
+      "grid-template-columns",
+      "grid-template-rows"
+    ],
+    "name": "minmax()",
+    "href": "https://drafts.csswg.org/css-grid-2/#funcdef-grid-template-columns-minmax",
+    "syntax": "minmax(min, max)",
+    "extended": []
+  },
+  {
+    "name": "mod()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-mod",
+    "syntax": "mod( <calc-sum>, <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "oklab()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-oklab",
+    "syntax": "oklab([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<percentage> | <number> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "name": "oklch()",
+    "href": "https://drafts.csswg.org/css-color-5/#funcdef-oklch",
+    "syntax": "oklch([from <color>]? [<percentage> | <number> | none] [<percentage> | <number> | none] [<hue> | none] [ / [<alpha-value> | none] ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "opacity()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-opacity",
+    "syntax": "opacity( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "name": "paint()",
+    "href": "https://drafts.css-houdini.org/css-paint-api-1/#funcdef-paint",
+    "syntax": "paint( <ident>, <declaration-value>? )",
+    "extended": []
+  },
+  {
+    "name": "palette-mix()",
+    "prose": "With the palette-mix() function defined as follows:",
+    "href": "https://drafts.csswg.org/css-fonts-4/#funcdef-palette-mix",
+    "syntax": "palette-mix(<color-interpolation-method> , [ [normal | light | dark | <palette-identifier> | <palette-mix()> ] && <percentage [0,100]>? ]#{2})",
+    "extended": []
+  },
+  {
+    "name": "param()",
+    "prose": "The param() function specifies a link parameter, with a key of the <dashed-ident>, and a value of the <declaration-value>?. (If the <declaration-value> is omitted, it represents an empty value.) It has the syntax:",
+    "href": "https://drafts.csswg.org/css-link-params-1/#funcdef-param",
+    "syntax": "param( <dashed-ident> , <declaration-value>? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "path()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-path",
+    "syntax": "path( <'fill-rule'>? , <string> )",
+    "extended": []
+  },
+  {
+    "name": "perspective()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-perspective",
+    "syntax": "perspective( [ <length [0,∞]> | none ] )",
+    "extended": []
+  },
+  {
+    "name": "pointer()",
+    "prose": "The pointer() functional notation can be used as a <single-animation-timeline> value in animation-timeline and specifies a pointer progress timeline. Its syntax is",
+    "href": "https://drafts.csswg.org/pointer-animations-1/#funcdef-pointer",
+    "syntax": "pointer( [ <pointer-source> || <pointer-axis> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "polygon()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-polygon",
+    "syntax": "polygon( <'fill-rule'>? [ round <length> ]? , [<length-percentage> <length-percentage>]# )",
+    "extended": []
+  },
+  {
+    "name": "pow()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-pow",
+    "syntax": "pow( <calc-sum>, <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "progress()",
+    "prose": "The progress() functional notation represents the proportional distance of a given value (the progress value) from one value (the progress start value) to another value (the progress end value), each represented as a calculation. It is a math function, and can be input into other calculations such as a math function or a mix notation.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-progress",
+    "syntax": "progress(<calc-sum>, <calc-sum>, <calc-sum>)",
+    "extended": []
+  },
+  {
+    "name": "radial-gradient()",
+    "prose": "The radial-gradient() notation specifies a radial gradient by indicating the center of the gradient (where the 0% ellipse will be) and the size and shape of the ending shape (the 100% ellipse). Color stops are given as a list, just as for linear-gradient(). Starting from the gradient center and progressing towards (and potentially beyond) the ending shape, uniformly-scaled concentric ellipses are drawn and colored according to the specified color stops.",
+    "href": "https://drafts.csswg.org/css-images-3/#funcdef-radial-gradient",
+    "syntax": "radial-gradient( [ <radial-gradient-syntax> ] )",
+    "extended": []
+  },
+  {
+    "name": "random-item()",
+    "prose": "The random-item() function resolves to a random item from among its list of items.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-random-item",
+    "syntax": "random-item( <random-key> , [ <declaration-value>? ]# )",
+    "extended": []
+  },
+  {
+    "name": "random()",
+    "prose": "The random() function is a math function that represents a random value between a minimum and maximum value, drawn from a uniform distribution, optionally limiting the possible values to a step between those limits:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-random",
+    "syntax": "random( <random-key>? , <calc-sum>, <calc-sum>, <calc-sum>? )",
+    "extended": []
+  },
+  {
+    "name": "ray()",
+    "href": "https://drafts.csswg.org/motion-1/#funcdef-ray",
+    "syntax": "ray( <angle> && <ray-size>? && contain? && [at <position>]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "rect()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-rect",
+    "syntax": "rect( [ <length-percentage> | auto ]{4} [ round <'border-radius'> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "clip"
+    ],
+    "name": "rect()",
+    "href": "https://drafts.csswg.org/css-masking-1/#funcdef-clip-rect",
+    "syntax": "rect( <top>, <right>, <bottom>, <left> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<request-url-modifier>"
+    ],
+    "name": "referrer-policy()",
+    "prose": "<referrer-policy-modifier> = referrer-policy(no-referrer | no-referrer-when-downgrade | same-origin | origin | strict-origin | origin-when-cross-origin | strict-origin-when-cross-origin | unsafe-url)",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-request-url-modifier-referrer-policy",
+    "extended": []
+  },
+  {
+    "name": "rem()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-rem",
+    "syntax": "rem( <calc-sum>, <calc-sum> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<auto-repeat-line-color>",
+      "<auto-repeat-line-style>",
+      "<auto-repeat-line-width>",
+      "<repeat-line-color>",
+      "<repeat-line-style>",
+      "<repeat-line-width>"
+    ],
+    "name": "repeat()",
+    "prose": "Such a list may contain repeat() notations. Similar to CSS Grid Layout 1 § 7.2.3 Repeating Rows and Columns: the repeat() notation, these notations allow a series of gap decorations that exhibit a recurring pattern to be written in a more compact form.",
+    "href": "https://drafts.csswg.org/css-gaps-1/#funcdef-repeat-line-color-repeat",
+    "extended": []
+  },
+  {
+    "for": [
+      "<auto-repeat>",
+      "<fixed-repeat>",
+      "<track-repeat>"
+    ],
+    "name": "repeat()",
+    "prose": "The repeat() notation represents a repeated fragment of the track list, allowing a large number of columns or rows that exhibit a recurring pattern to be written in a more compact form.",
+    "href": "https://drafts.csswg.org/css-grid-2/#funcdef-track-repeat-repeat",
+    "extended": []
+  },
+  {
+    "name": "repeating-conic-gradient()",
+    "prose": "In addition to linear-gradient(), radial-gradient(), and conic-gradient(), this specification defines repeating-linear-gradient(), repeating-radial-gradient(), and repeating-conic-gradient() values. These notations take the same values and are interpreted the same as their respective non-repeating siblings defined previously.",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-repeating-conic-gradient",
+    "syntax": "repeating-conic-gradient( [ <conic-gradient-syntax> ] )",
+    "extended": []
+  },
+  {
+    "name": "repeating-linear-gradient()",
+    "prose": "In addition to linear-gradient(), radial-gradient(), and conic-gradient(), this specification defines repeating-linear-gradient(), repeating-radial-gradient(), and repeating-conic-gradient() values. These notations take the same values and are interpreted the same as their respective non-repeating siblings defined previously.",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-repeating-linear-gradient",
+    "syntax": "repeating-linear-gradient( [ <linear-gradient-syntax> ] )",
+    "extended": []
+  },
+  {
+    "name": "repeating-radial-gradient()",
+    "prose": "In addition to linear-gradient(), radial-gradient(), and conic-gradient(), this specification defines repeating-linear-gradient(), repeating-radial-gradient(), and repeating-conic-gradient() values. These notations take the same values and are interpreted the same as their respective non-repeating siblings defined previously.",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-repeating-radial-gradient",
+    "syntax": "repeating-radial-gradient( [ <radial-gradient-syntax> ] )",
+    "extended": []
+  },
+  {
+    "name": "rgb()",
+    "href": "https://drafts.csswg.org/css-color-4/#funcdef-rgb",
+    "syntax": "[ <legacy-rgb-syntax> | <modern-rgb-syntax> ]",
+    "extended": []
+  },
+  {
+    "name": "rgba()",
+    "href": "https://drafts.csswg.org/css-color-4/#funcdef-rgba",
+    "syntax": "[ <legacy-rgba-syntax> | <modern-rgba-syntax> ]",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "rotate()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-rotate",
+    "syntax": "rotate( [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "name": "rotate3d()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-rotate3d",
+    "syntax": "rotate3d( <number> , <number> , <number> , [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "name": "rotateX()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-rotatex",
+    "syntax": "rotateX( [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "name": "rotateY()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-rotatey",
+    "syntax": "rotateY( [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "name": "rotateZ()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-rotatez",
+    "syntax": "rotateZ( [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "name": "round()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-round",
+    "syntax": "round( <rounding-strategy>?, <calc-sum>, <calc-sum>? )",
+    "extended": []
+  },
+  {
+    "name": "running()",
+    "href": "https://drafts.csswg.org/css-gcpm-3/#funcdef-running",
+    "syntax": "running( <custom-ident> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "saturate()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-saturate",
+    "syntax": "saturate( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "name": "scale()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-scale",
+    "syntax": "scale( [ <number> | <percentage> ]#{1,2} )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "scale()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-scale",
+    "syntax": "scale( <number> , <number>? )",
+    "extended": []
+  },
+  {
+    "name": "scale3d()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-scale3d",
+    "syntax": "scale3d( [ <number> | <percentage> ]#{3} )",
+    "extended": []
+  },
+  {
+    "name": "scaleX()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-scalex",
+    "syntax": "scaleX( [ <number> | <percentage> ] )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "scaleX()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-scalex",
+    "syntax": "scaleX( <number> )",
+    "extended": []
+  },
+  {
+    "name": "scaleY()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-scaley",
+    "syntax": "scaleY( [ <number> | <percentage> ] )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "scaleY()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-scaley",
+    "syntax": "scaleY( <number> )",
+    "extended": []
+  },
+  {
+    "name": "scaleZ()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-scalez",
+    "syntax": "scaleZ( [ <number> | <percentage> ] )",
+    "extended": []
+  },
+  {
+    "name": "scroll()",
+    "prose": "The scroll() functional notation can be used as a <single-animation-timeline> value in animation-timeline and specifies a scroll progress timeline. Its syntax is",
+    "href": "https://drafts.csswg.org/scroll-animations-1/#funcdef-scroll",
+    "syntax": "scroll( [ <scroller> || <axis> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "filter"
+    ],
+    "name": "sepia()",
+    "href": "https://drafts.csswg.org/filter-effects-1/#funcdef-filter-sepia",
+    "syntax": "sepia( [ <number> | <percentage> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "shape()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-shape",
+    "syntax": "shape( <'fill-rule'>? from <position> , <shape-command># )",
+    "extended": []
+  },
+  {
+    "name": "sibling-count()",
+    "prose": "The sibling-count() functional notation represents, as an <integer>, the total number of child elements in the parent of the element on which the notation is used.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-sibling-count",
+    "extended": []
+  },
+  {
+    "name": "sibling-index()",
+    "prose": "The sibling-index() functional notation represents, as an <integer>, the index of the element on which the notation is used among its inclusive siblings. Like :nth-child(), sibling-index() is 1-indexed.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-sibling-index",
+    "extended": []
+  },
+  {
+    "name": "sign()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-sign",
+    "syntax": "sign( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "sin()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-sin",
+    "syntax": "sin( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "skew()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-skew",
+    "syntax": "skew( [ <angle> | <zero> ] , [ <angle> | <zero> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "skewX()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-skewx",
+    "syntax": "skewX( [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "skewY()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-skewy",
+    "syntax": "skewY( [ <angle> | <zero> ] )",
+    "extended": []
+  },
+  {
+    "for": [
+      "float"
+    ],
+    "name": "snap-block()",
+    "href": "https://drafts.csswg.org/css-page-floats-3/#funcdef-float-snap-block",
+    "syntax": "snap-block( <length> , [ start | end | near ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "float"
+    ],
+    "name": "snap-inline()",
+    "href": "https://drafts.csswg.org/css-page-floats-3/#funcdef-float-snap-inline",
+    "syntax": "snap-inline( <length> , [ left | right | near ]? )",
+    "extended": []
+  },
+  {
+    "name": "sqrt()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-sqrt",
+    "syntax": "sqrt( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "src()",
+    "prose": "The <url> type, written with the url() and src() functions, represents a URL, which is a pointer to a resource.",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-src",
+    "syntax": "src( <string> <url-modifier>* )",
+    "extended": []
+  },
+  {
+    "name": "steps()",
+    "href": "https://drafts.csswg.org/css-easing-2/#funcdef-steps",
+    "syntax": "steps( <integer>, <step-position>?)",
+    "extended": []
+  },
+  {
+    "name": "string()",
+    "href": "https://drafts.csswg.org/css-content-3/#funcdef-string",
+    "syntax": "string( <custom-ident> , [ first | start | last | first-except ]? )",
+    "extended": []
+  },
+  {
+    "name": "stripes()",
+    "prose": "The stripes() function defines a 1D image as a comma-separated list of colored stripes, each placed end-to-end on the paint line in the order given.",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-stripes",
+    "syntax": "stripes( <color-stripe># )",
+    "extended": []
+  },
+  {
+    "name": "superellipse()",
+    "href": "https://drafts.csswg.org/css-borders-4/#funcdef-superellipse",
+    "syntax": "superellipse(<number> | infinity | -infinity)",
+    "extended": []
+  },
+  {
+    "name": "supports()",
+    "href": "https://drafts.csswg.org/css-conditional-5/#funcdef-supports",
+    "syntax": "supports( <declaration> )",
+    "extended": []
+  },
+  {
+    "name": "symbols()",
+    "href": "https://drafts.csswg.org/css-counter-styles-3/#funcdef-symbols",
+    "syntax": "symbols( <symbols-type>? [ <string> | <image> ]+ )",
+    "extended": []
+  },
+  {
+    "name": "tan()",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-tan",
+    "syntax": "tan( <calc-sum> )",
+    "extended": []
+  },
+  {
+    "name": "target-counter()",
+    "href": "https://drafts.csswg.org/css-content-3/#funcdef-target-counter",
+    "syntax": "target-counter( [ <string> | <url> ] , <custom-ident> , <counter-style>? )",
+    "extended": []
+  },
+  {
+    "name": "target-counters()",
+    "href": "https://drafts.csswg.org/css-content-3/#funcdef-target-counters",
+    "syntax": "target-counters( [ <string> | <url> ] , <custom-ident> , <string> , <counter-style>? )",
+    "extended": []
+  },
+  {
+    "name": "target-text()",
+    "href": "https://drafts.csswg.org/css-content-3/#target-text-function",
+    "syntax": "target-text( [ <string> | <url> ] , [ content | before | after | first-letter ]? )",
+    "extended": []
+  },
+  {
+    "name": "toggle()",
+    "prose": "The toggle() expression allows descendant elements to cycle over a list of values instead of inheriting the same value.",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-toggle",
+    "syntax": "toggle( <whole-value># )",
+    "extended": []
+  },
+  {
+    "name": "transform-interpolate()",
+    "prose": "The transform-interpolate() interpolation notation represents an interpolated <transform-list>, with the following syntax:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-transform-interpolate",
+    "syntax": "transform-interpolate( [ <progress-source> && [ by <easing-function> ]? && <easing-function>? ], <input-position>{1,2} : <transform-list>, [ <easing-function>?, <input-position>{1,2} : <transform-list> ]#? )",
+    "extended": []
+  },
+  {
+    "name": "transform-mix()",
+    "prose": "The transform-mix() mix notation represents a weighted average of <transform-list>, with the following syntactic form:",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-transform-mix",
+    "syntax": "transform-mix( [ <transform-list> && <percentage [0,100]> ]# )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "translate()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-translate",
+    "syntax": "translate( <length-percentage> , <length-percentage>? )",
+    "extended": []
+  },
+  {
+    "name": "translate3d()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-translate3d",
+    "syntax": "translate3d( <length-percentage> , <length-percentage> , <length> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "translateX()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-translatex",
+    "syntax": "translateX( <length-percentage> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "transform"
+    ],
+    "name": "translateY()",
+    "href": "https://drafts.csswg.org/css-transforms-1/#funcdef-transform-translatey",
+    "syntax": "translateY( <length-percentage> )",
+    "extended": []
+  },
+  {
+    "name": "translateZ()",
+    "href": "https://drafts.csswg.org/css-transforms-2/#funcdef-translatez",
+    "syntax": "translateZ( <length> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "@function"
+    ],
+    "name": "type()",
+    "href": "https://drafts.csswg.org/css-mixins-1/#funcdef-function-type",
+    "syntax": "type( <syntax> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "attr()"
+    ],
+    "name": "type()",
+    "href": "https://drafts.csswg.org/css-values-5/#funcdef-attr-type",
+    "syntax": "type( <syntax> )",
+    "extended": []
+  },
+  {
+    "for": [
+      "image-set()"
+    ],
+    "name": "type()",
+    "href": "https://drafts.csswg.org/css-images-4/#funcdef-image-set-type",
+    "syntax": "type( <string> )",
+    "extended": []
+  },
+  {
+    "name": "url-pattern()",
+    "prose": "The url-pattern() function represents a URL pattern, which can be used to match URLs.",
+    "href": "https://drafts.csswg.org/css-navigation-1/#funcdef-url-pattern",
+    "syntax": "url-pattern( <string> )",
+    "extended": []
+  },
+  {
+    "name": "url()",
+    "prose": "The <url> type, written with the url() and src() functions, represents a URL, which is a pointer to a resource.",
+    "href": "https://drafts.csswg.org/css-values-4/#funcdef-url",
+    "syntax": "url( <string> <url-modifier>* ) | <url-token>",
+    "extended": []
+  },
+  {
+    "name": "var()",
+    "href": "https://drafts.csswg.org/css-variables-2/#funcdef-var",
+    "syntax": "var( <custom-property-name> , <declaration-value>? )",
+    "extended": []
+  },
+  {
+    "name": "view()",
+    "prose": "The view() functional notation can be used as a <single-animation-timeline> value in animation-timeline and specifies a view progress timeline in reference to the nearest ancestor scroll container. Its syntax is",
+    "href": "https://drafts.csswg.org/scroll-animations-1/#funcdef-view",
+    "syntax": "view( [ <axis> || <'view-timeline-inset'> ]? )",
+    "extended": []
+  },
+  {
+    "for": [
+      "contrast-color()"
+    ],
+    "name": "wcag2()",
+    "prose": "The wcag2 keyword and wcag2() functional notations indicate use of the [WCAG21] luminance contrast algorithm. Their syntax is:",
+    "href": "https://drafts.csswg.org/css-color-6/#funcdef-contrast-color-wcag2",
+    "extended": []
+  },
+  {
+    "for": [
+      "<basic-shape>"
+    ],
+    "name": "xywh()",
+    "href": "https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-xywh",
+    "syntax": "xywh( <length-percentage>{2} <length-percentage [0,∞]>{2} [ round <'border-radius'> ]? )",
+    "extended": []
+  }
+]
