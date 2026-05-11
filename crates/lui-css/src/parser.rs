@@ -1,3 +1,4 @@
+use crate::css_property::CssProperty;
 use crate::tokenizer::{tokenize, Token};
 use crate::value::CssValue;
 
@@ -11,6 +12,14 @@ impl ParseError {
     pub fn new(msg: impl Into<String>, pos: usize) -> Self {
         ParseError { message: msg.into(), position: pos }
     }
+}
+
+/// Parse a full CSS declaration `property: value`. Unknown properties and functions are
+/// represented as their respective `Unknown(_)` variants, never as errors.
+pub fn parse_declaration(property: &str, value: &str) -> Result<(CssProperty, CssValue), ParseError> {
+    let prop = CssProperty::from_name_or_unknown(property);
+    let val = parse_value(value)?;
+    Ok((prop, val))
 }
 
 /// Parse a CSS value string into a `CssValue` tree.
@@ -30,8 +39,7 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
 
     match &tokens[pos] {
         Token::Function(name) => {
-            let function = crate::CssFunction::from_name(name)
-                .ok_or_else(|| ParseError::new(format!("unknown function: {name}"), pos))?;
+            let function = crate::CssFunction::from_name_or_unknown(name);
 
             let mut p = pos + 1;
             if p >= tokens.len() || tokens[p] != Token::Delim('(') {

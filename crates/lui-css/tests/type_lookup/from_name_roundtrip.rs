@@ -13,5 +13,6 @@ fn resolves_kebab_case_type_from_string_name() {
 #[test]
 fn name_roundtrips_through_from_name() {
     let t = CssType::Number;
-    assert_eq!(CssType::from_name(t.name()), Some(t));
+    let name = t.clone().name().to_string();
+    assert_eq!(CssType::from_name(&name), Some(t));
 }

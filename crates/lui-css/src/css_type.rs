@@ -1,6 +1,6 @@
 // Auto-generated from types.json. DO NOT EDIT.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CssType {
     ///
     /// href: https://drafts.csswg.org/css-syntax-3/#tokendef-open-paren
@@ -2158,7 +2158,8 @@ pub enum CssType {
     ///
     /// href: https://drafts.csswg.org/css-values-4/#zero-value
     /// prose: The value <zero> represents a literal number with the value 0. Expressions that merely evaluate to a <number> with the value 0 (for example, calc(0)) do not match <zero>; only literal <number-token>s do.
-    Zero
+    Zero,
+    Unknown(String),
 }
 
 impl CssType {
@@ -2686,7 +2687,8 @@ impl CssType {
             CssType::XyzParams => "xyz-params",
             CssType::XyzSpace => "xyz-space",
             CssType::Zero => "zero",
-        }
+        CssType::Unknown(_) => "",
+}
     }
 
     pub fn from_name(name: &str) -> Option<Self> {
@@ -3215,8 +3217,12 @@ impl CssType {
             ("zero", CssType::Zero),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
-            Ok(i) => Some(ENTRIES[i].1),
+            Ok(i) => Some(ENTRIES[i].1.clone()),
             Err(_) => None,
         }
+    }
+
+    pub fn from_name_or_unknown(name: &str) -> Self {
+        Self::from_name(name).unwrap_or_else(|| CssType::Unknown(name.to_string()))
     }
 }

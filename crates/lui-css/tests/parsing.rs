@@ -4,3 +4,5 @@ mod functions;
 mod bare_values;
 #[path = "parsing/errors/mod.rs"]
 mod errors;
+#[path = "parsing/declarations/mod.rs"]
+mod declarations;

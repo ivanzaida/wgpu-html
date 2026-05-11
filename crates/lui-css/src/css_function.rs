@@ -1,6 +1,6 @@
 // Auto-generated from functions.json. DO NOT EDIT.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CssFunction {
     ///
     /// href: https://drafts.csswg.org/css-images-4/#funcdef--webkit-image-set
@@ -735,7 +735,8 @@ pub enum CssFunction {
     /// href: https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-xywh
     /// syntax: xywh( <length-percentage>{2} <length-percentage [0,∞]>{2} [ round <'border-radius'> ]? )
     /// for_parents: [<basic-shape>]
-    Xywh
+    Xywh,
+    Unknown(String),
 }
 
 impl CssFunction {
@@ -903,7 +904,8 @@ impl CssFunction {
             CssFunction::View => "view",
             CssFunction::Wcag2 => "wcag2",
             CssFunction::Xywh => "xywh",
-        }
+        CssFunction::Unknown(_) => "",
+}
     }
 
     pub fn from_name(name: &str) -> Option<Self> {
@@ -1072,8 +1074,12 @@ impl CssFunction {
             ("xywh", CssFunction::Xywh),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
-            Ok(i) => Some(ENTRIES[i].1),
+            Ok(i) => Some(ENTRIES[i].1.clone()),
             Err(_) => None,
         }
+    }
+
+    pub fn from_name_or_unknown(name: &str) -> Self {
+        Self::from_name(name).unwrap_or_else(|| CssFunction::Unknown(name.to_string()))
     }
 }

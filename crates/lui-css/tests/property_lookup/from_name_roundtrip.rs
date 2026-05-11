@@ -13,7 +13,8 @@ fn resolves_border_radius_from_name() {
 #[test]
 fn name_roundtrips_through_from_name() {
     let p = CssProperty::Display;
-    assert_eq!(CssProperty::from_name(p.name()), Some(p));
+    let name = p.clone().name().to_string();
+    assert_eq!(CssProperty::from_name(&name), Some(p));
 }
 
 #[test]

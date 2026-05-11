@@ -1,6 +1,6 @@
 // Auto-generated from properties.json. DO NOT EDIT.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CssProperty {
     ///
     /// href: https://compat.spec.whatwg.org/#propdef--webkit-align-content
@@ -4391,7 +4391,8 @@ pub enum CssProperty {
     /// href: https://drafts.csswg.org/css-viewport/#propdef-zoom
     /// syntax: <number [0,∞]> | <percentage [0,∞]>
     /// initial: 1
-    Zoom
+    Zoom,
+    Unknown(String),
 }
 
 impl CssProperty {
@@ -5210,7 +5211,8 @@ impl CssProperty {
             CssProperty::Y => "y",
             CssProperty::ZIndex => "z-index",
             CssProperty::Zoom => "zoom",
-        }
+        CssProperty::Unknown(_) => "",
+}
     }
 
     pub fn from_name(name: &str) -> Option<Self> {
@@ -6030,9 +6032,13 @@ impl CssProperty {
             ("zoom", CssProperty::Zoom),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
-            Ok(i) => Some(ENTRIES[i].1),
+            Ok(i) => Some(ENTRIES[i].1.clone()),
             Err(_) => None,
         }
+    }
+
+    pub fn from_name_or_unknown(name: &str) -> Self {
+        Self::from_name(name).unwrap_or_else(|| CssProperty::Unknown(name.to_string()))
     }
 
     pub fn syntax(self) -> &'static str {
@@ -6850,7 +6856,8 @@ impl CssProperty {
             CssProperty::Y => "<length-percentage>",
             CssProperty::ZIndex => "auto | <integer> | inherit",
             CssProperty::Zoom => "<number [0,∞]> | <percentage [0,∞]>",
-        }
+        CssProperty::Unknown(_) => "",
+}
     }
 
     pub fn initial(self) -> &'static str {
@@ -7668,7 +7675,8 @@ impl CssProperty {
             CssProperty::Y => "0",
             CssProperty::ZIndex => "auto",
             CssProperty::Zoom => "1",
-        }
+        CssProperty::Unknown(_) => "",
+}
     }
 
     pub fn inherited(self) -> bool {
@@ -8486,6 +8494,7 @@ impl CssProperty {
             CssProperty::Y => false,
             CssProperty::ZIndex => false,
             CssProperty::Zoom => false,
+            CssProperty::Unknown(_) => false,
         }
     }
 }

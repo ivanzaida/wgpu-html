@@ -8,5 +8,6 @@ fn resolves_acos_from_string_name() {
 #[test]
 fn name_roundtrips_through_from_name() {
     let f = CssFunction::Abs;
-    assert_eq!(CssFunction::from_name(f.name()), Some(f));
+    let name = f.clone().name().to_string();
+    assert_eq!(CssFunction::from_name(&name), Some(f));
 }
