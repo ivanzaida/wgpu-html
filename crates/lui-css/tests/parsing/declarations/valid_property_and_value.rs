@@ -1,7 +1,9 @@
-use lui_css::{parse_declaration, CssProperty, CssValue};
+use lui_css::{parse_declaration, CssColor, CssProperty, NamedColor};
 
 #[test]
 fn parses_valid_property_with_string_value() {
-    let result = parse_declaration("color", "red").unwrap();
-    assert_eq!(result, (CssProperty::Color, CssValue::String("red".into())));
+    assert_eq!(
+        parse_declaration("color", "red").unwrap(),
+        (CssProperty::Color, lui_css::CssValue::Color(CssColor::Named(NamedColor::Red)))
+    );
 }

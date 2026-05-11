@@ -1,3 +1,4 @@
+use crate::color::CssColor;
 use crate::css_function::CssFunction;
 use crate::unit::CssUnit;
 
@@ -10,6 +11,7 @@ pub enum CssValue {
         unit: CssUnit,
     },
     String(String),
+    Color(CssColor),
     Function {
         function: CssFunction,
         args: Vec<CssValue>,

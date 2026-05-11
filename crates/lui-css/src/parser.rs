@@ -1,3 +1,4 @@
+use crate::color::{CssColor, NamedColor};
 use crate::css_property::CssProperty;
 use crate::error::ParseError;
 use crate::tokenizer::{tokenize, Token};
@@ -69,9 +70,54 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
 
         Token::String(s) => Ok((CssValue::String(s.clone()), pos + 1)),
 
-        Token::Ident(s) => Ok((CssValue::String(s.clone()), pos + 1)),
+        Token::Ident(s) => {
+            if let Some(color) = parse_color(s) {
+                Ok((CssValue::Color(color), pos + 1))
+            } else {
+                Ok((CssValue::String(s.clone()), pos + 1))
+            }
+        }
 
         Token::Delim(c) => Err(ParseError::new(format!("unexpected delimiter '{c}'"), pos)),
+    }
+}
+
+fn parse_color(s: &str) -> Option<CssColor> {
+    if let Some(hex) = parse_hex_color(s) { return Some(hex); }
+    NamedColor::from_name(s).map(CssColor::Named)
+}
+
+fn parse_hex_color(s: &str) -> Option<CssColor> {
+    let s = s.strip_prefix('#')?;
+    if s.chars().any(|c| !c.is_ascii_hexdigit()) { return None; }
+    match s.len() {
+        3 => {
+            let r = u8::from_str_radix(&s[0..1], 16).ok()? * 17;
+            let g = u8::from_str_radix(&s[1..2], 16).ok()? * 17;
+            let b = u8::from_str_radix(&s[2..3], 16).ok()? * 17;
+            Some(CssColor::Hex { r, g, b, a: None })
+        }
+        4 => {
+            let r = u8::from_str_radix(&s[0..1], 16).ok()? * 17;
+            let g = u8::from_str_radix(&s[1..2], 16).ok()? * 17;
+            let b = u8::from_str_radix(&s[2..3], 16).ok()? * 17;
+            let a = u8::from_str_radix(&s[3..4], 16).ok()? * 17;
+            Some(CssColor::Hex { r, g, b, a: Some(a) })
+        }
+        6 => {
+            let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+            Some(CssColor::Hex { r, g, b, a: None })
+        }
+        8 => {
+            let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+            let a = u8::from_str_radix(&s[6..8], 16).ok()?;
+            Some(CssColor::Hex { r, g, b, a: Some(a) })
+        }
+        _ => None,
     }
 }
 
