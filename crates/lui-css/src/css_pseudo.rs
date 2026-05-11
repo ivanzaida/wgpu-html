@@ -726,6 +726,11 @@ pub enum CssPseudo {
     /// syntax: :xr-overlay
     /// prose: The :xr-overlay pseudo-class MUST match the overlay element for the duration of an immersive session using a DOM Overlay.
     XrOverlay,
+    ///
+    /// href: https://drafts.csswg.org/css-nesting-1/#selectordef-
+    /// syntax: '&'
+    /// prose: When using a nested style rule, one must be able to refer to the elements matched by the parent rule; that is, after all, the entire point of nesting. To accomplish that, this specification defines a new selector, the nesting selector, written as & (U+0026 AMPERSAND).
+    Ampersand,
     /// An unknown pseudo-class or pseudo-element.
     Unknown(String),
 }
@@ -884,6 +889,7 @@ impl CssPseudo {
             CssPseudo::VolumeLocked => ":volume-locked",
             CssPseudo::Where => ":where()",
             CssPseudo::XrOverlay => ":xr-overlay",
+            CssPseudo::Ampersand => "&",
             CssPseudo::Unknown(_) => "",
         }
     }
@@ -1042,6 +1048,7 @@ impl CssPseudo {
             (":volume-locked", CssPseudo::VolumeLocked),
             (":where()", CssPseudo::Where),
             (":xr-overlay", CssPseudo::XrOverlay),
+            ("&", CssPseudo::Ampersand),
         ];
         match ENTRIES.binary_search_by_key(&name, |(n, _)| n) {
             Ok(i) => ENTRIES[i].1.clone(),
