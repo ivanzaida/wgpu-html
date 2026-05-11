@@ -12,6 +12,7 @@ pub mod selector;
 pub mod shorthand;
 pub mod stylesheet;
 pub mod tokenizer;
+pub mod type_keywords;
 pub mod unit;
 pub mod validate;
 pub mod value;

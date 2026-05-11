@@ -1,4 +1,5 @@
 use crate::CssProperty;
+use crate::type_keywords::keywords_for_type;
 use crate::CssValue;
 
 /// Result of validating a property value.
@@ -95,18 +96,62 @@ pub fn validate_value(property: &CssProperty, value: &CssValue) -> Validation {
     }
 }
 
-/// Check if a keyword appears as a complete word in the syntax string.
+/// Check if a keyword appears in the syntax, resolving type references recursively.
 fn keyword_exists_in_syntax(keyword: &str, syntax: &str) -> bool {
-    let lower = syntax.to_lowercase();
     let kw = keyword.to_lowercase();
 
-    // Split syntax on common delimiters
+    // Direct match in the raw syntax
+    if keyword_matches(&kw, syntax) {
+        return true;
+    }
+
+    // Resolve <type-name> references recursively
+    for type_ref in extract_type_refs(syntax) {
+        if let Some(keywords) = keywords_for_type(&type_ref) {
+            if keywords.contains(&keyword.to_lowercase().as_str()) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Check if a keyword matches (as a complete word) in the syntax string.
+fn keyword_matches(kw: &str, syntax: &str) -> bool {
+    let lower = syntax.to_lowercase();
     for word in lower.split(|c: char| c.is_ascii_whitespace() || c == '|' || c == '[' || c == ']' || c == '?' || c == '{' || c == '}' || c == ';') {
         if word.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-') == kw {
             return true;
         }
     }
     false
+}
+
+/// Extract all `<type-name>` references from a syntax string.
+fn extract_type_refs(syntax: &str) -> Vec<String> {
+    let mut refs = Vec::new();
+    let mut i = 0;
+    let chars: Vec<char> = syntax.chars().collect();
+    while i < chars.len() {
+        if chars[i] == '<' {
+            let start = i + 1;
+            i += 1;
+            while i < chars.len() && chars[i] != '>' { i += 1; }
+            if i < chars.len() {
+                let name: String = chars[start..i].iter().collect();
+                // Filter out multiplier suffixes like {1,2}, #, +, etc.
+                let clean = name.split(|c: char| c == '{' || c == '#' || c == '!' || c == '?').next().unwrap_or("").trim();
+                // Filter out special tokens like <'border-radius'> (with quotes)
+                let clean = clean.trim_matches('\'');
+                if !clean.is_empty() && !clean.starts_with(']') && !clean.starts_with(')') {
+                    refs.push(clean.to_string());
+                }
+            }
+        }
+        i += 1;
+    }
+    refs
 }
 
 fn dimension_type(unit: &crate::CssUnit) -> &'static str {

@@ -1,0 +1,59 @@
+// Pre-computed keywords from CSS type definitions.
+// Maps `<type-name>` → known keywords.
+
+type KeywordEntry = (&'static str, &'static [&'static str]);
+
+static TYPE_KEYWORDS: &[KeywordEntry] = &[
+    ("absolute-size", &["xx-small", "x-small", "small", "medium", "large", "x-large", "xx-large", "xxx-large"]),
+    ("display-outside", &["block", "inline", "run-in"]),
+    ("display-inside", &["flow", "flow-root", "table", "flex", "grid", "ruby"]),
+    ("display-box", &["contents", "none"]),
+    ("display-internal", &["table-row-group", "table-header-group", "table-footer-group", "table-row", "table-cell", "table-column-group", "table-column", "table-caption", "ruby-base", "ruby-text", "ruby-base-container", "ruby-text-container"]),
+    ("display-legacy", &["inline-block", "inline-table", "inline-flex", "inline-grid"]),
+    ("display-listitem", &["list-item"]),
+    ("line-style", &["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"]),
+    ("line-width", &["thin", "medium", "thick", "hairline"]),
+    ("overflow", &["visible", "hidden", "clip", "scroll", "auto"]),
+    ("position", &["static", "relative", "absolute", "fixed", "sticky"]),
+    ("font-weight-absolute", &["normal", "bold"]),
+    ("relative-size", &["larger", "smaller"]),
+    ("font-style", &["normal", "italic", "oblique"]),
+    ("font-variant-css2", &["normal", "small-caps"]),
+    ("text-align", &["start", "end", "left", "right", "center", "justify", "match-parent", "justify-all"]),
+    ("visibility", &["visible", "hidden", "collapse"]),
+    ("cursor-predefined", &["auto", "default", "none", "context-menu", "help", "pointer", "progress", "wait", "cell", "crosshair", "text", "vertical-text", "alias", "copy", "move", "no-drop", "not-allowed", "grab", "grabbing", "e-resize", "n-resize", "ne-resize", "nw-resize", "s-resize", "se-resize", "sw-resize", "w-resize", "ew-resize", "ns-resize", "nesw-resize", "nwse-resize", "col-resize", "row-resize", "all-scroll", "zoom-in", "zoom-out"]),
+    ("white-space", &["normal", "pre", "nowrap", "pre-wrap", "break-spaces", "pre-line"]),
+    ("text-transform", &["none", "capitalize", "uppercase", "lowercase", "full-width"]),
+    ("box-sizing", &["content-box", "border-box"]),
+    ("resize", &["none", "both", "horizontal", "vertical", "block", "inline"]),
+    ("pointer-events", &["auto", "none", "visiblePainted", "visibleFill", "visibleStroke", "visible", "painted", "fill", "stroke", "all"]),
+    ("text-overflow", &["clip", "ellipsis"]),
+    ("word-break", &["normal", "break-all", "keep-all", "auto-phrase"]),
+    ("user-select", &["auto", "text", "none", "contain", "all"]),
+    ("flex-wrap", &["nowrap", "wrap", "wrap-reverse"]),
+    ("flex-direction", &["row", "row-reverse", "column", "column-reverse"]),
+    ("justify-content", &["normal", "start", "end", "flex-start", "flex-end", "center", "left", "right", "space-between", "space-around", "space-evenly", "stretch", "safe", "unsafe"]),
+    ("align-items", &["normal", "stretch", "start", "end", "flex-start", "flex-end", "center", "baseline", "first baseline", "last baseline", "safe", "unsafe", "self-start", "self-end"]),
+    ("align-self", &["auto", "normal", "stretch", "start", "end", "flex-start", "flex-end", "center", "baseline", "first baseline", "last baseline", "safe", "unsafe", "self-start", "self-end"]),
+    ("align-content", &["normal", "start", "end", "flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly", "stretch", "baseline", "first baseline", "last baseline", "safe", "unsafe"]),
+    ("grid-auto-flow", &["row", "column", "dense"]),
+    ("background-clip", &["border-box", "padding-box", "content-box", "text"]),
+    ("background-repeat", &["repeat", "repeat-x", "repeat-y", "space", "round", "no-repeat"]),
+    ("border-style", &["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"]),
+    ("vertical-align", &["baseline", "sub", "super", "text-top", "text-bottom", "middle", "top", "bottom"]),
+    ("list-style-position", &["inside", "outside"]),
+    ("list-style-type", &["none", "disc", "circle", "square", "decimal", "decimal-leading-zero", "cjk-ideographic", "lower-roman", "upper-roman", "lower-alpha", "upper-alpha", "lower-greek", "lower-latin", "upper-latin", "arabic-indic", "armenian", "bengali", "cambodian", "cjk-earthly-branch", "cjk-heavenly-stem", "cjk-ideographic", "devanagari", "ethiopic-numeric", "georgian", "gujarati", "gurmukhi", "hebrew", "hiragana", "hiragana-iroha", "japanese-formal", "japanese-informal", "kannada", "katakana", "katakana-iroha", "khmer", "korean-hangul-formal", "korean-hanja-formal", "korean-hanja-informal", "lao", "malayalam", "mongolian", "myanmar", "oriya", "persian", "simp-chinese-formal", "simp-chinese-informal", "tamil", "telugu", "thai", "tibetan", "trad-chinese-formal", "trad-chinese-informal"]),
+    ("isolation-mode", &["auto", "isolate"]),
+    ("blend-mode", &["normal", "darken", "multiply", "color-burn", "lighten", "screen", "color-dodge", "overlay", "soft-light", "hard-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"]),
+    ("composite-mode", &["clear", "copy", "source-over", "destination-over", "source-in", "destination-in", "source-out", "destination-out", "source-atop", "destination-atop", "xor", "lighter", "plus-darker", "plus-lighter"]),
+    ("scrollbar-width", &["auto", "thin", "none"]),
+    ("scrollbar-color", &["auto", "dark", "light"]),
+];
+
+/// Look up known keywords for a CSS type reference.
+pub fn keywords_for_type(type_name: &str) -> Option<&'static [&'static str]> {
+    match TYPE_KEYWORDS.binary_search_by_key(&type_name, |(name, _)| name) {
+        Ok(i) => Some(TYPE_KEYWORDS[i].1),
+        Err(_) => None,
+    }
+}
