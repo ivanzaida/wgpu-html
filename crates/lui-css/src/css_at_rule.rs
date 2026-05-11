@@ -373,3 +373,62 @@ impl CssAtRule {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtRuleKind { Block, Statement }
+
+impl CssAtRule {
+    pub fn kind(&self) -> AtRuleKind {
+        match self {
+            CssAtRule::WebkitKeyframes|
+            CssAtRule::Annotation|
+            CssAtRule::BottomCenter|
+            CssAtRule::BottomLeft|
+            CssAtRule::BottomLeftCorner|
+            CssAtRule::BottomRight|
+            CssAtRule::BottomRightCorner|
+            CssAtRule::CharacterVariant|
+            CssAtRule::ColorProfile|
+            CssAtRule::Container|
+            CssAtRule::Contents|
+            CssAtRule::CounterStyle|
+            CssAtRule::Else|
+            CssAtRule::FontFace|
+            CssAtRule::FontFeatureValues|
+            CssAtRule::FontPaletteValues|
+            CssAtRule::Function|
+            CssAtRule::HistoricalForms|
+            CssAtRule::Keyframes|
+            CssAtRule::LeftBottom|
+            CssAtRule::LeftMiddle|
+            CssAtRule::LeftTop|
+            CssAtRule::Macro|
+            CssAtRule::Media|
+            CssAtRule::Mixin|
+            CssAtRule::Navigation|
+            CssAtRule::Ornaments|
+            CssAtRule::Page|
+            CssAtRule::PositionTry|
+            CssAtRule::Property|
+            CssAtRule::Result|
+            CssAtRule::RightBottom|
+            CssAtRule::RightMiddle|
+            CssAtRule::RightTop|
+            CssAtRule::Route|
+            CssAtRule::Scope|
+            CssAtRule::Styleset|
+            CssAtRule::Stylistic|
+            CssAtRule::Supports|
+            CssAtRule::SupportsCondition|
+            CssAtRule::Swash|
+            CssAtRule::TopCenter|
+            CssAtRule::TopLeft|
+            CssAtRule::TopLeftCorner|
+            CssAtRule::TopRight|
+            CssAtRule::TopRightCorner|
+            CssAtRule::ViewTransition|
+            CssAtRule::When => AtRuleKind::Block,
+            _ => AtRuleKind::Statement,
+        }
+    }
+}

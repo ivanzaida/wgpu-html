@@ -1,6 +1,7 @@
 use crate::CssAtRule;
 use crate::CssProperty;
 use crate::error::ParseError;
+use crate::media::{MediaQueryList, parse_media_query_list};
 use crate::parser::parse_declaration;
 use crate::selector::{SelectorList, parse_selector_list};
 use crate::value::CssValue;
@@ -26,6 +27,7 @@ pub struct Declaration {
 pub struct AtRule {
     pub at_rule: CssAtRule,
     pub prelude: String,
+    pub media: Option<MediaQueryList>,
     pub rules: Vec<StyleRule>,
     pub at_rules: Vec<AtRule>,
 }
@@ -95,9 +97,17 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
                 let block: String = chars[block_start..pos - 1].iter().collect();
                 let (inner, _) = parse_rule_list(&block, true, Some(&name))?;
 
+                let prelude_str = prelude.trim().to_string();
+                let media = if &*name == "@media" {
+                    parse_media_query_list(&prelude_str).ok()
+                } else {
+                    None
+                };
+
                 at_rules.push(AtRule {
                     at_rule: CssAtRule::from_name(&name),
-                    prelude: prelude.trim().to_string(),
+                    prelude: prelude_str,
+                    media,
                     rules: inner.rules,
                     at_rules: inner.at_rules,
                 });
@@ -107,6 +117,7 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
                 at_rules.push(AtRule {
                     at_rule: CssAtRule::from_name(&name),
                     prelude: prelude.trim().to_string(),
+                    media: None,
                     rules: vec![],
                     at_rules: vec![],
                 });
