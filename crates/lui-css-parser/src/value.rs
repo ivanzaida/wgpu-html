@@ -16,6 +16,10 @@ pub enum CssValue {
         function: CssFunction,
         args: Vec<CssValue>,
     },
+    Var {
+        name: String,
+        fallback: Option<Box<CssValue>>,
+    },
     Unknown(String),
 }
 

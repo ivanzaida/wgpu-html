@@ -29,6 +29,11 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
 
     match &tokens[pos] {
         Token::Function(name) => {
+            // var() gets special parsing
+            if name == "var" {
+                return parse_var_function(tokens, pos);
+            }
+
             let function = crate::CssFunction::from_name(name);
 
             let mut p = pos + 1;
@@ -121,5 +126,45 @@ fn is_named_color(s: &str) -> bool {
         | "tan" | "teal" | "thistle" | "tomato" | "turquoise" | "violet" | "wheat" | "white"
         | "whitesmoke" | "yellow" | "yellowgreen"
     )
+}
+
+fn parse_var_function(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), ParseError> {
+    let mut p = pos + 1; // skip Function token
+    if p >= tokens.len() || tokens[p] != Token::Delim('(') {
+        return Err(ParseError::new("expected '(' after var", p));
+    }
+    p += 1;
+
+    // Read property name (must start with --)
+    if p >= tokens.len() {
+        return Err(ParseError::new("expected custom property name", p));
+    }
+    let name = match &tokens[p] {
+        Token::Ident(s) | Token::String(s) => {
+            if !s.starts_with("--") {
+                return Err(ParseError::new(format!("var() expects a custom property starting with --, got {s}"), p));
+            }
+            p += 1;
+            s.clone()
+        }
+        _ => return Err(ParseError::new("expected custom property name", p)),
+    };
+
+    // Optional fallback after comma
+    let fallback = if p < tokens.len() && tokens[p] == Token::Delim(',') {
+        p += 1;
+        let (val, next) = parse_tokens(tokens, p)?;
+        p = next;
+        Some(Box::new(val))
+    } else {
+        None
+    };
+
+    if p >= tokens.len() || tokens[p] != Token::Delim(')') {
+        return Err(ParseError::new("expected ')'", p));
+    }
+    p += 1;
+
+    Ok((CssValue::Var { name, fallback }, p))
 }
 
