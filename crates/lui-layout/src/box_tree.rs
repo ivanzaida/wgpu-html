@@ -1,5 +1,6 @@
 //! Layout box types and the box tree.
 
+use lui_cascade::ComputedStyle;
 use lui_html_parser::{HtmlNode, Rect};
 
 use crate::geometry::{RectEdges, Size};
@@ -35,32 +36,21 @@ pub enum BoxKind {
 #[derive(Debug)]
 pub struct LayoutBox<'a> {
     pub kind: BoxKind,
-    /// The source HTML node (for text content, element type).
     pub node: &'a HtmlNode,
-    /// Computed geometry after layout.
+    pub style: &'a ComputedStyle<'a>,
     pub margin: RectEdges<f32>,
     pub border: RectEdges<f32>,
     pub padding: RectEdges<f32>,
-    /// Content box position and size (relative to containing block).
     pub content: Rect,
-    /// Intrinsic size hints computed before final layout.
     pub intrinsic: Option<Size>,
-    /// Children boxes.
     pub children: Vec<LayoutBox<'a>>,
 }
 
 impl<'a> LayoutBox<'a> {
-    pub fn new(kind: BoxKind, node: &'a HtmlNode) -> Self {
-        Self {
-            kind,
-            node,
-            margin: RectEdges::default(),
-            border: RectEdges::default(),
-            padding: RectEdges::default(),
-            content: Rect::default(),
-            intrinsic: None,
-            children: Vec::new(),
-        }
+    pub fn new(kind: BoxKind, node: &'a HtmlNode, style: &'a ComputedStyle<'a>) -> Self {
+        Self { kind, node, style, margin: RectEdges::default(),
+            border: RectEdges::default(), padding: RectEdges::default(),
+            content: Rect::default(), intrinsic: None, children: Vec::new() }
     }
 
     /// Total width consumed: margin + border + padding + content.
@@ -88,12 +78,12 @@ impl<'a> LayoutBox<'a> {
 #[derive(Debug)]
 pub struct LayoutTree<'a> {
     pub root: LayoutBox<'a>,
-    pub rects: Vec<(*const HtmlNode, Rect)>,
+    pub rects: Vec<(&'a HtmlNode, Rect)>,
 }
 
 impl<'a> LayoutTree<'a> {
     pub fn find_rect(&self, node: &HtmlNode) -> Option<Rect> {
         let ptr = node as *const HtmlNode;
-        self.rects.iter().find(|(n, _)| *n == ptr).map(|(_, r)| *r)
+        self.rects.iter().find(|(n, _)| *n as *const _ == ptr).map(|(_, r)| *r)
     }
 }

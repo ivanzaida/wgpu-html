@@ -4,6 +4,7 @@ members = [
     "crates/lui-cascade",
     "crates/lui-css-parser",
     "crates/lui-html-parser",
+    "crates/lui-glyph",
     "crates/lui-layout",
     "crates/lui-resolve",
 

@@ -1,7 +1,7 @@
 use lui_css_parser::ArcStr;
 use lui_html_parser::HtmlNode;
 use bumpalo::Bump;
-use crate::style::ComputedStyle;
+pub use style::ComputedStyle;
 
 pub mod bloom;
 pub mod cascade;

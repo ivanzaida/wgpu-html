@@ -1,0 +1,9 @@
+[package]
+name = "lui-glyph"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-css-parser = { path = "../lui-css-parser" }
+cosmic-text = { version = "0.12", default-features = false, features = ["std", "swash"] }
+rustc-hash = "2"

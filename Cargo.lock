@@ -3728,6 +3728,15 @@ name = "lui-events"
 version = "0.1.0"
 
 [[package]]
+name = "lui-glyph"
+version = "0.1.0"
+dependencies = [
+ "cosmic-text 0.12.1",
+ "lui-css-parser",
+ "rustc-hash 2.1.2",
+]
+
+[[package]]
 name = "lui-html-parser"
 version = "0.1.0"
 dependencies = [
@@ -3741,6 +3750,7 @@ dependencies = [
  "bumpalo",
  "lui-cascade",
  "lui-css-parser",
+ "lui-glyph",
  "lui-html-parser",
  "lui-resolve",
  "rustc-hash 2.1.2",
