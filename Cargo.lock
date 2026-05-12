@@ -3471,6 +3471,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lui-cascade"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "lui-css-parser",
+ "lui-html-parser",
+]
+
+[[package]]
 name = "lui-css-old"
 version = "0.1.0"
 

@@ -29,18 +29,18 @@ fn parse_condition(chars: &[char], pos: &mut usize) -> Result<SupportsCondition,
 
     // `not <parens>`
     if let Some(_) = match_word(chars, pos, "not") {
-        let inner = parse_parens(chars, pos)?;
+        let inner = parse_parens_or_selector(chars, pos)?;
         return Ok(SupportsCondition::Not(Box::new(inner)));
     }
 
-    let first = parse_parens(chars, pos)?;
+    let first = parse_parens_or_selector(chars, pos)?;
     skip_ws(chars, pos);
 
     // and/or chain
     if let Some(_) = match_word(chars, pos, "and") {
         let mut terms = vec![first];
         loop {
-            terms.push(parse_parens(chars, pos)?);
+            terms.push(parse_parens_or_selector(chars, pos)?);
             skip_ws(chars, pos);
             if match_word(chars, pos, "and").is_none() { break; }
         }
@@ -50,7 +50,7 @@ fn parse_condition(chars: &[char], pos: &mut usize) -> Result<SupportsCondition,
     if let Some(_) = match_word(chars, pos, "or") {
         let mut terms = vec![first];
         loop {
-            terms.push(parse_parens(chars, pos)?);
+            terms.push(parse_parens_or_selector(chars, pos)?);
             skip_ws(chars, pos);
             if match_word(chars, pos, "or").is_none() { break; }
         }
@@ -58,6 +58,29 @@ fn parse_condition(chars: &[char], pos: &mut usize) -> Result<SupportsCondition,
     }
 
     Ok(first)
+}
+
+fn parse_parens_or_selector(chars: &[char], pos: &mut usize) -> Result<SupportsCondition, ParseError> {
+    skip_ws(chars, pos);
+    if let Some(_) = match_word(chars, pos, "selector") {
+        skip_ws(chars, pos);
+        if *pos < chars.len() && chars[*pos] == '(' {
+            *pos += 1;
+            let start = *pos;
+            let mut depth = 1;
+            while *pos < chars.len() && depth > 0 {
+                match chars[*pos] { '(' => depth += 1, ')' => depth -= 1, _ => {} }
+                *pos += 1;
+            }
+            let sel: String = chars[start..*pos - 1].iter().collect();
+            return Ok(SupportsCondition::Feature(SupportsFeature {
+                name: "selector".into(),
+                value: Some(sel.trim().into()),
+                is_selector: true,
+            }));
+        }
+    }
+    parse_parens(chars, pos)
 }
 
 fn parse_parens(chars: &[char], pos: &mut usize) -> Result<SupportsCondition, ParseError> {

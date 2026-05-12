@@ -279,22 +279,10 @@ fn strip_comments(input: &str) -> String {
 }
 
 fn compute_specificity(selector: &SelectorList) -> (u32, u32, u32) {
-    let mut a = 0u32; let mut b = 0u32; let mut c = 0u32;
-    for complex in &selector.0 {
-        for compound in &complex.compounds {
-            if compound.id.is_some() { a += 1; }
-            b += compound.classes.len() as u32;
-            b += compound.attrs.len() as u32;
-            for pseudo in &compound.pseudos {
-                if pseudo.pseudo.name().starts_with("::") { c += 1; }
-                else { b += 1; }
-            }
-            if let Some(ref tag) = compound.tag {
-                if tag != "*" { c += 1; }
-            }
-        }
-    }
-    (a, b, c)
+    selector.0.iter()
+        .map(|complex| complex.specificity())
+        .max()
+        .unwrap_or((0, 0, 0))
 }
 
 fn skip_ws_and_comments(chars: &[char], pos: &mut usize, comments: &mut Vec<String>) {

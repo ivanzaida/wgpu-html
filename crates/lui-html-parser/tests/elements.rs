@@ -1,19 +1,24 @@
 use lui_html_parser::{HtmlElement, parse};
 
-/// Helper: parse `html`, expect exactly one root, and run the predicate on its element.
+/// Helper: parse `html`, expect a single element under the `<html>` root.
+/// For `HtmlElement::Html` itself, checks the root directly.
 #[track_caller]
 fn assert_root_element(html: &str, expected: HtmlElement) {
     let doc = parse(html);
-    assert_eq!(
-        doc.roots.len(),
-        1,
-        "expected exactly 1 root for `{html}`, got {}: {doc:?}",
-        doc.roots.len(),
-    );
-    assert_eq!(
-        doc.roots[0].element, expected,
-        "unexpected root element for `{html}`",
-    );
+    if expected == HtmlElement::Html {
+        assert_eq!(doc.root.element, expected, "unexpected root element for `{html}`");
+    } else {
+        assert_eq!(
+            doc.root.children.len(),
+            1,
+            "expected exactly 1 child under <html> for `{html}`, got {}: {doc:?}",
+            doc.root.children.len(),
+        );
+        assert_eq!(
+            doc.root.children[0].element, expected,
+            "unexpected element for `{html}`",
+        );
+    }
 }
 
 // ── Document structure ────────────────────────────────────────────────
@@ -232,7 +237,7 @@ fn parses_slot() { assert_root_element("<slot></slot>", HtmlElement::Slot); }
 #[test]
 fn parses_meta() {
     let doc = parse("<meta>");
-    assert_eq!(doc.roots[0].element, HtmlElement::Meta);
+    assert_eq!(doc.root.children[0].element, HtmlElement::Meta);
 }
 #[test]
 fn parses_link() { assert_root_element("<link>", HtmlElement::Link); }

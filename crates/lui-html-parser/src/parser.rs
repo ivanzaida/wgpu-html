@@ -32,10 +32,10 @@ impl HtmlNode {
     }
 }
 
-/// Parsed HTML document — one or more root nodes.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// Parsed HTML document — always rooted at a single `<html>` node.
+#[derive(Debug, Clone, PartialEq)]
 pub struct HtmlDocument {
-    pub roots: Vec<HtmlNode>,
+    pub root: HtmlNode,
 }
 
 /// Parse an HTML string into a `HtmlDocument`.
@@ -114,7 +114,12 @@ impl TreeBuilder {
     }
 
     fn finish(self) -> HtmlDocument {
-        HtmlDocument { roots: self.document }
+        let root = if self.document.len() == 1 && self.document[0].element == HtmlElement::Html {
+            self.document.into_iter().next().unwrap()
+        } else {
+            HtmlNode::new(HtmlElement::Html).with_children(self.document)
+        };
+        HtmlDocument { root }
     }
 
     fn push_node(&mut self, node: HtmlNode) {

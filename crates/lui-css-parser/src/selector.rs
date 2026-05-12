@@ -11,6 +11,68 @@ pub struct ComplexSelector {
     pub combinators: Vec<CssCombinator>,
 }
 
+impl ComplexSelector {
+    pub fn specificity(&self) -> (u32, u32, u32) {
+        let mut a = 0u32;
+        let mut b = 0u32;
+        let mut c = 0u32;
+        for compound in &self.compounds {
+            let (ca, cb, cc) = compound.specificity();
+            a += ca;
+            b += cb;
+            c += cc;
+        }
+        (a, b, c)
+    }
+}
+
+impl CompoundSelector {
+    pub fn specificity(&self) -> (u32, u32, u32) {
+        let mut a = 0u32;
+        let mut b = 0u32;
+        let mut c = 0u32;
+
+        if self.id.is_some() { a += 1; }
+        b += self.classes.len() as u32;
+        b += self.attrs.len() as u32;
+
+        if let Some(ref tag) = self.tag {
+            if tag != "*" { c += 1; }
+        }
+
+        for pseudo in &self.pseudos {
+            match &pseudo.pseudo {
+                // :where() contributes zero specificity
+                CssPseudo::Where => {}
+
+                // :is(), :not(), :has(), :matches() contribute the specificity
+                // of their most specific argument
+                CssPseudo::Is | CssPseudo::Not | CssPseudo::Has | CssPseudo::Matches => {
+                    if let Some(ref arg) = pseudo.arg {
+                        if let Ok(inner) = crate::parse_selector_list(arg) {
+                            let max = inner.0.iter()
+                                .map(|sel| sel.specificity())
+                                .max()
+                                .unwrap_or((0, 0, 0));
+                            a += max.0;
+                            b += max.1;
+                            c += max.2;
+                        }
+                    }
+                }
+
+                // Pseudo-elements → c
+                p if p.name().starts_with("::") => { c += 1; }
+
+                // Other pseudo-classes → b
+                _ => { b += 1; }
+            }
+        }
+
+        (a, b, c)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct CompoundSelector {
     pub tag: Option<String>,
@@ -203,7 +265,6 @@ fn parse_pseudo(chars: &[char], pos: &mut usize) -> Result<PseudoSelector, Parse
         }
         let arg_str: String = chars[arg_start..*pos - 1].iter().collect();
         name.push('(');
-        name.push_str(&arg_str);
         name.push(')');
         Some(arg_str)
     } else {
