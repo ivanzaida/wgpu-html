@@ -8,6 +8,7 @@ lui-html-parser = { path = "../lui-html-parser" }
 lui-css-parser = { path = "../lui-css-parser" }
 bumpalo.workspace = true
 rustc-hash = "2"
+smallvec = "1"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }

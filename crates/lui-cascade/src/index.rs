@@ -1,4 +1,5 @@
 use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
 
 use lui_css_parser::{CssAtRule, CssPseudo, Stylesheet, StyleRule, AtRule};
 
@@ -198,9 +199,9 @@ pub fn candidate_rules<'a>(
     attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
     data_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
     aria_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
-) -> Vec<&'a RuleRef> {
+) -> SmallVec<[&'a RuleRef; 32]> {
     let mut seen = FxHashSet::default();
-    let mut candidates = Vec::new();
+    let mut candidates: SmallVec<[&'a RuleRef; 32]> = smallvec::smallvec![];
 
     let mut add = |refs: &'a [RuleRef]| {
         for r in refs {

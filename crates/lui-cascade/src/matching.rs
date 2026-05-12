@@ -36,6 +36,7 @@ pub struct MatchContext<'a> {
     pub is_modal: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct AncestorEntry<'a> {
     pub node: &'a HtmlNode,
     pub ctx: MatchContext<'a>,

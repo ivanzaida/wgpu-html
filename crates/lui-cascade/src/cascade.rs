@@ -7,6 +7,7 @@ use bumpalo::Bump;
 use lui_css_parser::{expand_shorthand, longhands_of, ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
 use lui_html_parser::HtmlNode;
 use rustc_hash::{FxHashMap, FxHasher};
+use smallvec::SmallVec;
 
 use crate::{
   bloom::{bloom_might_match, AncestorBloom},
@@ -294,7 +295,7 @@ fn cascade_node_with_prev<'a>(
 
   resolve_vars(&mut style, arena);
 
-  let mut child_ancestors = Vec::with_capacity(ancestors.len() + 1);
+  let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
     node: a.node,
@@ -303,7 +304,7 @@ fn cascade_node_with_prev<'a>(
 
   let tag = node.element.tag_name();
   let id = node.id.as_deref();
-
+  
   bloom.push(tag, id, &node.class_list);
 
   let children: Vec<StyledNode<'a>> = node
@@ -318,34 +319,14 @@ fn cascade_node_with_prev<'a>(
           clone_subtree(child, pc, Some(&style))
         } else {
           cascade_node_with_prev(
-            root,
-            child,
-            sheets,
-            Some(&style),
-            &child_ancestors,
-            path,
-            media,
-            interaction,
-            arena,
-            Some(pc),
-            dirty_paths,
-            cache,
-            bloom,
+            root, child, sheets, Some(&style), &child_ancestors, path,
+            media, interaction, arena, Some(pc), dirty_paths, cache, bloom,
           )
         }
       } else {
         cascade_node(
-          root,
-          child,
-          sheets,
-          Some(&style),
-          &child_ancestors,
-          path,
-          media,
-          interaction,
-          arena,
-          cache,
-          bloom,
+          root, child, sheets, Some(&style), &child_ancestors, path,
+          media, interaction, arena, cache, bloom,
         )
       };
       path.pop();
@@ -443,7 +424,7 @@ fn cascade_node<'a>(
 
   resolve_vars(&mut style, arena);
 
-  let mut child_ancestors = Vec::with_capacity(ancestors.len() + 1);
+  let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
     node: a.node,
@@ -512,7 +493,7 @@ fn compute_style<'a>(
 ) -> ComputedStyle<'a> {
   let tag = node.element.tag_name();
   let id = node.id.as_deref();
-  let classes: Vec<&str> = node.class_list.iter().map(|c| c.as_ref()).collect();
+  let classes: SmallVec<[&str; 8]> = node.class_list.iter().map(|c| c.as_ref()).collect();
   let mut matched = collect_matching_rules(node, ctx, sheets, ancestors, media, tag, id, &classes, bloom);
 
   matched.sort_by_key(|m| (m.sheet_idx, m.specificity, m.rule_idx));
@@ -600,8 +581,8 @@ fn collect_matching_rules<'a>(
   id: Option<&str>,
   classes: &[&str],
   bloom: &AncestorBloom,
-) -> Vec<MatchedRule<'a>> {
-  let mut matched = Vec::new();
+) -> SmallVec<[MatchedRule<'a>; 8]> {
+  let mut matched = smallvec::smallvec![];
 
   for (sheet_idx, sheet) in sheets.iter().enumerate() {
     let candidates = candidate_rules(

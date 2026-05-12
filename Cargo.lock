@@ -3612,6 +3612,7 @@ dependencies = [
  "lui-css-parser",
  "lui-html-parser",
  "rustc-hash 2.1.2",
+ "smallvec",
 ]
 
 [[package]]
