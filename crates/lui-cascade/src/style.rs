@@ -9,7 +9,7 @@ use lui_css_parser::{ArcStr, CssProperty, CssValue};
 /// Everything else falls through to `extra`. All values are borrowed from either
 /// the input stylesheets or a bump arena that holds synthesized values
 /// (expanded shorthands, resolved var(), inherited copies).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ComputedStyle<'a> {
     // ── Display & position ──
     pub display: Option<&'a CssValue>,

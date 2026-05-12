@@ -6,6 +6,7 @@ pub mod index;
 pub mod inline;
 pub mod matching;
 pub mod media;
+pub mod pseudo;
 pub mod query;
 pub mod style;
 pub mod var_resolution;

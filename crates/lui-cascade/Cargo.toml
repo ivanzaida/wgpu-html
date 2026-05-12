@@ -7,3 +7,10 @@ edition = "2024"
 lui-html-parser = { path = "../lui-html-parser" }
 lui-css-parser = { path = "../lui-css-parser" }
 bumpalo = { version = "3", features = ["collections"] }
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "cascade_bench"
+harness = false

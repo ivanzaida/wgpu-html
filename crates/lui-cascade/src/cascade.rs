@@ -1,7 +1,9 @@
 use std::cell::{Cell, UnsafeCell};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher, DefaultHasher};
 
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssProperty, CssValue, StyleRule, Stylesheet, expand_shorthand, longhands_of};
+use lui_css_parser::{ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet, expand_shorthand, longhands_of};
 use lui_html_parser::HtmlNode;
 
 use crate::{
@@ -36,6 +38,7 @@ pub struct CascadeContext {
   arena_b: UnsafeCell<Bump>,
   use_a: Cell<bool>,
   prepared: Vec<PreparedStylesheet>,
+  stats: Cell<CacheStats>,
 }
 
 impl CascadeContext {
@@ -45,11 +48,17 @@ impl CascadeContext {
       arena_b: UnsafeCell::new(Bump::new()),
       use_a: Cell::new(true),
       prepared: Vec::new(),
+      stats: Cell::new(CacheStats::default()),
     }
   }
 
+  /// Cache statistics from the last `cascade` or `cascade_dirty` call.
+  pub fn cache_stats(&self) -> CacheStats {
+    self.stats.get()
+  }
+
   /// Prepare stylesheets for cascading. Call this when stylesheets change,
-  /// not every frame.
+  /// not every frame. Pass your UA stylesheet as the first element if you want one.
   pub fn set_stylesheets(&mut self, sheets: &[Stylesheet]) {
     self.prepared = sheets.iter().map(|s| PreparedStylesheet::new(s.clone())).collect();
   }
@@ -94,8 +103,11 @@ impl CascadeContext {
 
     let sheets: Vec<&PreparedStylesheet> = self.prepared.iter().collect();
     let mut path: ElementPath = ElementPath::new();
+    let mut cache = DeclCache::new();
 
-    cascade_node(doc, doc, &sheets, None, &[], &mut path, media, interaction, arena)
+    let result = cascade_node(doc, doc, &sheets, None, &[], &mut path, media, interaction, arena, &mut cache);
+    self.stats.set(cache.stats);
+    result
   }
 
   /// Incremental cascade — only recomputes dirty subtrees.
@@ -116,7 +128,9 @@ impl CascadeContext {
     let sheets: Vec<&PreparedStylesheet> = self.prepared.iter().collect();
     let mut path: ElementPath = ElementPath::new();
 
-    cascade_node_incremental(
+    let mut cache = DeclCache::new();
+
+    let result = cascade_node_incremental(
       doc,
       doc,
       &sheets,
@@ -128,7 +142,10 @@ impl CascadeContext {
       arena,
       prev,
       dirty_paths,
-    )
+      &mut cache,
+    );
+    self.stats.set(cache.stats);
+    result
   }
 }
 
@@ -136,6 +153,63 @@ impl Default for CascadeContext {
   fn default() -> Self {
     Self::new()
   }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CacheStats {
+    pub hits: usize,
+    pub misses: usize,
+}
+
+struct DeclCache<'a> {
+  map: HashMap<u64, ComputedStyle<'a>>,
+  stats: CacheStats,
+}
+
+impl<'a> DeclCache<'a> {
+  fn new() -> Self {
+    Self { map: HashMap::new(), stats: CacheStats::default() }
+  }
+}
+
+fn element_cache_key(
+  node: &HtmlNode,
+  ctx: &MatchContext<'_>,
+  ancestors: &[AncestorEntry<'_>],
+) -> u64 {
+  let mut h = DefaultHasher::new();
+
+  // Element identity: tag + commonly-selected attributes
+  node.element.tag_name().hash(&mut h);
+  for attr in &["id", "class", "style", "type", "name", "href", "role",
+                "data-theme", "data-state", "data-type", "data-variant"] {
+    if let Some(val) = node.attrs.get(*attr) { val.as_ref().hash(&mut h); }
+  }
+  node.attrs.len().hash(&mut h);
+
+  // Interaction + structural state (packed as bits)
+  let flags: u16 =
+    (ctx.is_hover as u16)
+    | (ctx.is_active as u16) << 1
+    | (ctx.is_focus as u16) << 2
+    | (ctx.is_focus_within as u16) << 3
+    | (ctx.is_root as u16) << 4
+    | (ctx.is_first_child as u16) << 5
+    | (ctx.is_last_child as u16) << 6
+    | (ctx.is_only_child as u16) << 7
+    | (ctx.is_target as u16) << 8;
+  flags.hash(&mut h);
+
+  // Ancestor context: parent + grandparent tag/id/class
+  let depth = ancestors.len().min(3);
+  depth.hash(&mut h);
+  for entry in ancestors.iter().take(3) {
+    entry.node.element.tag_name().hash(&mut h);
+    if let Some(id) = entry.node.attrs.get("id") { id.as_ref().hash(&mut h); }
+    if let Some(class) = entry.node.attrs.get("class") { class.as_ref().hash(&mut h); }
+  }
+
+  h.finish()
 }
 
 // ---------------------------------------------------------------------------
@@ -154,51 +228,44 @@ fn is_path_dirty(path: &[usize], dirty_paths: &[ElementPath]) -> bool {
 fn cascade_node_incremental<'a>(
   root: &'a HtmlNode,
   node: &'a HtmlNode,
-  sheets: &[&PreparedStylesheet],
+  sheets: &[&'a PreparedStylesheet],
   parent_style: Option<&ComputedStyle<'a>>,
   ancestors: &[AncestorEntry<'a>],
   path: &mut ElementPath,
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
-  prev: &StyledNode<'_>,
+  prev: &StyledNode<'a>,
   dirty_paths: &[ElementPath],
+  cache: &mut DeclCache<'a>,
 ) -> StyledNode<'a> {
   if !is_path_dirty(path, dirty_paths) {
-    return clone_subtree(node, prev, parent_style, arena);
+    return clone_subtree(node, prev, parent_style);
   }
 
   cascade_node_with_prev(
-    root,
-    node,
-    sheets,
-    parent_style,
-    ancestors,
-    path,
-    media,
-    interaction,
-    arena,
-    Some(prev),
-    dirty_paths,
+    root, node, sheets, parent_style, ancestors, path,
+    media, interaction, arena, Some(prev), dirty_paths, cache,
   )
 }
 
 fn cascade_node_with_prev<'a>(
   root: &'a HtmlNode,
   node: &'a HtmlNode,
-  sheets: &[&PreparedStylesheet],
+  sheets: &[&'a PreparedStylesheet],
   parent_style: Option<&ComputedStyle<'a>>,
   ancestors: &[AncestorEntry<'a>],
   path: &mut ElementPath,
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
-  prev: Option<&StyledNode<'_>>,
+  prev: Option<&StyledNode<'a>>,
   dirty_paths: &[ElementPath],
+  cache: &mut DeclCache<'a>,
 ) -> StyledNode<'a> {
   let ctx = build_match_context(node, path, interaction, ancestors);
 
-  let mut style = get_computed_style(node, &ctx, sheets, ancestors, media, arena);
+  let mut style = get_cached_or_compute(node, &ctx, sheets, ancestors, media, arena, cache);
 
   if let Some(parent) = parent_style {
     style.inherit_from(parent);
@@ -222,33 +289,17 @@ fn cascade_node_with_prev<'a>(
       let prev_child = prev.and_then(|p| p.children.get(i));
       let child_node = if let Some(pc) = prev_child {
         if !is_path_dirty(path, dirty_paths) {
-          clone_subtree(child, pc, Some(&style), arena)
+          clone_subtree(child, pc, Some(&style))
         } else {
           cascade_node_with_prev(
-            root,
-            child,
-            sheets,
-            Some(&style),
-            &child_ancestors,
-            path,
-            media,
-            interaction,
-            arena,
-            Some(pc),
-            dirty_paths,
+            root, child, sheets, Some(&style), &child_ancestors, path,
+            media, interaction, arena, Some(pc), dirty_paths, cache,
           )
         }
       } else {
         cascade_node(
-          root,
-          child,
-          sheets,
-          Some(&style),
-          &child_ancestors,
-          path,
-          media,
-          interaction,
-          arena,
+          root, child, sheets, Some(&style), &child_ancestors, path,
+          media, interaction, arena, cache,
         )
       };
       path.pop();
@@ -272,11 +323,12 @@ fn cascade_node_with_prev<'a>(
 
 fn clone_subtree<'a>(
   node: &'a HtmlNode,
-  prev: &StyledNode<'_>,
+  prev: &StyledNode<'a>,
   parent_style: Option<&ComputedStyle<'a>>,
-  arena: &'a Bump,
 ) -> StyledNode<'a> {
-  let mut style = prev.style.clone_into(arena);
+  // prev's references point into the previous arena, which is still alive
+  // for 'a (double-buffered). Just copy the Option<&'a CssValue> pointers.
+  let mut style = prev.style.clone();
 
   if let Some(parent) = parent_style {
     style.inherit_from(parent);
@@ -288,7 +340,7 @@ fn clone_subtree<'a>(
     .enumerate()
     .map(|(i, child)| {
       if let Some(prev_child) = prev.children.get(i) {
-        clone_subtree(child, prev_child, Some(&style), arena)
+        clone_subtree(child, prev_child, Some(&style))
       } else {
         StyledNode {
           node: child,
@@ -323,17 +375,18 @@ fn clone_subtree<'a>(
 fn cascade_node<'a>(
   root: &'a HtmlNode,
   node: &'a HtmlNode,
-  sheets: &[&PreparedStylesheet],
+  sheets: &[&'a PreparedStylesheet],
   parent_style: Option<&ComputedStyle<'a>>,
   ancestors: &[AncestorEntry<'a>],
   path: &mut Vec<usize>,
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
+  cache: &mut DeclCache<'a>,
 ) -> StyledNode<'a> {
   let ctx = build_match_context(node, path, interaction, ancestors);
 
-  let mut style = get_computed_style(node, &ctx, sheets, ancestors, media, arena);
+  let mut style = get_cached_or_compute(node, &ctx, sheets, ancestors, media, arena, cache);
 
   if let Some(parent) = parent_style {
     style.inherit_from(parent);
@@ -364,18 +417,26 @@ fn cascade_node<'a>(
         media,
         interaction,
         arena,
+        cache,
       );
       path.pop();
       child_node
     })
     .collect();
 
+  let before = crate::pseudo::collect_pseudo_element(
+    CssPseudo::Before, node, &style, sheets, ancestors, &ctx, media, arena,
+  );
+  let after = crate::pseudo::collect_pseudo_element(
+    CssPseudo::After, node, &style, sheets, ancestors, &ctx, media, arena,
+  );
+
   StyledNode {
     node,
     style,
     children,
-    before: None,
-    after: None,
+    before,
+    after,
     first_line: None,
     first_letter: None,
     placeholder: None,
@@ -387,7 +448,7 @@ fn cascade_node<'a>(
 fn compute_style<'a>(
   node: &'a HtmlNode,
   ctx: &MatchContext<'_>,
-  sheets: &[&PreparedStylesheet],
+  sheets: &[&'a PreparedStylesheet],
   ancestors: &[AncestorEntry<'_>],
   media: &MediaContext,
   arena: &'a Bump,
@@ -413,7 +474,7 @@ fn compute_style<'a>(
   for m in &matched {
     for decl in &m.rule.declarations {
       if !decl.important {
-        apply_declaration(&mut style, &decl.property, &decl.value, arena);
+        apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
       }
     }
   }
@@ -421,7 +482,8 @@ fn compute_style<'a>(
   // Layer 2: inline normal
   for decl in &inline_decls {
     if !decl.important {
-      apply_declaration(&mut style, &decl.property, &decl.value, arena);
+      let val = arena.alloc(decl.value.clone());
+      apply_declaration_ref(&mut style, &decl.property, val, arena);
     }
   }
 
@@ -429,7 +491,7 @@ fn compute_style<'a>(
   for m in &matched {
     for decl in &m.rule.declarations {
       if decl.important {
-        apply_declaration(&mut style, &decl.property, &decl.value, arena);
+        apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
       }
     }
   }
@@ -437,20 +499,20 @@ fn compute_style<'a>(
   // Layer 4: inline !important
   for decl in &inline_decls {
     if decl.important {
-      apply_declaration(&mut style, &decl.property, &decl.value, arena);
+      let val = arena.alloc(decl.value.clone());
+      apply_declaration_ref(&mut style, &decl.property, val, arena);
     }
   }
 
-  // Custom properties from declarations
+  // Custom properties from declarations — stylesheet values are already 'a
   for m in &matched {
     for decl in &m.rule.declarations {
       if let CssProperty::Unknown(ref name) = decl.property {
         if name.starts_with("--") {
-          let val = arena.alloc(decl.value.clone());
           style
             .custom_properties
             .get_or_insert_with(Default::default)
-            .insert(ArcStr::from(name.as_str()), val);
+            .insert(ArcStr::from(name.as_str()), &decl.value);
         }
       }
     }
@@ -543,15 +605,20 @@ fn matched_specificity(
   None
 }
 
-fn apply_declaration<'a>(style: &mut ComputedStyle<'a>, prop: &CssProperty, value: &CssValue, arena: &'a Bump) {
+pub fn apply_declaration_ref<'a>(
+  style: &mut ComputedStyle<'a>,
+  prop: &CssProperty,
+  value: &'a CssValue,
+  arena: &'a Bump,
+) {
   let longhands = longhands_of(prop.clone());
   if longhands.is_empty() {
-    let val_ref = arena.alloc(value.clone());
-    style.set(prop, val_ref);
+    style.set(prop, value);
   } else {
     let expanded = expand_shorthand(prop.clone(), &[value.clone()]);
     for (lh_prop, lh_value) in expanded {
-      apply_declaration(style, &lh_prop, &lh_value, arena);
+      let lh_ref = arena.alloc(lh_value);
+      apply_declaration_ref(style, &lh_prop, lh_ref, arena);
     }
   }
 }
@@ -622,17 +689,27 @@ fn build_match_context<'a>(
   }
 }
 
-fn get_computed_style<'a>(
+fn get_cached_or_compute<'a>(
   node: &'a HtmlNode,
-  ctx: &MatchContext,
-  sheets: &[&PreparedStylesheet],
+  ctx: &MatchContext<'_>,
+  sheets: &[&'a PreparedStylesheet],
   ancestors: &[AncestorEntry<'a>],
   media: &MediaContext,
   arena: &'a Bump,
+  cache: &mut DeclCache<'a>,
 ) -> ComputedStyle<'a> {
   if node.element.is_text() || node.element.is_comment() {
-    ComputedStyle::default()
-  } else {
-    compute_style(node, ctx, sheets, ancestors, media, arena)
+    return ComputedStyle::default();
   }
+
+  let key = element_cache_key(node, ctx, ancestors);
+  if let Some(cached) = cache.map.get(&key) {
+    cache.stats.hits += 1;
+    return cached.clone();
+  }
+
+  cache.stats.misses += 1;
+  let style = compute_style(node, ctx, sheets, ancestors, media, arena);
+  cache.map.insert(key, style.clone());
+  style
 }

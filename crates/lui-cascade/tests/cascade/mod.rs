@@ -1,9 +1,11 @@
 mod basic;
+mod cache;
 mod important;
 mod incremental;
 mod inheritance;
 mod inline_style;
 mod media;
+mod pseudo_elements;
 mod shorthand;
 mod specificity;
 mod supports;
