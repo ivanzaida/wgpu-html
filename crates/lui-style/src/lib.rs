@@ -17,7 +17,6 @@ use std::{
   sync::{Arc, Mutex, OnceLock},
 };
 
-use lui_models as m;
 use lui_models::{ArcStr, Style, common::css_enums::ListStyleType};
 use lui_parser::{
   AttrOp, ComplexSelector, CompoundSelector, CssWideKeyword, MatchContext as QueryMatchContext, MediaFeature,
@@ -123,6 +122,7 @@ pub struct PseudoElementStyle {
 #[derive(Debug, Clone)]
 pub struct CascadedNode {
   pub element: Element,
+  pub class_list: Vec<ArcStr>,
   pub style: Style,
   pub children: Vec<CascadedNode>,
   pub before: Option<Box<PseudoElementStyle>>,
@@ -727,20 +727,20 @@ fn collect_relevant_selector_bits(sel: &ComplexSelector, relevant: &mut Relevant
 }
 
 fn decl_cache_key(
-  element: &Element,
+  node: &Node,
   element_ctx: MatchContext,
   sheets: &[&PreparedStylesheet],
-  ancestors: &[(&Element, MatchContext)],
+  ancestors: &[(&Node, MatchContext)],
   cascade_ctx: &CascadeContext,
 ) -> DeclCacheKey {
   use std::hash::{Hash, Hasher};
   let mut h = std::collections::hash_map::DefaultHasher::new();
 
   // Hash the element's selector-relevant bits.
-  hash_element_signature(element, element_ctx, sheets, cascade_ctx, &mut h);
+  hash_element_signature(node, element_ctx, sheets, cascade_ctx, &mut h);
 
   // Hash the inline style attribute (highest specificity layer).
-  element_style_attr(element).hash(&mut h);
+  element_style_attr(&node.element).hash(&mut h);
 
   // Hash ancestor signatures so descendant-combinator rules
   // that differ by ancestor path produce distinct keys.
@@ -1077,7 +1077,7 @@ fn re_cascade_dirty(
   cached: &mut CascadedNode,
   sheets: &[&PreparedStylesheet],
   parent_style: Option<&Style>,
-  ancestors: &[(&Element, MatchContext)],
+  ancestors: &[(&Node, MatchContext)],
   path: &mut Vec<usize>,
   interaction: &InteractionState,
   decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)>,
@@ -1098,17 +1098,17 @@ fn re_cascade_dirty(
     let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
       (Style::default(), HashMap::new())
     } else {
-      let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors, cascade_ctx);
+      let key = decl_cache_key(node, element_ctx, sheets, ancestors, cascade_ctx);
       if let Some(hit) = decl_cache.get(&key) {
         hit.clone()
       } else {
         let computed = computed_decls_in_prepared_stylesheets_with_context(
-          &node.element,
+          node,
           &element_ctx,
           sheets,
           ancestors,
           media,
-          root,
+          Some(root),
           path,
           interaction,
         );
@@ -1130,7 +1130,7 @@ fn re_cascade_dirty(
     }
     cached.before = compute_pseudo_element_style(
       PseudoElement::Before,
-      &node.element,
+      node,
       &style,
       sheets,
       root,
@@ -1140,7 +1140,7 @@ fn re_cascade_dirty(
     .map(Box::new);
     cached.after = compute_pseudo_element_style(
       PseudoElement::After,
-      &node.element,
+      node,
       &style,
       sheets,
       root,
@@ -1150,7 +1150,7 @@ fn re_cascade_dirty(
     .map(Box::new);
     cached.first_line = compute_pseudo_style_only(
       PseudoElement::FirstLine,
-      &node.element,
+      node,
       &style,
       sheets,
       root,
@@ -1160,7 +1160,7 @@ fn re_cascade_dirty(
     .map(Box::new);
     cached.first_letter = compute_pseudo_style_only(
       PseudoElement::FirstLetter,
-      &node.element,
+      node,
       &style,
       sheets,
       root,
@@ -1170,7 +1170,7 @@ fn re_cascade_dirty(
     .map(Box::new);
     cached.placeholder = compute_pseudo_style_only(
       PseudoElement::Placeholder,
-      &node.element,
+      node,
       &style,
       sheets,
       root,
@@ -1180,7 +1180,7 @@ fn re_cascade_dirty(
     .map(Box::new);
     cached.selection = compute_pseudo_style_only(
       PseudoElement::Selection,
-      &node.element,
+      node,
       &style,
       sheets,
       root,
@@ -1188,14 +1188,14 @@ fn re_cascade_dirty(
       interaction,
     )
     .map(Box::new);
-    cached.marker = compute_marker(&node.element, &style, root, path, sheets, interaction).map(Box::new);
+    cached.marker = compute_marker(node, &style, root, path, sheets, interaction).map(Box::new);
     cached.style = style;
   }
 
   // Build ancestor chain for children.
   let element_ctx = MatchContext::for_path_with_siblings(path, interaction, sibling_count);
-  let mut child_ancestors: Vec<(&Element, MatchContext)> = Vec::with_capacity(ancestors.len() + 1);
-  child_ancestors.push((&node.element, element_ctx));
+  let mut child_ancestors: Vec<(&Node, MatchContext)> = Vec::with_capacity(ancestors.len() + 1);
+  child_ancestors.push((node, element_ctx));
   child_ancestors.extend_from_slice(ancestors);
 
   // Check if any child needs work before recursing.
@@ -1498,7 +1498,7 @@ fn append_stylesheet_source(out: &mut String, css: &str, media: Option<&str>) {
 
 fn compute_pseudo_element_style(
   pe: PseudoElement,
-  element: &Element,
+  node: &Node,
   element_style: &Style,
   sheets: &[&PreparedStylesheet],
   root: &Node,
@@ -1507,16 +1507,16 @@ fn compute_pseudo_element_style(
 ) -> Option<PseudoElementStyle> {
   use lui_models::common::css_enums::CssContent;
 
-  if matches!(element, Element::Text(_)) {
+  if matches!(node.element, Element::Text(_)) {
     return None;
   }
 
   let qctx = QueryMatchContext {
     interaction: Some(interaction),
   };
-  let tag = element_tag(element);
-  let id = element_id(element);
-  let class_attr = element_class(element);
+  let tag = element_tag(&node.element);
+  let id = element_id(&node.element);
+  let class_list = &node.class_list;
 
   let mut matched: Vec<(u32, &Rule)> = Vec::new();
   for sheet in sheets {
@@ -1536,11 +1536,9 @@ fn compute_pseudo_element_style(
         push(e);
       }
     }
-    if let Some(ca) = class_attr {
-      for c in ca.split_ascii_whitespace() {
-        if let Some(e) = sheet.index.by_class.get(c) {
-          push(e);
-        }
+    for c in class_list {
+      if let Some(e) = sheet.index.by_class.get(c.as_ref()) {
+        push(e);
       }
     }
     if let Some(tag) = tag {
@@ -1608,23 +1606,23 @@ fn compute_pseudo_element_style(
 
 fn compute_pseudo_style_only(
   pe: PseudoElement,
-  element: &Element,
+  node: &Node,
   element_style: &Style,
   sheets: &[&PreparedStylesheet],
   root: &Node,
   path: &[usize],
   interaction: &InteractionState,
 ) -> Option<Style> {
-  if matches!(element, Element::Text(_)) {
+  if matches!(node.element, Element::Text(_)) {
     return None;
   }
 
   let qctx = QueryMatchContext {
     interaction: Some(interaction),
   };
-  let tag = element_tag(element);
-  let id = element_id(element);
-  let class_attr = element_class(element);
+  let tag = element_tag(&node.element);
+  let id = element_id(&node.element);
+  let class_list = &node.class_list;
 
   let mut matched: Vec<(u32, &Rule)> = Vec::new();
   for sheet in sheets {
@@ -1644,11 +1642,9 @@ fn compute_pseudo_style_only(
         push(e);
       }
     }
-    if let Some(ca) = class_attr {
-      for c in ca.split_ascii_whitespace() {
-        if let Some(e) = sheet.index.by_class.get(c) {
-          push(e);
-        }
+    for c in class_list {
+      if let Some(e) = sheet.index.by_class.get(c.as_ref()) {
+        push(e);
       }
     }
     if let Some(tag) = tag {
@@ -1698,7 +1694,7 @@ fn compute_pseudo_style_only(
 }
 
 fn compute_marker(
-  element: &Element,
+  node: &Node,
   style: &Style,
   root: &Node,
   path: &[usize],
@@ -1721,13 +1717,13 @@ fn compute_marker(
     ListStyleType::Square => "\u{25AA} ".into(),
     ListStyleType::None => return None,
     _ => {
-      let ordinal = compute_ordinal(element, root, path);
+      let ordinal = compute_ordinal(&node.element, root, path);
       format_ordinal(ordinal, lst)
     }
   };
 
   let mut marker_style =
-    compute_pseudo_element_style(PseudoElement::Marker, element, style, sheets, root, path, interaction);
+    compute_pseudo_element_style(PseudoElement::Marker, node, style, sheets, root, path, interaction);
 
   if let Some(ref mut ms) = marker_style {
     if ms.content_text.is_empty() {
@@ -1869,7 +1865,7 @@ fn cascade_node(
   node: &Node,
   sheets: &[&PreparedStylesheet],
   parent_style: Option<&Style>,
-  ancestors: &[(&Element, MatchContext)],
+  ancestors: &[(&Node, MatchContext)],
   path: &mut Vec<usize>,
   interaction: &InteractionState,
   decl_cache: &mut HashMap<DeclCacheKey, (Style, HashMap<ArcStr, CssWideKeyword>)>,
@@ -1881,17 +1877,17 @@ fn cascade_node(
   let (mut style, keywords) = if matches!(node.element, Element::Text(_)) {
     (Style::default(), HashMap::new())
   } else {
-    let key = decl_cache_key(&node.element, element_ctx, sheets, ancestors, cascade_ctx);
+    let key = decl_cache_key(node, element_ctx, sheets, ancestors, cascade_ctx);
     if let Some(cached) = decl_cache.get(&key) {
       cached.clone()
     } else {
       let computed = computed_decls_in_prepared_stylesheets_with_context(
-        &node.element,
+        node,
         &element_ctx,
         sheets,
         ancestors,
         media,
-        root,
+        Some(root),
         path,
         interaction,
       );
@@ -1926,9 +1922,9 @@ fn cascade_node(
     lui_parser::resolve_var_references(&mut style);
   }
 
-  // Build the child ancestor chain by prepending this element.
-  let mut child_ancestors: Vec<(&Element, MatchContext)> = Vec::with_capacity(ancestors.len() + 1);
-  child_ancestors.push((&node.element, element_ctx));
+  // Build the child ancestor chain by prepending this node.
+  let mut child_ancestors: Vec<(&Node, MatchContext)> = Vec::with_capacity(ancestors.len() + 1);
+  child_ancestors.push((node, element_ctx));
   child_ancestors.extend_from_slice(ancestors);
 
   let child_count = node.children.len();
@@ -1957,7 +1953,7 @@ fn cascade_node(
     .collect();
   let before = compute_pseudo_element_style(
     PseudoElement::Before,
-    &node.element,
+    node,
     &style,
     sheets,
     root,
@@ -1967,7 +1963,7 @@ fn cascade_node(
   .map(Box::new);
   let after = compute_pseudo_element_style(
     PseudoElement::After,
-    &node.element,
+    node,
     &style,
     sheets,
     root,
@@ -1977,7 +1973,7 @@ fn cascade_node(
   .map(Box::new);
   let first_line = compute_pseudo_style_only(
     PseudoElement::FirstLine,
-    &node.element,
+    node,
     &style,
     sheets,
     root,
@@ -1987,7 +1983,7 @@ fn cascade_node(
   .map(Box::new);
   let first_letter = compute_pseudo_style_only(
     PseudoElement::FirstLetter,
-    &node.element,
+    node,
     &style,
     sheets,
     root,
@@ -1997,7 +1993,7 @@ fn cascade_node(
   .map(Box::new);
   let placeholder = compute_pseudo_style_only(
     PseudoElement::Placeholder,
-    &node.element,
+    node,
     &style,
     sheets,
     root,
@@ -2007,7 +2003,7 @@ fn cascade_node(
   .map(Box::new);
   let selection = compute_pseudo_style_only(
     PseudoElement::Selection,
-    &node.element,
+    node,
     &style,
     sheets,
     root,
@@ -2016,12 +2012,13 @@ fn cascade_node(
   )
   .map(Box::new);
 
-  let marker = compute_marker(&node.element, &style, root, path, sheets, interaction).map(Box::new);
+  let marker = compute_marker(node, &style, root, path, sheets, interaction).map(Box::new);
 
-  let lui_pseudo = compute_lui_pseudo_styles(&node.element, &style, sheets, root, path, interaction);
+  let lui_pseudo = compute_lui_pseudo_styles(node, &style, sheets, root, path, interaction);
 
   CascadedNode {
     element: node.element.clone(),
+    class_list: node.class_list.clone(),
     style,
     children,
     before,
@@ -2054,7 +2051,7 @@ const LUI_PSEUDO_ELEMENTS: &[PseudoElement] = &[
 ];
 
 fn compute_lui_pseudo_styles(
-  element: &Element,
+  node: &Node,
   element_style: &Style,
   sheets: &[&PreparedStylesheet],
   root: &Node,
@@ -2063,7 +2060,7 @@ fn compute_lui_pseudo_styles(
 ) -> Vec<(PseudoElement, Style)> {
   let mut out = Vec::new();
   for &pe in LUI_PSEUDO_ELEMENTS {
-    if let Some(s) = compute_pseudo_style_only(pe, element, element_style, sheets, root, path, interaction) {
+    if let Some(s) = compute_pseudo_style_only(pe, node, element_style, sheets, root, path, interaction) {
       out.push((pe, s));
     }
   }
@@ -2199,8 +2196,8 @@ fn inherit_into(child: &mut Style, parent: &Style, keywords: &HashMap<ArcStr, Cs
 /// This convenience does NOT evaluate descendant-combinator rules
 /// (it has no ancestor context); for that, use the cascade walk in
 /// [`cascade`].
-pub fn computed_style(element: &Element, sheet: &Stylesheet) -> Style {
-  computed_decls(element, sheet).0
+pub fn computed_style(node: &Node, sheet: &Stylesheet) -> Style {
+  computed_decls(node, sheet).0
 }
 
 /// Compute the cascaded `(values, keyword overrides)` for one element

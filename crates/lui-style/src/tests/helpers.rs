@@ -8,15 +8,30 @@ pub(crate) fn elem_div() -> Element {
   Element::Div(lui_models::Div::default())
 }
 
-pub(crate) fn elem_div_with(id: Option<&str>, class: Option<&str>) -> Element {
+pub(crate) fn elem_div_with(id: Option<&str>, _class: Option<&str>) -> Element {
   let mut d = lui_models::Div::default();
   d.id = id.map(|s| ArcStr::from(s));
-  d.class = class.map(|s| ArcStr::from(s));
   Element::Div(d)
 }
 
 pub(crate) fn elem_p() -> Element {
   Element::P(lui_models::P::default())
+}
+
+pub(crate) fn node_div() -> Node {
+  Node::new(elem_div())
+}
+
+pub(crate) fn node_div_with(id: Option<&str>, class: Option<&str>) -> Node {
+  let el = elem_div_with(id, class);
+  let class_list: Vec<ArcStr> = class
+    .map(|s| s.split_ascii_whitespace().map(ArcStr::from).collect())
+    .unwrap_or_default();
+  Node::new(el).with_class_list(class_list)
+}
+
+pub(crate) fn node_p() -> Node {
+  Node::new(elem_p())
 }
 
 pub(crate) fn first_div(tree: &Tree) -> CascadedNode {

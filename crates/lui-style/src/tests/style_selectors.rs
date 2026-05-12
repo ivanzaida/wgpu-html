@@ -35,23 +35,23 @@ fn universal_sel() -> ComplexSelector {
 #[test]
 fn matches_tag_only() {
   let sel = tag_sel("div");
-  assert!(matches_selector(&sel, &elem_div()));
-  assert!(!matches_selector(&sel, &elem_p()));
+  assert!(matches_selector(&sel, &node_div()));
+  assert!(!matches_selector(&sel, &node_p()));
 }
 
 #[test]
 fn matches_id() {
   let sel = id_sel("hero");
-  assert!(matches_selector(&sel, &elem_div_with(Some("hero"), None)));
-  assert!(!matches_selector(&sel, &elem_div_with(Some("other"), None)));
-  assert!(!matches_selector(&sel, &elem_div_with(None, None)));
+  assert!(matches_selector(&sel, &node_div_with(Some("hero"), None)));
+  assert!(!matches_selector(&sel, &node_div_with(Some("other"), None)));
+  assert!(!matches_selector(&sel, &node_div_with(None, None)));
 }
 
 #[test]
 fn matches_class_one_of_many() {
   let sel = class_sel("card");
-  assert!(matches_selector(&sel, &elem_div_with(None, Some("big card primary"))));
-  assert!(!matches_selector(&sel, &elem_div_with(None, Some("big primary"))));
+  assert!(matches_selector(&sel, &node_div_with(None, Some("big card primary"))));
+  assert!(!matches_selector(&sel, &node_div_with(None, Some("big primary"))));
 }
 
 #[test]
@@ -63,20 +63,20 @@ fn matches_compound_all_required() {
   });
   assert!(matches_selector(
     &sel,
-    &elem_div_with(Some("hero"), Some("card big primary"))
+    &node_div_with(Some("hero"), Some("card big primary"))
   ));
   // missing one class → fails
   assert!(!matches_selector(
     &sel,
-    &elem_div_with(Some("hero"), Some("card primary"))
+    &node_div_with(Some("hero"), Some("card primary"))
   ));
 }
 
 #[test]
 fn universal_matches_any() {
   let sel = universal_sel();
-  assert!(matches_selector(&sel, &elem_div()));
-  assert!(matches_selector(&sel, &elem_p()));
+  assert!(matches_selector(&sel, &node_div()));
+  assert!(matches_selector(&sel, &node_p()));
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn matches_selector_rejects_descendant_without_ancestors() {
     ],
     combinators: vec![Combinator::Descendant],
   };
-  let item = elem_div_with(None, Some("item"));
+  let item = node_div_with(None, Some("item"));
   assert!(!matches_selector(&sel, &item));
 }
 
@@ -114,10 +114,10 @@ fn matches_selector_in_tree_walks_ancestors() {
     ],
     combinators: vec![Combinator::Descendant],
   };
-  let row = elem_div_with(None, Some("row"));
-  let item = elem_div_with(None, Some("item"));
+  let row = node_div_with(None, Some("row"));
+  let item = node_div_with(None, Some("item"));
   assert!(matches_selector_in_tree(&sel, &item, &[&row]));
-  let neutral = elem_div_with(None, Some("box"));
+  let neutral = node_div_with(None, Some("box"));
   assert!(!matches_selector_in_tree(&sel, &item, &[&neutral]));
   assert!(matches_selector_in_tree(&sel, &item, &[&neutral, &row]));
 }

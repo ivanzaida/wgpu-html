@@ -139,6 +139,7 @@ pub fn hex_string(cp: &ColorPickerState) -> String {
 fn cn(element: Element, style: lui_models::Style, children: Vec<CascadedNode>) -> CascadedNode {
   CascadedNode {
     element,
+    class_list: vec![],
     style,
     children,
     before: None,

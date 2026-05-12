@@ -187,8 +187,10 @@ fn write_cascaded_json(out: &mut String, node: &lui_style::CascadedNode, depth: 
   if let Some(id) = node.element.id() {
     let _ = write!(out, ",\n{inner}\"id\": {}", json_str(id));
   }
-  if let Some(cls) = node.element.class() {
-    let _ = write!(out, ",\n{inner}\"class\": {}", json_str(cls));
+  let class_list = &node.class_list;
+  if !class_list.is_empty() {
+    let cls = class_list.iter().map(|c| c.as_ref()).collect::<Vec<&str>>().join(" ");
+    let _ = write!(out, ",\n{inner}\"class\": {}", json_str(&cls));
   }
   if let lui_tree::Element::Text(txt) = &node.element {
     let _ = write!(out, ",\n{inner}\"text\": {}", json_str(txt));

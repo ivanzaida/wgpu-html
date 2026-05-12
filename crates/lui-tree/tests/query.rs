@@ -30,28 +30,40 @@ use lui_tree::{CompoundSelector, Node, SelectorList, Tree, query::AttrOp};
 
 // ─── Tree-building helpers ────────────────────────────────────────────────
 
-fn div(id: Option<&str>, class: Option<&str>) -> m::Div {
-  m::Div {
-    id: id.map(|s| std::sync::Arc::<str>::from(s)),
-    class: class.map(|s| std::sync::Arc::<str>::from(s)),
+fn div(id: Option<&str>, class: Option<&str>) -> Node {
+  let model = m::Div {
+    id: id.map(|s| m::ArcStr::from(s)),
     ..m::Div::default()
+  };
+  let mut node = Node::new(model);
+  if let Some(cls) = class {
+    node.class_list = cls.split_ascii_whitespace().map(|c| m::ArcStr::from(c)).collect();
   }
+  node
 }
 
-fn span(id: Option<&str>, class: Option<&str>) -> m::Span {
-  m::Span {
-    id: id.map(|s| std::sync::Arc::<str>::from(s)),
-    class: class.map(|s| std::sync::Arc::<str>::from(s)),
+fn span(id: Option<&str>, class: Option<&str>) -> Node {
+  let model = m::Span {
+    id: id.map(|s| m::ArcStr::from(s)),
     ..m::Span::default()
+  };
+  let mut node = Node::new(model);
+  if let Some(cls) = class {
+    node.class_list = cls.split_ascii_whitespace().map(|c| m::ArcStr::from(c)).collect();
   }
+  node
 }
 
-fn p(id: Option<&str>, class: Option<&str>) -> m::P {
-  m::P {
-    id: id.map(|s| std::sync::Arc::<str>::from(s)),
-    class: class.map(|s| std::sync::Arc::<str>::from(s)),
+fn p(id: Option<&str>, class: Option<&str>) -> Node {
+  let model = m::P {
+    id: id.map(|s| m::ArcStr::from(s)),
     ..m::P::default()
+  };
+  let mut node = Node::new(model);
+  if let Some(cls) = class {
+    node.class_list = cls.split_ascii_whitespace().map(|c| m::ArcStr::from(c)).collect();
   }
+  node
 }
 
 /// Tree shaped like:
@@ -71,15 +83,15 @@ fn p(id: Option<&str>, class: Option<&str>) -> m::P {
 /// ```
 fn sample() -> Tree {
   let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(div(Some("outer"), Some("box hero"))).with_children(vec![
-      Node::new(span(None, Some("label"))).with_children(vec![Node::new("hi")]),
-      Node::new(p(None, Some("lead"))).with_children(vec![Node::new("first p")]),
-      Node::new(p(None, Some("lead"))).with_children(vec![Node::new("second p")]),
-      Node::new(div(Some("inner"), Some("box"))).with_children(vec![
-        Node::new(span(None, Some("label"))).with_children(vec![Node::new("two")]),
+    div(Some("outer"), Some("box hero")).with_children(vec![
+      span(None, Some("label")).with_children(vec![Node::new("hi")]),
+      p(None, Some("lead")).with_children(vec![Node::new("first p")]),
+      p(None, Some("lead")).with_children(vec![Node::new("second p")]),
+      div(Some("inner"), Some("box")).with_children(vec![
+        span(None, Some("label")).with_children(vec![Node::new("two")]),
       ]),
     ]),
-    Node::new(span(Some("solo"), Some("label primary"))),
+    span(Some("solo"), Some("label primary")),
   ]);
   Tree::new(body)
 }
@@ -185,7 +197,7 @@ fn empty_pseudo_class_matches_no_children() {
 fn root_pseudo_class_matches_html_root() {
   // Build a document with an explicit <html> wrapper so `:root`
   // has a unique target.
-  let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("a"), None))]);
+  let body = Node::new(m::Body::default()).with_children(vec![div(Some("a"), None)]);
   let html = Node::new(m::Html::default()).with_children(vec![body]);
   let mut tree = Tree::new(html);
   SelectorList::parse(":root").expect("`:root` must parse");
@@ -785,7 +797,7 @@ fn css_escape_in_id_selector() {
   // An id literally containing a dot: `<div id="has.dot">`.
   // CSS escapes the dot as `\.`. Today the parser stops at the
   // backslash and rejects it.
-  let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("has.dot"), None))]);
+  let body = Node::new(m::Body::default()).with_children(vec![div(Some("has.dot"), None)]);
   let mut tree = Tree::new(body);
   SelectorList::parse(r"#has\.dot").expect("escaped `.` must parse");
   let hit = tree.query_selector(r"#has\.dot").unwrap();
@@ -795,11 +807,11 @@ fn css_escape_in_id_selector() {
 #[test]
 fn css_numeric_escape_in_class_selector() {
   // `.\31 23` — escapes to the class `123`.
-  let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(None, Some("123")))]);
+  let body = Node::new(m::Body::default()).with_children(vec![div(None, Some("123"))]);
   let mut tree = Tree::new(body);
   SelectorList::parse(r".\31 23").expect("numeric escape must parse");
   let hit = tree.query_selector(r".\31 23").unwrap();
-  assert_eq!(hit.element.class(), Some("123"));
+  assert!(hit.has_class("123"));
 }
 
 // ── Cross-phase combinators with new pseudo-classes ───────────────────────
@@ -1006,8 +1018,8 @@ fn empty_pseudo_class_with_whitespace_text_still_not_empty() {
   // CSS spec: `:empty` matches elements with no children OF ANY KIND
   // (including text). Whitespace-only text counts as content.
   let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(span(Some("ws"), None)).with_children(vec![Node::new("   ")]),
-    Node::new(span(Some("real_empty"), None)),
+    span(Some("ws"), None).with_children(vec![Node::new("   ")]),
+    span(Some("real_empty"), None),
   ]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("span:empty");
@@ -1211,7 +1223,7 @@ fn dir_default_when_unset() {
   // Without an explicit `dir` attribute, `:dir(ltr)` should match
   // (per spec, default is ltr). This test pins down "fall back
   // to ltr".
-  let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("a"), None))]);
+  let body = Node::new(m::Body::default()).with_children(vec![div(Some("a"), None)]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("#a:dir(ltr)");
   assert_eq!(hits.len(), 1);
@@ -1275,7 +1287,7 @@ fn star_prefix_matches_any_namespace() {
 fn css_escape_with_six_hex_digits() {
   // `\000041` → 'A'. Per spec, hex escape can be up to 6 digits.
   SelectorList::parse(r"#\000041").expect("must parse");
-  let body = Node::new(m::Body::default()).with_children(vec![Node::new(div(Some("A"), None))]);
+  let body = Node::new(m::Body::default()).with_children(vec![div(Some("A"), None)]);
   let mut tree = Tree::new(body);
   let hit = tree.query_selector(r"#\000041").unwrap();
   assert_eq!(hit.element.id(), Some("A"));
@@ -1491,8 +1503,8 @@ fn parse_attribute_case_flags() {
 #[test]
 fn attribute_op_includes_matches_class_token() {
   let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(div(None, Some("foo bar baz"))),
-    Node::new(div(None, Some("foobar"))),
+    div(None, Some("foo bar baz")),
+    div(None, Some("foobar")),
   ]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("[class~=\"bar\"]");
@@ -1564,7 +1576,7 @@ fn child_combinator() {
 fn next_sibling_combinator() {
   // Build a tree where span is immediately followed by a div
   let body = Node::new(m::Body::default()).with_children(vec![
-    Node::new(div(None, None)).with_children(vec![Node::new(span(None, None)), Node::new(div(None, None))]),
+    div(None, None).with_children(vec![span(None, None), div(None, None)]),
   ]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("span + div");

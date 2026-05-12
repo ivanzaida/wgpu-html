@@ -345,8 +345,9 @@ fn push_attrs(node: &Node, selected: bool, parts: &mut Vec<El>, ctx: &Ctx<TreePa
   if let Some(id) = node.element.id() {
     push_attr("id", id, selected, parts, ctx);
   }
-  if let Some(class) = node.element.class() {
-    push_attr("class", class, selected, parts, ctx);
+  if !node.class_list().is_empty() {
+    let class = node.class_list().iter().map(|c| c.as_ref()).collect::<Vec<_>>().join(" ");
+    push_attr("class", &class, selected, parts, ctx);
   }
   if let Some(v) = node.element.attr("type") {
     push_attr("type", &v, selected, parts, ctx);
@@ -455,11 +456,9 @@ fn crumb_label(node: &Node) -> String {
   if let Some(id) = node.element.id() {
     label.push('#');
     label.push_str(id);
-  } else if let Some(class) = node.element.class() {
-    if let Some(first) = class.split_ascii_whitespace().next() {
-      label.push('.');
-      label.push_str(first);
-    }
+  } else if let Some(first) = node.class_list().first() {
+    label.push('.');
+    label.push_str(first.as_ref());
   }
   label
 }

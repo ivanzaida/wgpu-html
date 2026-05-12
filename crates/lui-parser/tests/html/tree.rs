@@ -147,7 +147,8 @@ fn div_has_id_class() {
     panic!("expected Div")
   };
   assert_eq!(div.id.as_deref(), Some("hero"));
-  assert_eq!(div.class.as_deref(), Some("card big"));
+  assert_eq!(r.has_class("card"), true);
+  assert_eq!(r.has_class("big"), true);
 }
 
 #[test]
@@ -350,24 +351,18 @@ fn inline_style_ignores_unknown_props() {
 #[test]
 fn multiple_data_attrs_are_all_preserved() {
   let r = root(r#"<div data-id="42" data-name="hello" data-foo="bar"></div>"#);
-  let Element::Div(d) = &r.element else {
-    panic!("expected div")
-  };
-  assert_eq!(d.data_attrs.len(), 3);
-  assert_eq!(d.data_attrs.get("id").map(|s| &**s), Some("42"));
-  assert_eq!(d.data_attrs.get("name").map(|s| &**s), Some("hello"));
-  assert_eq!(d.data_attrs.get("foo").map(|s| &**s), Some("bar"));
-  assert!(d.aria_attrs.is_empty());
+  assert_eq!(r.data_attrs.len(), 3);
+  assert_eq!(r.data_attr("id").map(|s| s.as_ref()), Some("42"));
+  assert_eq!(r.data_attr("name").map(|s| s.as_ref()), Some("hello"));
+  assert_eq!(r.data_attr("foo").map(|s| s.as_ref()), Some("bar"));
+  assert!(r.aria_attrs.is_empty());
 }
 
 #[test]
 fn multiple_aria_attrs_are_all_preserved() {
   let r = root(r#"<button aria-label="Close" aria-pressed="false" aria-controls="menu"></button>"#);
-  let Element::Button(b) = &r.element else {
-    panic!("expected button")
-  };
-  assert_eq!(b.aria_attrs.len(), 3);
-  assert_eq!(b.aria_attrs.get("label").map(|s| &**s), Some("Close"));
-  assert_eq!(b.aria_attrs.get("pressed").map(|s| &**s), Some("false"));
-  assert_eq!(b.aria_attrs.get("controls").map(|s| &**s), Some("menu"));
+  assert_eq!(r.aria_attrs.len(), 3);
+  assert_eq!(r.aria_attr("label").map(|s| s.as_ref()), Some("Close"));
+  assert_eq!(r.aria_attr("pressed").map(|s| s.as_ref()), Some("false"));
+  assert_eq!(r.aria_attr("controls").map(|s| s.as_ref()), Some("menu"));
 }

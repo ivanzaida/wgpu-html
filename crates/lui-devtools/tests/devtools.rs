@@ -2,11 +2,7 @@ use lui_tree::Node;
 
 #[allow(dead_code)]
 fn first_path_with_class(node: &Node, class: &str, path: &mut Vec<usize>) -> Option<Vec<usize>> {
-  if node
-    .element
-    .class()
-    .is_some_and(|classes| classes.split_ascii_whitespace().any(|c| c == class))
-  {
+  if node.class_list.iter().any(|c| c.as_ref() == class) {
     return Some(path.clone());
   }
 

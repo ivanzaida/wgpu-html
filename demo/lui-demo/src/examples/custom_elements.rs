@@ -10,17 +10,13 @@ pub fn build() -> lui_tree::Tree {
     let status = node.element.attr("status").unwrap_or(ArcStr::from("active"));
 
     let mut card = Node::new(Div::default());
-    if let Element::Div(ref mut d) = card.element {
-      d.class = Some("card".into());
-    }
+    card.class_list.push("card".into());
 
     let mut h2 = Node::new(lui_models::H2::default());
     h2.children.push(Node::new(Element::Text(title)));
 
     let mut badge = Node::new(Span::default());
-    if let Element::Span(ref mut s) = badge.element {
-      s.class = Some(ArcStr::from(format!("badge status-{status}")));
-    }
+    badge.class_list = vec![ArcStr::from(format!("badge status-{status}"))];
     badge.children.push(Node::new(Element::Text(status)));
 
     card.children.push(h2);
@@ -35,9 +31,7 @@ pub fn build() -> lui_tree::Tree {
     let level = node.element.attr("level").unwrap_or(ArcStr::from("info"));
 
     let mut alert = Node::new(Div::default());
-    if let Element::Div(ref mut d) = alert.element {
-      d.class = Some(ArcStr::from(format!("alert-box alert-{level}")));
-    }
+    alert.class_list = vec![ArcStr::from(format!("alert-box alert-{level}"))];
     alert.children = node.children.clone();
     alert
   });

@@ -91,9 +91,11 @@ fn is_inline_level(node: &CascadedNode) -> bool {
 fn make_pseudo_node(pe: &PseudoElementStyle) -> CascadedNode {
   CascadedNode {
     element: Element::Span(lui_models::Span::default()),
+    class_list: vec![],
     style: pe.style.clone(),
     children: vec![CascadedNode {
       element: Element::Text(pe.content_text.clone()),
+      class_list: vec![],
       style: Style::default(),
       children: vec![],
       before: None,

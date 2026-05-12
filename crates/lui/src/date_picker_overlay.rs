@@ -10,6 +10,7 @@ const CELL_SIZE: f32 = 30.0;
 fn cn(element: Element, style: lui_models::Style, children: Vec<CascadedNode>) -> CascadedNode {
   CascadedNode {
     element,
+    class_list: vec![],
     style,
     children,
     before: None,

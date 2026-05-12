@@ -91,7 +91,7 @@ fn paint_tooltip(
   }
 
   let id = node.element.id();
-  let class = node.element.class();
+  let class_list = node.class_list();
   let w_px = (border_rect.w / scale).round() as u32;
   let h_px = (border_rect.h / scale).round() as u32;
 
@@ -105,9 +105,11 @@ fn paint_tooltip(
     segments.push((&id_str, TOOLTIP_TAG));
   }
 
-  let class_str = class
-    .map(|c| format!(".{}", c.split_whitespace().collect::<Vec<_>>().join(".")))
-    .unwrap_or_default();
+  let class_str = if class_list.is_empty() {
+    String::new()
+  } else {
+    format!(".{}", class_list.iter().map(|c| c.as_ref()).collect::<Vec<_>>().join("."))
+  };
   if !class_str.is_empty() {
     segments.push((&class_str, TOOLTIP_CLASS));
   }

@@ -12,8 +12,8 @@ fn id_beats_class() {
         #hero { background-color: red; }
         ",
   );
-  let el = elem_div_with(Some("hero"), Some("card"));
-  let style = computed_style(&el, &sheet);
+  let node = node_div_with(Some("hero"), Some("card"));
+  let style = computed_style(&node, &sheet);
   let bg = style.background_color.expect("set");
   // The id rule has higher specificity → red wins.
   assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
@@ -27,8 +27,8 @@ fn class_beats_tag() {
         .card { background-color: red; }
         ",
   );
-  let el = elem_div_with(None, Some("card"));
-  let style = computed_style(&el, &sheet);
+  let node = node_div_with(None, Some("card"));
+  let style = computed_style(&node, &sheet);
   let bg = style.background_color.expect("set");
   assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
@@ -39,7 +39,8 @@ fn inline_beats_id() {
   let mut div = lui_models::Div::default();
   div.id = Some("hero".into());
   div.style = Some("background-color: red;".into());
-  let style = computed_style(&Element::Div(div), &sheet);
+  let node = Node::new(Element::Div(div));
+  let style = computed_style(&node, &sheet);
   let bg = style.background_color.expect("set");
   assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
@@ -103,8 +104,8 @@ fn rules_at_same_specificity_apply_in_source_order() {
         .card { background-color: red; }
         ",
   );
-  let el = elem_div_with(None, Some("card"));
-  let style = computed_style(&el, &sheet);
+  let node = node_div_with(None, Some("card"));
+  let style = computed_style(&node, &sheet);
   let bg = style.background_color.expect("set");
   assert!(matches!(bg, CssColor::Named(ref s) if &**s == "red"));
 }
@@ -112,15 +113,15 @@ fn rules_at_same_specificity_apply_in_source_order() {
 #[test]
 fn unrelated_rules_do_not_apply() {
   let sheet = parse_stylesheet(".other { width: 999px; }");
-  let el = elem_div_with(None, Some("card"));
-  let style = computed_style(&el, &sheet);
+  let node = node_div_with(None, Some("card"));
+  let style = computed_style(&node, &sheet);
   assert!(style.width.is_none());
 }
 
 #[test]
 fn comma_lists_all_match() {
   let sheet = parse_stylesheet("h1, h2, .big { color: red; }");
-  let el = elem_div_with(None, Some("big"));
-  let style = computed_style(&el, &sheet);
+  let node = node_div_with(None, Some("big"));
+  let style = computed_style(&node, &sheet);
   assert!(style.color.is_some());
 }
