@@ -27,7 +27,7 @@ pub struct MatchContext<'a> {
     pub is_focus_within: bool,
 
     // ── Document / navigation state ──
-    pub target_id: Option<&'a str>,
+    pub is_target: bool,
     pub lang: Option<&'a str>,
     pub dir: Option<Dir>,
 
@@ -425,10 +425,7 @@ fn matches_pseudo(
             && node.attrs.get("popover").map(|v| !v.is_empty()).unwrap_or(false),
 
         // ── Document / navigation ──
-        CssPseudo::Target => match ctx.target_id {
-            Some(tid) => node.attrs.get("id").map(|id| id.as_ref() == tid).unwrap_or(false),
-            None => false,
-        },
+        CssPseudo::Target => ctx.is_target,
         CssPseudo::Scope => ctx.is_root,
 
         // ── Language / direction ──

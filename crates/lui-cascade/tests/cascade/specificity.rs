@@ -11,7 +11,7 @@ fn id_beats_class() {
     let sheet = parse_stylesheet(".c { color: red; } #x { color: blue; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("blue"));
 }
 
@@ -21,7 +21,7 @@ fn class_beats_tag() {
     let sheet = parse_stylesheet("div { color: red; } .c { color: blue; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("blue"));
 }
 
@@ -31,7 +31,7 @@ fn source_order_breaks_ties() {
     let sheet = parse_stylesheet(".a { color: red; } .b { color: blue; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("blue"));
 }
 
@@ -41,6 +41,6 @@ fn higher_specificity_wins_regardless_of_order() {
     let sheet = parse_stylesheet("#x { color: red; } .c { color: blue; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("red"));
 }

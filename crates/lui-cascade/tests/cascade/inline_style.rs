@@ -10,7 +10,7 @@ fn inline_beats_class_selector() {
     let doc = parse(r#"<div class="c" style="color: blue"></div>"#);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet(".c { color: red; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("blue"));
 }
 
@@ -19,7 +19,7 @@ fn inline_beats_id_selector() {
     let doc = parse(r#"<div id="x" style="color: blue"></div>"#);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("#x { color: red; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("blue"));
 }
 
@@ -28,7 +28,7 @@ fn important_in_stylesheet_beats_normal_inline() {
     let doc = parse(r#"<div class="c" style="color: blue"></div>"#);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet(".c { color: red !important; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("red"));
 }
 
@@ -37,6 +37,6 @@ fn important_inline_beats_important_stylesheet() {
     let doc = parse(r#"<div class="c" style="color: blue !important"></div>"#);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet(".c { color: red !important; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert_eq!(*styled.children[0].style.color.unwrap(), val("blue"));
 }

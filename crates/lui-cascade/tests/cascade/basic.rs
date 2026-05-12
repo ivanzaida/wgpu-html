@@ -9,7 +9,7 @@ fn single_rule_applies_to_matching_element() {
     let sheet = parse_stylesheet("div { display: block; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.display.is_some());
 }
 
@@ -19,7 +19,7 @@ fn non_matching_rule_does_not_apply() {
     let sheet = parse_stylesheet("span { color: red; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.color.is_none());
 }
 
@@ -29,7 +29,7 @@ fn class_selector_applies() {
     let sheet = parse_stylesheet(".card { color: red; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.color.is_some());
 }
 
@@ -39,7 +39,7 @@ fn id_selector_applies() {
     let sheet = parse_stylesheet("#main { width: 100px; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.width.is_some());
 }
 
@@ -49,7 +49,7 @@ fn descendant_selector_applies() {
     let sheet = parse_stylesheet(".outer p { color: blue; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].children[0].style.color.is_some());
 }
 
@@ -59,7 +59,7 @@ fn empty_stylesheet_produces_default_styles() {
     let sheet = parse_stylesheet("").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[sheet]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.display.is_none());
 }
 
@@ -70,7 +70,7 @@ fn multiple_stylesheets_applied_in_order() {
     let s2 = parse_stylesheet("div { color: blue; }").unwrap();
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[s1, s2]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.color.is_some());
 }
 
@@ -82,12 +82,12 @@ fn cascade_can_be_called_again_after_drop() {
     ctx.set_stylesheets(&[sheet]);
 
     let color1 = {
-        let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+        let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
         styled.children[0].style.color.is_some()
     };
 
     let color2 = {
-        let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+        let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
         styled.children[0].style.color.is_some()
     };
 

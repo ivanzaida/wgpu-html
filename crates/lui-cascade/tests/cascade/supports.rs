@@ -7,7 +7,7 @@ fn cascade_check(html: &str, css: &str) -> bool {
     let doc = parse(html);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet(css).unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     styled.children[0].style.color.is_some()
 }
 
@@ -56,7 +56,7 @@ fn supports_selector_applies() {
     let doc = parse(r#"<div class="foo"><span class="bar"></span></div>"#);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("@supports selector(.foo > .bar) { .bar { color: red; } }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].children[0].style.color.is_some());
 }
 
@@ -65,7 +65,7 @@ fn supports_not_selector_skipped() {
     let doc = parse(r#"<div class="foo"></div>"#);
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("@supports not selector(.foo) { .foo { color: red; } }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.color.is_none());
 }
 
@@ -74,7 +74,7 @@ fn normal_and_supports_rules_combine() {
     let doc = parse("<div></div>");
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("div { display: block; } @supports (display: grid) { div { color: red; } }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.display.is_some());
     assert!(styled.children[0].style.color.is_some());
 }
@@ -84,7 +84,7 @@ fn normal_outside_and_failed_supports_inside() {
     let doc = parse("<div></div>");
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("div { display: block; } @supports (fake: x) { div { color: red; } }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     assert!(styled.children[0].style.display.is_some());
     assert!(styled.children[0].style.color.is_none());
 }

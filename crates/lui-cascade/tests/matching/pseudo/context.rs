@@ -6,42 +6,22 @@ use crate::helpers::root_ctx;
 // ── :target ──
 
 #[test]
-fn target_matches_when_id_equals_fragment() {
+fn target_matches_when_is_target() {
     let doc = parse(r#"<div id="section1"></div>"#);
     let div = &doc.root.children[0];
     let sel = parse_selector_list(":target").unwrap();
 
-    let ctx = MatchContext { target_id: Some("section1"), ..root_ctx() };
+    let ctx = MatchContext { is_target: true, ..root_ctx() };
     assert!(any_selector_matches(&sel, div, &ctx, &[], Some(&doc.root)).is_some());
 }
 
 #[test]
-fn target_rejects_when_id_differs() {
-    let doc = parse(r#"<div id="section1"></div>"#);
-    let div = &doc.root.children[0];
-    let sel = parse_selector_list(":target").unwrap();
-
-    let ctx = MatchContext { target_id: Some("other"), ..root_ctx() };
-    assert!(any_selector_matches(&sel, div, &ctx, &[], Some(&doc.root)).is_none());
-}
-
-#[test]
-fn target_rejects_when_no_fragment() {
+fn target_rejects_when_not_target() {
     let doc = parse(r#"<div id="section1"></div>"#);
     let div = &doc.root.children[0];
     let sel = parse_selector_list(":target").unwrap();
 
     assert!(any_selector_matches(&sel, div, &root_ctx(), &[], Some(&doc.root)).is_none());
-}
-
-#[test]
-fn target_rejects_element_without_id() {
-    let doc = parse("<div></div>");
-    let div = &doc.root.children[0];
-    let sel = parse_selector_list(":target").unwrap();
-
-    let ctx = MatchContext { target_id: Some("anything"), ..root_ctx() };
-    assert!(any_selector_matches(&sel, div, &ctx, &[], Some(&doc.root)).is_none());
 }
 
 // ── :lang() ──

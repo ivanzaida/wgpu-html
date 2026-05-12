@@ -8,7 +8,7 @@ fn margin_shorthand_expands_to_longhands() {
     let doc = parse("<div></div>");
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("div { margin: 10px; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     let div = &styled.children[0];
     assert!(div.style.margin_top.is_some());
     assert!(div.style.margin_right.is_some());
@@ -21,7 +21,7 @@ fn padding_shorthand_expands() {
     let doc = parse("<div></div>");
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("div { padding: 5px; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     let div = &styled.children[0];
     assert!(div.style.padding_top.is_some());
     assert!(div.style.padding_right.is_some());
@@ -34,7 +34,7 @@ fn longhand_after_shorthand_overrides() {
     let doc = parse("<div></div>");
     let mut ctx = CascadeContext::new();
     ctx.set_stylesheets(&[parse_stylesheet("div { margin: 10px; margin-left: 20px; }").unwrap()]);
-    let styled = ctx.cascade(&doc.root, &MediaContext::default(), &InteractionState::default());
+    let media = MediaContext::default(); let interaction = InteractionState::default(); let styled = ctx.cascade(&doc.root, &media, &interaction);
     let div = &styled.children[0];
     assert!(div.style.margin_left.is_some());
     assert!(div.style.margin_top.is_some());
