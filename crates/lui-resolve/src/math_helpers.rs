@@ -84,7 +84,7 @@ impl ResolvedNumber {
   pub fn partial_cmp_rn(&self, other: &Self) -> std::cmp::Ordering {
     f64::total_cmp(&self.as_f64(), &other.as_f64())
   }
-  fn as_f64(&self) -> f64 {
+    pub(crate) fn as_f64(&self) -> f64 {
     match self {
       ResolvedNumber::Number(n) | ResolvedNumber::Px(n) | ResolvedNumber::Percentage(n) => *n,
     }

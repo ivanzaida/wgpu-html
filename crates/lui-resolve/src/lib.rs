@@ -1,18 +1,18 @@
-//! CSS value resolution: evaluates `calc()`, `min()`, `max()`, `clamp()`,
-//! resolves `var()` references, and converts relative units (`em`, `rem`, `vw`, `vh`, etc.).
+//! CSS value resolution: math functions, `var()` substitution, unit conversion.
 //!
-//! ## Cascade integration
-//!
-//! Called from `lui-cascade` after inheritance:
-//! 1. `resolve_custom_properties` — flatten `var()` chains in custom properties
-//! 2. `resolve_var_value` + `resolve_math` — resolve each style property value
+//! Main entry point: [`ResolutionContext`] — a registry of function handlers.
+//! Built-in math functions (`calc`, `min`, `max`, `abs`, `sin`, …) are registered
+//! automatically; custom functions can be added via [`ResolutionContext::register`].
 
+pub mod context;
 pub mod math;
 pub(crate) mod math_helpers;
 pub mod units;
 pub mod vars;
 
-use lui_css_parser::CssValue;
+pub use context::ResolutionContext;
+
+use bumpalo::Bump;
 
 /// Context required for resolving relative CSS units and percentages.
 #[derive(Debug, Clone, Copy)]
@@ -49,7 +49,9 @@ impl ResolverContext {
     }
 }
 
-/// Resolve all math functions and relative units in a value.
-pub fn resolve(value: &CssValue, ctx: &ResolverContext) -> CssValue {
-    units::resolve_units(value, ctx)
+/// Convenience: resolve a value with a default context (no unit conversion).
+pub fn resolve(value: &lui_css_parser::CssValue, ctx: &ResolverContext) -> lui_css_parser::CssValue {
+    let res = ResolutionContext::new(*ctx);
+    let arena = Bump::new();
+    res.resolve_value(value, &arena).clone()
 }

@@ -6,7 +6,7 @@ use std::{
 use bumpalo::Bump;
 use lui_css_parser::{expand_shorthand, longhands_of, ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
 use lui_html_parser::HtmlNode;
-use lui_resolve;
+use lui_resolve::ResolutionContext;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
 use rayon::prelude::*;
@@ -44,6 +44,7 @@ pub struct CascadeContext {
   use_a: Cell<bool>,
   prepared: Vec<PreparedStylesheet>,
   stats: Cell<CacheStats>,
+  res: ResolutionContext,
 }
 
 impl CascadeContext {
@@ -54,6 +55,7 @@ impl CascadeContext {
       use_a: Cell::new(true),
       prepared: Vec::new(),
       stats: Cell::new(CacheStats::default()),
+      res: ResolutionContext::new(lui_resolve::ResolverContext::default()),
     }
   }
 
@@ -121,6 +123,7 @@ impl CascadeContext {
       media,
       interaction,
       arena,
+      &self.res,
       &mut cache,
       &mut bloom,
     );
@@ -159,6 +162,7 @@ impl CascadeContext {
       media,
       interaction,
       arena,
+      &self.res,
       prev,
       dirty_paths,
       &mut cache,
@@ -246,6 +250,7 @@ fn cascade_node_incremental<'a>(
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
+  res: &'a ResolutionContext,
   prev: &StyledNode<'a>,
   dirty_paths: &[ElementPath],
   cache: &mut DeclCache<'a>,
@@ -265,6 +270,7 @@ fn cascade_node_incremental<'a>(
     media,
     interaction,
     arena,
+    res,
     Some(prev),
     dirty_paths,
     cache,
@@ -282,6 +288,7 @@ fn cascade_node_with_prev<'a>(
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
+  res: &'a ResolutionContext,
   prev: Option<&StyledNode<'a>>,
   dirty_paths: &[ElementPath],
   cache: &mut DeclCache<'a>,
@@ -296,7 +303,7 @@ fn cascade_node_with_prev<'a>(
   }
 
   resolve_vars(&mut style, arena);
-  resolve_math_style(&mut style, arena);
+  resolve_math_style(&mut style, res, arena);
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
@@ -322,13 +329,13 @@ fn cascade_node_with_prev<'a>(
         } else {
           cascade_node_with_prev(
             root, child, sheets, Some(&style), &child_ancestors, path,
-            media, interaction, arena, Some(pc), dirty_paths, cache, bloom,
+            media, interaction, arena, res, Some(pc), dirty_paths, cache, bloom,
           )
         }
       } else {
         cascade_node(
           root, child, sheets, Some(&style), &child_ancestors, path,
-          media, interaction, arena, cache, bloom,
+          media, interaction, arena, res, cache, bloom,
         )
       };
       path.pop();
@@ -416,6 +423,7 @@ fn cascade_node<'a>(
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
+  res: &'a ResolutionContext,
   cache: &mut DeclCache<'a>,
   bloom: &mut AncestorBloom,
 ) -> StyledNode<'a> {
@@ -428,7 +436,7 @@ fn cascade_node<'a>(
   }
 
   resolve_vars(&mut style, arena);
-  resolve_math_style(&mut style, arena);
+  resolve_math_style(&mut style, res, arena);
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
@@ -458,7 +466,7 @@ fn cascade_node<'a>(
         path.push(i);
         let child_node = cascade_node(
           root, child, sheets, Some(&style), &child_ancestors,
-          path, media, interaction, arena, cache, bloom,
+          path, media, interaction, arena, res, cache, bloom,
         );
         path.pop();
         child_node
@@ -708,11 +716,14 @@ fn cascade_children_parallel<'a>(
       let arena = Box::new(Bump::new());
       let mut cache = DeclCache::new();
       let mut child_bloom = *bloom;
+      let res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
+        media.viewport_width, media.viewport_height, 16.0, 16.0,
+      ));
 
       let child_node = cascade_node(
         root, child, sheets, style, ancestors,
         &mut child_path, media, interaction,
-        &arena, &mut cache, &mut child_bloom,
+        &arena, &res, &mut cache, &mut child_bloom,
       );
 
       // Allocate the result inside the arena so it lives as long as arena.
@@ -743,14 +754,22 @@ fn cascade_children_parallel<'a>(
   (nodes, child_arenas)
 }
 
-/// Resolve math functions (calc, min, max, clamp) in all style properties.
-fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, arena: &'a Bump) {
+/// Resolve math functions and var() in all style properties.
+fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext, arena: &'a Bump) {
+    use lui_css_parser::CssValue;
+    fn needs_resolve(v: &CssValue) -> bool {
+        matches!(v, CssValue::Function { .. } | CssValue::Var { .. })
+            || matches!(v, CssValue::Dimension { unit, .. } if !matches!(unit, lui_css_parser::CssUnit::Px))
+    }
+
     macro_rules! r {
         ($($field:ident),* $(,)?) => {
             $( if let Some(val) = &style.$field {
-                let resolved = lui_resolve::math::resolve_math(val);
-                if **val != resolved {
-                    style.$field = Some(arena.alloc(resolved));
+                if needs_resolve(val) {
+                    let new_val = res.resolve_value(val, arena);
+                    if !std::ptr::eq(*val, new_val) {
+                        style.$field = Some(new_val);
+                    }
                 }
             } )*
         };
@@ -790,15 +809,17 @@ fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, arena: &'a Bump) {
         stroke_linecap, stroke_linejoin, stroke_dasharray, stroke_dashoffset,
     );
     if let Some(ref mut extra) = style.extra {
-        let mut resolved = Vec::new();
+        let mut to_update = Vec::new();
         for (prop, val) in extra.iter() {
-            let rv = lui_resolve::math::resolve_math(val);
-            if **val != rv {
-                resolved.push((prop.clone(), rv));
+            if needs_resolve(val) {
+                let new_val = res.resolve_value(val, arena);
+                if !std::ptr::eq(*val, new_val) {
+                    to_update.push((prop.clone(), new_val));
+                }
             }
         }
-        for (prop, rv) in resolved {
-            extra.insert(prop, arena.alloc(rv));
+        for (prop, new_val) in to_update {
+            extra.insert(prop, new_val);
         }
     }
 }
