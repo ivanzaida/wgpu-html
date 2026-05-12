@@ -22,6 +22,19 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             continue;
         }
 
+        // CSS comment: /* ... */
+        if chars[pos] == '/' && pos + 1 < chars.len() && chars[pos + 1] == '*' {
+            pos += 2;
+            while pos + 1 < chars.len() {
+                if chars[pos] == '*' && chars[pos + 1] == '/' {
+                    pos += 2;
+                    break;
+                }
+                pos += 1;
+            }
+            continue;
+        }
+
         if matches!(chars[pos], ',' | '/' | '(' | ')') {
             tokens.push(Token::Delim(chars[pos]));
             pos += 1;

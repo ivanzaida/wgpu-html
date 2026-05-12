@@ -3581,6 +3581,10 @@ name = "lui-events"
 version = "0.1.0"
 
 [[package]]
+name = "lui-html-parser"
+version = "0.1.0"
+
+[[package]]
 name = "lui-layout"
 version = "0.1.0"
 dependencies = [

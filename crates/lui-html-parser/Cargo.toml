@@ -1,0 +1,7 @@
+[package]
+name = "lui-html-parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# No external dependencies — all HTML element data is baked in at compile time.
