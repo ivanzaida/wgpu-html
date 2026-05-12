@@ -479,7 +479,7 @@ fn doctype_and_comments_are_stripped() {
 
 #[test]
 fn multiple_data_attrs_are_all_preserved() {
-    let doc = parse(r#"<div data-id="42" data-name="hello" data-foo="bar"></div>"#);
+    let doc = parse(r#"<div style="display: block" data-id="42" data-name="hello" data-foo="bar"></div>"#);
     let div = &doc.roots[0];
     assert_eq!(div.element, HtmlElement::Div);
     assert_eq!(div.attrs.get("data-id").map(|s| &**s), Some("42"));
@@ -495,4 +495,82 @@ fn multiple_aria_attrs_are_all_preserved() {
     assert_eq!(btn.attrs.get("aria-label").map(|s| &**s), Some("Close"));
     assert_eq!(btn.attrs.get("aria-pressed").map(|s| &**s), Some("false"));
     assert_eq!(btn.attrs.get("aria-controls").map(|s| &**s), Some("menu"));
+}
+
+#[test]
+fn whitespace_text_dropped() {
+    let doc = parse("<div>   </div>");
+    assert_eq!(doc.roots.len(), 1);
+    assert!(doc.roots[0].children.is_empty());
+}
+
+#[test]
+fn comment_preserved_as_root_with_div() {
+    let doc = parse("<!-- hello --><div></div>");
+    assert_eq!(doc.roots.len(), 2);
+    assert_eq!(doc.roots[0].element, HtmlElement::Comment(" hello ".into()));
+    assert_eq!(doc.roots[1].element, HtmlElement::Div);
+}
+
+#[test]
+fn custom_element_with_dash() {
+    let doc = parse(r#"<my-widget foo="bar">content</my-widget>"#);
+    assert_eq!(doc.roots.len(), 1);
+    assert_eq!(doc.roots[0].element, HtmlElement::Unknown("my-widget".into()));
+    assert_eq!(doc.roots[0].attrs.get("foo").map(|s| &**s), Some("bar"));
+    assert_eq!(doc.roots[0].children.len(), 1);
+    assert_eq!(doc.roots[0].children[0].element, HtmlElement::Text("content".into()));
+}
+
+#[test]
+fn raw_text_script_parses_content_as_text() {
+    let doc = parse("<script>var x = '<div>';</script>");
+    assert_eq!(doc.roots.len(), 1);
+    assert_eq!(doc.roots[0].element, HtmlElement::Script);
+    assert_eq!(doc.roots[0].children.len(), 1);
+    assert_eq!(doc.roots[0].children[0].element, HtmlElement::Text("var x = '<div>';".into()));
+}
+
+#[test]
+fn raw_text_style_parses_content_as_text() {
+    let doc = parse("<style>div { color: red; }</style>");
+    assert_eq!(doc.roots.len(), 1);
+    assert_eq!(doc.roots[0].element, HtmlElement::Style);
+    assert_eq!(doc.roots[0].children[0].element, HtmlElement::Text("div { color: red; }".into()));
+}
+
+#[test]
+fn all_known_elements_parse() {
+    for tag in &["html", "head", "body", "title", "base", "link", "meta", "style",
+        "article", "section", "nav", "aside", "h1", "h2", "h3", "h4", "h5", "h6",
+        "hgroup", "header", "footer", "address",
+        "p", "hr", "pre", "blockquote", "ol", "ul", "menu", "li", "dl", "dt", "dd",
+        "figure", "figcaption", "main", "search", "div",
+        "a", "em", "strong", "small", "s", "cite", "q", "dfn", "abbr",
+        "ruby", "rt", "rp", "data", "time", "code", "var", "samp", "kbd",
+        "sub", "sup", "i", "b", "u", "mark", "bdi", "bdo", "span", "wbr",
+        "ins", "del",
+        "picture", "source", "img", "iframe", "embed", "object", "video", "audio", "track",
+        "map", "area",
+        "table", "caption", "colgroup", "col", "tbody", "thead", "tfoot", "tr", "td", "th",
+        "form", "label", "input", "button", "select", "datalist", "optgroup", "option",
+        "textarea", "output", "progress", "meter", "fieldset", "legend", "selectedcontent",
+        "details", "summary", "dialog",
+        "noscript", "template", "slot", "canvas",
+        // Obsolete
+        "marquee", "blink", "font", "center", "big", "small", "strike", "tt",
+        "applet", "acronym", "bgsound", "dir", "frame", "frameset", "noframes",
+        "isindex", "keygen", "listing", "menuitem", "nextid", "noembed", "param",
+        "plaintext", "rb", "rtc", "xmp", "basefont", "multicol", "nobr", "spacer",
+    ] {
+        let html = format!("<{}></{}>", tag, tag);
+        let doc = parse(&html);
+        if doc.roots.is_empty() && HtmlElement::from_name(tag).is_void() {
+            // Void elements have no children so <tag></tag> is still ok
+            let doc2 = parse(&format!("<{}>", tag));
+            assert!(!doc2.roots.is_empty(), "void element <{}> should parse", tag);
+        } else {
+            assert!(!doc.roots.is_empty(), "<{}> should parse", tag);
+        }
+    }
 }

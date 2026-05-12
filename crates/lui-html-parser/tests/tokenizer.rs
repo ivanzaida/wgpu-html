@@ -140,3 +140,33 @@ fn html_entities_in_attrs() {
         _ => panic!("expected OpenTag"),
     }
 }
+
+#[test]
+fn empty_string() {
+    assert_eq!(tokenize(""), vec![]);
+}
+
+#[test]
+fn text_only() {
+    assert_eq!(tokenize("hello"), vec![Token::Text("hello".into())]);
+}
+
+#[test]
+fn void_element_implicit() {
+    assert_eq!(
+        tokenize("<br>"),
+        vec![Token::OpenTag {
+            name: "br".into(),
+            attrs: vec![],
+            self_closing: false,
+        }]
+    );
+}
+
+#[test]
+fn doctype_lowercase() {
+    assert_eq!(
+        tokenize("<!doctype html>"),
+        vec![Token::Doctype("doctype html".into())]
+    );
+}
