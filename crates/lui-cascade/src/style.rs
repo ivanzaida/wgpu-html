@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use bumpalo::Bump;
 use lui_css_parser::{ArcStr, CssProperty, CssValue};
@@ -165,10 +165,10 @@ pub struct ComputedStyle<'a> {
     pub stroke_dashoffset: Option<&'a CssValue>,
 
     // ── Cold properties (everything layout doesn't touch) ──
-    pub extra: Option<Box<HashMap<CssProperty, &'a CssValue>>>,
+    pub extra: Option<Box<FxHashMap<CssProperty, &'a CssValue>>>,
 
     // ── Custom properties (always inherited) ──
-    pub custom_properties: Option<Box<HashMap<ArcStr, &'a CssValue>>>,
+    pub custom_properties: Option<Box<FxHashMap<ArcStr, &'a CssValue>>>,
 }
 
 macro_rules! property_field_map {
@@ -210,7 +210,7 @@ macro_rules! property_field_map {
                 )*
 
                 if let Some(ref extra) = self.extra {
-                    let mut new_extra = HashMap::new();
+                    let mut new_extra = FxHashMap::default();
                     for (prop, val) in extra.iter() {
                         new_extra.insert(prop.clone(), &*arena.alloc((*val).clone()));
                     }
@@ -218,7 +218,7 @@ macro_rules! property_field_map {
                 }
 
                 if let Some(ref cp) = self.custom_properties {
-                    let mut new_cp = HashMap::new();
+                    let mut new_cp = FxHashMap::default();
                     for (name, val) in cp.iter() {
                         new_cp.insert(name.clone(), &*arena.alloc((*val).clone()));
                     }

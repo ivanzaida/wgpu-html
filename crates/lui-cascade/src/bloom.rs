@@ -1,4 +1,5 @@
-use std::hash::{Hash, Hasher, DefaultHasher};
+use std::hash::{Hash, Hasher};
+use rustc_hash::FxHasher;
 
 const BLOOM_SIZE: usize = 256;
 
@@ -80,7 +81,7 @@ impl AncestorBloom {
 }
 
 fn bloom_hash(s: &str, salt: u8) -> usize {
-    let mut h = DefaultHasher::new();
+    let mut h = FxHasher::default();
     salt.hash(&mut h);
     s.hash(&mut h);
     (h.finish() as usize) % BLOOM_SIZE

@@ -1,20 +1,22 @@
-use std::cell::{Cell, UnsafeCell};
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher, DefaultHasher};
+use std::{
+  cell::{Cell, UnsafeCell},
+  hash::{Hash, Hasher},
+};
 
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet, expand_shorthand, longhands_of};
+use lui_css_parser::{expand_shorthand, longhands_of, ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
 use lui_html_parser::HtmlNode;
+use rustc_hash::{FxHashMap, FxHasher};
 
 use crate::{
-  StyledNode,
-  bloom::{AncestorBloom, bloom_might_match},
-  index::{PreparedStylesheet, RuleCondition, candidate_rules},
+  bloom::{bloom_might_match, AncestorBloom},
+  index::{candidate_rules, PreparedStylesheet, RuleCondition},
   inline::node_inline_style,
-  matching::{AncestorEntry, MatchContext, matches_selector},
-  media::{MediaContext, evaluate_media, evaluate_supports},
+  matching::{matches_selector, AncestorEntry, MatchContext},
+  media::{evaluate_media, evaluate_supports, MediaContext},
   style::ComputedStyle,
   var_resolution::resolve_vars,
+  StyledNode,
 };
 
 pub type ElementPath = Vec<usize>;
@@ -24,7 +26,6 @@ pub struct InteractionState {
   pub hover_path: Option<ElementPath>,
   pub active_path: Option<ElementPath>,
   pub focus_path: Option<ElementPath>,
-  /// Path to the element matching the URL fragment (`#id`). Matched by `:target`.
   pub target_path: Option<ElementPath>,
 }
 
@@ -107,7 +108,19 @@ impl CascadeContext {
     let mut cache = DeclCache::new();
     let mut bloom = AncestorBloom::new();
 
-    let result = cascade_node(doc, doc, &sheets, None, &[], &mut path, media, interaction, arena, &mut cache, &mut bloom);
+    let result = cascade_node(
+      doc,
+      doc,
+      &sheets,
+      None,
+      &[],
+      &mut path,
+      media,
+      interaction,
+      arena,
+      &mut cache,
+      &mut bloom,
+    );
     self.stats.set(cache.stats);
     result
   }
@@ -134,9 +147,19 @@ impl CascadeContext {
     let mut bloom = AncestorBloom::new();
 
     let result = cascade_node_incremental(
-      doc, doc, &sheets, None, &[], &mut path,
-      media, interaction, arena,
-      prev, dirty_paths, &mut cache, &mut bloom,
+      doc,
+      doc,
+      &sheets,
+      None,
+      &[],
+      &mut path,
+      media,
+      interaction,
+      arena,
+      prev,
+      dirty_paths,
+      &mut cache,
+      &mut bloom,
     );
     self.stats.set(cache.stats);
     result
@@ -151,34 +174,32 @@ impl Default for CascadeContext {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CacheStats {
-    pub hits: usize,
-    pub misses: usize,
+  pub hits: usize,
+  pub misses: usize,
 }
 
 struct DeclCache<'a> {
-  map: HashMap<u64, ComputedStyle<'a>>,
+  map: FxHashMap<u64, ComputedStyle<'a>>,
   stats: CacheStats,
 }
 
 impl<'a> DeclCache<'a> {
   fn new() -> Self {
-    Self { map: HashMap::new(), stats: CacheStats::default() }
+    Self {
+      map: FxHashMap::default(),
+      stats: CacheStats::default(),
+    }
   }
 }
 
-fn element_cache_key(
-  node: &HtmlNode,
-  ctx: &MatchContext<'_>,
-  ancestors: &[AncestorEntry<'_>],
-) -> u64 {
-  let mut h = DefaultHasher::new();
+fn element_cache_key(node: &HtmlNode, ctx: &MatchContext<'_>, ancestors: &[AncestorEntry<'_>]) -> u64 {
+  let mut h = FxHasher::default();
 
   // Pre-computed node identity hash (tag + all attrs + styles, XOR for maps)
   node.node_hash.hash(&mut h);
 
   // Interaction + structural state (packed as bits)
-  let flags: u16 =
-    (ctx.is_hover as u16)
+  let flags: u16 = (ctx.is_hover as u16)
     | (ctx.is_active as u16) << 1
     | (ctx.is_focus as u16) << 2
     | (ctx.is_focus_within as u16) << 3
@@ -232,8 +253,19 @@ fn cascade_node_incremental<'a>(
   }
 
   cascade_node_with_prev(
-    root, node, sheets, parent_style, ancestors, path,
-    media, interaction, arena, Some(prev), dirty_paths, cache, bloom,
+    root,
+    node,
+    sheets,
+    parent_style,
+    ancestors,
+    path,
+    media,
+    interaction,
+    arena,
+    Some(prev),
+    dirty_paths,
+    cache,
+    bloom,
   )
 }
 
@@ -271,7 +303,7 @@ fn cascade_node_with_prev<'a>(
 
   let tag = node.element.tag_name();
   let id = node.id.as_deref();
-  
+
   bloom.push(tag, id, &node.class_list);
 
   let children: Vec<StyledNode<'a>> = node
@@ -286,14 +318,34 @@ fn cascade_node_with_prev<'a>(
           clone_subtree(child, pc, Some(&style))
         } else {
           cascade_node_with_prev(
-            root, child, sheets, Some(&style), &child_ancestors, path,
-            media, interaction, arena, Some(pc), dirty_paths, cache, bloom,
+            root,
+            child,
+            sheets,
+            Some(&style),
+            &child_ancestors,
+            path,
+            media,
+            interaction,
+            arena,
+            Some(pc),
+            dirty_paths,
+            cache,
+            bloom,
           )
         }
       } else {
         cascade_node(
-          root, child, sheets, Some(&style), &child_ancestors, path,
-          media, interaction, arena, cache, bloom,
+          root,
+          child,
+          sheets,
+          Some(&style),
+          &child_ancestors,
+          path,
+          media,
+          interaction,
+          arena,
+          cache,
+          bloom,
         )
       };
       path.pop();
@@ -401,7 +453,7 @@ fn cascade_node<'a>(
   // Push this node into the bloom filter before cascading children
   let tag = node.element.tag_name();
   let id = node.id.as_deref();
-  
+
   bloom.push(tag, id, &node.class_list);
 
   let children: Vec<StyledNode<'a>> = node
@@ -430,12 +482,10 @@ fn cascade_node<'a>(
 
   bloom.pop(tag, id, &node.class_list);
 
-  let before = crate::pseudo::collect_pseudo_element(
-    CssPseudo::Before, node, &style, sheets, ancestors, &ctx, media, arena,
-  );
-  let after = crate::pseudo::collect_pseudo_element(
-    CssPseudo::After, node, &style, sheets, ancestors, &ctx, media, arena,
-  );
+  let before =
+    crate::pseudo::collect_pseudo_element(CssPseudo::Before, node, &style, sheets, ancestors, &ctx, media, arena);
+  let after =
+    crate::pseudo::collect_pseudo_element(CssPseudo::After, node, &style, sheets, ancestors, &ctx, media, arena);
 
   StyledNode {
     node,
@@ -554,7 +604,15 @@ fn collect_matching_rules<'a>(
   let mut matched = Vec::new();
 
   for (sheet_idx, sheet) in sheets.iter().enumerate() {
-    let candidates = candidate_rules(&sheet.index, tag, id, classes, &node.attrs, &node.data_attrs, &node.aria_attrs);
+    let candidates = candidate_rules(
+      &sheet.index,
+      tag,
+      id,
+      classes,
+      &node.attrs,
+      &node.data_attrs,
+      &node.aria_attrs,
+    );
     for rule_ref in candidates {
       let rule = &sheet.rules[rule_ref.rule_idx];
       if let Some(specificity) = matched_specificity_bloom(rule, node, ctx, ancestors, bloom) {
@@ -567,7 +625,15 @@ fn collect_matching_rules<'a>(
       }
     }
 
-    let cond_candidates = candidate_rules(&sheet.conditional_index, tag, id, classes, &node.attrs, &node.data_attrs, &node.aria_attrs);
+    let cond_candidates = candidate_rules(
+      &sheet.conditional_index,
+      tag,
+      id,
+      classes,
+      &node.attrs,
+      &node.data_attrs,
+      &node.aria_attrs,
+    );
     for rule_ref in cond_candidates {
       let cond_rule = &sheet.conditional_rules[rule_ref.rule_idx];
       let condition = &sheet.conditions[cond_rule.condition_idx];

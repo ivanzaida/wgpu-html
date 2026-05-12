@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use bumpalo::Bump;
 use lui_css_parser::{ArcStr, CssValue, CssProperty};
@@ -29,13 +29,13 @@ pub fn resolve_vars<'a>(style: &mut ComputedStyle<'a>, arena: &'a Bump) {
 fn resolve_custom_property_chains<'a>(
     style: &ComputedStyle<'a>,
     arena: &'a Bump,
-) -> HashMap<ArcStr, &'a CssValue> {
+) -> FxHashMap<ArcStr, &'a CssValue> {
     let cp = match &style.custom_properties {
         Some(cp) => cp,
-        None => return HashMap::new(),
+        None => return FxHashMap::default(),
     };
 
-    let mut resolved: HashMap<ArcStr, &'a CssValue> = HashMap::new();
+    let mut resolved: FxHashMap<ArcStr, &'a CssValue> = FxHashMap::default();
 
     for (name, value) in cp.iter() {
         if !contains_var(value) {
@@ -45,7 +45,7 @@ fn resolve_custom_property_chains<'a>(
 
     for (name, value) in cp.iter() {
         if contains_var(value) {
-            let mut resolving = HashSet::new();
+            let mut resolving = FxHashSet::default();
             resolving.insert(name.clone());
             let substituted = substitute(value, &resolved, cp, &mut resolving, arena);
             resolved.insert(name.clone(), substituted);
@@ -59,7 +59,7 @@ fn resolve_custom_property_chains<'a>(
 /// any `Var` nodes with their resolved custom property values.
 fn resolve_property_vars<'a>(
     style: &mut ComputedStyle<'a>,
-    resolved_cp: &HashMap<ArcStr, &'a CssValue>,
+    resolved_cp: &FxHashMap<ArcStr, &'a CssValue>,
     arena: &'a Bump,
 ) {
     macro_rules! resolve_field {
@@ -67,8 +67,8 @@ fn resolve_property_vars<'a>(
             $(
                 if let Some(val) = style.$field {
                     if contains_var(val) {
-                        let empty = HashMap::new();
-                        let mut resolving = HashSet::new();
+                        let empty = FxHashMap::default();
+                        let mut resolving = FxHashSet::default();
                         style.$field = Some(substitute(val, resolved_cp, &empty, &mut resolving, arena));
                     }
                 }
@@ -113,8 +113,8 @@ fn resolve_property_vars<'a>(
 
         for prop in needs_resolve {
             if let Some(val) = extra.get(&prop) {
-                let empty = HashMap::new();
-                let mut resolving = HashSet::new();
+                let empty = FxHashMap::default();
+                let mut resolving = FxHashSet::default();
                 let resolved = substitute(val, resolved_cp, &empty, &mut resolving, arena);
                 extra.insert(prop, resolved);
             }
@@ -132,9 +132,9 @@ fn contains_var(value: &CssValue) -> bool {
 
 fn substitute<'a>(
     value: &CssValue,
-    resolved: &HashMap<ArcStr, &'a CssValue>,
-    raw_cp: &HashMap<ArcStr, &CssValue>,
-    resolving: &mut HashSet<ArcStr>,
+    resolved: &FxHashMap<ArcStr, &'a CssValue>,
+    raw_cp: &FxHashMap<ArcStr, &CssValue>,
+    resolving: &mut FxHashSet<ArcStr>,
     arena: &'a Bump,
 ) -> &'a CssValue {
     match value {

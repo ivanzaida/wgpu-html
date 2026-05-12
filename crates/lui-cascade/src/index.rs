@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use lui_css_parser::{CssAtRule, CssPseudo, Stylesheet, StyleRule, AtRule};
 
@@ -10,10 +10,10 @@ pub struct RuleRef {
 
 #[derive(Debug, Default)]
 pub struct RuleIndex {
-    pub by_id: HashMap<String, Vec<RuleRef>>,
-    pub by_class: HashMap<String, Vec<RuleRef>>,
-    pub by_tag: HashMap<String, Vec<RuleRef>>,
-    pub by_attr: HashMap<String, Vec<RuleRef>>,
+    pub by_id: FxHashMap<String, Vec<RuleRef>>,
+    pub by_class: FxHashMap<String, Vec<RuleRef>>,
+    pub by_tag: FxHashMap<String, Vec<RuleRef>>,
+    pub by_attr: FxHashMap<String, Vec<RuleRef>>,
     pub by_pseudo_link: Vec<RuleRef>,
     pub by_pseudo_form: Vec<RuleRef>,
     pub universal: Vec<RuleRef>,
@@ -199,7 +199,7 @@ pub fn candidate_rules<'a>(
     data_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
     aria_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
 ) -> Vec<&'a RuleRef> {
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = FxHashSet::default();
     let mut candidates = Vec::new();
 
     let mut add = |refs: &'a [RuleRef]| {
