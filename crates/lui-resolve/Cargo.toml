@@ -1,0 +1,9 @@
+[package]
+name = "lui-resolve"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-css-parser = { path = "../lui-css-parser" }
+bumpalo.workspace = true
+rustc-hash.workspace = true

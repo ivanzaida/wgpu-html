@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/lui-resolve",
     "crates/lui",
     "crates/lui-cascade",
     "crates/lui-css-old",
@@ -64,6 +65,7 @@ ureq = "3.3.0"
 resvg = "0.47.0"
 rfd = "0.17.2"
 bumpalo = { version = "3", features = ["collections"] }
+rustc-hash = "2"
 
 
 # ── Dev profile: optimize hot crates for usable FPS during development ──

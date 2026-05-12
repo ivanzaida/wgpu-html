@@ -99,3 +99,64 @@ fn rule_has_pseudo_element(rule: &StyleRule, target: &CssPseudo) -> bool {
         })
     })
 }
+
+/// Collect rules targeting `pseudo` and merge their declarations into a
+/// `ComputedStyle`. Does NOT check for `content` — use this for
+/// `::first-line`, `::first-letter`, `::placeholder`, `::selection`, `::marker`.
+pub fn collect_pseudo_style<'a>(
+    pseudo: CssPseudo,
+    node: &'a lui_html_parser::HtmlNode,
+    parent_style: &ComputedStyle<'a>,
+    sheets: &[&'a PreparedStylesheet],
+    ancestors: &[AncestorEntry<'_>],
+    ctx: &MatchContext<'_>,
+    _media: &MediaContext,
+    arena: &'a Bump,
+) -> Option<Box<ComputedStyle<'a>>> {
+    let mut style = ComputedStyle::default();
+    let mut any_match = false;
+
+    let parent = ancestors.first().map(|a| a.node);
+
+    for sheet in sheets {
+        for rule in &sheet.rules {
+            if !rule_has_pseudo_element(&rule, &pseudo) {
+                continue;
+            }
+            if !rule.selector.0.iter().any(|sel| {
+                matches_selector(sel, node, ctx, ancestors, parent)
+            }) {
+                continue;
+            }
+            any_match = true;
+            for decl in &rule.declarations {
+                if !decl.important {
+                    apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
+                }
+            }
+        }
+
+        for rule in &sheet.rules {
+            if !rule_has_pseudo_element(&rule, &pseudo) {
+                continue;
+            }
+            if !rule.selector.0.iter().any(|sel| {
+                matches_selector(sel, node, ctx, ancestors, parent)
+            }) {
+                continue;
+            }
+            for decl in &rule.declarations {
+                if decl.important {
+                    apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
+                }
+            }
+        }
+    }
+
+    if !any_match {
+        return None;
+    }
+
+    style.inherit_from(parent_style);
+    Some(Box::new(style))
+}

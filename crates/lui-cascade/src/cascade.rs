@@ -6,6 +6,7 @@ use std::{
 use bumpalo::Bump;
 use lui_css_parser::{expand_shorthand, longhands_of, ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
 use lui_html_parser::HtmlNode;
+use lui_resolve;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
 use rayon::prelude::*;
@@ -295,7 +296,7 @@ fn cascade_node_with_prev<'a>(
   }
 
   resolve_vars(&mut style, arena);
-
+  resolve_math_style(&mut style, arena);
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
@@ -427,7 +428,7 @@ fn cascade_node<'a>(
   }
 
   resolve_vars(&mut style, arena);
-
+  resolve_math_style(&mut style, arena);
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
@@ -472,6 +473,17 @@ fn cascade_node<'a>(
     crate::pseudo::collect_pseudo_element(CssPseudo::Before, node, &style, sheets, ancestors, &ctx, media, arena);
   let after =
     crate::pseudo::collect_pseudo_element(CssPseudo::After, node, &style, sheets, ancestors, &ctx, media, arena);
+  let first_line =
+    crate::pseudo::collect_pseudo_style(CssPseudo::FirstLine, node, &style, sheets, ancestors, &ctx, media, arena);
+  let first_letter =
+    crate::pseudo::collect_pseudo_style(CssPseudo::FirstLetter, node, &style, sheets, ancestors, &ctx, media, arena);
+  let placeholder =
+    crate::pseudo::collect_pseudo_style(CssPseudo::Placeholder, node, &style, sheets, ancestors, &ctx, media, arena);
+  let selection =
+    crate::pseudo::collect_pseudo_style(CssPseudo::Selection, node, &style, sheets, ancestors, &ctx, media, arena);
+  let marker = crate::pseudo::collect_pseudo_element(
+    CssPseudo::Marker, node, &style, sheets, ancestors, &ctx, media, arena,
+  );
 
   StyledNode {
     node,
@@ -479,11 +491,11 @@ fn cascade_node<'a>(
     children,
     before,
     after,
-    first_line: None,
-    first_letter: None,
-    placeholder: None,
-    selection: None,
-    marker: None,
+    first_line,
+    first_letter,
+    placeholder,
+    selection,
+    marker,
     _arenas: par_arenas,
   }
 }
@@ -729,6 +741,66 @@ fn cascade_children_parallel<'a>(
     .collect();
 
   (nodes, child_arenas)
+}
+
+/// Resolve math functions (calc, min, max, clamp) in all style properties.
+fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, arena: &'a Bump) {
+    macro_rules! r {
+        ($($field:ident),* $(,)?) => {
+            $( if let Some(val) = &style.$field {
+                let resolved = lui_resolve::math::resolve_math(val);
+                if **val != resolved {
+                    style.$field = Some(arena.alloc(resolved));
+                }
+            } )*
+        };
+    }
+    r!(
+        display, position, top, right, bottom, left, float, clear,
+        width, height, min_width, min_height, max_width, max_height,
+        box_sizing, aspect_ratio,
+        margin_top, margin_right, margin_bottom, margin_left,
+        padding_top, padding_right, padding_bottom, padding_left,
+        border_top_width, border_right_width, border_bottom_width, border_left_width,
+        border_top_style, border_right_style, border_bottom_style, border_left_style,
+        border_top_color, border_right_color, border_bottom_color, border_left_color,
+        border_top_left_radius, border_top_right_radius,
+        border_bottom_right_radius, border_bottom_left_radius,
+        background_color, background_image, background_size,
+        background_position, background_repeat, background_clip,
+        color, opacity, visibility,
+        font_family, font_size, font_weight, font_style,
+        line_height, letter_spacing, word_spacing,
+        text_align, text_decoration_line, text_decoration_color,
+        text_decoration_style, text_transform, white_space,
+        word_break, text_overflow, vertical_align,
+        flex_direction, flex_wrap, justify_content, align_items,
+        align_content, align_self, flex_grow, flex_shrink, flex_basis,
+        order, row_gap, column_gap,
+        grid_template_columns, grid_template_rows,
+        grid_auto_columns, grid_auto_rows, grid_auto_flow,
+        grid_column_start, grid_column_end, grid_row_start, grid_row_end,
+        justify_items, justify_self,
+        overflow_x, overflow_y, scrollbar_color, scrollbar_width,
+        transform, transform_origin, box_shadow, z_index,
+        cursor, pointer_events, user_select, resize, accent_color,
+        list_style_type, list_style_position, list_style_image,
+        content, fill, fill_opacity, fill_rule,
+        stroke, stroke_width, stroke_opacity,
+        stroke_linecap, stroke_linejoin, stroke_dasharray, stroke_dashoffset,
+    );
+    if let Some(ref mut extra) = style.extra {
+        let mut resolved = Vec::new();
+        for (prop, val) in extra.iter() {
+            let rv = lui_resolve::math::resolve_math(val);
+            if **val != rv {
+                resolved.push((prop.clone(), rv));
+            }
+        }
+        for (prop, rv) in resolved {
+            extra.insert(prop, arena.alloc(rv));
+        }
+    }
 }
 
 pub fn apply_declaration_ref<'a>(

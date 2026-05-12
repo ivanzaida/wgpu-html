@@ -3611,6 +3611,7 @@ dependencies = [
  "criterion",
  "lui-css-parser",
  "lui-html-parser",
+ "lui-resolve",
  "rayon",
  "rustc-hash 2.1.2",
  "smallvec",
@@ -3780,6 +3781,15 @@ dependencies = [
  "lui-render-api",
  "pollster",
  "wgpu 29.0.3",
+]
+
+[[package]]
+name = "lui-resolve"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "lui-css-parser",
+ "rustc-hash 2.1.2",
 ]
 
 [[package]]
