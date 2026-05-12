@@ -3735,6 +3735,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "lui-layout"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "lui-cascade",
+ "lui-css-parser",
+ "lui-html-parser",
+ "lui-resolve",
+ "rustc-hash 2.1.2",
+]
+
+[[package]]
 name = "lui-layout-old"
 version = "0.1.0"
 dependencies = [

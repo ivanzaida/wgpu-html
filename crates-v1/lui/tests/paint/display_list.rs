@@ -46,7 +46,7 @@ fn child_uses_block_flow_position() {
 
 #[test]
 fn svg_test_demo_paints_svg_images() {
-  let tree = lui_parser::parse(include_str!("../../../../demo/lui-demo/html/svg-test.html"));
+  let tree = lui_parser::parse(include_str!("../../../../demo-v1/lui-demo/html/svg-test.html"));
   fn count_svg_nodes(node: &lui_tree::Node) -> usize {
     let own = matches!(node.element, lui_tree::Element::Svg(_)) as usize;
     own + node.children.iter().map(count_svg_nodes).sum::<usize>()

@@ -1,57 +1,62 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/lui-resolve",
-    "crates/lui",
     "crates/lui-cascade",
-    "crates/lui-css-old",
     "crates/lui-css-parser",
     "crates/lui-html-parser",
-    "crates/lui-devtools",
-    "crates/lui-display-list",
-    "crates/lui-events",
-    "crates/lui-assets",
-    "crates/lui-layout-old",
-    "crates/lui-models",
-    "crates/lui-parser",
-    "renderers/lui-render-api",
-    "renderers/lui-renderer-wgpu",
-    "crates/lui-style",
-    "crates/lui-text",
-    "crates/lui-tree",
-    "crates/lui-ui",
-    "drivers/lui-driver",
-    "drivers/lui-driver-bevy",
-    "drivers/lui-driver-egui",
-    "drivers/lui-driver-winit",
-    "demo/lui-demo",
-    "demo/lui-demo-bevy",
-    "demo/lui-ui-demo",
+    "crates/lui-layout",
+    "crates/lui-resolve",
+
+    "crates-v1/lui",
+    "crates-v1/lui-assets",
+    "crates-v1/lui-css-old",
+    "crates-v1/lui-devtools",
+    "crates-v1/lui-display-list",
+    "crates-v1/lui-events",
+    "crates-v1/lui-layout-old",
+    "crates-v1/lui-models",
+    "crates-v1/lui-parser",
+    "crates-v1/lui-style",
+    "crates-v1/lui-text",
+    "crates-v1/lui-tree",
+    "crates-v1/lui-ui",
+
+    "renderers-v1/lui-render-api",
+    "renderers-v1/lui-renderer-wgpu",
+
+    "drivers-v1/lui-driver",
+    "drivers-v1/lui-driver-bevy",
+    "drivers-v1/lui-driver-egui",
+    "drivers-v1/lui-driver-winit",
+
+    "demo-v1/lui-demo",
+    "demo-v1/lui-demo-bevy",
+    "demo-v1/lui-ui-demo",
 ]
 
 [workspace.dependencies]
-lui = { path = "crates/lui" }
+lui = { path = "crates-v1/lui" }
 lui-cascade = { path = "crates/lui-cascade" }
 lui-css = { path = "crates/lui-css-parser" }
-lui-css-old = { path = "crates/lui-css-old" }
+lui-css-old = { path = "crates-v1/lui-css-old" }
 lui-html-parser = { path = "crates/lui-html-parser" }
-lui-devtools = { path = "crates/lui-devtools" }
-lui-events = { path = "crates/lui-events" }
-lui-layout-old = { path = "crates/lui-layout-old" }
-lui-models = { path = "crates/lui-models" }
-lui-parser = { path = "crates/lui-parser" }
-lui-display-list = { path = "crates/lui-display-list" }
-lui-render-api = { path = "renderers/lui-render-api" }
-lui-renderer-wgpu = { path = "renderers/lui-renderer-wgpu" }
-lui-style = { path = "crates/lui-style" }
-lui-text = { path = "crates/lui-text" }
-lui-tree = { path = "crates/lui-tree" }
-lui-driver = { path = "drivers/lui-driver" }
-lui-assets = { path = "crates/lui-assets" }
-lui-driver-bevy = { path = "drivers/lui-driver-bevy" }
-lui-driver-egui = { path = "drivers/lui-driver-egui" }
-lui-driver-winit = { path = "drivers/lui-driver-winit" }
-lui-ui = { path = "crates/lui-ui" }
+lui-devtools = { path = "crates-v1/lui-devtools" }
+lui-events = { path = "crates-v1/lui-events" }
+lui-layout-old = { path = "crates-v1/lui-layout-old" }
+lui-models = { path = "crates-v1/lui-models" }
+lui-parser = { path = "crates-v1/lui-parser" }
+lui-display-list = { path = "crates-v1/lui-display-list" }
+lui-render-api = { path = "renderers-v1/lui-render-api" }
+lui-renderer-wgpu = { path = "renderers-v1/lui-renderer-wgpu" }
+lui-style = { path = "crates-v1/lui-style" }
+lui-text = { path = "crates-v1/lui-text" }
+lui-tree = { path = "crates-v1/lui-tree" }
+lui-driver = { path = "drivers-v1/lui-driver" }
+lui-assets = { path = "crates-v1/lui-assets" }
+lui-driver-bevy = { path = "drivers-v1/lui-driver-bevy" }
+lui-driver-egui = { path = "drivers-v1/lui-driver-egui" }
+lui-driver-winit = { path = "drivers-v1/lui-driver-winit" }
+lui-ui = { path = "crates-v1/lui-ui" }
 
 wgpu = "29"
 winit = "0.30"
@@ -67,10 +72,6 @@ rfd = "0.17.2"
 bumpalo = { version = "3", features = ["collections"] }
 rustc-hash = "2"
 
-
-# ── Dev profile: optimize hot crates for usable FPS during development ──
-# The demo/app code stays at opt-level 0 for fast incremental compiles,
-# but the engine hot path gets opt-level 2 so layout/text/paint run fast.
 [profile.dev.package.lui-layout-old]
 opt-level = 2
 [profile.dev.package.lui-text]

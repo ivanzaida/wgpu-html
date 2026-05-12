@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-driver          = { path = "../../drivers/lui-driver" }
+lui-driver          = { path = "../../drivers-v1/lui-driver" }
 lui-tree.workspace  = true
 lui-ui.workspace    = true
 lui-events.workspace = true

@@ -9,8 +9,8 @@ lui-models.workspace   = true
 lui-style.workspace    = true
 lui-text.workspace     = true
 lui-tree.workspace     = true
-lui-driver-winit       = { path = "../../drivers/lui-driver-winit" }
-lui-driver-egui        = { path = "../../drivers/lui-driver-egui" }
+lui-driver-winit       = { path = "../../drivers-v1/lui-driver-winit" }
+lui-driver-egui        = { path = "../../drivers-v1/lui-driver-egui" }
 lui-devtools.workspace = true
 winit.workspace              = true
 egui.workspace               = true

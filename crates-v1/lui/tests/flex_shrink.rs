@@ -3,7 +3,7 @@ use lui_tree::NodeRect;
 
 #[test]
 fn text_shrink_demo() {
-  let html = include_str!("../../../demo/lui-demo/html/text-shrink.html");
+  let html = include_str!("../../../demo-v1/lui-demo/html/text-shrink.html");
   let mut tree = lui_parser::parse(html);
 
   // Register fonts so text shaping works.

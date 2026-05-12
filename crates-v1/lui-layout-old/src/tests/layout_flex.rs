@@ -1210,7 +1210,7 @@ fn flex_row_gap_spaces_children_correctly() {
 
 #[test]
 fn checkbox_stays_inside_parent_card() {
-  let html = include_str!("../../../../demo/lui-demo/html/styled-inputs.html");
+  let html = include_str!("../../../../demo-v1/lui-demo/html/styled-inputs.html");
   let root = layout_with_fonts(html, 1920.0, 1080.0);
   // Find all cards (children of .columns flex row)
   // Structure: html > body > div.columns > div.card * 5
