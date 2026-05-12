@@ -84,6 +84,21 @@ fn bench_full_cascade(c: &mut Criterion) {
         });
     });
 
+    // Wide tree: 3 levels, 20 children each = ~8,400 nodes (≥16 siblings → rayon)
+    let html_wide = build_deep_html(3, 20);
+    let doc_wide = parse(&html_wide);
+
+    group.bench_function("wide_tree_8400_nodes", |b| {
+        let mut ctx = CascadeContext::new();
+        ctx.set_stylesheets(&[ua.clone(), author.clone()]);
+        let media = MediaContext::default();
+        let interaction = InteractionState::default();
+        b.iter(|| {
+            let styled = ctx.cascade(&doc_wide.root, &media, &interaction);
+            black_box(&styled);
+        });
+    });
+
     group.finish();
 }
 

@@ -6,6 +6,7 @@ const BLOOM_SIZE: usize = 256;
 /// Counting bloom filter for ancestor tag/id/class membership.
 /// Supports push (enter child) and pop (leave child) as the
 /// cascade walks the tree.
+#[derive(Clone, Copy)]
 pub struct AncestorBloom {
     counts: [u8; BLOOM_SIZE],
 }

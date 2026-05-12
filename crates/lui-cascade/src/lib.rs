@@ -1,5 +1,7 @@
 use lui_css_parser::ArcStr;
 use lui_html_parser::HtmlNode;
+use bumpalo::Bump;
+use crate::style::ComputedStyle;
 
 pub mod bloom;
 pub mod cascade;
@@ -11,8 +13,6 @@ pub mod pseudo;
 pub mod query;
 pub mod style;
 pub mod var_resolution;
-
-pub use style::ComputedStyle;
 
 /// A fully cascaded tree, borrowing from the input `HtmlDocument` and
 /// stylesheets. All `CssValue` references point into either the original
@@ -36,6 +36,27 @@ pub struct StyledNode<'a> {
     pub placeholder: Option<Box<ComputedStyle<'a>>>,
     pub selection: Option<Box<ComputedStyle<'a>>>,
     pub marker: Option<Box<PseudoElementStyle<'a>>>,
+    /// Thread-local bump arenas from parallel child cascades.
+    /// Kept alive so `CssValue` references remain valid.
+    #[doc(hidden)]
+    pub _arenas: Vec<Bump>,
+}
+
+impl<'a> Default for StyledNode<'a> {
+    fn default() -> Self {
+        // SAFETY: node is a zero-sized reference in a Default that is
+        // immediately overwritten before any read.
+        #[allow(invalid_value)]
+        let node = unsafe { std::mem::zeroed() };
+        StyledNode {
+            node,
+            style: ComputedStyle::default(),
+            children: Vec::new(),
+            before: None, after: None, first_line: None, first_letter: None,
+            placeholder: None, selection: None, marker: None,
+            _arenas: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug)]

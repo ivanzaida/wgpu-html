@@ -3611,6 +3611,7 @@ dependencies = [
  "criterion",
  "lui-css-parser",
  "lui-html-parser",
+ "rayon",
  "rustc-hash 2.1.2",
  "smallvec",
 ]

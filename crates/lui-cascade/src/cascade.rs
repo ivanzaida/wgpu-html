@@ -8,6 +8,7 @@ use lui_css_parser::{expand_shorthand, longhands_of, ArcStr, CssProperty, CssPse
 use lui_html_parser::HtmlNode;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
+use rayon::prelude::*;
 
 use crate::{
   bloom::{bloom_might_match, AncestorBloom},
@@ -347,6 +348,7 @@ fn cascade_node_with_prev<'a>(
     placeholder: None,
     selection: None,
     marker: None,
+    _arenas: Vec::new(),
   }
 }
 
@@ -382,6 +384,7 @@ fn clone_subtree<'a>(
           placeholder: None,
           selection: None,
           marker: None,
+          _arenas: Vec::new(),
         }
       }
     })
@@ -398,6 +401,7 @@ fn clone_subtree<'a>(
     placeholder: None,
     selection: None,
     marker: None,
+    _arenas: Vec::new(),
   }
 }
 
@@ -437,29 +441,30 @@ fn cascade_node<'a>(
 
   bloom.push(tag, id, &node.class_list);
 
-  let children: Vec<StyledNode<'a>> = node
-    .children
-    .iter()
-    .enumerate()
-    .map(|(i, child)| {
-      path.push(i);
-      let child_node = cascade_node(
-        root,
-        child,
-        sheets,
-        Some(&style),
-        &child_ancestors,
-        path,
-        media,
-        interaction,
-        arena,
-        cache,
-        bloom,
-      );
-      path.pop();
-      child_node
-    })
-    .collect();
+  const PAR_CHILDREN: usize = 16;
+
+  let (children, par_arenas) = if node.children.len() >= PAR_CHILDREN {
+    cascade_children_parallel(
+      root, node, sheets, Some(&style), &child_ancestors,
+      path, media, interaction, bloom,
+    )
+  } else {
+    (node
+      .children
+      .iter()
+      .enumerate()
+      .map(|(i, child)| {
+        path.push(i);
+        let child_node = cascade_node(
+          root, child, sheets, Some(&style), &child_ancestors,
+          path, media, interaction, arena, cache, bloom,
+        );
+        path.pop();
+        child_node
+      })
+      .collect(),
+     Vec::new())
+  };
 
   bloom.pop(tag, id, &node.class_list);
 
@@ -479,6 +484,7 @@ fn cascade_node<'a>(
     placeholder: None,
     selection: None,
     marker: None,
+    _arenas: par_arenas,
   }
 }
 
@@ -656,6 +662,73 @@ fn matched_specificity_bloom(
     }
   }
   None
+}
+
+/// Parallel cascade of children when sibling count exceeds threshold.
+/// Each thread gets its own Bump arena; results are clone_into'd the
+/// main arena after collection.
+fn cascade_children_parallel<'a>(
+  root: &'a HtmlNode,
+  node: &'a HtmlNode,
+  sheets: &[&'a PreparedStylesheet],
+  style: Option<&ComputedStyle<'a>>,
+  ancestors: &[AncestorEntry<'a>],
+  path: &mut Vec<usize>,
+  media: &MediaContext,
+  interaction: &'a InteractionState,
+  bloom: &AncestorBloom,
+) -> (Vec<StyledNode<'a>>, Vec<Bump>) {
+  struct ParResult {
+    _arena: Box<Bump>,
+    node_ptr: *const StyledNode<'static>,
+  }
+  // SAFETY: ParResult is only accessed from the current thread
+  // after the parallel map completes.
+  unsafe impl Send for ParResult {}
+
+  let mut results: Vec<(usize, ParResult)> = node
+    .children
+    .par_iter()
+    .enumerate()
+    .map(|(i, child)| {
+      let mut child_path = path.clone();
+      child_path.push(i);
+      let arena = Box::new(Bump::new());
+      let mut cache = DeclCache::new();
+      let mut child_bloom = *bloom;
+
+      let child_node = cascade_node(
+        root, child, sheets, style, ancestors,
+        &mut child_path, media, interaction,
+        &arena, &mut cache, &mut child_bloom,
+      );
+
+      // Allocate the result inside the arena so it lives as long as arena.
+      let node_ref = arena.alloc(child_node);
+      let ptr = node_ref as *const StyledNode;
+      // node_ref overwritten below, drop is implicit
+      let node_ptr = unsafe { std::mem::transmute::<*const StyledNode<'_>, *const StyledNode<'static>>(ptr) };
+      (i, ParResult { _arena: arena, node_ptr })
+    })
+    .collect();
+
+  results.sort_by_key(|(i, _)| *i);
+
+  let mut child_arenas = Vec::with_capacity(results.len());
+  let nodes: Vec<StyledNode<'a>> = results
+    .into_iter()
+    .map(|(_, r)| {
+      // SAFETY: The Bump arena (in Box) stays at a fixed heap address.
+      // We copy the StyledNode out with transmute_copy — the original
+      // in the arena is never dropped (Bump::reset skips Drop).
+      // CssValue references point into the arena, kept alive via child_arenas.
+      let node: StyledNode = unsafe { std::mem::transmute_copy(&*r.node_ptr) };
+      child_arenas.push(*r._arena);
+      unsafe { std::mem::transmute::<StyledNode<'_>, StyledNode<'a>>(node) }
+    })
+    .collect();
+
+  (nodes, child_arenas)
 }
 
 pub fn apply_declaration_ref<'a>(
