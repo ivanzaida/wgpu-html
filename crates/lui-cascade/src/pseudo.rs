@@ -27,41 +27,18 @@ pub fn collect_pseudo_element<'a>(
     let parent = ancestors.first().map(|a| a.node);
 
     for sheet in sheets {
-        for rule in &sheet.rules {
-            if !rule_has_pseudo_element(&rule, &pseudo) {
-                continue;
-            }
-            if !rule.selector.0.iter().any(|sel| {
-                matches_selector(sel, node, ctx, ancestors, parent)
-            }) {
-                continue;
-            }
-            for decl in &rule.declarations {
-                if !decl.important {
-                    apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
-                }
+        let matched_rules = matching_rules_for_pseudo(sheet, &pseudo, node, ctx, ancestors, parent, arena, false);
+        for decl in matched_rules {
+            if !decl.important {
+                apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
             }
         }
-
-        // !important pass
-        for rule in &sheet.rules {
-            if !rule_has_pseudo_element(&rule, &pseudo) {
-                continue;
-            }
-            if !rule.selector.0.iter().any(|sel| {
-                matches_selector(sel, node, ctx, ancestors, parent)
-            }) {
-                continue;
-            }
-            for decl in &rule.declarations {
-                if decl.important {
-                    apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
-                }
-            }
+        let matched_rules = matching_rules_for_pseudo(sheet, &pseudo, node, ctx, ancestors, parent, arena, true);
+        for decl in matched_rules {
+            apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
         }
     }
 
-    // Check for content property
     if let Some(content_val) = style.content {
         let is_none_or_normal = matches!(content_val,
             CssValue::String(s) if s.as_ref() == "none" || s.as_ref() == "normal"
@@ -92,17 +69,9 @@ pub fn collect_pseudo_element<'a>(
     Some(Box::new(PseudoElementStyle { style, content_text }))
 }
 
-fn rule_has_pseudo_element(rule: &StyleRule, target: &CssPseudo) -> bool {
-    rule.selector.0.iter().any(|complex| {
-        complex.compounds.last().map_or(false, |compound| {
-            compound.pseudos.iter().any(|p| std::mem::discriminant(&p.pseudo) == std::mem::discriminant(target))
-        })
-    })
-}
-
 /// Collect rules targeting `pseudo` and merge their declarations into a
-/// `ComputedStyle`. Does NOT check for `content` — use this for
-/// `::first-line`, `::first-letter`, `::placeholder`, `::selection`, `::marker`.
+/// `ComputedStyle`. For `::first-line`, `::first-letter`, `::placeholder`,
+/// `::selection`, `::marker`.
 pub fn collect_pseudo_style<'a>(
     pseudo: CssPseudo,
     node: &'a lui_html_parser::HtmlNode,
@@ -119,37 +88,14 @@ pub fn collect_pseudo_style<'a>(
     let parent = ancestors.first().map(|a| a.node);
 
     for sheet in sheets {
-        for rule in &sheet.rules {
-            if !rule_has_pseudo_element(&rule, &pseudo) {
-                continue;
-            }
-            if !rule.selector.0.iter().any(|sel| {
-                matches_selector(sel, node, ctx, ancestors, parent)
-            }) {
-                continue;
-            }
+        let matched_rules = matching_rules_for_pseudo(sheet, &pseudo, node, ctx, ancestors, parent, arena, false);
+        for decl in matched_rules {
             any_match = true;
-            for decl in &rule.declarations {
-                if !decl.important {
-                    apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
-                }
-            }
+            apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
         }
-
-        for rule in &sheet.rules {
-            if !rule_has_pseudo_element(&rule, &pseudo) {
-                continue;
-            }
-            if !rule.selector.0.iter().any(|sel| {
-                matches_selector(sel, node, ctx, ancestors, parent)
-            }) {
-                continue;
-            }
-            for decl in &rule.declarations {
-                if decl.important {
-                    apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
-                }
-            }
+        let matched_rules = matching_rules_for_pseudo(sheet, &pseudo, node, ctx, ancestors, parent, arena, true);
+        for decl in matched_rules {
+            apply_declaration_ref(&mut style, &decl.property, &decl.value, arena);
         }
     }
 
@@ -159,4 +105,33 @@ pub fn collect_pseudo_style<'a>(
 
     style.inherit_from(parent_style);
     Some(Box::new(style))
+}
+
+/// Collect matching declarations for a pseudo-element using the index.
+fn matching_rules_for_pseudo<'a>(
+    sheet: &'a PreparedStylesheet,
+    pseudo: &CssPseudo,
+    node: &lui_html_parser::HtmlNode,
+    ctx: &MatchContext<'_>,
+    ancestors: &[AncestorEntry<'_>],
+    parent: Option<&lui_html_parser::HtmlNode>,
+    arena: &'a Bump,
+    important: bool,
+) -> Vec<&'a lui_css_parser::Declaration> {
+    let mut decls = Vec::new();
+    let Some(rule_indices) = sheet.pseudo_index.get(pseudo) else {
+        return decls;
+    };
+    for &rule_idx in rule_indices {
+        let rule = &sheet.rules[rule_idx];
+        if !rule.selector.0.iter().any(|sel| matches_selector(sel, node, ctx, ancestors, parent)) {
+            continue;
+        }
+        for decl in &rule.declarations {
+            if decl.important == important {
+                decls.push(decl);
+            }
+        }
+    }
+    decls
 }

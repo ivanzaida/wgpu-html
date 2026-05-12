@@ -39,6 +39,8 @@ pub struct PreparedStylesheet {
     pub conditions: Vec<RuleCondition>,
     pub index: RuleIndex,
     pub conditional_index: RuleIndex,
+    /// Rule indices for each pseudo-element for fast lookup.
+    pub pseudo_index: FxHashMap<CssPseudo, Vec<usize>>,
 }
 
 impl PreparedStylesheet {
@@ -51,12 +53,15 @@ impl PreparedStylesheet {
         let index = build_index(&sheet.rules);
         let conditional_index = build_conditional_index(&conditional_rules);
 
+        let pseudo_index = build_pseudo_index(&sheet.rules);
+
         Self {
             rules: sheet.rules,
             conditional_rules,
             conditions,
             index,
             conditional_index,
+            pseudo_index,
         }
     }
 }
@@ -262,4 +267,37 @@ pub fn candidate_rules<'a>(
     add(&index.universal);
 
     candidates
+}
+
+fn build_pseudo_index(rules: &[StyleRule]) -> FxHashMap<CssPseudo, Vec<usize>> {
+    let mut map: FxHashMap<CssPseudo, Vec<usize>> = FxHashMap::default();
+    for (rule_idx, rule) in rules.iter().enumerate() {
+        for complex in &rule.selector.0 {
+            if let Some(compound) = complex.compounds.last() {
+                for pseudo_sel in &compound.pseudos {
+                    let pe = &pseudo_sel.pseudo;
+                    // Only index pseudo-elements (::before, ::after, etc.), not pseudo-classes (:hover)
+                    if is_pseudo_element(pe) {
+                        map.entry(pe.clone()).or_default().push(rule_idx);
+                    }
+                }
+            }
+        }
+    }
+    // Deduplicate
+    for indices in map.values_mut() {
+        indices.sort_unstable();
+        indices.dedup();
+    }
+    map
+}
+
+fn is_pseudo_element(pseudo: &CssPseudo) -> bool {
+    matches!(pseudo,
+        CssPseudo::After | CssPseudo::Before |
+        CssPseudo::FirstLine | CssPseudo::FirstLetter |
+        CssPseudo::Placeholder | CssPseudo::Selection |
+        CssPseudo::Marker | CssPseudo::Backdrop |
+        CssPseudo::FileSelectorButton
+    )
 }
