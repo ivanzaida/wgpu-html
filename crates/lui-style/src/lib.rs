@@ -190,13 +190,13 @@ impl InspectionContext {
       None => return Vec::new(),
     };
 
-    let mut ancestors: Vec<(&Element, MatchContext)> = Vec::new();
+    let mut ancestors: Vec<(&Node, MatchContext)> = Vec::new();
     {
       let mut cursor = root;
       let mut ancestor_path: Vec<usize> = Vec::new();
       for &idx in path {
         let ctx = MatchContext::for_path(&ancestor_path, &tree.interaction);
-        ancestors.push((&cursor.element, ctx));
+        ancestors.push((cursor, ctx));
         cursor = match cursor.children.get(idx) {
           Some(c) => c,
           None => return Vec::new(),
@@ -208,19 +208,18 @@ impl InspectionContext {
     let media = MediaContext::default();
     let tag = element_tag(&target.element);
     let id = element_id(&target.element);
-    let class_attr = element_class(&target.element);
+    let class_list = &target.class_list;
 
     let mut out = Vec::new();
 
     for (name, is_ua, prepared) in &self.sheets {
       let matched = matching_rules_for_element(
         prepared,
-        &target.element,
         &element_ctx,
         &ancestors,
         tag,
         id,
-        class_attr,
+        class_list,
         &media,
         root,
         path,
@@ -757,9 +756,9 @@ fn decl_cache_key(
 
 /// Hash the selector-relevant bits of an element into `h` without
 /// allocating any owned Strings. Uses `&str` references from the
-/// Element's existing fields, hashing them directly.
+/// Node's existing fields, hashing them directly.
 fn hash_element_signature(
-  element: &Element,
+  node: &Node,
   ctx: MatchContext,
   sheets: &[&PreparedStylesheet],
   cascade_ctx: &CascadeContext,
@@ -768,25 +767,32 @@ fn hash_element_signature(
   use std::hash::Hash;
 
   // Tag
-  if let Some(tag) = element_tag(element) {
+  if let Some(tag) = element_tag(&node.element) {
     if relevant_tag(sheets, tag) {
       tag.hash(h);
     }
   }
 
   // ID
-  if let Some(id) = element_id(element) {
+  if let Some(id) = element_id(&node.element) {
     if relevant_id(sheets, id) {
       id.hash(h);
     }
   }
 
-  // Classes — hash in sorted order for determinism. Collects
-  // `&str` references (no owned Strings).
-  if let Some(class_attr) = element_class(element) {
-    let mut classes: Vec<&str> = class_attr
-      .split_ascii_whitespace()
-      .filter(|c| relevant_class(sheets, c))
+  // Classes — hash in sorted order for determinism.
+  if !node.class_list.is_empty() {
+    let mut classes: Vec<&str> = node
+      .class_list
+      .iter()
+      .filter_map(|c| {
+        let s: &str = c.as_ref();
+        if relevant_class(sheets, s) {
+          Some(s)
+        } else {
+          None
+        }
+      })
       .collect();
     classes.sort_unstable();
     classes.dedup();
@@ -802,7 +808,7 @@ fn hash_element_signature(
   cascade_ctx.attr_names.len().hash(h);
   for name in &cascade_ctx.attr_names {
     name.hash(h);
-    element_attr(element, name).hash(h);
+    element_attr(node, name).hash(h);
   }
 
   // Pseudo-class state
@@ -2213,8 +2219,8 @@ pub fn computed_style(element: &Element, sheet: &Stylesheet) -> Style {
 /// layer's keyword for the same property. The returned keyword map
 /// is what's left over for `cascade_node` to resolve against the
 /// parent's already-resolved style.
-pub fn computed_decls(element: &Element, sheet: &Stylesheet) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
-  computed_decls_in_tree(element, sheet, &[])
+pub fn computed_decls(node: &Node, sheet: &Stylesheet) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
+  computed_decls_in_tree(node, sheet, &[])
 }
 
 /// Same as [`computed_decls`] but evaluates descendant-combinator
@@ -2222,19 +2228,17 @@ pub fn computed_decls(element: &Element, sheet: &Stylesheet) -> (Style, HashMap<
 /// the immediate parent, deeper indices going further up). Uses a
 /// default `MatchContext` so dynamic pseudo-class rules don't match.
 pub fn computed_decls_in_tree(
-  element: &Element,
+  node: &Node,
   sheet: &Stylesheet,
-  ancestors: &[&Element],
+  ancestors: &[&Node],
 ) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
-  let with_default: Vec<(&Element, MatchContext)> = ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
-  // Dummy root/path for public API without tree access.
-  let dummy_root = Node::new(Element::Div(m::Div::default()));
+  let with_default: Vec<(&Node, MatchContext)> = ancestors.iter().map(|n| (*n, MatchContext::default())).collect();
   computed_decls_in_tree_with_context(
-    element,
+    node,
     &MatchContext::default(),
     sheet,
     &with_default,
-    &dummy_root,
+    None,
     &[],
   )
 }
@@ -2243,16 +2247,16 @@ pub fn computed_decls_in_tree(
 /// paired with its own `MatchContext` so pseudo-class compounds on
 /// ancestors (e.g. `div:hover .child`) resolve correctly.
 pub fn computed_decls_in_tree_with_context(
-  element: &Element,
+  node: &Node,
   element_ctx: &MatchContext,
   sheet: &Stylesheet,
-  ancestors: &[(&Element, MatchContext)],
-  root: &Node,
+  ancestors: &[(&Node, MatchContext)],
+  root: Option<&Node>,
   path: &[usize],
 ) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   let prepared = PreparedStylesheet::from_sheet(Arc::new(sheet.clone()));
   computed_decls_in_prepared_stylesheets_with_context(
-    element,
+    node,
     element_ctx,
     &[&prepared],
     ancestors,
@@ -2264,21 +2268,21 @@ pub fn computed_decls_in_tree_with_context(
 }
 
 fn computed_decls_in_prepared_stylesheets_with_context(
-  element: &Element,
+  node: &Node,
   element_ctx: &MatchContext,
   sheets: &[&PreparedStylesheet],
-  ancestors: &[(&Element, MatchContext)],
+  ancestors: &[(&Node, MatchContext)],
   media: &MediaContext,
-  root: &Node,
+  root: Option<&Node>,
   path: &[usize],
   interaction: &InteractionState,
 ) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   let mut values = Style::default();
   let mut keywords: HashMap<ArcStr, CssWideKeyword> = HashMap::new();
-  let inline = element_style_attr(element).map(parse_inline_style_decls);
-  let tag = element_tag(element);
-  let id = element_id(element);
-  let class_attr = element_class(element);
+  let inline = element_style_attr(&node.element).map(parse_inline_style_decls);
+  let tag = element_tag(&node.element);
+  let id = element_id(&node.element);
+  let class_list = &node.class_list;
 
   let mut matched_rules: Vec<(u32, usize, usize, &Rule, bool, bool)> = sheets
     .iter()
@@ -2286,14 +2290,13 @@ fn computed_decls_in_prepared_stylesheets_with_context(
     .flat_map(|(sheet_idx, sheet)| {
       matching_rules_for_element(
         sheet,
-        element,
         element_ctx,
         ancestors,
         tag,
         id,
-        class_attr,
+        class_list,
         media,
-        root,
+        root.unwrap_or(node),
         path,
         interaction,
       )
@@ -2340,12 +2343,11 @@ fn selector_prefilter_is_complete(sel: &ComplexSelector) -> bool {
 
 fn matching_rules_for_element<'a>(
   sheet: &'a PreparedStylesheet,
-  _element: &Element,
   _element_ctx: &MatchContext,
-  _ancestors: &[(&Element, MatchContext)],
+  _ancestors: &[(&Node, MatchContext)],
   tag: Option<&str>,
   id: Option<&str>,
-  class_attr: Option<&str>,
+  class_list: &[ArcStr],
   media: &MediaContext,
   root: &Node,
   path: &[usize],
@@ -2368,11 +2370,9 @@ fn matching_rules_for_element<'a>(
   {
     push_entries(entries);
   }
-  if let Some(class_attr) = class_attr {
-    for class in class_attr.split_ascii_whitespace() {
-      if let Some(entries) = sheet.index.by_class.get(class) {
-        push_entries(entries);
-      }
+  for class in class_list {
+    if let Some(entries) = sheet.index.by_class.get(class.as_ref()) {
+      push_entries(entries);
     }
   }
   if let Some(tag) = tag
@@ -2397,7 +2397,7 @@ fn matching_rules_for_element<'a>(
     let Some(selector) = rule.selectors.selectors.get(entry.selector_idx) else {
       continue;
     };
-    if !selector_subject_might_match(selector, tag, id, class_attr) {
+    if !selector_subject_might_match(selector, tag, id, class_list) {
       continue;
     }
     if !selector_prefilter_is_complete(selector) && !selector.matches_in_tree(root, path, &qctx) {
@@ -2464,7 +2464,7 @@ fn selector_subject_might_match(
   sel: &ComplexSelector,
   tag: Option<&str>,
   id: Option<&str>,
-  class_attr: Option<&str>,
+  class_list: &[ArcStr],
 ) -> bool {
   let subj = sel.subject();
   if let Some(needed_tag) = &subj.tag
@@ -2478,11 +2478,11 @@ fn selector_subject_might_match(
     return false;
   }
   if !subj.classes.is_empty() {
-    let Some(class_attr) = class_attr else {
+    if class_list.is_empty() {
       return false;
-    };
+    }
     for needed in &subj.classes {
-      if !class_attr.split_ascii_whitespace().any(|class| class == needed) {
+      if !class_list.iter().any(|class| class.as_ref() == needed) {
         return false;
       }
     }
@@ -2755,20 +2755,20 @@ fn style_has_layout_properties(style: &Style) -> bool {
 /// Uses a default `MatchContext`, so any selector carrying a dynamic
 /// pseudo-class (`:hover`, `:active`, …) fails. Use
 /// [`matches_selector_with_context`] to check against live state.
-pub fn matches_selector(sel: &ComplexSelector, element: &Element) -> bool {
-  matches_selector_with_context(sel, element, &MatchContext::default())
+pub fn matches_selector(sel: &ComplexSelector, node: &Node) -> bool {
+  matches_selector_with_context(sel, node, &MatchContext::default())
 }
 
 /// Stateful variant of [`matches_selector`] — checks dynamic
 /// pseudo-classes against the supplied `MatchContext`.
-pub fn matches_selector_with_context(sel: &ComplexSelector, element: &Element, element_ctx: &MatchContext) -> bool {
+pub fn matches_selector_with_context(sel: &ComplexSelector, node: &Node, element_ctx: &MatchContext) -> bool {
   if !sel.ancestor_compounds().is_empty() {
     return false;
   }
-  matches_compound(sel.subject(), element) && pseudo_classes_satisfied(sel.subject(), element_ctx)
+  matches_compound(sel.subject(), node) && pseudo_classes_satisfied(sel.subject(), element_ctx)
 }
 
-/// Match `sel` against `element` with the element's ancestor chain
+/// Match `sel` against `node` with the element's ancestor chain
 /// available. `ancestors[0]` must be the immediate parent, deeper
 /// indices going further up to the root. Used by the cascade so
 /// descendant-combinator selectors (`.row .item`) actually fire.
@@ -2776,9 +2776,9 @@ pub fn matches_selector_with_context(sel: &ComplexSelector, element: &Element, e
 /// Dynamic pseudo-classes (`:hover`, `:active`) on the subject or
 /// any ancestor compound fail without a `MatchContext`; use
 /// [`matches_selector_in_tree_with_context`] for stateful matching.
-pub fn matches_selector_in_tree(sel: &ComplexSelector, element: &Element, ancestors: &[&Element]) -> bool {
-  let with_default: Vec<(&Element, MatchContext)> = ancestors.iter().map(|e| (*e, MatchContext::default())).collect();
-  matches_selector_in_tree_with_context(sel, element, &MatchContext::default(), &with_default)
+pub fn matches_selector_in_tree(sel: &ComplexSelector, node: &Node, ancestors: &[&Node]) -> bool {
+  let with_default: Vec<(&Node, MatchContext)> = ancestors.iter().map(|n| (*n, MatchContext::default())).collect();
+  matches_selector_in_tree_with_context(sel, node, &MatchContext::default(), &with_default)
 }
 
 /// Stateful variant of [`matches_selector_in_tree`]. Each ancestor
@@ -2786,12 +2786,12 @@ pub fn matches_selector_in_tree(sel: &ComplexSelector, element: &Element, ancest
 /// ancestor selectors (`div:hover .child`) resolve correctly.
 pub fn matches_selector_in_tree_with_context(
   sel: &ComplexSelector,
-  element: &Element,
+  node: &Node,
   element_ctx: &MatchContext,
-  ancestors: &[(&Element, MatchContext)],
+  ancestors: &[(&Node, MatchContext)],
 ) -> bool {
   let subj = sel.subject();
-  if !matches_compound(subj, element) || !pseudo_classes_satisfied(subj, element_ctx) {
+  if !matches_compound(subj, node) || !pseudo_classes_satisfied(subj, element_ctx) {
     return false;
   }
   let anc_comps = sel.ancestor_compounds();
@@ -2819,33 +2819,32 @@ pub fn matches_selector_in_tree_with_context(
 /// Pure compound match: tag/id/classes/universal. Ignores the
 /// `ancestors` list and any pseudo-classes; pseudo-classes are
 /// gated separately by [`pseudo_classes_satisfied`].
-fn matches_compound(sel: &CompoundSelector, element: &Element) -> bool {
+fn matches_compound(sel: &CompoundSelector, node: &Node) -> bool {
   if let Some(tag) = &sel.tag {
-    match element_tag(element) {
+    match element_tag(&node.element) {
       Some(t) if t == tag => {}
       _ => return false,
     }
   }
   if let Some(id) = &sel.id {
-    match element_id(element) {
+    match element_id(&node.element) {
       Some(eid) if eid == id => {}
       _ => return false,
     }
   }
   if !sel.classes.is_empty() {
-    let class_attr = element_class(element).unwrap_or("");
     for needed in &sel.classes {
-      if !class_attr.split_ascii_whitespace().any(|c| c == needed) {
+      if !node.class_list.iter().any(|c| c.as_ref() == needed) {
         return false;
       }
     }
   }
   for attr in &sel.attrs {
-    let Some(actual) = element_attr(element, &attr.name) else {
+    let Some(actual) = element_attr(node, &attr.name) else {
       return false;
     };
     if attr.op != AttrOp::Exists && attr.op != AttrOp::Equals {
-      continue; // skip non-simple operators in legacy matcher
+      continue;
     }
     if !attr.value.is_empty() && !actual.eq_ignore_ascii_case(&attr.value) {
       return false;

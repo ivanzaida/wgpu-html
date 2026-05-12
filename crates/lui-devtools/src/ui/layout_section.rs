@@ -1,4 +1,4 @@
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_models::common::{AlignItems, CssLength, Display, FontWeight, GridTrackSize};
 use lui_ui::{
   Component, Ctx, El, ShouldRender,

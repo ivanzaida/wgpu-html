@@ -58,7 +58,7 @@ stage is independently testable.
 | `lui-parser`   | HTML tokenizer + tree builder + inline-CSS + stylesheet parser; CSS-Color-4 system colors (`buttonface`, `field`, …) | done   |
 | `lui-style`    | Selector matching + cascade + `MatchContext` (`:hover`/`:active`/`:focus`); generic-family font fallback in `FontRegistry::find_first` | done   |
 | `lui-text`     | Font database + cosmic-text shaping + glyph atlas                      | done   |
-| `lui-layout`   | Block/flex/grid layout + IFC + image loading + hit testing; `<input>` / `<textarea>` placeholder shaping; flex max-content intrinsic for non-text non-replaced items | done   |
+| `lui-layout-old`   | Block/flex/grid layout + IFC + image loading + hit testing; `<input>` / `<textarea>` placeholder shaping; flex max-content intrinsic for non-text non-replaced items | done   |
 | `lui-renderer` | wgpu device/surface + `DisplayList` consumption + pipelines             | done   |
 | `lui`          | Facade: parse → cascade → layout → paint, layout-aware interactivity wrappers, `PipelineTimings`, public `scroll` module | done   |
 | `lui-winit`    | winit ↔ engine glue: type translators + forwarders + batteries-included `LuiWindow` harness (`AppHook`, viewport scroll, scrollbar drag, clipboard, F12 screenshot); system-font discovery | done   |
@@ -106,7 +106,7 @@ Each milestone ends in a runnable `cargo run -p lui-demo`.
 
 ### M4 — block layout ✅
 
-- New `lui-layout` crate exposes `LayoutBox { margin_rect,
+- New `lui-layout-old` crate exposes `LayoutBox { margin_rect,
   border_rect, content_rect, background, kind, children }` and a single
   `layout(&Tree, vw, vh) -> Option<LayoutBox>` entry point
 - Block formatting context: vertical stacking inside the parent's
@@ -139,7 +139,7 @@ Each milestone ends in a runnable `cargo run -p lui-demo`.
     the element's ancestor chain to evaluate descendant requirements;
     `matches_selector` is the simple-case wrapper used when no
     ancestor context is available
-- `lui-layout::layout` now takes `&CascadedTree`; styles are
+- `lui-layout-old::layout` now takes `&CascadedTree`; styles are
   precomputed once per node, never re-parsed during layout
 - `paint_tree` chains parse → cascade → layout → paint internally
 - 13 cascade unit tests + 9 selector parser tests
@@ -167,7 +167,7 @@ Each milestone ends in a runnable `cargo run -p lui-demo`.
 
 ### M8 — images ✅ (landed)
 
-Full image support lives in `lui-layout` and `lui-renderer`.
+Full image support lives in `lui-layout-old` and `lui-renderer`.
 Covered:
 
 - `<img>` with CSS `width` / `height` or HTML attribute sizing
@@ -190,7 +190,7 @@ Demo: `crates/lui-demo/html/img-test.html` and
 ### M9 — flexbox ✅ (landed early)
 
 The full CSS-Flexbox-1 algorithm now lives in
-`lui-layout::flex`. Covered:
+`lui-layout-old::flex`. Covered:
 
 - `display: flex` / `inline-flex`
 - `flex-direction` (row / row-reverse / column / column-reverse)
@@ -229,7 +229,7 @@ clamping, wrap + align-content, align-self, auto-margin, and order.
 
 ### M10 — grid ✅ (landed early)
 
-CSS-Grid-Layout-1 lives in `lui-layout::grid`. Covered:
+CSS-Grid-Layout-1 lives in `lui-layout-old::grid`. Covered:
 
 - `display: grid` / `inline-grid`
 - `grid-template-columns` / `grid-template-rows` with `<length>`,
@@ -247,7 +247,7 @@ CSS-Grid-Layout-1 lives in `lui-layout::grid`. Covered:
   (default `stretch`)
 - `justify-content` / `align-content` for distributing the track
   block when the explicit tracks underfill the container
-- 14 dedicated unit tests in `crates/lui-layout/src/tests.rs`
+- 14 dedicated unit tests in `crates/lui-layout-old/src/tests.rs`
 
 Deferred (see `spec/grid.md` §6):
 

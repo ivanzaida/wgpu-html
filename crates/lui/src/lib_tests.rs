@@ -1,10 +1,10 @@
-use lui_layout::{Cursor, Resize};
+use lui_layout_old::{Cursor, Resize};
 use lui_models::common::PointerEvents;
 
 use super::*;
 
 fn text_box(text: &str, x: f32) -> LayoutBox {
-  let r = lui_layout::Rect::new(x, 0.0, 100.0, 20.0);
+  let r = lui_layout_old::Rect::new(x, 0.0, 100.0, 20.0);
   let glyphs = text
     .chars()
     .enumerate()
@@ -24,12 +24,12 @@ fn text_box(text: &str, x: f32) -> LayoutBox {
     content_rect: r,
     background: None,
     background_rect: r,
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Text,
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Text,
     text_run: Some(lui_text::ShapedRun {
       glyphs,
       glyph_chars: vec![],
@@ -47,7 +47,7 @@ fn text_box(text: &str, x: f32) -> LayoutBox {
     text_color: Some([0.0, 0.0, 0.0, 1.0]),
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
@@ -65,22 +65,22 @@ fn text_box(text: &str, x: f32) -> LayoutBox {
 #[test]
 fn layout_at_path_walks_children() {
   let leaf_a = LayoutBox {
-    margin_rect: lui_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
-    border_rect: lui_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
-    content_rect: lui_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
+    margin_rect: lui_layout_old::Rect::new(0.0, 0.0, 50.0, 20.0),
+    border_rect: lui_layout_old::Rect::new(0.0, 0.0, 50.0, 20.0),
+    content_rect: lui_layout_old::Rect::new(0.0, 0.0, 50.0, 20.0),
     background: None,
-    background_rect: lui_layout::Rect::new(0.0, 0.0, 50.0, 20.0),
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Block,
+    background_rect: lui_layout_old::Rect::new(0.0, 0.0, 50.0, 20.0),
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Block,
     text_run: None,
     text_color: None,
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
@@ -94,9 +94,9 @@ fn layout_at_path_walks_children() {
     form_control: None,
   };
   let mut leaf_b = leaf_a.clone();
-  leaf_b.border_rect = lui_layout::Rect::new(50.0, 0.0, 50.0, 20.0);
+  leaf_b.border_rect = lui_layout_old::Rect::new(50.0, 0.0, 50.0, 20.0);
   let mut root = leaf_a.clone();
-  root.border_rect = lui_layout::Rect::new(0.0, 0.0, 100.0, 20.0);
+  root.border_rect = lui_layout_old::Rect::new(0.0, 0.0, 100.0, 20.0);
   root.children = vec![leaf_a.clone(), leaf_b.clone()];
 
   assert_eq!(layout_at_path(&root, &[]).unwrap().border_rect, root.border_rect);
@@ -124,7 +124,7 @@ fn select_word_at_cursor_selects_token() {
 /// only the non-space visible glyphs appear (simulating real shaping
 /// where spaces are invisible and not pushed to `glyphs`).
 fn text_box_with_spaces(text: &str, x: f32) -> LayoutBox {
-  let r = lui_layout::Rect::new(x, 0.0, 500.0, 20.0);
+  let r = lui_layout_old::Rect::new(x, 0.0, 500.0, 20.0);
   // Only render non-space characters (like real shaping).
   let mut glyph_x = 0.0;
   let mut glyphs = Vec::new();
@@ -152,12 +152,12 @@ fn text_box_with_spaces(text: &str, x: f32) -> LayoutBox {
     content_rect: r,
     background: None,
     background_rect: r,
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Text,
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Text,
     text_run: Some(lui_text::ShapedRun {
       glyphs,
       glyph_chars,
@@ -175,7 +175,7 @@ fn text_box_with_spaces(text: &str, x: f32) -> LayoutBox {
     text_color: Some([0.0, 0.0, 0.0, 1.0]),
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
@@ -242,22 +242,22 @@ fn select_line_at_cursor_selects_line() {
 #[test]
 fn select_all_spans_first_to_last_text_box() {
   let root = LayoutBox {
-    margin_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 40.0),
-    border_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 40.0),
-    content_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 40.0),
+    margin_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 40.0),
+    border_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 40.0),
+    content_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 40.0),
     background: None,
-    background_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 40.0),
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Block,
+    background_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 40.0),
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Block,
     text_run: None,
     text_color: None,
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
@@ -282,22 +282,22 @@ fn select_all_spans_first_to_last_text_box() {
 #[test]
 fn selected_text_uses_newlines_between_different_parents_and_not_within_same_parent() {
   let inline_parent = LayoutBox {
-    margin_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 20.0),
-    border_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 20.0),
-    content_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 20.0),
+    margin_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 20.0),
+    border_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 20.0),
+    content_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 20.0),
     background: None,
-    background_rect: lui_layout::Rect::new(0.0, 0.0, 200.0, 20.0),
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Block,
+    background_rect: lui_layout_old::Rect::new(0.0, 0.0, 200.0, 20.0),
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Block,
     text_run: None,
     text_color: None,
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
@@ -311,22 +311,22 @@ fn selected_text_uses_newlines_between_different_parents_and_not_within_same_par
     form_control: None,
   };
   let root = LayoutBox {
-    margin_rect: lui_layout::Rect::new(0.0, 0.0, 300.0, 60.0),
-    border_rect: lui_layout::Rect::new(0.0, 0.0, 300.0, 60.0),
-    content_rect: lui_layout::Rect::new(0.0, 0.0, 300.0, 60.0),
+    margin_rect: lui_layout_old::Rect::new(0.0, 0.0, 300.0, 60.0),
+    border_rect: lui_layout_old::Rect::new(0.0, 0.0, 300.0, 60.0),
+    content_rect: lui_layout_old::Rect::new(0.0, 0.0, 300.0, 60.0),
     background: None,
-    background_rect: lui_layout::Rect::new(0.0, 0.0, 300.0, 60.0),
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Block,
+    background_rect: lui_layout_old::Rect::new(0.0, 0.0, 300.0, 60.0),
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Block,
     text_run: None,
     text_color: None,
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,

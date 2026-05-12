@@ -14,7 +14,7 @@ Parse real HTML5, apply CSS (Flexbox + Grid), lay out text with shaping, and pai
 |---|---|
 | HTML/CSS parsing | `lui-parser` |
 | Style cascade | `lui-style` |
-| Layout | `lui-layout` |
+| Layout | `lui-layout-old` |
 | Paint | `lui` |
 | GPU render | `lui-renderer` |
 | Text shaping | `lui-text` |

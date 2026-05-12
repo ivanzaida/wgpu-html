@@ -133,7 +133,7 @@ The containing block is determined by:
 2. For `absolute` — the nearest positioned ancestor (`position: relative | absolute | fixed | sticky`), or the viewport if none
 3. For `relative` — the element's own normal flow position
 
-The layout function `layout_out_of_flow_block()` in `lui-layout` walks up the tree to find the containing block, then resolves inset offsets and sizes.
+The layout function `layout_out_of_flow_block()` in `lui-layout-old` walks up the tree to find the containing block, then resolves inset offsets and sizes.
 
 ## Shrink-to-Fit Sizing for Absolute Elements
 

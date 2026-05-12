@@ -20,7 +20,7 @@ cargo test -p lui-parser
 cargo test -p lui-style
 
 # Layout tests (block, flex, grid, IFC, positioning)
-cargo test -p lui-layout
+cargo test -p lui-layout-old
 
 # Paint and facade tests
 cargo test -p lui
@@ -78,8 +78,8 @@ fn my_paint_test() {
 cargo test --workspace -- --ignored
 
 # Run with stdout shown (for println! debugging)
-cargo test -p lui-layout -- --nocapture
+cargo test -p lui-layout-old -- --nocapture
 
 # Run a specific test
-cargo test -p lui-layout flex_grow
+cargo test -p lui-layout-old flex_grow
 ```

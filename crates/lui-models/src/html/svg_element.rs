@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use crate::{
   ArcStr,
@@ -14,7 +13,6 @@ pub struct SvgElement {
   pub tag: ArcStr,
   pub attrs: Vec<(ArcStr, ArcStr)>,
   pub id: Option<ArcStr>,
-  pub class: Option<ArcStr>,
   pub style: Option<ArcStr>,
   pub title: Option<ArcStr>,
   pub lang: Option<ArcStr>,
@@ -27,6 +25,4 @@ pub struct SvgElement {
   pub spellcheck: Option<bool>,
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
-  pub aria_attrs: HashMap<ArcStr, ArcStr>,
-  pub data_attrs: HashMap<ArcStr, ArcStr>,
 }

@@ -47,7 +47,7 @@ Tree<Node<Element>>                inline `style="…"` attrs stay raw on each e
                                   resolution + implicit inheritance
 CascadedTree                       per-node fully-resolved Style
    │
-   ▼  lui-layout            consume the typed Style values
+   ▼  lui-layout-old            consume the typed Style values
 LayoutBox tree
 ```
 
@@ -151,7 +151,7 @@ Not yet supported:
 
 **CSS Color Module Level 4 system colors** — recognised by both
 the parser validator (`is_supported_named_color`) and the layout
-color resolver (`lui_layout::color::named_color`). Used by
+color resolver (`lui_layout_old::color::named_color`). Used by
 the UA stylesheet for form controls (`background-color: buttonface`,
 `color: fieldtext`, …) so those rules cascade cleanly:
 
@@ -458,7 +458,7 @@ to do:
 
 - **Length resolution.** Layout still receives raw `CssLength`
   values; the resolution to physical pixels happens in
-  `lui-layout::length::resolve` against viewport / parent
+  `lui-layout-old::length::resolve` against viewport / parent
   size. CSS spec calls for this to happen at "computed value" time
   for `em`/`rem`/`%` of the element's own font size — we
   approximate.
@@ -471,7 +471,7 @@ to do:
 
 What survives the cascade and actually changes pixels on the screen.
 
-### Honoured by layout (`lui-layout`)
+### Honoured by layout (`lui-layout-old`)
 
 - `display` (block, flex, grid, and atomic inline variants such as
   `inline-block` / `inline-flex` where the current layout path

@@ -8,7 +8,7 @@ fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui::renderer::DisplayList {
   let mut tree = lui_parser::parse(html);
   tree.register_system_fonts("DemoSans");
   let mut ctx = TextContext::new(64);
-  let mut ic = lui_layout::ImageCache::default();
+  let mut ic = lui_layout_old::ImageCache::default();
   paint_tree_with_text(&tree, &mut ctx, &mut ic, w, h, 1.0, 0.0)
 }
 

@@ -25,13 +25,20 @@ pub fn patch_node(old: &mut Node, new: Node) -> PatchResult {
   let mut result = PatchResult::default();
 
   let old_id = old.element.id().map(|s| s as *const str);
-  let old_class = old.element.class().map(|s| s as *const str);
+  let old_class_list = std::mem::take(&mut old.class_list);
+  let old_aria = std::mem::take(&mut old.aria_attrs);
+  let old_data = std::mem::take(&mut old.data_attrs);
 
   result.merge(patch_element(&mut old.element, new.element));
 
   let new_id = old.element.id().map(|s| s as *const str);
-  let new_class = old.element.class().map(|s| s as *const str);
-  if old_id != new_id || old_class != new_class {
+  let class_changed = old_class_list != new.class_list
+    || old_aria != new.aria_attrs
+    || old_data != new.data_attrs;
+  old.class_list = new.class_list;
+  old.aria_attrs = new.aria_attrs;
+  old.data_attrs = new.data_attrs;
+  if old_id != new_id || class_changed {
     result.selector_changed = true;
   }
 

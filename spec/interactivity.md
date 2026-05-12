@@ -200,7 +200,7 @@ Rationale:
 
 ## 5. Hit testing — contract & extensions
 
-The current hit test (`crates/lui-layout/src/lib.rs`)
+The current hit test (`crates/lui-layout-old/src/lib.rs`)
 returns the deepest descendant whose `border_rect` contains the
 point, walking children last-to-first so the topmost paint wins.
 That contract stays.
@@ -516,7 +516,7 @@ forward into the path-based dispatchers below.
 
 **Path-based dispatchers** in `lui_tree::dispatch` (use
 these when the host already knows the target path, or to drive
-the engine without a `lui-layout` dependency):
+the engine without a `lui-layout-old` dependency):
 
 ```rust
 // Mouse — caller supplies the hit-tested target_path.
@@ -619,7 +619,7 @@ lui-parser / lui-style
      ui-*, -apple-system, BlinkMacSystemFont)
   + pointer-events / user-select cascade-inheritance entries             ❌ M-INTER-2
 
-lui-layout
+lui-layout-old
   + hit_text_cursor((x,y)) → Option<TextCursor>                         ✅ M-INTER-3 (partial)
   + Input/Textarea placeholder text run + ::placeholder color            ✅ (forms slice)
     (compute_placeholder_run; both layout_block and

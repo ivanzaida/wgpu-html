@@ -250,16 +250,15 @@ pub fn matches_compound(
     }
 
     if let Some(ref id) = compound.id {
-        let node_id = node.attrs.get("id").map(|s| s.as_ref());
-        if node_id != Some::<&str>(id.as_str()) {
-            return false;
+        match &node.id {
+            Some(node_id) if node_id.as_ref() == id.as_str() => {}
+            _ => return false,
         }
     }
 
     if !compound.classes.is_empty() {
-        let class_attr = node.attrs.get("class").map(|s| s.as_ref()).unwrap_or("");
         for class in &compound.classes {
-            if !class_attr.split_ascii_whitespace().any(|c| c == class) {
+            if !node.class_list.iter().any(|c| c.as_ref() == class) {
                 return false;
             }
         }
@@ -285,7 +284,50 @@ pub fn matches_compound(
 // ---------------------------------------------------------------------------
 
 fn matches_attr(sel: &AttributeSelector, node: &HtmlNode) -> bool {
-    let val = node.attrs.get(sel.name.as_str());
+    let name = sel.name.as_str();
+    let val = if name == "id" {
+        node.id.as_ref()
+    } else if name == "class" {
+        None // class is in class_list, attribute presence check below handles it
+    } else {
+        node.attrs.get(name)
+            .or_else(|| {
+                name.strip_prefix("data-").and_then(|rest| node.data_attrs.get(rest))
+            })
+            .or_else(|| {
+                name.strip_prefix("aria-").and_then(|rest| node.aria_attrs.get(rest))
+            })
+    };
+
+    // Special case: [class] presence check
+    if name == "class" && sel.op.is_none() {
+        return !node.class_list.is_empty();
+    }
+    if name == "class" {
+        let class_str: String = node.class_list.iter()
+            .map(|c| c.as_ref())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let val_ref = &class_str;
+        let expected = match &sel.value {
+            Some(v) => v.as_str(),
+            None => return false,
+        };
+        let case_insensitive = sel.modifier == Some('i');
+        let (val_s, expected_s) = if case_insensitive {
+            (val_ref.to_ascii_lowercase(), expected.to_ascii_lowercase())
+        } else {
+            (val_ref.to_string(), expected.to_string())
+        };
+        return match sel.op.as_ref().unwrap() {
+            AttrOp::Eq => val_s == expected_s,
+            AttrOp::Includes => val_s.split_ascii_whitespace().any(|w| w == expected_s),
+            AttrOp::Hyphen => val_s == expected_s || val_s.starts_with(&format!("{}-", expected_s)),
+            AttrOp::StartsWith => val_s.starts_with(expected_s.as_str()),
+            AttrOp::EndsWith => val_s.ends_with(expected_s.as_str()),
+            AttrOp::Contains => val_s.contains(expected_s.as_str()),
+        };
+    }
 
     let Some(op) = &sel.op else {
         return val.is_some();

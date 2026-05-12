@@ -10,7 +10,7 @@ members = [
     "crates/lui-display-list",
     "crates/lui-events",
     "crates/lui-assets",
-    "crates/lui-layout",
+    "crates/lui-layout-old",
     "crates/lui-models",
     "crates/lui-parser",
     "renderers/lui-render-api",
@@ -36,7 +36,7 @@ lui-css-old = { path = "crates/lui-css-old" }
 lui-html-parser = { path = "crates/lui-html-parser" }
 lui-devtools = { path = "crates/lui-devtools" }
 lui-events = { path = "crates/lui-events" }
-lui-layout = { path = "crates/lui-layout" }
+lui-layout-old = { path = "crates/lui-layout-old" }
 lui-models = { path = "crates/lui-models" }
 lui-parser = { path = "crates/lui-parser" }
 lui-display-list = { path = "crates/lui-display-list" }
@@ -63,12 +63,13 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 ureq = "3.3.0"
 resvg = "0.47.0"
 rfd = "0.17.2"
+bumpalo = { version = "3", features = ["collections"] }
 
 
 # ── Dev profile: optimize hot crates for usable FPS during development ──
 # The demo/app code stays at opt-level 0 for fast incremental compiles,
 # but the engine hot path gets opt-level 2 so layout/text/paint run fast.
-[profile.dev.package.lui-layout]
+[profile.dev.package.lui-layout-old]
 opt-level = 2
 [profile.dev.package.lui-text]
 opt-level = 2

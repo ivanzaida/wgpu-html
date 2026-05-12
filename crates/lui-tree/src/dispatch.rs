@@ -5,10 +5,10 @@
 //! `:focus` cascade plumbing, keyboard delivery, and Tab navigation.
 //! Hosts that already have a hit-tested target path can drive the
 //! engine end-to-end through this module without taking a
-//! `lui-layout` dependency.
+//! `lui-layout-old` dependency.
 //!
 //! Layout-aware sugar (position-based `mouse_down`, `mouse_up`,
-//! `pointer_move`) lives in `lui` / `lui-layout`; those
+//! `pointer_move`) lives in `lui` / `lui-layout-old`; those
 //! wrappers do hit-testing then forward into the dispatchers here.
 //!
 //! Public surface:

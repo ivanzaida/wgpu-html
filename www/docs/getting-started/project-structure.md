@@ -12,7 +12,7 @@ lui/
 │   ├── lui/                # Façade: orchestration, paint, interactivity
 │   ├── lui-parser/         # HTML tokenizer, CSS parser, stylesheet parser
 │   ├── lui-style/          # CSS cascade, selector matching, inheritance
-│   ├── lui-layout/         # Block, flex, grid, IFC, positioned layout
+│   ├── lui-layout-old/         # Block, flex, grid, IFC, positioned layout
 │   ├── lui-text/           # Font DB, cosmic-text shaping, glyph atlas
 │   ├── lui-display-list/   # Backend-agnostic display list IR
 │   ├── lui-tree/           # DOM tree, events, focus, query selectors
@@ -49,7 +49,7 @@ lui/
 | `src/interactivity.rs` | Mouse/keyboard dispatch wrappers, text selection |
 | `src/date_picker_overlay.rs` | Date input overlay UI |
 
-### lui-layout
+### lui-layout-old
 
 | File | Purpose |
 |---|---|
@@ -79,7 +79,7 @@ cargo run -p lui-demo
 Targeted test loops:
 
 ```bash
-cargo test -p lui-layout
+cargo test -p lui-layout-old
 cargo test -p lui-parser
 cargo test -p lui
 ```

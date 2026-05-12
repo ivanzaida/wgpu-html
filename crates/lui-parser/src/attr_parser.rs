@@ -643,7 +643,6 @@ pub fn parse_element(tag: &str, attrs: &[(ArcStr, ArcStr)]) -> Option<Element> {
       for (n, v) in attrs {
         match &**n {
           "id" => el.id = Some(v.clone()),
-          "class" => el.class = Some(v.clone()),
           _ => {}
         }
       }
@@ -1100,7 +1099,6 @@ macro_rules! set_global {
     for (name, value) in $attrs {
       match &**name {
         "id" => $el.id = Some(value.clone()),
-        "class" => $el.class = Some(value.clone()),
         "style" => $el.style = Some(value.clone()),
         "title" => $el.title = Some(value.clone()),
         "lang" => $el.lang = Some(value.clone()),
@@ -1113,13 +1111,7 @@ macro_rules! set_global {
         "spellcheck" => $el.spellcheck = Some(parse_bool_attr(value)),
         "translate" => $el.translate = Some(parse_bool_attr(value)),
         "role" => $el.role = parse_aria_role(value),
-        _ => {
-          if let Some(suffix) = name.strip_prefix("aria-") {
-            $el.aria_attrs.insert(ArcStr::from(suffix), value.clone());
-          } else if let Some(suffix) = name.strip_prefix("data-") {
-            $el.data_attrs.insert(ArcStr::from(suffix), value.clone());
-          }
-        }
+        _ => {}
       }
     }
   };

@@ -166,7 +166,7 @@ These functions are parsed into `CssMathExpr::Function(kind, args)` and can be u
 
 ## Evaluation at Layout Time
 
-Math expressions are evaluated in `lui-layout/src/length.rs` during the layout pass. The evaluator:
+Math expressions are evaluated in `lui-layout-old/src/length.rs` during the layout pass. The evaluator:
 
 1. Recursively walks the `CssMathExpr` AST
 2. Resolves each `Length` leaf to a `f32` pixel value using the layout context (containing block size, font size, viewport size)

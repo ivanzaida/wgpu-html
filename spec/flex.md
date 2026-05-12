@@ -1,11 +1,11 @@
 # lui — Flex Layout Spec
 
 The plan and current state of `display: flex`, as implemented in
-`crates/lui-layout/src/flex.rs`. Companion to `roadmap.md`
+`crates/lui-layout-old/src/flex.rs`. Companion to `roadmap.md`
 (M9 — flexbox) and `status.md`.
 
 Status: shipped. All 20 dedicated flex unit tests pass plus 82 other
-layout tests in `crates/lui-layout/src/tests.rs`. The
+layout tests in `crates/lui-layout-old/src/tests.rs`. The
 implementation follows
 [CSS-Flexbox-1] §9 ("Flex Layout Algorithm") at a level of fidelity
 adequate for the demo pages and most everyday UI flex patterns; the
@@ -285,7 +285,7 @@ In rough priority order if we ever come back to flex:
 
 ## 7. Tests
 
-`crates/lui-layout/src/tests.rs` ships 20 dedicated flex
+`crates/lui-layout-old/src/tests.rs` ships 20 dedicated flex
 assertions on top of 82 non-flex layout assertions. Coverage:
 
 - `flex_grow_splits_remaining_main_equally`

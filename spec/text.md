@@ -33,7 +33,7 @@ process-global state, no `@font-face` fetcher.
 ## 2. Supported CSS
 
 Resolved end-to-end (`crates/lui-style` cascade →
-`crates/lui-text` shape → `crates/lui-layout` IFC →
+`crates/lui-text` shape → `crates/lui-layout-old` IFC →
 paint):
 
 | Property              | Coverage                                                                  |
@@ -97,7 +97,7 @@ Frame
 Public entry points:
 
 ```rust
-// lui-layout
+// lui-layout-old
 pub fn layout_with_text(
     tree:       &CascadedTree,
     text_ctx:   &mut TextContext,
@@ -393,7 +393,7 @@ impl Renderer {
     pub fn glyph_atlas_texture(&self) -> &wgpu::Texture;
 }
 
-// lui-layout
+// lui-layout-old
 pub fn layout_with_text(tree, &mut TextContext, vw, vh, scale)
     -> Option<LayoutBox>;
 pub fn layout(tree, vw, vh) -> Option<LayoutBox>;
@@ -466,7 +466,7 @@ pub fn paint_tree_returning_layout(tree, &mut TextContext, vw, vh, scale)
 - `lui-text::atlas::tests` (11) and
   `lui-text::font_db::tests` (5) cover the shelf packer +
   the cosmic-text bridge identity check.
-- `lui-layout::tests` (89) covers layout including text
+- `lui-layout-old::tests` (89) covers layout including text
   leaves; the no-font compatibility wrapper (`layout(...)`) keeps
   the older fixtures green.
 - `lui::paint::tests` (23) covers the painter end-to-end
@@ -566,7 +566,7 @@ The following remain intentionally uncovered until implemented:
 
 ### 11.8 Form-field placeholder rendering — done
 
-`compute_placeholder_run` (in `lui_layout::lib`) shapes the
+`compute_placeholder_run` (in `lui_layout_old::lib`) shapes the
 `placeholder` attribute on empty `<input>` and `<textarea>`
 elements and attaches the result as the box's `text_run`,
 painted at the cascaded `color × alpha 0.5` (the browser default
@@ -575,7 +575,7 @@ painted at the cascaded `color × alpha 0.5` (the browser default
 path most often).
 
 Behavioural rules covered by tests in
-`lui-layout::tests::*placeholder*`:
+`lui-layout-old::tests::*placeholder*`:
 
 - Empty `<input>` with `placeholder="…"` → text_run + color set.
 - Non-empty `value="…"` suppresses placeholder.

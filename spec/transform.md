@@ -93,9 +93,9 @@ In `crates/lui-parser/tests/css/declarations.rs`:
 
 ## Milestone 2 — Layout Passthrough
 
-**Crate:** `lui-layout`
+**Crate:** `lui-layout-old`
 
-**File:** `crates/lui-layout/src/lib.rs`
+**File:** `crates/lui-layout-old/src/lib.rs`
 
 Add two fields to `LayoutBox` immediately after `opacity`:
 
@@ -108,7 +108,7 @@ In the section of `layout_with_text` that populates `LayoutBox` from a `Cascaded
 
 ### Tests
 
-In `crates/lui-layout/src/tests.rs`:
+In `crates/lui-layout-old/src/tests.rs`:
 - `transform_does_not_affect_layout` — element with `transform: translate(200px,200px)` and a neighbouring element must have identical `border_rect`/`margin_rect` to the no-transform baseline.
 - `transform_origin_defaults_to_50pct` — element with no `transform-origin` has `TransformOrigin { x: Percent(50), y: Percent(50) }`.
 
@@ -116,9 +116,9 @@ In `crates/lui-layout/src/tests.rs`:
 
 ## Milestone 3 — Matrix Math Library
 
-**Crate:** `lui-layout`
+**Crate:** `lui-layout-old`
 
-**New file:** `crates/lui-layout/src/transform_math.rs` (exported `pub` from the crate root)
+**New file:** `crates/lui-layout-old/src/transform_math.rs` (exported `pub` from the crate root)
 
 ### Types
 
@@ -273,9 +273,9 @@ In `crates/lui/src/paint.rs`:
 
 ## Milestone 7 — Hit Testing: Inverse Transform
 
-**Crate:** `lui-layout`
+**Crate:** `lui-layout-old`
 
-**File:** `crates/lui-layout/src/lib.rs`
+**File:** `crates/lui-layout-old/src/lib.rs`
 
 In `collect_hit_path_scrolled`, add `transform_stack: Option<Affine2>`. When inspecting a `LayoutBox` with a non-identity transform:
 
@@ -289,7 +289,7 @@ Apply the same pattern to `hit_path` (non-scrolled variant).
 
 ### Tests
 
-In `crates/lui-layout/src/tests.rs`:
+In `crates/lui-layout-old/src/tests.rs`:
 
 ```
 hit_test_translate_inverse

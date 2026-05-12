@@ -1,3 +1,4 @@
+use lui_css_parser::CssProperty;
 use lui_html_parser::{ArcStr, HtmlElement, HtmlNode, parse};
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -72,7 +73,7 @@ fn template_contents_are_retained() {
     assert_eq!(doc.root.children.len(), 2);
     let template = &doc.root.children[0];
     assert_eq!(template.element, HtmlElement::Template);
-    assert_eq!(template.attrs.get("id").map(|s| &**s), Some("tpl"));
+    assert_eq!(template.id.as_deref(), Some("tpl"));
     assert_eq!(template.children.len(), 1);
     assert_eq!(template.children[0].element, HtmlElement::Div);
     assert_eq!(text_of(&template.children[0].children[0]), "hidden");
@@ -277,8 +278,8 @@ fn div_has_id_class() {
     let doc = parse(r#"<div id="hero" class="card big"></div>"#);
     let div = &doc.root.children[0];
     assert_eq!(div.element, HtmlElement::Div);
-    assert_eq!(div.attrs.get("id").map(|s| &**s), Some("hero"));
-    assert_eq!(div.attrs.get("class").map(|s| &**s), Some("card big"));
+    assert_eq!(div.id.as_deref(), Some("hero"));
+    assert_eq!(div.class_list.iter().map(|c| c.as_ref()).collect::<Vec<_>>(), vec!["card", "big"]);
 }
 
 #[test]
@@ -286,7 +287,8 @@ fn p_has_inline_style_string() {
     let doc = parse(r#"<p style="color: red; padding: 8px;">x</p>"#);
     let p = &doc.root.children[0];
     assert_eq!(p.element, HtmlElement::P);
-    assert_eq!(p.attrs.get("style").map(|s| &**s), Some("color: red; padding: 8px;"));
+    assert!(!p.styles.is_empty(), "inline style should be parsed into styles vec");
+    assert_eq!(p.styles[0].property, CssProperty::Color);
 }
 
 #[test]
@@ -480,9 +482,9 @@ fn multiple_data_attrs_are_all_preserved() {
     let doc = parse(r#"<div style="display: block" data-id="42" data-name="hello" data-foo="bar"></div>"#);
     let div = &doc.root.children[0];
     assert_eq!(div.element, HtmlElement::Div);
-    assert_eq!(div.attrs.get("data-id").map(|s| &**s), Some("42"));
-    assert_eq!(div.attrs.get("data-name").map(|s| &**s), Some("hello"));
-    assert_eq!(div.attrs.get("data-foo").map(|s| &**s), Some("bar"));
+    assert_eq!(div.data_attrs.get("id").map(|s| s.as_ref()), Some("42"));
+    assert_eq!(div.data_attrs.get("name").map(|s| s.as_ref()), Some("hello"));
+    assert_eq!(div.data_attrs.get("foo").map(|s| s.as_ref()), Some("bar"));
 }
 
 #[test]
@@ -490,9 +492,9 @@ fn multiple_aria_attrs_are_all_preserved() {
     let doc = parse(r#"<button aria-label="Close" aria-pressed="false" aria-controls="menu"></button>"#);
     let btn = &doc.root.children[0];
     assert_eq!(btn.element, HtmlElement::Button);
-    assert_eq!(btn.attrs.get("aria-label").map(|s| &**s), Some("Close"));
-    assert_eq!(btn.attrs.get("aria-pressed").map(|s| &**s), Some("false"));
-    assert_eq!(btn.attrs.get("aria-controls").map(|s| &**s), Some("menu"));
+    assert_eq!(btn.aria_attrs.get("label").map(|s| s.as_ref()), Some("Close"));
+    assert_eq!(btn.aria_attrs.get("pressed").map(|s| s.as_ref()), Some("false"));
+    assert_eq!(btn.aria_attrs.get("controls").map(|s| s.as_ref()), Some("menu"));
 }
 
 #[test]

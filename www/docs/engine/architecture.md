@@ -10,7 +10,7 @@ Every frame in lui follows a fixed pipeline of pure-data transformations:
 HTML string
   → Parse (lui-parser)              → Tree (DOM nodes)
   → Cascade (lui-style)             → CascadedTree (Style per node)
-  → Layout (lui-layout)             → LayoutBox tree (positioned boxes)
+  → Layout (lui-layout-old)             → LayoutBox tree (positioned boxes)
   → Paint (lui/paint.rs)            → DisplayList (quads, glyphs, images, clips)
   → Render (B: RenderBackend)       → GPU frame
 ```
@@ -25,7 +25,7 @@ Each arrow is a clean module boundary: input/output are plain data, each stage i
 | `lui-tree` | DOM tree, `Element` types, event callbacks, interaction state, focus, selector query engine |
 | `lui-models` | Shared types: `Style`, `CssLength`, `CssColor`, CSS enums, element structs |
 | `lui-style` | CSS cascade, specificity, inheritance, `var()` resolution, `@media` evaluation |
-| `lui-layout` | Block/flex/grid/inline/positioned layout, hit testing, image loading |
+| `lui-layout-old` | Block/flex/grid/inline/positioned layout, hit testing, image loading |
 | `lui-text` | Font database, cosmic-text integration, glyph shaping, atlas packing |
 | `lui-display-list` | Backend-agnostic display list IR: `DisplayList`, `Quad`, `Rect`, `Color`, etc. |
 | `lui-render-api` | `RenderBackend` trait and `RenderError` — the abstraction any GPU renderer implements |

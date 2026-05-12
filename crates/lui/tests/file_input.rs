@@ -21,14 +21,14 @@ fn file_input_has_form_control() {
   let mut tree = make_file_tree();
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
-  let mut images = lui_layout::ImageCache::default();
+  let mut images = lui_layout_old::ImageCache::default();
   let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
   let lb = lui::layout_at_path(&root, &path).unwrap();
   assert!(matches!(
     lb.form_control.as_ref().map(|fc| &fc.kind),
-    Some(lui_layout::FormControlKind::File { .. })
+    Some(lui_layout_old::FormControlKind::File { .. })
   ));
 }
 
@@ -37,7 +37,7 @@ fn file_input_has_label_text_run() {
   let mut tree = make_file_tree();
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
-  let mut images = lui_layout::ImageCache::default();
+  let mut images = lui_layout_old::ImageCache::default();
   let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
@@ -55,7 +55,7 @@ fn file_input_has_button_text_run() {
   let mut tree = make_file_tree();
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
-  let mut images = lui_layout::ImageCache::default();
+  let mut images = lui_layout_old::ImageCache::default();
   let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
@@ -77,7 +77,7 @@ fn button_and_label_are_separate_runs() {
   let mut tree = make_file_tree();
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
-  let mut images = lui_layout::ImageCache::default();
+  let mut images = lui_layout_old::ImageCache::default();
   let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
@@ -103,7 +103,7 @@ fn file_button_width_includes_padding() {
   let mut tree = make_file_tree();
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
-  let mut images = lui_layout::ImageCache::default();
+  let mut images = lui_layout_old::ImageCache::default();
   let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
@@ -124,7 +124,7 @@ fn label_does_not_overlap_button() {
   let mut tree = make_file_tree();
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
-  let mut images = lui_layout::ImageCache::default();
+  let mut images = lui_layout_old::ImageCache::default();
   let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);

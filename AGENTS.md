@@ -6,24 +6,24 @@
 - There were no existing repo-local agent instruction files or `README.md` matches in the workspace-wide convention search.
 
 ## Big picture architecture
-- The core pipeline is: `lui-parser` → `lui-style` → `lui-layout` → `lui::paint` → `lui-renderer`.
+- The core pipeline is: `lui-parser` → `lui-style` → `lui-layout-old` → `lui::paint` → `lui-renderer`.
 - `lui-parser::parse()` builds a `lui_tree::Tree` from HTML; inline CSS and `<style>` blocks stay attached to the tree.
 - `lui-style::cascade()` applies UA rules + author rules + inline style + inheritance, producing a `CascadedTree`. Dynamic pseudo-classes come from `Tree.interaction`.
-- `lui-layout::layout_with_text()` is the main geometry stage. It resolves sizes, flex/grid, text shaping, overflow, images, and returns a `LayoutBox` tree.
+- `lui-layout-old::layout_with_text()` is the main geometry stage. It resolves sizes, flex/grid, text shaping, overflow, images, and returns a `LayoutBox` tree.
 - `lui::paint` converts `LayoutBox` into a backend-agnostic `DisplayList`; `lui-renderer::Renderer::render()` is the only GPU-facing stage.
 - Keep those boundaries clean: parsing/style/layout should resolve semantics up front so paint/render stay dumb.
 
 ## Important cross-crate invariants
-- `LayoutBox` child structure mirrors the source `Tree`; hit-testing/event dispatch depend on path compatibility (`crates/lui-layout/src/lib.rs`, `crates/lui-tree/src/lib.rs`).
-- Visual reordering can move boxes without reordering children. Example: flex `order` changes coordinates but source order stays intact for hit-testing (`crates/lui-layout/src/tests.rs`).
+- `LayoutBox` child structure mirrors the source `Tree`; hit-testing/event dispatch depend on path compatibility (`crates/lui-layout-old/src/lib.rs`, `crates/lui-tree/src/lib.rs`).
+- Visual reordering can move boxes without reordering children. Example: flex `order` changes coordinates but source order stays intact for hit-testing (`crates/lui-layout-old/src/tests.rs`).
 - Interactivity flows through `Tree.interaction` and node callback fields (`on_click`, `on_mouse_enter`, etc.); the demo wires these with `tree.get_element_by_id(...)`.
-- Image loading is owned by the layout crate, not the renderer: async fetch/decode, cache TTL, preload queue, and animated-frame selection all live in `crates/lui-layout/src/lib.rs`.
+- Image loading is owned by the layout crate, not the renderer: async fetch/decode, cache TTL, preload queue, and animated-frame selection all live in `crates/lui-layout-old/src/lib.rs`.
 - Text selection is split across crates: layout provides hit/cursor geometry, `lui` stores selection helpers, and paint renders highlight/background.
 
 ## Developer workflow
 - Main validation loop: `cargo test --workspace`.
 - Common targeted loops:
-  - `cargo test -p lui-layout`
+  - `cargo test -p lui-layout-old`
   - `cargo test -p lui-parser`
   - `cargo test -p lui`
   - `cargo run -p lui-demo`
@@ -31,7 +31,7 @@
 - Demo controls from current code: `F12` saves a PNG screenshot, `Esc` exits, `Ctrl+A` selects all text, `Ctrl+C` copies selection.
 
 ## Project-specific conventions
-- Most regression coverage is inline HTML/CSS in Rust unit tests, not external fixtures. Follow patterns in `crates/lui-layout/src/tests.rs` and `crates/lui/src/paint.rs`.
+- Most regression coverage is inline HTML/CSS in Rust unit tests, not external fixtures. Follow patterns in `crates/lui-layout-old/src/tests.rs` and `crates/lui/src/paint.rs`.
 - Tests commonly neutralize UA defaults with `body { margin: 0; }`; do that unless you are explicitly testing UA stylesheet behavior.
 - Geometry assertions use the three canonical rectangles: `margin_rect` (flow spacing), `border_rect` (paint box), `content_rect` (child/layout box). Be explicit about which one you mean.
 - Demo HTML files under `crates/lui-demo/html/` are living browser-parity cases; if a bug is visual, add or update a focused HTML demo alongside the Rust regression test.
@@ -39,7 +39,7 @@
 
 ## Change guidance
 - For parser/style changes, trace through to layout tests because unsupported selectors/properties often fail later as missing geometry, not parse errors.
-- For layout changes, inspect both `crates/lui-layout/src/lib.rs` and the dedicated helpers in `flex.rs`, `grid.rs`, and `length.rs` before editing.
+- For layout changes, inspect both `crates/lui-layout-old/src/lib.rs` and the dedicated helpers in `flex.rs`, `grid.rs`, and `length.rs` before editing.
 - For paint/render changes, check both display-list generation (`crates/lui/src/paint.rs`) and renderer consumption (`crates/lui-renderer/src/lib.rs`, `quad_pipeline.rs`, `glyph_pipeline.rs`, `image_pipeline.rs`).
 - If you add a new interactive behavior, update both dispatch (`crates/lui/src/interactivity.rs`) and the cascade/state assumptions in `lui-style`.
 

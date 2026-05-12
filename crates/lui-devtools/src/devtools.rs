@@ -13,7 +13,7 @@ use std::sync::{
 };
 
 use lui_events::HtmlEvent;
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_tree::{FontFace, Profiler, Tree, TreeHookHandle};
 use lui_ui::Mount;
 

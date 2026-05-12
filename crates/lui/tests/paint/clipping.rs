@@ -1,5 +1,5 @@
 use lui::{paint::*, renderer::DisplayList};
-use lui_layout::{LayoutBox, Rect as LR};
+use lui_layout_old::{LayoutBox, Rect as LR};
 use lui_text::{PositionedGlyph, ShapedLine, ShapedRun};
 
 #[test]
@@ -40,7 +40,7 @@ fn real_textarea_in_flex_row_does_not_clip_following_block_quad() {
 
 #[test]
 fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
-  use lui_layout::{BorderColors, BorderStyles, BoxKind, CornerRadii, Insets, OverflowAxes};
+  use lui_layout_old::{BorderColors, BorderStyles, BoxKind, CornerRadii, Insets, OverflowAxes};
   use lui_models::common::css_enums::Overflow;
   let textarea_rect = LR::new(0.0, 0.0, 320.0, 64.0);
   let textarea = LayoutBox {
@@ -66,7 +66,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
       scrollbar_thumb: None,
       scrollbar_track: None,
     },
-    resize: lui_layout::Resize::None,
+    resize: lui_layout_old::Resize::None,
     text_overflow: None,
     transform: None,
     transform_origin: (0.0, 0.0),
@@ -81,7 +81,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
-    lui: lui_layout::LuiProperties::default(),
+    lui: lui_layout_old::LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
@@ -131,7 +131,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
-    resize: lui_layout::Resize::None,
+    resize: lui_layout_old::Resize::None,
     text_overflow: None,
     transform: None,
     transform_origin: (0.0, 0.0),
@@ -146,7 +146,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
-    lui: lui_layout::LuiProperties::default(),
+    lui: lui_layout_old::LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,
@@ -175,7 +175,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     text_unselectable: false,
     text_decorations: Vec::new(),
     overflow: OverflowAxes::visible(),
-    resize: lui_layout::Resize::None,
+    resize: lui_layout_old::Resize::None,
     text_overflow: None,
     transform: None,
     transform_origin: (0.0, 0.0),
@@ -190,7 +190,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
-    lui: lui_layout::LuiProperties::default(),
+    lui: lui_layout_old::LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,

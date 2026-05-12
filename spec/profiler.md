@@ -494,7 +494,7 @@ Deliverables:
 
 ### Phase 6 — Sub-stage breakdowns
 
-**Crates:** `lui-parser`, `lui-style`, `lui-layout`,
+**Crates:** `lui-parser`, `lui-style`, `lui-layout-old`,
   `crates/lui/src/paint.rs`.
 
 Deliverables:

@@ -13,7 +13,7 @@ The core pipeline is four steps:
 ```rust
 use lui::parse;
 use lui_style::cascade;
-use lui_layout::layout_with_text;
+use lui_layout_old::layout_with_text;
 
 let html = r#"
     <!DOCTYPE html>

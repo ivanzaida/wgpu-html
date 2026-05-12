@@ -8,7 +8,7 @@ How the cascaded style tree becomes positioned boxes with pixel coordinates.
 
 ## Entry Points
 
-**File:** `crates/lui-layout/src/lib.rs`
+**File:** `crates/lui-layout-old/src/lib.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -91,7 +91,7 @@ pub struct LayoutBox {
 
 ### Length Resolution
 
-**File:** `crates/lui-layout/src/length.rs` line 14
+**File:** `crates/lui-layout-old/src/length.rs` line 14
 
 `resolve()` converts `CssLength` to pixels:
 
@@ -107,7 +107,7 @@ pub struct LayoutBox {
 
 ## Inline Formatting Context (IFC)
 
-**File:** `crates/lui-layout/src/lib.rs`
+**File:** `crates/lui-layout-old/src/lib.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -125,7 +125,7 @@ Paragraph layout path:
 
 ## Flexbox
 
-**File:** `crates/lui-layout/src/flex.rs`
+**File:** `crates/lui-layout-old/src/flex.rs`
 
 **Entry:** `layout_flex_children()` (line 45)
 
@@ -141,7 +141,7 @@ Implements CSS-Flexbox-1 section 9:
 
 ## Grid
 
-**File:** `crates/lui-layout/src/grid.rs`
+**File:** `crates/lui-layout-old/src/grid.rs`
 
 **Entry:** `layout_grid_children()` (line 46)
 
@@ -157,7 +157,7 @@ Implements CSS-Grid-Layout-1 sections 6-11:
 
 ## Positioned Layout
 
-**File:** `crates/lui-layout/src/lib.rs`
+**File:** `crates/lui-layout-old/src/lib.rs`
 
 | Function | Line | Purpose |
 |---|---|---|
@@ -203,7 +203,7 @@ Tile positions computed by `compute_bg_tiles()` (line 181) considering `backgrou
 
 ## Incremental Layout
 
-**File:** `crates/lui-layout/src/lib.rs`
+**File:** `crates/lui-layout-old/src/lib.rs`
 
 | Function | Purpose |
 |---|---|

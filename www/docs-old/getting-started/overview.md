@@ -43,7 +43,7 @@ lui is organised into 14 crates, each with a focused responsibility:
 | `lui-style` | Cascade engine: UA stylesheet, selector matching, field merge, CSS-wide keywords, inheritance, color handling |
 | `lui-text` | Font database, text shaping (cosmic-text), glyph atlas (rasterisation + GPU upload) |
 | `lui-events` | Typed DOM-style event structs: `HtmlEvent`, `MouseEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, event phases, bubbling semantics |
-| `lui-layout` | Block flow, Flexbox, Grid, inline formatting context, hit testing, image loading/cache, scroll geometry, placeholder shaping |
+| `lui-layout-old` | Block flow, Flexbox, Grid, inline formatting context, hit testing, image loading/cache, scroll geometry, placeholder shaping |
 | `lui-renderer` | wgpu device/surface, quad pipeline (SDF), glyph pipeline, image pipeline, scissor clipping, screenshot |
 | `lui` | Façade: `parse → cascade → layout → paint`, interactivity wrappers, `PipelineTimings`, text selection, scroll utilities |
 | `lui-winit` | winit ↔ engine glue: type translators, input forwarders, batteries-included `LuiWindow` harness |

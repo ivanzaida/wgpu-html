@@ -40,7 +40,7 @@ lui (façade)
 ├── lui-parser
 ├── lui-style
 │   └── lui-models
-├── lui-layout
+├── lui-layout-old
 │   ├── lui-text (cosmic-text)
 │   └── lui-events
 ├── lui-display-list          # backend-agnostic IR

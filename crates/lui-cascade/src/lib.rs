@@ -1,6 +1,7 @@
 use lui_css_parser::ArcStr;
 use lui_html_parser::HtmlNode;
 
+pub mod bloom;
 pub mod cascade;
 pub mod index;
 pub mod inline;

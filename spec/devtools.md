@@ -259,7 +259,7 @@ sub-rect; mutation happens on the host thread between
 ```rust
 // crates/lui-devtools/src/lib.rs
 
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_tree::Tree;
 
 pub struct Inspector {

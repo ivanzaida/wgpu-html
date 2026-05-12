@@ -10,4 +10,4 @@ lui-ui.workspace    = true
 lui-events.workspace = true
 lui-models.workspace = true
 lui-style.workspace  = true
-lui-layout.workspace = true
+lui-layout-old.workspace = true

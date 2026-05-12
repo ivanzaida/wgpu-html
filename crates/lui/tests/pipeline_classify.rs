@@ -15,7 +15,7 @@ fn parse_and_register_fonts(html: &str) -> Tree {
 fn initial_render(tree: &Tree, cache: &mut PipelineCache) {
   let mut text_ctx = lui_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
   paint_tree_cached(tree, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0, 0.0, cache);
 }
 
@@ -26,7 +26,7 @@ fn typing_in_input_classifies_as_layout_only_not_full_pipeline() {
   let html = r#"<input type="email" placeholder="test" />"#;
   let mut tree = parse_and_register_fonts(html);
   let mut cache = PipelineCache::new();
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
 
   // First frame: must be FullPipeline (no cache).
   let action = classify_frame(&tree, &cache, &mut image_cache, 800.0, 600.0, 1.0);
@@ -133,7 +133,7 @@ fn dirty_paths_cleared_after_render() {
   // The driver clears them. Simulate that:
   let mut text_ctx = lui_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
   paint_tree_cached(
     &tree,
     &mut text_ctx,
@@ -154,7 +154,7 @@ fn second_keystroke_also_classifies_as_layout_only() {
   let html = r#"<input type="text" />"#;
   let mut tree = parse_and_register_fonts(html);
   let mut cache = PipelineCache::new();
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
 
   initial_render(&tree, &mut cache);
 
@@ -200,7 +200,7 @@ fn form_with_image_input_does_not_force_full_pipeline_on_typing() {
   "#;
   let mut tree = parse_and_register_fonts(html);
   let mut cache = PipelineCache::new();
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
 
   // First render — FullPipeline (populates cache).
   let mut text_ctx = lui_text::TextContext::new(64);
@@ -234,7 +234,7 @@ fn checkbox_toggle_classifies_as_patch_form_controls() {
   let html = r#"<input type="checkbox" />"#;
   let mut tree = parse_and_register_fonts(html);
   let mut cache = PipelineCache::new();
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
 
   initial_render(&tree, &mut cache);
 
@@ -258,7 +258,7 @@ fn no_change_classifies_as_repaint_only() {
   let html = r#"<div style="height:100px;"></div>"#;
   let mut tree = parse_and_register_fonts(html);
   let mut cache = PipelineCache::new();
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
 
   initial_render(&tree, &mut cache);
 

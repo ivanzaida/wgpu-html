@@ -182,8 +182,8 @@ fn password_input_stores_cleartext_but_renders_bullets() {
   // ── Layout both fields and inspect the shaped runs ─────────
   let mut text_ctx = lui_text::TextContext::new(2048);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = lui_layout::ImageCache::default();
-  let layout = lui_layout::layout_with_text(
+  let mut image_cache = lui_layout_old::ImageCache::default();
+  let layout = lui_layout_old::layout_with_text(
     &lui_style::cascade(&tree),
     &mut text_ctx,
     &mut image_cache,

@@ -15,6 +15,7 @@
 //! - CSS escape sequences (`\XX` hex, `\.` literal)
 
 use crate::{Element, InteractionState, Node, Tree};
+use lui_models::ArcStr;
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -1104,11 +1105,13 @@ impl CompoundSelector {
 
   /// Test a single [`Element`] against this compound (basic selectors only,
   /// no pseudo-class context). Cheap (no allocations).
-  pub fn matches(&self, el: &Element) -> bool {
-    self.matches_basic(el)
+  /// `class_list` provides the tokenized class attribute; pass `&[]`
+  /// when the element carries no class data (prefer [`matches_node`]).
+  pub fn matches(&self, el: &Element, class_list: &[ArcStr]) -> bool {
+    self.matches_basic(el, class_list)
   }
 
-  fn matches_basic(&self, el: &Element) -> bool {
+  fn matches_basic(&self, el: &Element, class_list: &[ArcStr]) -> bool {
     if self.never_matches {
       return false;
     }
@@ -1126,9 +1129,8 @@ impl CompoundSelector {
       }
     }
     if !self.classes.is_empty() {
-      let class_attr = el.class().unwrap_or("");
       for needed in &self.classes {
-        if !class_attr.split_ascii_whitespace().any(|c| c == needed) {
+        if !class_list.iter().any(|c| c.as_ref() == needed) {
           return false;
         }
       }
@@ -1154,7 +1156,7 @@ impl CompoundSelector {
     let Some(node) = node_at_path(root, path) else {
       return false;
     };
-    if !self.matches_basic(&node.element) {
+    if !self.matches_basic(&node.element, &node.class_list) {
       return false;
     }
     for pc in &self.pseudo_classes {
@@ -1172,7 +1174,7 @@ impl CompoundSelector {
     let Some(node) = node_at_path(root, path) else {
       return false;
     };
-    if !self.matches_basic(&node.element) {
+    if !self.matches_basic(&node.element, &node.class_list) {
       return false;
     }
     for pc in &self.pseudo_classes {

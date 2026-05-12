@@ -1,7 +1,7 @@
 # Clone Audit — Layout Phase
 
 This document catalogues redundant `.clone()` calls found in the layout crate
-(`lui-layout`, `lui-models`, `lui-style`) and ranks them by
+(`lui-layout-old`, `lui-models`, `lui-style`) and ranks them by
 impact. Most fall into three root causes:
 
 1. **Pure enums missing `Copy`** — cloning a `Display` or `BoxSizing` is heap-free

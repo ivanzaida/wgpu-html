@@ -43,7 +43,7 @@ Lines changed: ~200 spread across layout + paint
 ---
 
 ### P0-3: `border-color: currentColor` and default border color
-Lines changed: ~10 in `crates/lui-layout/src/lib.rs`
+Lines changed: ~10 in `crates/lui-layout-old/src/lib.rs`
 
 | Item | Status |
 |---|---|
@@ -59,7 +59,7 @@ Lines changed: ~10 in `crates/lui-layout/src/lib.rs`
 ## P1 — Layout Gaps (missing layout modes)
 
 ### P1-1: Float layout (`float: left/right`, `clear`)
-Lines changed: ~500 new file `crates/lui-layout/src/float.rs`
+Lines changed: ~500 new file `crates/lui-layout-old/src/float.rs`
 
 | Item | Status |
 |---|---|
@@ -77,7 +77,7 @@ Lines changed: ~500 new file `crates/lui-layout/src/float.rs`
 ---
 
 ### P1-2: Table layout (`display: table`, `table-row`, `table-cell`)
-Lines changed: ~800 new file `crates/lui-layout/src/table.rs`
+Lines changed: ~800 new file `crates/lui-layout-old/src/table.rs`
 
 | Item | Status |
 |---|---|
@@ -96,7 +96,7 @@ Lines changed: ~800 new file `crates/lui-layout/src/table.rs`
 ---
 
 ### P1-3: Sticky positioning
-Lines changed: ~50 in `crates/lui-layout/src/lib.rs`
+Lines changed: ~50 in `crates/lui-layout-old/src/lib.rs`
 
 | Item | Status |
 |---|---|
@@ -218,7 +218,7 @@ Lines changed: ~80 in `crates/lui-tree/src/dispatch.rs`
 | Layout: rasterize gradient to RGBA texture, feed into image pipeline | ✅ |
 | Render: CPU rasterization → existing image pipeline (no shader changes) | ✅ |
 
-All three gradient types + `repeating-*` variants. ~500 lines in `crates/lui-layout/src/gradient.rs`.
+All three gradient types + `repeating-*` variants. ~500 lines in `crates/lui-layout-old/src/gradient.rs`.
 
 ---
 
@@ -238,7 +238,7 @@ Lines changed: ~200 in `crates/lui-renderer/src/`
 ---
 
 ### P4-3: `transform` (2D)
-Lines changed: ~150 in `crates/lui-layout/src/`, ~50 in `crates/lui-renderer/src/`
+Lines changed: ~150 in `crates/lui-layout-old/src/`, ~50 in `crates/lui-renderer/src/`
 
 | Item | Status |
 |---|---|
@@ -360,7 +360,7 @@ Lines changed: ~50 in `crates/lui-winit/src/`
 ## P7 — Infrastructure
 
 ### P7-1: `em`/`rem` against actual inherited font-size
-Lines changed: ~30 in `crates/lui-layout/src/length.rs`
+Lines changed: ~30 in `crates/lui-layout-old/src/length.rs`
 
 | Item | Status |
 |---|---|
@@ -374,7 +374,7 @@ Lines changed: ~30 in `crates/lui-layout/src/length.rs`
 ---
 
 ### P7-2: Flex baseline alignment
-Lines changed: ~100 in `crates/lui-layout/src/flex.rs`
+Lines changed: ~100 in `crates/lui-layout-old/src/flex.rs`
 
 | Item | Status |
 |---|---|

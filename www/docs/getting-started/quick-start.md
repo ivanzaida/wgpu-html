@@ -11,7 +11,7 @@ This guide walks you through getting "Hello World" rendered on screen with lui i
 ```rust
 use lui::parse;
 use lui_style::cascade;
-use lui_layout::layout_with_text;
+use lui_layout_old::layout_with_text;
 
 let html = r#"
     <!DOCTYPE html>

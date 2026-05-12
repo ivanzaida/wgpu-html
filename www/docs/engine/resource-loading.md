@@ -8,7 +8,7 @@ lui handles fonts, images, and linked stylesheets through a centralized asset sy
 
 ## Image Loading
 
-Image loading lives in `lui-layout` with caching in `lui-assets`.
+Image loading lives in `lui-layout-old` with caching in `lui-assets`.
 
 ### Supported Sources
 

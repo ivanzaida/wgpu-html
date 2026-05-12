@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_text::TextContext;
 use lui_tree::{Node, ScrollOffset, Tree};
 
-fn r(lr: lui_layout::Rect) -> Rect {
+fn r(lr: lui_layout_old::Rect) -> Rect {
   Rect::new(lr.x, lr.y, lr.w, lr.h)
 }
 

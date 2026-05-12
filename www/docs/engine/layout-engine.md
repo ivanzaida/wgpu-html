@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # Layout Engine
 
-The layout engine converts the cascaded style tree into positioned boxes with pixel coordinates. It lives in `crates/lui-layout/src/lib.rs`.
+The layout engine converts the cascaded style tree into positioned boxes with pixel coordinates. It lives in `crates/lui-layout-old/src/lib.rs`.
 
 ## Entry Point
 
@@ -56,7 +56,7 @@ The output node carries the CSS box model geometry plus all resolved visual prop
 
 ## Flexbox
 
-Implements CSS Flexbox Level 1 (`crates/lui-layout/src/flex.rs`):
+Implements CSS Flexbox Level 1 (`crates/lui-layout-old/src/flex.rs`):
 
 - Flex direction (row/column, normal/reverse)
 - Flex wrap (nowrap/wrap/wrap-reverse)
@@ -70,7 +70,7 @@ Implements CSS Flexbox Level 1 (`crates/lui-layout/src/flex.rs`):
 
 ## CSS Grid
 
-Implements CSS Grid Layout Level 1 (`crates/lui-layout/src/grid.rs`):
+Implements CSS Grid Layout Level 1 (`crates/lui-layout-old/src/grid.rs`):
 
 - `grid-template-columns` / `grid-template-rows` with `px`, `fr`, `auto`, `repeat()`
 - `grid-auto-rows` / `grid-auto-columns` for implicit tracks
@@ -100,4 +100,4 @@ When DOM mutations occur, `layout_incremental()` updates a cached LayoutBox tree
 
 ## Length Resolution
 
-CSS lengths (`px`, `%`, `em`, `rem`, `vw`, `vh`, `vmin`, `vmax`, `calc()`, `min()`, `max()`, `clamp()`) are resolved to pixels via `crates/lui-layout/src/length.rs`. `auto` returns `None` and the caller decides the behavior.
+CSS lengths (`px`, `%`, `em`, `rem`, `vw`, `vh`, `vmin`, `vmax`, `calc()`, `min()`, `max()`, `clamp()`) are resolved to pixels via `crates/lui-layout-old/src/length.rs`. `auto` returns `None` and the caller decides the behavior.

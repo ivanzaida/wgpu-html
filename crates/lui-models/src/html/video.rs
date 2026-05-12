@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use crate::{
   ArcStr,
@@ -8,7 +7,6 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct Video {
   pub id: Option<ArcStr>,
-  pub class: Option<ArcStr>,
   pub style: Option<ArcStr>,
   pub title: Option<ArcStr>,
   pub lang: Option<ArcStr>,
@@ -21,10 +19,6 @@ pub struct Video {
   pub spellcheck: Option<bool>,
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
-  // html attr: aria-* (suffix → value)
-  pub aria_attrs: HashMap<ArcStr, ArcStr>,
-  // html attr: data-* (suffix → value)
-  pub data_attrs: HashMap<ArcStr, ArcStr>,
   pub src: Option<ArcStr>,
   pub controls: Option<bool>,
   pub autoplay: Option<bool>,

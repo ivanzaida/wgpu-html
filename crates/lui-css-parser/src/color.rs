@@ -1,6 +1,6 @@
 use crate::ArcStr;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CssColor {
     Rgb(u8, u8, u8),
     Rgba(u8, u8, u8, u8),

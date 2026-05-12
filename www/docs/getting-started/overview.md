@@ -38,7 +38,7 @@ lui is a **GPU-accelerated HTML/CSS rendering engine for Rust**. It takes real H
 | `lui-models` | `Style` struct (~100 fields), CSS enums, ~100 HTML element structs |
 | `lui-tree` | `Tree` / `Node` / `Element`, font registration, event callbacks, interaction state, focus, DOM-style queries, tree hooks |
 | `lui-style` | Cascade engine: UA stylesheet, selector matching, CSS-wide keywords, inheritance, `var()`, `@media` |
-| `lui-layout` | Block flow, Flexbox, Grid, IFC, table, hit testing, image loading, scroll geometry, gradient rasterization |
+| `lui-layout-old` | Block flow, Flexbox, Grid, IFC, table, hit testing, image loading, scroll geometry, gradient rasterization |
 | `lui-text` | Font database, cosmic-text shaping, glyph atlas (rasterisation + GPU upload) |
 | `lui-renderer` | wgpu device/surface, quad pipeline (SDF), glyph pipeline, image pipeline, scissor clipping, screenshots |
 | `lui` | Façade: parse → cascade → layout → paint, `PipelineCache`, interactivity, text selection, scroll utilities |

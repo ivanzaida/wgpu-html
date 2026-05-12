@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use crate::{
   ArcStr,
@@ -9,7 +8,6 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct SvgPath {
   pub id: Option<ArcStr>,
-  pub class: Option<ArcStr>,
   pub style: Option<ArcStr>,
   pub title: Option<ArcStr>,
   pub lang: Option<ArcStr>,
@@ -23,9 +21,7 @@ pub struct SvgPath {
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
   /// aria-* attributes (suffix → value).
-  pub aria_attrs: HashMap<ArcStr, ArcStr>,
   /// data-* attributes (suffix → value).
-  pub data_attrs: HashMap<ArcStr, ArcStr>,
   /// SVG `d` attribute — the path data string.
   pub d: Option<ArcStr>,
   pub fill: Option<ArcStr>,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_models::{ArcStr, Div, common::css_enums::*};
 use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_style::{CascadedNode, CascadedTree};
@@ -380,8 +380,8 @@ pub fn update_cached_layout(tree: &mut Tree, text_ctx: &mut TextContext) {
   };
   let prev_gen = cp.layout_generation;
   let picker_tree = build_picker_tree(cp);
-  let mut image_cache = lui_layout::ImageCache::default();
-  let Some(mut layout) = lui_layout::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
+  let mut image_cache = lui_layout_old::ImageCache::default();
+  let Some(mut layout) = lui_layout_old::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
   else {
     return;
   };
@@ -554,7 +554,7 @@ fn thumb_color(cp: &ColorPickerState) -> [f32; 4] {
   cp.picker_style
     .as_ref()
     .and_then(|s| s.thumb_color.as_ref())
-    .and_then(|c| lui_layout::color::resolve_color(c))
+    .and_then(|c| lui_layout_old::color::resolve_color(c))
     .unwrap_or([1.0, 1.0, 1.0, 1.0])
 }
 
@@ -688,10 +688,10 @@ fn commit_field(cp: &mut ColorPickerState) {
   if text.is_empty() {
     return;
   }
-  if let Some(color) = lui_layout::color::parse_color_str(text) {
-    let r = lui_layout::color::linear_to_srgb(color[0]);
-    let g = lui_layout::color::linear_to_srgb(color[1]);
-    let b = lui_layout::color::linear_to_srgb(color[2]);
+  if let Some(color) = lui_layout_old::color::parse_color_str(text) {
+    let r = lui_layout_old::color::linear_to_srgb(color[0]);
+    let g = lui_layout_old::color::linear_to_srgb(color[1]);
+    let b = lui_layout_old::color::linear_to_srgb(color[2]);
     let (h, s, v) = srgb_to_hsv(r, g, b);
     cp.hue = h;
     cp.saturation = s;

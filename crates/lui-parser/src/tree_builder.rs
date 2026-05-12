@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use lui_models::ArcStr;
 use lui_tree::{Element, Node, Tree};
 
@@ -10,6 +12,41 @@ const VOID_ELEMENTS: &[&str] = &[
 
 fn is_void_element(tag: &str) -> bool {
   VOID_ELEMENTS.contains(&tag)
+}
+
+/// Split raw attrs into (filtered_attrs, class_list, aria_attrs, data_attrs).
+/// `filtered_attrs` excludes `class`, `aria-*`, and `data-*` entries.
+fn extract_node_attrs(
+  attrs: Vec<(ArcStr, ArcStr)>,
+) -> (Vec<(ArcStr, ArcStr)>, Vec<ArcStr>, HashMap<ArcStr, ArcStr>, HashMap<ArcStr, ArcStr>) {
+  let mut filtered = Vec::new();
+  let mut class_list = Vec::new();
+  let mut aria_attrs = HashMap::new();
+  let mut data_attrs = HashMap::new();
+
+  for (name, value) in attrs {
+    match name.as_ref() {
+      "class" => {
+        class_list = value
+          .split_ascii_whitespace()
+          .map(|c| ArcStr::from(c))
+          .collect();
+      }
+      _ if name.starts_with("aria-") => {
+        let suffix = ArcStr::from(&name[5..]);
+        aria_attrs.insert(suffix, value);
+      }
+      _ if name.starts_with("data-") => {
+        let suffix = ArcStr::from(&name[5..]);
+        data_attrs.insert(suffix, value);
+      }
+      _ => {
+        filtered.push((name, value));
+      }
+    }
+  }
+
+  (filtered, class_list, aria_attrs, data_attrs)
 }
 
 /// Build a tree from a list of tokens.
@@ -57,10 +94,17 @@ struct TreeBuilder {
   tokens: Vec<Token>,
   pos: usize,
   /// Stack of open elements. `Option<Element>` is `None` for an unknown
-  /// tag — its subtree is parsed but discarded on close. The last field
-  /// carries the raw HTML attributes so they can be attached to the
-  /// resulting `Node`.
-  stack: Vec<(String, Option<Element>, Vec<Node>, Vec<(ArcStr, ArcStr)>)>,
+  /// tag — its subtree is parsed but discarded on close. Carries
+  /// (tag_name, element, children, filtered_raw_attrs, class_list, aria_attrs, data_attrs).
+  stack: Vec<(
+    String,
+    Option<Element>,
+    Vec<Node>,
+    Vec<(ArcStr, ArcStr)>,
+    Vec<ArcStr>,
+    HashMap<ArcStr, ArcStr>,
+    HashMap<ArcStr, ArcStr>,
+  )>,
   document: Vec<Node>,
 }
 
@@ -96,11 +140,18 @@ impl TreeBuilder {
             .into_iter()
             .map(|(k, v)| (ArcStr::from(k.as_str()), ArcStr::from(v.as_str())))
             .collect();
-          let element = attr_parser::parse_element(&name, &attrs);
+          let (filtered_attrs, class_list, aria_attrs, data_attrs) = extract_node_attrs(attrs.clone());
+          let element = attr_parser::parse_element(&name, &filtered_attrs);
 
           if self_closing || is_void_element(&name) {
             if let Some(el) = element {
-              self.push_node(Node::new(el).with_raw_attrs(attrs));
+              self.push_node(
+                Node::new(el)
+                  .with_raw_attrs(filtered_attrs)
+                  .with_class_list(class_list)
+                  .with_aria_attrs(aria_attrs)
+                  .with_data_attrs(data_attrs),
+              );
             }
             // Unknown void → silently dropped.
           } else if name == "body" && self.has_body_on_stack() {
@@ -110,7 +161,7 @@ impl TreeBuilder {
           } else {
             // Auto-close certain elements before opening a new one.
             self.auto_close_before(&name);
-            self.stack.push((name, element, Vec::new(), attrs));
+            self.stack.push((name, element, Vec::new(), filtered_attrs, class_list, aria_attrs, data_attrs));
           }
         }
         Token::CloseTag(name) => self.close_tag(&name),
@@ -135,11 +186,20 @@ impl TreeBuilder {
   /// Pop the top element from the stack and add it as a child to its parent.
   /// If the popped element is `None` (unknown tag), the subtree is discarded.
   fn pop_element(&mut self) {
-    let Some((_tag_name, element, children, raw_attrs)) = self.stack.pop() else {
+    let Some((_tag_name, element, children, raw_attrs, class_list, aria_attrs, data_attrs)) =
+      self.stack.pop()
+    else {
       return;
     };
     if let Some(el) = element {
-      self.push_node(Node::new(el).with_children(children).with_raw_attrs(raw_attrs));
+      self.push_node(
+        Node::new(el)
+          .with_children(children)
+          .with_raw_attrs(raw_attrs)
+          .with_class_list(class_list)
+          .with_aria_attrs(aria_attrs)
+          .with_data_attrs(data_attrs),
+      );
     }
     // else: drop unknown subtree silently
   }

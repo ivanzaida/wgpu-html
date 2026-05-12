@@ -6,7 +6,7 @@
 use std::time::Instant;
 
 pub use lui_events as events;
-pub use lui_layout as layout;
+pub use lui_layout_old as layout;
 pub use lui_models as models;
 pub use lui_parser as parser;
 pub use lui_renderer_wgpu as renderer;
@@ -20,7 +20,7 @@ pub mod inspect_overlay;
 pub mod interactivity;
 pub mod paint;
 pub mod scroll;
-use lui_layout::{LayoutBox, UserSelect};
+use lui_layout_old::{LayoutBox, UserSelect};
 use lui_renderer_wgpu::{DisplayList, Renderer, ScreenshotError};
 use lui_style::MediaContext;
 use lui_text::TextContext;
@@ -45,7 +45,7 @@ impl PipelineTimings {
 /// any new imports were resolved (the caller should re-cascade).
 ///
 /// Call this before `paint_tree_cached` / `cascade` each frame.
-pub fn resolve_css_imports(tree: &mut Tree, assets: &mut lui_layout::ImageCache) -> bool {
+pub fn resolve_css_imports(tree: &mut Tree, assets: &mut lui_layout_old::ImageCache) -> bool {
   use lui_assets::AssetStatus;
   let urls = lui_style::collect_import_urls(tree);
   if urls.is_empty() {
@@ -73,7 +73,7 @@ pub fn resolve_css_imports(tree: &mut Tree, assets: &mut lui_layout::ImageCache)
 pub fn compute_layout(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -84,7 +84,7 @@ pub fn compute_layout(
 pub fn compute_layout_profiled(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -112,7 +112,7 @@ pub fn compute_layout_profiled(
   let layout;
   {
     lui_tree::prof_scope!(&tree.profiler, "layout");
-    layout = lui_layout::layout_with_text_locale_date(
+    layout = lui_layout_old::layout_with_text_locale_date(
       &cascaded,
       text_ctx,
       image_cache,
@@ -142,7 +142,7 @@ pub fn compute_layout_profiled(
 pub fn paint_tree_returning_layout(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -163,7 +163,7 @@ pub fn paint_tree_returning_layout(
 pub fn paint_tree_returning_layout_profiled(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -302,7 +302,7 @@ impl PipelineCache {
 pub fn classify_frame(
   tree: &Tree,
   cache: &PipelineCache,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -346,7 +346,7 @@ pub fn classify_frame(
 pub fn paint_tree_cached<'c>(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -382,7 +382,7 @@ pub fn paint_tree_cached<'c>(
       let layout;
       {
         lui_tree::prof_scope!(&tree.profiler, "layout");
-        layout = lui_layout::layout_with_text_locale_date(
+        layout = lui_layout_old::layout_with_text_locale_date(
           &cascaded,
           text_ctx,
           image_cache,
@@ -432,7 +432,7 @@ pub fn paint_tree_cached<'c>(
           {
             lui_tree::prof_scope!(&tree.profiler, "patch_colors");
             if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
-              lui_layout::patch_layout_colors(layout, cascaded);
+              lui_layout_old::patch_layout_colors(layout, cascaded);
             }
           }
           timings.layout_ms = layout_t0.elapsed().as_secs_f64() * 1000.0;
@@ -441,7 +441,7 @@ pub fn paint_tree_cached<'c>(
           {
             lui_tree::prof_scope!(&tree.profiler, "layout");
             if let Some(cascaded) = &cache.cascaded {
-              cache.layout = lui_layout::layout_with_text_locale(
+              cache.layout = lui_layout_old::layout_with_text_locale(
                 cascaded,
                 text_ctx,
                 image_cache,
@@ -478,7 +478,7 @@ pub fn paint_tree_cached<'c>(
         lui_tree::prof_scope!(&tree.profiler, "layout");
         let did_incremental = if !dirty.is_empty() {
           if let (Some(layout), Some(cascaded)) = (&mut cache.layout, &cache.cascaded) {
-            lui_layout::layout_incremental(
+            lui_layout_old::layout_incremental(
               cascaded,
               layout,
               &dirty,
@@ -505,7 +505,7 @@ pub fn paint_tree_cached<'c>(
           cache.cascaded = Some(cascaded);
           timings.cascade_ms = cascade_t0.elapsed().as_secs_f64() * 1000.0;
           if let Some(cascaded) = &cache.cascaded {
-            cache.layout = lui_layout::layout_with_text_locale(
+            cache.layout = lui_layout_old::layout_with_text_locale(
               cascaded,
               text_ctx,
               image_cache,
@@ -527,7 +527,7 @@ pub fn paint_tree_cached<'c>(
     }
     PipelineAction::PatchFormControls => {
       if let Some(layout) = &mut cache.layout {
-        lui_layout::patch_form_controls(layout, tree);
+        lui_layout_old::patch_form_controls(layout, tree);
       }
       cache.form_control_generation = tree.form_control_generation;
     }
@@ -734,7 +734,7 @@ impl From<ScreenshotError> for NodeScreenshotError {
 pub fn screenshot_node_to(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   renderer: &mut Renderer,
   layout_path: &[usize],
   viewport_w: f32,

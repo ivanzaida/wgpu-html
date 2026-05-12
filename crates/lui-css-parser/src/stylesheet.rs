@@ -22,7 +22,7 @@ impl StyleRule {
 }
 
 /// A single `property: value` pair (potentially `!important`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub property: CssProperty,
     pub value: CssValue,
@@ -236,7 +236,9 @@ fn parse_keyframe_rule(chars: &[char], pos: &mut usize) -> Result<Option<StyleRu
     Ok(Some(StyleRule { selector, declarations, specificity }))
 }
 
-fn parse_declaration_block(input: &str) -> Result<Vec<Declaration>, ParseError> {
+/// Parse a semicolon-separated block of CSS declarations (e.g. the body
+/// of a rule or an inline `style=""` attribute).
+pub fn parse_declaration_block(input: &str) -> Result<Vec<Declaration>, ParseError> {
     let mut decls = Vec::new();
     for part in input.split(';') {
         let part = part.trim();

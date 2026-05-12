@@ -72,5 +72,5 @@ cargo build -p lui-demo
 cargo test --workspace
 
 # Run tests for a specific crate
-cargo test -p lui-layout
+cargo test -p lui-layout-old
 ```

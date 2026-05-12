@@ -160,11 +160,11 @@ macro_rules! impl_global_attr_methods {
             }
 
             pub fn class(mut self, value: impl Into<ArcStr>) -> Self {
-                let v = Some(value.into());
-                match &mut self.node.element {
-                    Element::Text(_) => {}
-                    $(Element::$V(e) => { e.class = v; })*
-                }
+                let v = value.into();
+                self.node.class_list = v
+                    .split_ascii_whitespace()
+                    .map(|c| ArcStr::from(c))
+                    .collect();
                 self
             }
 
@@ -202,14 +202,15 @@ macro_rules! impl_global_attr_methods {
                 self
             }
 
-            /// Set a `data-*` attribute.
+            /// Set a `data-*` attribute (stored on `Node.data_attrs`).
             pub fn data(mut self, key: impl Into<ArcStr>, value: impl Into<ArcStr>) -> Self {
-                let k = key.into();
-                let v = value.into();
-                match &mut self.node.element {
-                    Element::Text(_) => {}
-                    $(Element::$V(e) => { e.data_attrs.insert(k, v); })*
-                }
+                self.node.data_attrs.insert(key.into(), value.into());
+                self
+            }
+
+            /// Set an `aria-*` attribute (stored on `Node.aria_attrs`).
+            pub fn aria(mut self, key: impl Into<ArcStr>, value: impl Into<ArcStr>) -> Self {
+                self.node.aria_attrs.insert(key.into(), value.into());
                 self
             }
         }
@@ -240,11 +241,31 @@ impl El {
   }
 
   /// Set a raw HTML attribute and reflect common typed fields.
+  /// `class`, `aria-*`, and `data-*` are routed to dedicated
+  /// Node fields; other attributes land in `raw_attrs`.
   pub fn attribute(mut self, name: impl Into<ArcStr>, value: impl Into<ArcStr>) -> Self {
     let name: ArcStr = name.into();
     let value: ArcStr = value.into();
     reflect_attribute(&mut self.node.element, &name, &value);
-    self.node.raw_attrs.push((name, value));
+    match name.as_ref() {
+      "class" => {
+        self.node.class_list = value
+          .split_ascii_whitespace()
+          .map(|c| ArcStr::from(c))
+          .collect();
+      }
+      _ if name.starts_with("aria-") => {
+        let suffix = ArcStr::from(&name[5..]);
+        self.node.aria_attrs.insert(suffix, value);
+      }
+      _ if name.starts_with("data-") => {
+        let suffix = ArcStr::from(&name[5..]);
+        self.node.data_attrs.insert(suffix, value);
+      }
+      _ => {
+        self.node.raw_attrs.push((name, value));
+      }
+    }
     self
   }
 }

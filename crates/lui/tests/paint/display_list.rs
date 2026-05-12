@@ -1,5 +1,5 @@
 use lui::{paint::*, renderer::DisplayList, text::TextContext};
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 
 #[test]
 fn paints_single_styled_box() {
@@ -57,8 +57,8 @@ fn svg_test_demo_paints_svg_images() {
     "svg-test.html should parse all inline SVG elements"
   );
   let mut text_ctx = TextContext::new(64);
-  let mut image_cache = lui_layout::ImageCache::default();
-  let layout = lui_layout::layout_with_text(
+  let mut image_cache = lui_layout_old::ImageCache::default();
+  let layout = lui_layout_old::layout_with_text(
     &lui_style::cascade(&tree),
     &mut text_ctx,
     &mut image_cache,
@@ -94,8 +94,8 @@ fn svg_test_demo_paints_svg_images() {
     "each SVG should keep its authored 160x160 content box: {image_rects:?}"
   );
   let mut scaled_text_ctx = TextContext::new(64);
-  let mut scaled_image_cache = lui_layout::ImageCache::default();
-  let scaled_layout = lui_layout::layout_with_text(
+  let mut scaled_image_cache = lui_layout_old::ImageCache::default();
+  let scaled_layout = lui_layout_old::layout_with_text(
     &lui_style::cascade(&tree),
     &mut scaled_text_ctx,
     &mut scaled_image_cache,

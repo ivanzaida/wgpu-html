@@ -3,7 +3,7 @@ use std::sync::{
   atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_style::CascadedTree;
 use lui_tree::Tree;
 use lui_ui::Observable;

@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 lui-assets.workspace   = true
 lui-events.workspace   = true
-lui-layout.workspace   = true
+lui-layout-old.workspace   = true
 lui-models.workspace   = true
 lui-parser.workspace   = true
 lui-renderer-wgpu.workspace = true

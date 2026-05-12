@@ -1,23 +1,23 @@
-use lui_layout::Resize;
+use lui_layout_old::Resize;
 use lui_models::common::{Cursor, PointerEvents};
 use lui_tree::{ScrollOffset, TextCursor, TextSelection};
 
 use super::*;
 
 fn synthetic_text_layout() -> LayoutBox {
-  let r = lui_layout::Rect::new(10.0, 20.0, 100.0, 24.0);
+  let r = lui_layout_old::Rect::new(10.0, 20.0, 100.0, 24.0);
   LayoutBox {
     margin_rect: r,
     border_rect: r,
     content_rect: r,
     background: None,
     background_rect: r,
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Text,
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Text,
     text_run: Some(lui_text::ShapedRun {
       glyphs: vec![
         lui_text::PositionedGlyph {
@@ -63,7 +63,7 @@ fn synthetic_text_layout() -> LayoutBox {
     text_color: Some([0.0, 0.0, 0.0, 1.0]),
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,
@@ -365,7 +365,7 @@ fn glyphs_after_overflow_auto_sibling_are_not_clipped() {
   // assert quads aren't clipped; this one walks the glyph axis
   // of the display list to make sure the popped textarea clip
   // doesn't continue suppressing the following text.
-  use lui_layout::{
+  use lui_layout_old::{
     BorderColors, BorderStyles, BoxKind, CornerRadii, Insets, LayoutBox, OverflowAxes, Rect as LR,
   };
   use lui_models::common::css_enums::Overflow;
@@ -570,8 +570,8 @@ fn svg_test_demo_paints_svg_images() {
     "svg-test.html should parse all inline SVG elements"
   );
   let mut text_ctx = TextContext::new(64);
-  let mut image_cache = lui_layout::ImageCache::default();
-  let layout = lui_layout::layout_with_text(
+  let mut image_cache = lui_layout_old::ImageCache::default();
+  let layout = lui_layout_old::layout_with_text(
     &lui_style::cascade(&tree),
     &mut text_ctx,
     &mut image_cache,
@@ -607,8 +607,8 @@ fn svg_test_demo_paints_svg_images() {
     "each SVG should keep its authored 160x160 content box: {image_rects:?}"
   );
   let mut scaled_text_ctx = TextContext::new(64);
-  let mut scaled_image_cache = lui_layout::ImageCache::default();
-  let scaled_layout = lui_layout::layout_with_text(
+  let mut scaled_image_cache = lui_layout_old::ImageCache::default();
+  let scaled_layout = lui_layout_old::layout_with_text(
     &lui_style::cascade(&tree),
     &mut scaled_text_ctx,
     &mut scaled_image_cache,
@@ -1323,19 +1323,19 @@ fn glyphs_in_tight_overflow_hidden_flex_row() {
 }
 
 fn simple_body_with_glyphs() -> LayoutBox {
-  let r = lui_layout::Rect::new(0.0, 0.0, 800.0, 24.0);
+  let r = lui_layout_old::Rect::new(0.0, 0.0, 800.0, 24.0);
   LayoutBox {
     margin_rect: r,
     border_rect: r,
     content_rect: r,
     background: None,
     background_rect: r,
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Text,
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Text,
     text_run: Some(lui_text::ShapedRun {
       glyphs: vec![
         lui_text::PositionedGlyph {
@@ -1372,7 +1372,7 @@ fn simple_body_with_glyphs() -> LayoutBox {
     text_color: Some([1.0; 4]),
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
+    overflow: lui_layout_old::OverflowAxes::visible(),
     resize: Resize::None,
     opacity: 1.0,
     pointer_events: PointerEvents::Auto,

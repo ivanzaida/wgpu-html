@@ -48,7 +48,7 @@ feature (and a per-format frame iterator next to
 
 ## 3. Schemes
 
-`fetch_image_bytes` (in `crates/lui-layout/src/lib.rs`)
+`fetch_image_bytes` (in `crates/lui-layout-old/src/lib.rs`)
 dispatches on the `src` prefix:
 
 - **`http://` / `https://`** — fetched with `ureq` (rustls TLS)
@@ -107,7 +107,7 @@ same URL at multiple CSS sizes shares a single texture.
 
 ## 5. Two-level cache
 
-`crates/lui-layout/src/lib.rs` holds two `OnceLock<Mutex<HashMap<…>>>`:
+`crates/lui-layout-old/src/lib.rs` holds two `OnceLock<Mutex<HashMap<…>>>`:
 
 ```
 raw_cache:   HashMap<String,   CacheEntry<RawState>>
@@ -187,7 +187,7 @@ To start downloading important assets at startup so the first
 frame doesn't paint placeholders, push them into
 `Tree::preload_queue` via `Tree::preload_asset(src)` once at
 construction. Every layout pass walks the queue and calls
-`lui_layout::preload_image(url)` on each entry; that
+`lui_layout_old::preload_image(url)` on each entry; that
 function is idempotent — already-known URLs are a hashmap-lookup
 no-op — so it's cheap to leave in place. `preload_image` is also
 exposed as a public free function for ad-hoc calls outside a

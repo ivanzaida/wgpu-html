@@ -813,8 +813,15 @@ pub struct Node {
   /// Populated by the layout pass; `None` if not yet laid out.
   pub rect: Option<NodeRect>,
   /// Raw HTML attributes as parsed from the source (name, value pairs).
-  /// Includes all attributes — standard, non-standard, and custom.
+  /// Excludes `class`, `aria-*`, and `data-*` — those are stored in
+  /// dedicated fields on this struct.
   pub raw_attrs: Vec<(ArcStr, ArcStr)>,
+  /// CSS classes tokenized from the `class` attribute (whitespace-split).
+  pub class_list: Vec<ArcStr>,
+  /// `aria-*` attributes keyed by suffix (e.g. `"label"` for `aria-label`).
+  pub aria_attrs: HashMap<ArcStr, ArcStr>,
+  /// `data-*` attributes keyed by suffix (e.g. `"id"` for `data-id`).
+  pub data_attrs: HashMap<ArcStr, ArcStr>,
 }
 
 impl std::fmt::Debug for Node {
@@ -860,6 +867,9 @@ impl std::fmt::Debug for Node {
       .field("on_event", &format!("{} handlers", self.on_event.len()))
       .field("rect", &self.rect)
       .field("raw_attrs", &self.raw_attrs)
+      .field("class_list", &self.class_list)
+      .field("aria_attrs", &self.aria_attrs)
+      .field("data_attrs", &self.data_attrs)
       .finish()
   }
 }
@@ -905,6 +915,9 @@ impl Node {
       on_event: Vec::new(),
       rect: None,
       raw_attrs: Vec::new(),
+      class_list: Vec::new(),
+      aria_attrs: HashMap::new(),
+      data_attrs: HashMap::new(),
     }
   }
 
@@ -919,6 +932,8 @@ impl Node {
   }
 
   /// Set the raw HTML attributes as parsed from source.
+  /// Does NOT include `class`, `aria-*`, or `data-*` — use the
+  /// dedicated setters for those.
   pub fn with_raw_attrs(mut self, attrs: Vec<(ArcStr, ArcStr)>) -> Self {
     self.raw_attrs = attrs;
     self
@@ -927,6 +942,37 @@ impl Node {
   /// The raw HTML attributes exactly as they appeared in the source.
   pub fn raw_attrs(&self) -> &[(ArcStr, ArcStr)] {
     &self.raw_attrs
+  }
+
+  pub fn with_class_list(mut self, class_list: Vec<ArcStr>) -> Self {
+    self.class_list = class_list;
+    self
+  }
+
+  pub fn with_aria_attrs(mut self, aria_attrs: HashMap<ArcStr, ArcStr>) -> Self {
+    self.aria_attrs = aria_attrs;
+    self
+  }
+
+  pub fn with_data_attrs(mut self, data_attrs: HashMap<ArcStr, ArcStr>) -> Self {
+    self.data_attrs = data_attrs;
+    self
+  }
+
+  pub fn has_class(&self, class_name: &str) -> bool {
+    self.class_list.iter().any(|c| c.as_ref() == class_name)
+  }
+
+  pub fn class_list(&self) -> &[ArcStr] {
+    &self.class_list
+  }
+
+  pub fn data_attr(&self, suffix: &str) -> Option<&ArcStr> {
+    self.data_attrs.get(suffix)
+  }
+
+  pub fn aria_attr(&self, suffix: &str) -> Option<&ArcStr> {
+    self.aria_attrs.get(suffix)
   }
 
   /// Set a CSS custom property on this node. Behaves as if declared
@@ -979,11 +1025,7 @@ impl Node {
   /// attribute contains `class_name` as a whitespace-separated
   /// token. Document order; first match wins.
   pub fn get_element_by_class_name(&self, class_name: &str) -> Option<&Node> {
-    if self
-      .element
-      .class()
-      .is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name))
-    {
+    if self.has_class(class_name) {
       return Some(self);
     }
     for child in &self.children {
@@ -1430,29 +1472,14 @@ impl Element {
     all_element_variants!(arms)
   }
 
-  /// `class` HTML attribute on this element, if set. `Text`
-  /// returns `None`. The returned string is the raw attribute
-  /// value — split on ASCII whitespace to enumerate classes.
-  pub fn class(&self) -> Option<&str> {
-    macro_rules! arms {
-            ($($v:ident),* $(,)?) => {
-                match self {
-                    Element::Text(_) => None,
-                    $(Element::$v(e) => e.class.as_deref(),)*
-                }
-            };
-        }
-    all_element_variants!(arms)
-  }
-
   /// Look up an HTML attribute by name (case-insensitive).
   /// Returns `None` if the element doesn't carry that attribute
   /// or the slot is empty.
   ///
   /// Coverage is the subset that actually shows up in selectors:
-  /// the global attributes (`id`, `class`, `title`, `lang`,
-  /// `tabindex`, `hidden`, `style`), `data-*` / `aria-*` entries,
-  /// and the most common per-element attributes (`type`, `name`,
+  /// the global attributes (`id`, `title`, `lang`,
+  /// `tabindex`, `hidden`, `style`), and the most common
+  /// per-element attributes (`type`, `name`,
   /// `value`, `placeholder`, `href`, `src`, `alt`, `for`,
   /// `content`, plus boolean form attributes `disabled`,
   /// `readonly`, `required`, `checked`, `selected`, `multiple`,
@@ -1468,12 +1495,6 @@ impl Element {
     if let Some(v) = self.global_attr(&lname) {
       return Some(v);
     }
-    if let Some(suffix) = lname.strip_prefix("data-") {
-      return self.data_attr(suffix);
-    }
-    if let Some(suffix) = lname.strip_prefix("aria-") {
-      return self.aria_attr(suffix);
-    }
     self.specific_attr(&lname)
   }
 
@@ -1484,7 +1505,6 @@ impl Element {
                     Element::Text(_) => None,
                     $(Element::$v(e) => match name {
                         "id" => e.id.clone(),
-                        "class" => e.class.clone(),
                         "title" => e.title.clone(),
                         "lang" => e.lang.clone(),
                         "dir" => e.dir.as_ref().map(|d| {
@@ -1506,29 +1526,7 @@ impl Element {
     all_element_variants!(arms)
   }
 
-  fn data_attr(&self, suffix: &str) -> Option<ArcStr> {
-    macro_rules! arms {
-            ($($v:ident),* $(,)?) => {
-                match self {
-                    Element::Text(_) => None,
-                    $(Element::$v(e) => e.data_attrs.get(suffix).cloned(),)*
-                }
-            };
-        }
-    all_element_variants!(arms)
-  }
 
-  fn aria_attr(&self, suffix: &str) -> Option<ArcStr> {
-    macro_rules! arms {
-            ($($v:ident),* $(,)?) => {
-                match self {
-                    Element::Text(_) => None,
-                    $(Element::$v(e) => e.aria_attrs.get(suffix).cloned(),)*
-                }
-            };
-        }
-    all_element_variants!(arms)
-  }
 
   fn specific_attr(&self, name: &str) -> Option<ArcStr> {
     // Boolean attribute helper: `Some(true)` becomes the empty
@@ -1882,8 +1880,8 @@ impl Node {
       }
     }
 
-    write_map_attrs(buf, &self.element, "data-");
-    write_map_attrs(buf, &self.element, "aria-");
+    write_map_attrs(buf, &self.data_attrs, "data-");
+    write_map_attrs(buf, &self.aria_attrs, "aria-");
 
     if let Element::CustomElement(e) = &self.element {
       let mut keys: Vec<_> = e.custom_attrs.keys().collect();
@@ -1930,26 +1928,15 @@ fn html_escape_attr(s: &str) -> String {
   out
 }
 
-fn write_map_attrs(buf: &mut String, element: &Element, prefix: &str) {
+fn write_map_attrs(buf: &mut String, map: &HashMap<ArcStr, ArcStr>, prefix: &str) {
   use std::fmt::Write;
-  macro_rules! arms {
-    ($($v:ident),* $(,)?) => {
-      match element {
-        Element::Text(_) => {},
-        $(Element::$v(e) => {
-          let map = if prefix == "data-" { &e.data_attrs } else { &e.aria_attrs };
-          let mut keys: Vec<_> = map.keys().collect();
-          keys.sort();
-          for key in keys {
-            if let Some(val) = map.get(key) {
-              let _ = write!(buf, " {prefix}{key}=\"{}\"", html_escape_attr(val));
-            }
-          }
-        },)*
-      }
-    };
+  let mut keys: Vec<_> = map.keys().collect();
+  keys.sort();
+  for key in keys {
+    if let Some(val) = map.get(key) {
+      let _ = write!(buf, " {prefix}{key}=\"{}\"", html_escape_attr(val));
+    }
   }
-  all_element_variants!(arms);
 }
 
 // ── Path-collection helpers for find_elements_by_* ─────────────
@@ -1967,11 +1954,7 @@ fn resolve_node(node: &mut Node, registry: &CustomElementRegistry) {
 }
 
 fn collect_class_name_paths(node: &Node, class_name: &str, path: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
-  if node
-    .element
-    .class()
-    .is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name))
-  {
+  if node.has_class(class_name) {
     out.push(path.clone());
   }
   for (i, child) in node.children.iter().enumerate() {
@@ -2004,11 +1987,7 @@ fn collect_tag_name_paths(node: &Node, tag_name: &str, path: &mut Vec<usize>, ou
 }
 
 fn collect_class_name_nodes<'a>(node: &'a Node, class_name: &str, out: &mut Vec<&'a Node>) {
-  if node
-    .element
-    .class()
-    .is_some_and(|c| c.split_ascii_whitespace().any(|t| t == class_name))
-  {
+  if node.has_class(class_name) {
     out.push(node);
   }
   for child in &node.children {
@@ -2068,7 +2047,7 @@ fn selector_fingerprint_impl(node: &Node, h: &mut std::collections::hash_map::De
   if let Some(id) = node.element.id() {
     id.hash(h);
   }
-  if let Some(cls) = node.element.class() {
+  for cls in &node.class_list {
     cls.hash(h);
   }
   for child in &node.children {

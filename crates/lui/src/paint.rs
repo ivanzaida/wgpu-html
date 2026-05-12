@@ -1,11 +1,11 @@
 //! Convert a laid-out box tree into a backend-agnostic display list.
 //!
-//! M4: walks `lui_layout::LayoutBox` and emits one solid quad per
+//! M4: walks `lui_layout_old::LayoutBox` and emits one solid quad per
 //! box with a resolved background color.
 
 use std::collections::BTreeMap;
 
-use lui_layout::{FormControlInfo, FormControlKind, LayoutBox, Resize, UserSelect};
+use lui_layout_old::{FormControlInfo, FormControlKind, LayoutBox, Resize, UserSelect};
 use lui_models::common::css_enums::Overflow;
 use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_text::TextContext;
@@ -58,7 +58,7 @@ fn apply_opacity(mut color: lui_renderer_wgpu::Color, opacity: f32) -> lui_rende
 /// zero size. Use [`paint_tree_with_text`] when fonts are registered.
 pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList {
   let mut ctx = TextContext::new(64);
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
   paint_tree_with_text(tree, &mut ctx, &mut image_cache, viewport_w, viewport_h, 1.0, 0.0)
 }
 
@@ -70,7 +70,7 @@ pub fn paint_tree(tree: &Tree, viewport_w: f32, viewport_h: f32) -> DisplayList 
 pub fn paint_tree_with_text(
   tree: &Tree,
   text_ctx: &mut TextContext,
-  image_cache: &mut lui_layout::ImageCache,
+  image_cache: &mut lui_layout_old::ImageCache,
   viewport_w: f32,
   viewport_h: f32,
   scale: f32,
@@ -87,7 +87,7 @@ pub fn paint_tree_with_text(
   let media = lui_style::MediaContext::screen((viewport_w / scale).max(0.0), (viewport_h / scale).max(0.0), scale);
   let cascaded = lui_style::cascade_with_media(tree, &media);
   let mut list = DisplayList::new();
-  if let Some(root) = lui_layout::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale) {
+  if let Some(root) = lui_layout_old::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale) {
     list.canvas_color = root
       .background
       .or_else(|| root.children.first().and_then(|body| body.background));
@@ -249,7 +249,7 @@ fn padding_box(b: &LayoutBox) -> Rect {
 /// Compute the rounded-corner radii at the *padding-box* edge —
 /// shrink each component of `b.border_radius` by the matching side
 /// border thickness so the inner rounded shape stays concentric with
-/// the outer one. Mirrors `inset_radii` in `lui-layout`.
+/// the outer one. Mirrors `inset_radii` in `lui-layout-old`.
 fn padding_box_radii(b: &LayoutBox) -> ([f32; 4], [f32; 4]) {
   let outer_h = [
     b.border_radius.top_left.h,
@@ -489,9 +489,9 @@ fn paint_box_in_clip(
       let thickness = (run.ascent / 12.0).max(1.0);
       for line in &b.text_decorations {
         let y = match line {
-          lui_layout::TextDecorationLine::Underline => baseline_y + thickness,
-          lui_layout::TextDecorationLine::LineThrough => baseline_y - run.ascent * 0.30,
-          lui_layout::TextDecorationLine::Overline => origin.y,
+          lui_layout_old::TextDecorationLine::Underline => baseline_y + thickness,
+          lui_layout_old::TextDecorationLine::LineThrough => baseline_y - run.ascent * 0.30,
+          lui_layout_old::TextDecorationLine::Overline => origin.y,
         };
         out.push_quad(Rect::new(origin.x, y, run.width, thickness), color);
       }
@@ -988,7 +988,7 @@ fn paint_form_control(
 
 fn paint_file_input(
   b: &LayoutBox,
-  fb: &lui_layout::FileButtonStyle,
+  fb: &lui_layout_old::FileButtonStyle,
   label_run: &lui_text::ShapedRun,
   origin: &Rect,
   _text_scroll_x: f32,
@@ -1093,7 +1093,7 @@ fn selection_range_for_path(
 
 fn paint_selection_background_clipped(
   run: &lui_text::ShapedRun,
-  origin: lui_layout::Rect,
+  origin: lui_layout_old::Rect,
   start: usize,
   end: usize,
   color: lui_renderer_wgpu::Color,
@@ -1144,7 +1144,7 @@ fn paint_selection_background_clipped(
 
 fn paint_selection_background(
   run: &lui_text::ShapedRun,
-  origin: lui_layout::Rect,
+  origin: lui_layout_old::Rect,
   start: usize,
   end: usize,
   color: lui_renderer_wgpu::Color,
@@ -1539,7 +1539,7 @@ impl Side {
   }
 
   #[allow(dead_code)]
-  fn edge_rect(self, r: lui_layout::Rect, bd: lui_layout::Insets) -> Rect {
+  fn edge_rect(self, r: lui_layout_old::Rect, bd: lui_layout_old::Insets) -> Rect {
     let inner_h = (r.h - bd.top - bd.bottom).max(0.0);
     match self {
       Side::Top => Rect::new(r.x, r.y, r.w, bd.top),
@@ -1554,7 +1554,7 @@ impl Side {
   /// adjacent corner radii. With zero radii this collapses to the
   /// regular corner-owning rectangle, so it's safe for the rounded
   /// path even when only some corners are rounded.
-  fn edge_rect_rounded(self, r: lui_layout::Rect, bd: lui_layout::Insets, radii: &lui_layout::CornerRadii) -> Rect {
+  fn edge_rect_rounded(self, r: lui_layout_old::Rect, bd: lui_layout_old::Insets, radii: &lui_layout_old::CornerRadii) -> Rect {
     match self {
       Side::Top => {
         let x_start = radii.top_left.h;
@@ -1583,7 +1583,7 @@ impl Side {
 /// Returns the shared radius if every corner has the same circular
 /// (h == v) radius; `None` otherwise. The dashed-along-curve shader
 /// path only handles the uniform-circular case for now.
-fn uniform_circular_radius(r: &lui_layout::CornerRadii) -> Option<f32> {
+fn uniform_circular_radius(r: &lui_layout_old::CornerRadii) -> Option<f32> {
   let corners = [r.top_left, r.top_right, r.bottom_right, r.bottom_left];
   let target = corners[0].h;
   for c in corners {
@@ -1594,7 +1594,7 @@ fn uniform_circular_radius(r: &lui_layout::CornerRadii) -> Option<f32> {
   Some(target)
 }
 
-fn corner_radii_from(r: &lui_layout::CornerRadii) -> ([f32; 4], [f32; 4]) {
+fn corner_radii_from(r: &lui_layout_old::CornerRadii) -> ([f32; 4], [f32; 4]) {
   (
     [r.top_left.h, r.top_right.h, r.bottom_right.h, r.bottom_left.h],
     [r.top_left.v, r.top_right.v, r.bottom_right.v, r.bottom_left.v],
@@ -1747,13 +1747,13 @@ fn paint_edge(
 }
 
 /// Convert a byte offset in a value string to a glyph index in the
-pub fn file_button_padding(b: &lui_layout::LayoutBox) -> [f32; 4] {
-  let defaults = lui_layout::FileButtonStyle::default();
+pub fn file_button_padding(b: &lui_layout_old::LayoutBox) -> [f32; 4] {
+  let defaults = lui_layout_old::FileButtonStyle::default();
   b.file_button.as_ref().unwrap_or(&defaults).padding
 }
 
-pub fn file_button_width(b: &lui_layout::LayoutBox) -> f32 {
-  let defaults = lui_layout::FileButtonStyle::default();
+pub fn file_button_width(b: &lui_layout_old::LayoutBox) -> f32 {
+  let defaults = lui_layout_old::FileButtonStyle::default();
   let fb = b.file_button.as_ref().unwrap_or(&defaults);
   let pad = fb.padding;
   let text_w = fb.text_run.as_ref().map(|r| r.width).unwrap_or(0.0);
@@ -1799,7 +1799,7 @@ fn paint_segments(rect: Rect, axis: Axis, on: f32, off: f32, color: lui_renderer
   }
 }
 
-fn to_renderer_rect_xy(r: lui_layout::Rect, dx: f32, dy: f32) -> Rect {
+fn to_renderer_rect_xy(r: lui_layout_old::Rect, dx: f32, dy: f32) -> Rect {
   Rect::new(r.x + dx, r.y + dy, r.w, r.h)
 }
 

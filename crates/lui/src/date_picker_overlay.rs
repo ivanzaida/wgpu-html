@@ -1,4 +1,4 @@
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_models::{ArcStr, Div, Span, common::css_enums::*};
 use lui_renderer_wgpu::{DisplayList, Rect};
 use lui_style::{CascadedNode, CascadedTree};
@@ -357,8 +357,8 @@ pub fn paint_date_picker_overlay(list: &mut DisplayList, _root: &LayoutBox, tree
   let [popup_x, popup_y, _, _] = dp.popup_rect;
 
   let picker_tree = build_date_picker_tree(dp, tree);
-  let mut image_cache = lui_layout::ImageCache::default();
-  let Some(mut layout) = lui_layout::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
+  let mut image_cache = lui_layout_old::ImageCache::default();
+  let Some(mut layout) = lui_layout_old::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
   else {
     return;
   };
@@ -385,11 +385,11 @@ fn resolve_dim_color(dp: &DatePickerState) -> [f32; 4] {
   dp.calendar_style
     .as_ref()
     .and_then(|c| c.dim.as_ref())
-    .and_then(|c| lui_layout::color::resolve_color(c))
+    .and_then(|c| lui_layout_old::color::resolve_color(c))
     .unwrap_or([0.45, 0.45, 0.45, 1.0])
 }
 
-fn paint_chevron(list: &mut DisplayList, br: &lui_layout::Rect, color: [f32; 4], left: bool) {
+fn paint_chevron(list: &mut DisplayList, br: &lui_layout_old::Rect, color: [f32; 4], left: bool) {
   let sz = br.h.min(br.w) * 0.3;
   let t = (sz * 0.18).max(1.2);
   let cx = br.x + br.w / 2.0;

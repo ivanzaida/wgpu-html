@@ -9,7 +9,6 @@ use crate::{
 pub struct CustomElement {
   pub tag_name: ArcStr,
   pub id: Option<ArcStr>,
-  pub class: Option<ArcStr>,
   pub style: Option<ArcStr>,
   pub title: Option<ArcStr>,
   pub lang: Option<ArcStr>,
@@ -22,8 +21,6 @@ pub struct CustomElement {
   pub spellcheck: Option<bool>,
   pub translate: Option<bool>,
   pub role: Option<AriaRole>,
-  pub aria_attrs: HashMap<ArcStr, ArcStr>,
-  pub data_attrs: HashMap<ArcStr, ArcStr>,
   pub custom_attrs: HashMap<ArcStr, ArcStr>,
 }
 
@@ -32,7 +29,6 @@ impl CustomElement {
     Self {
       tag_name: tag_name.into(),
       id: None,
-      class: None,
       style: None,
       title: None,
       lang: None,
@@ -45,8 +41,6 @@ impl CustomElement {
       spellcheck: None,
       translate: None,
       role: None,
-      aria_attrs: HashMap::new(),
-      data_attrs: HashMap::new(),
       custom_attrs: HashMap::new(),
     }
   }

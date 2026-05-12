@@ -36,7 +36,7 @@ lui = "0.1"
 ```
 
 The facade re-exports:
-- `lui_layout` as `layout`
+- `lui_layout_old` as `layout`
 - `lui_models` as `models`
 - `lui_parser` as `parser`
 - `lui_renderer` as `renderer`

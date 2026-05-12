@@ -188,7 +188,7 @@ In rough order of usefulness:
 
 ## 6. Tests
 
-- **Layout** (`crates/lui-layout/src/tests.rs`):
+- **Layout** (`crates/lui-layout-old/src/tests.rs`):
   - `overflow_field_propagates_from_style`
   - `overflow_visible_is_default`
   - `overflow_axis_longhand_wins_over_shorthand`

@@ -317,7 +317,7 @@ For development, set hot crates to `opt-level = 2` in your workspace
 
 ```toml
 [profile.dev.package]
-lui-layout = { opt-level = 2 }
+lui-layout-old = { opt-level = 2 }
 lui-style = { opt-level = 2 }
 lui-renderer = { opt-level = 2 }
 lui-text = { opt-level = 2 }

@@ -1,20 +1,20 @@
 use lui::{paint::*, renderer::DisplayList};
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 
 fn simple_body_with_glyphs() -> LayoutBox {
-  let r = lui_layout::Rect::new(0.0, 0.0, 800.0, 24.0);
+  let r = lui_layout_old::Rect::new(0.0, 0.0, 800.0, 24.0);
   LayoutBox {
     margin_rect: r,
     border_rect: r,
     content_rect: r,
     background: None,
     background_rect: r,
-    background_radii: lui_layout::CornerRadii::zero(),
-    border: lui_layout::Insets::zero(),
-    border_colors: lui_layout::BorderColors::default(),
-    border_styles: lui_layout::BorderStyles::default(),
-    border_radius: lui_layout::CornerRadii::zero(),
-    kind: lui_layout::BoxKind::Text,
+    background_radii: lui_layout_old::CornerRadii::zero(),
+    border: lui_layout_old::Insets::zero(),
+    border_colors: lui_layout_old::BorderColors::default(),
+    border_styles: lui_layout_old::BorderStyles::default(),
+    border_radius: lui_layout_old::CornerRadii::zero(),
+    kind: lui_layout_old::BoxKind::Text,
     text_run: Some(lui_text::ShapedRun {
       glyphs: vec![
         lui_text::PositionedGlyph {
@@ -51,8 +51,8 @@ fn simple_body_with_glyphs() -> LayoutBox {
     text_color: Some([1.0; 4]),
     text_unselectable: false,
     text_decorations: Vec::new(),
-    overflow: lui_layout::OverflowAxes::visible(),
-    resize: lui_layout::Resize::None,
+    overflow: lui_layout_old::OverflowAxes::visible(),
+    resize: lui_layout_old::Resize::None,
     text_overflow: None,
     transform: None,
     transform_origin: (0.0, 0.0),
@@ -69,7 +69,7 @@ fn simple_body_with_glyphs() -> LayoutBox {
     selection_bg: None,
     selection_fg: None,
     accent_color: None,
-    lui: lui_layout::LuiProperties::default(),
+    lui: lui_layout_old::LuiProperties::default(),
     lui_popup: None,
     lui_color_picker: None,
     lui_calendar: None,

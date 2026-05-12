@@ -36,7 +36,7 @@ pub use parser::{parse_declaration, parse_value};
 pub use selector::{parse_selector_list, SelectorList};
 pub use shorthand::{expand as expand_shorthand, distribute_values, longhands_of};
 pub use supports::{parse_supports_condition, SupportsCondition, SupportsFeature};
-pub use stylesheet::{parse_stylesheet, AtRule, Declaration, StyleRule, Stylesheet};
+pub use stylesheet::{parse_declaration_block, parse_stylesheet, AtRule, Declaration, StyleRule, Stylesheet};
 pub use unit::CssUnit;
 pub use validate::{validate_value, Validation};
 pub use value::CssValue;

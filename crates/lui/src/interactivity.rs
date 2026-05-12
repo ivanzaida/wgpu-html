@@ -8,7 +8,7 @@
 //! tree directly through those.
 //!
 //! This module exists for the (still useful) case where the host
-//! has a `lui_layout::LayoutBox` handy and would prefer to
+//! has a `lui_layout_old::LayoutBox` handy and would prefer to
 //! pass a position rather than hit-test by hand. Each wrapper
 //!
 //! 1. resolves the hit path via `LayoutBox::hit_path`,
@@ -20,7 +20,7 @@
 //! [`focus`], [`blur`], [`focus_next`], [`key_down`], [`key_up`],
 //! [`pointer_leave`].
 
-use lui_layout::{Cursor, FormControlKind, LayoutBox};
+use lui_layout_old::{Cursor, FormControlKind, LayoutBox};
 use lui_tree::{ColorPickerDragTarget, ColorPickerState, DatePickerState, MouseButton, RangeDrag, Tree};
 // Re-exports of the layout-free dispatch entry points — these used
 // to live here, now they live in `lui_tree::dispatch`.
@@ -395,9 +395,9 @@ pub fn mouse_down_with_click_count(
                 tree.interaction.color_picker = None;
               } else {
                 let (sr, sg, sb) = (
-                  lui_layout::color::linear_to_srgb(r),
-                  lui_layout::color::linear_to_srgb(g),
-                  lui_layout::color::linear_to_srgb(b),
+                  lui_layout_old::color::linear_to_srgb(r),
+                  lui_layout_old::color::linear_to_srgb(g),
+                  lui_layout_old::color::linear_to_srgb(b),
                 );
                 let (h, s, v) = color_picker_overlay::srgb_to_hsv(sr, sg, sb);
                 let br = lb.border_rect;

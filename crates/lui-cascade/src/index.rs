@@ -1,39 +1,36 @@
 use std::collections::HashMap;
 
-use lui_css_parser::{CssAtRule, Stylesheet, StyleRule, AtRule};
+use lui_css_parser::{CssAtRule, CssPseudo, Stylesheet, StyleRule, AtRule};
 
-/// A reference to a specific selector within a specific rule.
 #[derive(Debug, Clone, Copy)]
 pub struct RuleRef {
     pub rule_idx: usize,
     pub selector_idx: usize,
 }
 
-/// Pre-indexed rules for fast lookup by element id/class/tag.
 #[derive(Debug, Default)]
 pub struct RuleIndex {
     pub by_id: HashMap<String, Vec<RuleRef>>,
     pub by_class: HashMap<String, Vec<RuleRef>>,
     pub by_tag: HashMap<String, Vec<RuleRef>>,
+    pub by_attr: HashMap<String, Vec<RuleRef>>,
+    pub by_pseudo_link: Vec<RuleRef>,
+    pub by_pseudo_form: Vec<RuleRef>,
     pub universal: Vec<RuleRef>,
 }
 
-/// A flattened rule that came from inside an @media or @supports block.
-/// Carries the condition index so the cascade can check it at match time.
 #[derive(Debug)]
 pub struct ConditionalRule {
     pub rule: StyleRule,
     pub condition_idx: usize,
 }
 
-/// Condition attached to conditional rules.
 #[derive(Debug)]
 pub enum RuleCondition {
     Media(lui_css_parser::MediaQueryList),
     Supports(lui_css_parser::SupportsCondition),
 }
 
-/// A stylesheet prepared for fast per-element rule lookup.
 #[derive(Debug)]
 pub struct PreparedStylesheet {
     pub rules: Vec<StyleRule>,
@@ -133,29 +130,74 @@ fn index_selector(
         None => return,
     };
 
+    // Priority: id > class > tag > attr > pseudo-bucket > universal
     if let Some(ref id) = subject.id {
         index.by_id.entry(id.clone()).or_default().push(*entry);
-    } else if let Some(class) = subject.classes.first() {
+        return;
+    }
+    if let Some(class) = subject.classes.first() {
         index.by_class.entry(class.clone()).or_default().push(*entry);
-    } else if let Some(ref tag) = subject.tag {
+        return;
+    }
+    if let Some(ref tag) = subject.tag {
         if tag != "*" {
             index.by_tag.entry(tag.clone()).or_default().push(*entry);
-        } else {
-            index.universal.push(*entry);
+            return;
         }
-    } else {
-        index.universal.push(*entry);
     }
+
+    // Attribute selector → index by attribute name
+    if let Some(attr) = subject.attrs.first() {
+        index.by_attr.entry(attr.name.clone()).or_default().push(*entry);
+        return;
+    }
+
+    // Pseudo-class only: route to type-specific buckets
+    if !subject.pseudos.is_empty() {
+        let pseudo = &subject.pseudos[0].pseudo;
+        if is_link_pseudo(pseudo) {
+            index.by_pseudo_link.push(*entry);
+            return;
+        }
+        if is_form_pseudo(pseudo) {
+            index.by_pseudo_form.push(*entry);
+            return;
+        }
+    }
+
+    index.universal.push(*entry);
 }
 
-/// Collect candidate `RuleRef`s that might match an element with the given
-/// id, classes, and tag. The caller must still do full selector matching
-/// on each candidate.
+fn is_link_pseudo(pseudo: &CssPseudo) -> bool {
+    matches!(pseudo,
+        CssPseudo::Link | CssPseudo::Visited | CssPseudo::AnyLink |
+        CssPseudo::Active | CssPseudo::Hover | CssPseudo::Focus
+    )
+}
+
+fn is_form_pseudo(pseudo: &CssPseudo) -> bool {
+    matches!(pseudo,
+        CssPseudo::Checked | CssPseudo::Disabled | CssPseudo::Enabled |
+        CssPseudo::Required | CssPseudo::Optional | CssPseudo::ReadOnly |
+        CssPseudo::ReadWrite | CssPseudo::PlaceholderShown |
+        CssPseudo::Indeterminate | CssPseudo::Valid | CssPseudo::Invalid |
+        CssPseudo::InRange | CssPseudo::OutOfRange | CssPseudo::Default |
+        CssPseudo::Autofill
+    )
+}
+
+const LINK_TAGS: &[&str] = &["a", "area", "link"];
+const FORM_TAGS: &[&str] = &["input", "textarea", "select", "button", "fieldset", "output", "option", "optgroup"];
+
+/// Collect candidate `RuleRef`s that might match an element.
 pub fn candidate_rules<'a>(
     index: &'a RuleIndex,
     tag: &str,
     id: Option<&str>,
     classes: &[&str],
+    attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
+    data_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
+    aria_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
 ) -> Vec<&'a RuleRef> {
     let mut seen = std::collections::HashSet::new();
     let mut candidates = Vec::new();
@@ -183,6 +225,37 @@ pub fn candidate_rules<'a>(
 
     if let Some(refs) = index.by_tag.get(tag) {
         add(refs);
+    }
+
+    // Attribute-indexed rules: check all attribute types
+    if !index.by_attr.is_empty() {
+        for attr_name in attrs.keys() {
+            if let Some(refs) = index.by_attr.get(attr_name.as_ref()) {
+                add(refs);
+            }
+        }
+        for key in data_attrs.keys() {
+            let prefixed = format!("data-{}", key);
+            if let Some(refs) = index.by_attr.get(&prefixed) {
+                add(refs);
+            }
+        }
+        for key in aria_attrs.keys() {
+            let prefixed = format!("aria-{}", key);
+            if let Some(refs) = index.by_attr.get(&prefixed) {
+                add(refs);
+            }
+        }
+    }
+
+    // Link pseudo-class rules: only for link-like elements
+    if LINK_TAGS.contains(&tag) {
+        add(&index.by_pseudo_link);
+    }
+
+    // Form pseudo-class rules: only for form elements
+    if FORM_TAGS.contains(&tag) {
+        add(&index.by_pseudo_form);
     }
 
     add(&index.universal);

@@ -28,7 +28,7 @@ Tree<Node<Element>>
    ▼  lui-style            UA defaults + selector match + cascade + inheritance
 CascadedTree<CascadedNode>
    │
-   ▼  lui-layout           Block flow + Flex + Grid + Inline (IFC) + text shaping
+   ▼  lui-layout-old           Block flow + Flex + Grid + Inline (IFC) + text shaping
 LayoutBox tree
    │
    ▼  lui (paint.rs)       LayoutBox → DisplayList (quads + glyphs + clip ranges)

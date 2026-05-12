@@ -4,7 +4,7 @@ use lui_models::{
   ArcStr,
   common::html_enums::{ButtonType, HtmlDirection, InputType},
 };
-use lui_tree::Element;
+use lui_tree::{Element, Node};
 
 /// Expand `$cb!(...)` with the same comma-separated list of `Element`
 /// variants used everywhere in this module. Defined first so the
@@ -179,18 +179,19 @@ pub fn element_id(el: &Element) -> Option<&str> {
   arms_list!(arms)
 }
 
-pub fn element_class(el: &Element) -> Option<&str> {
-  macro_rules! arms {
-        ($($v:ident),* $(,)?) => {
-            match el {
-                Element::Text(_) => None,
-                Element::CustomElement(e) => e.class.as_deref(),
-                Element::SvgElement(e) => e.class.as_deref(),
-                $(Element::$v(e) => e.class.as_deref(),)*
-            }
-        };
-    }
-  arms_list!(arms)
+pub fn element_class(node: &Node) -> Option<ArcStr> {
+  if node.class_list.is_empty() {
+    None
+  } else {
+    Some(ArcStr::from(
+      node
+        .class_list
+        .iter()
+        .map(|c| c.as_ref())
+        .collect::<Vec<_>>()
+        .join(" "),
+    ))
+  }
 }
 
 pub fn element_style_attr(el: &Element) -> Option<&str> {
@@ -207,10 +208,11 @@ pub fn element_style_attr(el: &Element) -> Option<&str> {
   arms_list!(arms)
 }
 
-pub fn element_attr(el: &Element, name: &str) -> Option<String> {
+pub fn element_attr(node: &Node, name: &str) -> Option<String> {
+  let el = &node.element;
   match name {
     "id" => element_id(el).map(str::to_string),
-    "class" => element_class(el).map(str::to_string),
+    "class" => element_class(node).map(|s| s.to_string()),
     "style" => element_style_attr(el).map(str::to_string),
     "title" => global_attr_string(el, |e| e.title().map(|s| s.to_string())),
     "lang" => global_attr_string(el, |e| e.lang().map(|s| s.to_string())),
@@ -228,8 +230,15 @@ pub fn element_attr(el: &Element, name: &str) -> Option<String> {
       _ => None,
     },
     _ => {
-      if let Some(v) = data_or_aria_attr(el, name) {
-        return Some(v);
+      if let Some(suffix) = name.strip_prefix("data-") {
+        if let Some(v) = node.data_attr(suffix) {
+          return Some(v.to_string());
+        }
+      }
+      if let Some(suffix) = name.strip_prefix("aria-") {
+        if let Some(v) = node.aria_attr(suffix) {
+          return Some(v.to_string());
+        }
       }
       if let Element::CustomElement(e) = el {
         return e.custom_attrs.get(name).map(|s| s.to_string());
@@ -264,8 +273,6 @@ trait GlobalAttrs {
   fn draggable(&self) -> Option<bool>;
   fn spellcheck(&self) -> Option<bool>;
   fn translate(&self) -> Option<bool>;
-  fn aria_attr(&self, name: &str) -> Option<&ArcStr>;
-  fn data_attr(&self, name: &str) -> Option<&ArcStr>;
 }
 
 macro_rules! impl_global_attrs {
@@ -282,12 +289,6 @@ macro_rules! impl_global_attrs {
                 fn draggable(&self) -> Option<bool> { self.draggable }
                 fn spellcheck(&self) -> Option<bool> { self.spellcheck }
                 fn translate(&self) -> Option<bool> { self.translate }
-                fn aria_attr(&self, name: &str) -> Option<&ArcStr> {
-                    self.aria_attrs.get(name)
-                }
-                fn data_attr(&self, name: &str) -> Option<&ArcStr> {
-                    self.data_attrs.get(name)
-                }
             }
         )*
     };
@@ -413,16 +414,6 @@ fn with_global_attrs<R>(el: &Element, f: impl FnOnce(&dyn GlobalAttrs) -> R) -> 
         };
     }
   arms_list!(arms)
-}
-
-fn data_or_aria_attr(el: &Element, name: &str) -> Option<String> {
-  if let Some(suffix) = name.strip_prefix("data-") {
-    return with_global_attrs(el, |e| e.data_attr(suffix).map(|s| s.to_string())).flatten();
-  }
-  if let Some(suffix) = name.strip_prefix("aria-") {
-    return with_global_attrs(el, |e| e.aria_attr(suffix).map(|s| s.to_string())).flatten();
-  }
-  None
 }
 
 fn bool_attr(value: Option<bool>) -> Option<String> {

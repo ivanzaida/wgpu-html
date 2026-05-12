@@ -1,13 +1,10 @@
 use lui_css_parser::{Declaration, parse_declaration};
 use lui_html_parser::HtmlNode;
 
-/// Extract and parse inline style declarations from a node's `style` attribute.
-/// Returns an empty vec if the node has no `style` attribute.
+/// Return inline style declarations for a node.
+/// The parser already parses `style=""` into `node.styles`.
 pub fn node_inline_style(node: &HtmlNode) -> Vec<Declaration> {
-    match node.attrs.get("style") {
-        Some(css) => parse_inline_style(css),
-        None => Vec::new(),
-    }
+    node.styles.clone()
 }
 
 /// Parse a `style=""` attribute value into declarations.

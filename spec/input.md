@@ -176,7 +176,7 @@ winit KeyEvent
 | `EditCursor` struct | `lui-tree` | `events.rs` |
 | Pure edit operations | `lui-tree` | `text_edit.rs` |
 | Dispatch + value mutation | `lui-tree` | `dispatch.rs` |
-| Value / placeholder layout | `lui-layout` | `lib.rs` |
+| Value / placeholder layout | `lui-layout-old` | `lib.rs` |
 | Caret + selection paint | `lui` | `paint.rs` |
 | `EditCaretInfo` construction | `lui` | `lib.rs` |
 | Click-to-position caret | `lui` | `interactivity.rs` |
@@ -243,7 +243,7 @@ is deferred.
 
 ## 6. Value rendering
 
-`compute_value_run` in `lui-layout/src/lib.rs`:
+`compute_value_run` in `lui-layout-old/src/lib.rs`:
 
 1. Reads `input.value` or `textarea.value` (falls back to RAWTEXT
    children for textarea).

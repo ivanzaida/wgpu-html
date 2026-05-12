@@ -1,4 +1,4 @@
-use lui_layout::LayoutBox;
+use lui_layout_old::LayoutBox;
 use lui_tree::NodeRect;
 
 #[test]
@@ -13,9 +13,9 @@ fn text_shrink_demo() {
   let cascaded = lui_style::cascade(&tree);
   let mut text_ctx = lui_text::TextContext::new(64);
   text_ctx.sync_fonts(&tree.fonts);
-  let mut image_cache = lui_layout::ImageCache::default();
+  let mut image_cache = lui_layout_old::ImageCache::default();
   let root =
-    lui_layout::layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0).expect("layout");
+    lui_layout_old::layout_with_text(&cascaded, &mut text_ctx, &mut image_cache, 800.0, 600.0, 1.0).expect("layout");
 
   // Populate Node::rect from LayoutBox by walking both trees.
   populate_rects(&mut tree, &root, &[]);
