@@ -87,7 +87,14 @@ fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), Parse
             }
         }
 
-        Token::Delim(c) => Err(ParseError::new(format!("unexpected delimiter '{c}'"), pos)),
+        Token::Delim(c) => {
+            // Math operators: pass through as Unknown for calc() expression parsing.
+            if matches!(c, '+' | '-' | '*' | '/') {
+                Ok((CssValue::Unknown(c.to_string().into()), pos + 1))
+            } else {
+                Err(ParseError::new(format!("unexpected delimiter '{c}'"), pos))
+            }
+        }
     }
 }
 
