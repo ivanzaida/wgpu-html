@@ -103,40 +103,43 @@ Changes: `std::collections::HashMap` → `rustc_hash::FxHashMap`, `DefaultHasher
 
 ---
 
-## Run 3 — SmallVec
+## Run 3 — FxHash + SmallVec
 
-Date: `(pending)`
+Date: 2026-05-12
+Changes: Hot per-node `Vec`s → `SmallVec`: `child_ancestors<[_; 16]>`, `matched_rules<[_; 8]>`, `classes<[_; 8]>`, `candidate_rules<[_; 32]>`
 
 ### Full Cascade
 
 | Tree | Nodes | Time | ns/node | vs baseline |
 |------|-------|------|---------|-------------|
-| Small | 40 | — | — | — |
-| Medium | 340 | — | — | — |
-| Large | 1,365 | — | — | — |
+| Small | 40 | 0.75 ms | 18,694 | −22.6% |
+| Medium | 340 | 6.25 ms | 18,393 | −20.2% |
+| Large | 1,365 | 19.80 ms | 14,505 | −7.0% |
 
 ### Incremental Cascade (large tree)
 
 | Scenario | Time | vs baseline |
 |----------|------|-------------|
-| Two full cascades | — | — |
-| Full + incremental, 0 dirty | — | — |
-| Full + incremental, 1 dirty leaf | — | — |
-| Full + incremental, 1 dirty subtree | — | — |
+| Two full cascades | 40.07 ms | −6.8% |
+| Full + incremental, 0 dirty | 22.21 ms | −3.3% |
+| Full + incremental, 1 dirty leaf | 22.93 ms | +4.2% |
+| Full + incremental, 1 dirty subtree | 25.50 ms | +3.8% |
 
 ### Set Stylesheets
 
 | Rules | Time | vs baseline |
 |-------|------|-------------|
-| 10 | — | — |
-| 500 | — | — |
+| 10 | 7.76 µs | +1.0% |
+| 500 | 242.31 µs | −2.0% |
 
 ### Selector Matching
 
 | Query | Time | vs baseline |
 |-------|------|-------------|
-| `.item` | — | — |
-| `.container > .list .item.active` | — | — |
+| `.item` | 945 ns | −4.0% |
+| `.container > .list .item.active` | 1.24 µs | −1.9% |
+
+> **Summary:** FxHash + SmallVec combined deliver −20.2% on medium trees and −7.0% on large trees. `query_selector` benchmarks (untouched code) show −2–4% confirming this run's variance is tighter than Run 2. Small tree (high iteration count, lowest variance) shows −22.6%, the most reliable signal.
 
 ---
 
@@ -179,35 +182,38 @@ Date: `(pending)`
 
 ## Run 5 — Rayon parallel siblings
 
-Date: `(pending)`
+Date: 2026-05-12
+Changes: Parallel cascade of children when sibling count ≥ 16. Each thread gets its own bump arena and decl cache; results are `re_arena`'d into the main arena after collection.
 
 ### Full Cascade
 
-| Tree | Nodes | Time | ns/node | vs baseline |
-|------|-------|------|---------|-------------|
-| Small | 40 | — | — | — |
-| Medium | 340 | — | — | — |
-| Large | 1,365 | — | — | — |
+| Tree | Nodes | Siblings/node | Parallel? | Time | ns/node | vs baseline |
+|------|-------|---------------|-----------|------|---------|-------------|
+| Small | 40 | 3 | no | 0.91 ms | 22,682 | −6.1% |
+| Medium | 340 | 4 | no | 7.75 ms | 22,791 | −1.1% |
+| Large | 1,365 | 4 | no | 23.50 ms | 17,219 | +10.4% |
 
 ### Incremental Cascade (large tree)
 
 | Scenario | Time | vs baseline |
 |----------|------|-------------|
-| Two full cascades | — | — |
-| Full + incremental, 0 dirty | — | — |
-| Full + incremental, 1 dirty leaf | — | — |
-| Full + incremental, 1 dirty subtree | — | — |
+| Two full cascades | 43.89 ms | +2.1% |
+| Full + incremental, 0 dirty | 24.49 ms | +6.6% |
+| Full + incremental, 1 dirty leaf | 24.36 ms | +10.7% |
+| Full + incremental, 1 dirty subtree | 27.01 ms | +9.9% |
 
 ### Set Stylesheets
 
 | Rules | Time | vs baseline |
 |-------|------|-------------|
-| 10 | — | — |
-| 500 | — | — |
+| 10 | 7.79 µs | +1.4% |
+| 500 | 278.51 µs | +12.7% |
 
 ### Selector Matching
 
 | Query | Time | vs baseline |
 |-------|------|-------------|
-| `.item` | — | — |
-| `.container > .list .item.active` | — | — |
+| `.item` | 974 ns | −1.1% |
+| `.container > .list .item.active` | 1.39 µs | +10.1% |
+
+> ⚠ **Note:** Bench trees have ≤4 siblings per node — rayon path never fires. The `re_arena` infrastructure and rayon dependency add measurable overhead to the sequential path. Real-world benefit requires pages with 16+ direct siblings (e.g., long lists, tables, grids).
