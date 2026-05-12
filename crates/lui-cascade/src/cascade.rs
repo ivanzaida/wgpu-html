@@ -648,7 +648,7 @@ fn matched_specificity_bloom(
 ) -> Option<(u32, u32, u32)> {
   let parent = ancestors.first().map(|a| a.node);
   for sel in &rule.selector.0 {
-    if !bloom_might_match(sel, bloom) {
+    if sel.compounds.len() > 1 && !bloom_might_match(sel, bloom) {
       continue;
     }
     if matches_selector(sel, node, ctx, ancestors, parent) {
