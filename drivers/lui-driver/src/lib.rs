@@ -52,8 +52,11 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
 
     /// Run the full pipeline: cascade → layout → paint → render.
     pub fn render_frame(&mut self, doc: &HtmlDocument) -> FrameOutcome {
-        let (w, h) = self.driver.inner_size();
-        let list = self.paint_frame(doc, w as f32, h as f32);
+        let (pw, ph) = self.driver.inner_size();
+        let scale = self.driver.scale_factor() as f32;
+        let vw = pw as f32 / scale;
+        let vh = ph as f32 / scale;
+        let list = self.paint_frame_scaled(doc, vw, vh, scale);
 
         self.text_ctx.flush_dirty(|rect, data| {
             self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
@@ -64,7 +67,16 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
 
     /// Paint without rendering — useful for testing or headless use.
     pub fn paint_frame(&mut self, doc: &HtmlDocument, vw: f32, vh: f32) -> DisplayList {
-        let media = MediaContext::default();
+        self.paint_frame_scaled(doc, vw, vh, 1.0)
+    }
+
+    fn paint_frame_scaled(&mut self, doc: &HtmlDocument, vw: f32, vh: f32, scale: f32) -> DisplayList {
+        let media = MediaContext {
+            viewport_width: vw,
+            viewport_height: vh,
+            dpi: 96.0 * scale,
+            ..MediaContext::default()
+        };
         let interaction = InteractionState::default();
         let styled = self.cascade_ctx.cascade(&doc.root, &media, &interaction);
         let tree = self.layout_engine.layout(&styled, vw, vh, &mut self.text_ctx);

@@ -85,6 +85,12 @@ impl WinitDriver {
                 }
                 true
             }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                let (w, h) = self.rt.driver.inner_size();
+                self.rt.renderer.resize(w, h);
+                self.rt.driver.request_redraw();
+                true
+            }
             _ => false,
         }
     }
