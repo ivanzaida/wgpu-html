@@ -13,22 +13,18 @@ use crate::geometry::Point;
 use crate::incremental::{CacheView, LayoutCache};
 use crate::text::TextContext;
 
-/// Stateful layout engine. Owns the font context and caches previous
-/// frame results so incremental re-layout can skip clean subtrees.
+/// Stateful layout engine. Caches previous frame results so incremental
+/// re-layout can skip clean subtrees.
 ///
-/// Mirrors `CascadeContext`'s OOP pattern: create once, call `layout()`
-/// or `layout_dirty()` each frame.
+/// The caller owns the `TextContext` (font system) and passes it in.
+/// Create the engine once, call `layout()` or `layout_dirty()` each frame.
 pub struct LayoutEngine {
-    text_ctx: TextContext,
     cache: LayoutCache,
 }
 
 impl LayoutEngine {
     pub fn new() -> Self {
-        Self {
-            text_ctx: TextContext::new(),
-            cache: LayoutCache::empty(),
-        }
+        Self { cache: LayoutCache::empty() }
     }
 
     /// Full layout — recompute everything. Stores results for the next
@@ -38,8 +34,9 @@ impl LayoutEngine {
         styled: &'a StyledNode<'a>,
         viewport_width: f32,
         viewport_height: f32,
+        text_ctx: &mut TextContext,
     ) -> LayoutTree<'a> {
-        let tree = layout_tree_inner(styled, viewport_width, viewport_height, &mut self.text_ctx, self.cache.prev_rects_count);
+        let tree = layout_tree_inner(styled, viewport_width, viewport_height, text_ctx, self.cache.prev_rects_count);
         self.cache = LayoutCache::snapshot(&tree);
         tree
     }
@@ -52,17 +49,14 @@ impl LayoutEngine {
         dirty_paths: &[Vec<usize>],
         viewport_width: f32,
         viewport_height: f32,
+        text_ctx: &mut TextContext,
     ) -> LayoutTree<'a> {
         let tree = crate::incremental::layout_incremental_with(
             styled, &self.cache, dirty_paths,
-            viewport_width, viewport_height, &mut self.text_ctx,
+            viewport_width, viewport_height, text_ctx,
         );
         self.cache = LayoutCache::snapshot(&tree);
         tree
-    }
-
-    pub fn text_ctx(&mut self) -> &mut TextContext {
-        &mut self.text_ctx
     }
 }
 

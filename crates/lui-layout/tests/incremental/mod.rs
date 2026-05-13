@@ -262,7 +262,8 @@ fn engine_layout_matches_free_function() {
 
     let free = layout_tree(&styled, 800.0, 600.0);
     let mut engine = LayoutEngine::new();
-    let eng = engine.layout(&styled, 800.0, 600.0);
+    let mut text_ctx = lui_layout::text::TextContext::new();
+    let eng = engine.layout(&styled, 800.0, 600.0, &mut text_ctx);
     assert!(boxes_match(&free.root, &eng.root),
         "LayoutEngine::layout should match free function");
 }
@@ -280,15 +281,16 @@ fn engine_layout_dirty_matches_full() {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
 
     let mut engine = LayoutEngine::new();
-    let _first = engine.layout(&styled, 800.0, 600.0);
-    let dirty = engine.layout_dirty(&styled, &[vec![0, 0, 1]], 800.0, 600.0);
-    let full = engine.layout(&styled, 800.0, 600.0);
+    let mut text_ctx = lui_layout::text::TextContext::new();
+    let _first = engine.layout(&styled, 800.0, 600.0, &mut text_ctx);
+    let dirty = engine.layout_dirty(&styled, &[vec![0, 0, 1]], 800.0, 600.0, &mut text_ctx);
+    let full = engine.layout(&styled, 800.0, 600.0, &mut text_ctx);
     assert!(boxes_match(&full.root, &dirty.root),
         "LayoutEngine::layout_dirty should match full layout");
 }
 
 #[test]
-fn engine_reuses_text_context() {
+fn engine_takes_external_text_context() {
     let html = r#"<div style="height:30px">hello</div>"#;
     let (doc, ctx) = flex_lt(html, 800.0);
     let media = MediaContext::default();
@@ -296,8 +298,9 @@ fn engine_reuses_text_context() {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
 
     let mut engine = LayoutEngine::new();
-    let t1 = engine.layout(&styled, 800.0, 600.0);
-    let t2 = engine.layout(&styled, 800.0, 600.0);
+    let mut text_ctx = lui_layout::text::TextContext::new();
+    let t1 = engine.layout(&styled, 800.0, 600.0, &mut text_ctx);
+    let t2 = engine.layout(&styled, 800.0, 600.0, &mut text_ctx);
     assert!(boxes_match(&t1.root, &t2.root),
         "repeated layout calls should produce identical results");
 }
