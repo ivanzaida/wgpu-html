@@ -30,6 +30,7 @@ pub struct Runtime<D: Driver, B: RenderBackend> {
     pub text_ctx: TextContext,
     cascade_ctx: CascadeContext,
     layout_engine: LayoutEngine,
+    frame_count: u64,
 }
 
 impl<D: Driver, B: RenderBackend> Runtime<D, B> {
@@ -40,6 +41,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
             text_ctx: TextContext::new(),
             cascade_ctx: CascadeContext::new(),
             layout_engine: LayoutEngine::new(),
+            frame_count: 0,
         }
     }
 
@@ -66,6 +68,12 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         self.text_ctx.flush_dirty(|rect, data| {
             self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
         });
+
+        if self.frame_count == 0 {
+            eprintln!("[lui-driver] frame 0: {} quads, {} glyphs, {} images, {} clips",
+                list.quads.len(), list.glyphs.len(), list.images.len(), list.clips.len());
+        }
+        self.frame_count += 1;
 
         self.renderer.render(&list)
     }
