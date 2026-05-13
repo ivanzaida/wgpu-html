@@ -33,6 +33,8 @@ members = [
     "drivers-v1/lui-driver-egui",
     "drivers-v1/lui-driver-winit",
 
+    "demo/lui-demo",
+
     "demo-v1/lui-demo",
     "demo-v1/lui-demo-bevy",
     "demo-v1/lui-ui-demo",

@@ -1,0 +1,8 @@
+[package]
+name = "lui-demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-driver-winit = { path = "../../drivers/lui-driver-winit" }
+winit.workspace = true

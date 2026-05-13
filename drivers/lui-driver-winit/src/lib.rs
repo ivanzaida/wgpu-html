@@ -89,6 +89,11 @@ impl WinitDriver {
         }
     }
 
+    /// Request a redraw from the window.
+    pub fn request_redraw(&self) {
+        self.rt.driver.request_redraw();
+    }
+
     /// Update the HTML content and request a redraw.
     pub fn set_html(&mut self, html: &str) {
         self.doc = lui_parse::parse(html);

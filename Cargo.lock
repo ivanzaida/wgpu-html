@@ -3666,17 +3666,7 @@ version = "0.1.0"
 name = "lui-demo"
 version = "0.1.0"
 dependencies = [
- "arboard",
- "eframe",
- "egui",
- "lui",
- "lui-devtools",
- "lui-driver-egui-v1",
- "lui-driver-winit-v1",
- "lui-models",
- "lui-style",
- "lui-text",
- "lui-tree",
+ "lui-driver-winit",
  "winit",
 ]
 
@@ -3691,6 +3681,24 @@ dependencies = [
  "lui-renderer-wgpu",
  "lui-text",
  "pollster",
+]
+
+[[package]]
+name = "lui-demo-v1"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "eframe",
+ "egui",
+ "lui",
+ "lui-devtools",
+ "lui-driver-egui-v1",
+ "lui-driver-winit-v1",
+ "lui-models",
+ "lui-style",
+ "lui-text",
+ "lui-tree",
+ "winit",
 ]
 
 [[package]]
@@ -3709,6 +3717,20 @@ dependencies = [
 [[package]]
 name = "lui-display-list"
 version = "0.1.0"
+
+[[package]]
+name = "lui-driver"
+version = "0.1.0"
+dependencies = [
+ "lui-cascade",
+ "lui-core",
+ "lui-display-list",
+ "lui-glyph",
+ "lui-layout",
+ "lui-paint",
+ "lui-parse",
+ "lui-render-api",
+]
 
 [[package]]
 name = "lui-driver-bevy-v1"
@@ -3745,6 +3767,18 @@ dependencies = [
  "lui-render-api",
  "lui-text",
  "lui-tree",
+]
+
+[[package]]
+name = "lui-driver-winit"
+version = "0.1.0"
+dependencies = [
+ "lui-display-list",
+ "lui-driver",
+ "lui-parse",
+ "lui-renderer-wgpu",
+ "pollster",
+ "winit",
 ]
 
 [[package]]
