@@ -22,8 +22,8 @@ members = [
     "crates-v1/lui-tree",
     "crates-v1/lui-ui",
 
-    "renderers-v1/lui-render-api",
-    "renderers-v1/lui-renderer-wgpu",
+    "renderers/lui-render-api",
+    "renderers/lui-renderer-wgpu",
 
     "drivers-v1/lui-driver",
     "drivers-v1/lui-driver-bevy",
@@ -47,8 +47,8 @@ lui-layout-old = { path = "crates-v1/lui-layout-old" }
 lui-models = { path = "crates-v1/lui-models" }
 lui-parser = { path = "crates-v1/lui-parser" }
 lui-display-list = { path = "crates-v1/lui-display-list" }
-lui-render-api = { path = "renderers-v1/lui-render-api" }
-lui-renderer-wgpu = { path = "renderers-v1/lui-renderer-wgpu" }
+lui-render-api = { path = "renderers/lui-render-api" }
+lui-renderer-wgpu = { path = "renderers/lui-renderer-wgpu" }
 lui-style = { path = "crates-v1/lui-style" }
 lui-text = { path = "crates-v1/lui-text" }
 lui-tree = { path = "crates-v1/lui-tree" }

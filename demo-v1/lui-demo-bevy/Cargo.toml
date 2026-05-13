@@ -7,7 +7,7 @@ edition = "2024"
 lui-driver-bevy-v1 = { path = "../../drivers-v1/lui-driver-bevy" }
 lui-devtools     = { path = "../../crates-v1/lui-devtools" }
 lui.workspace    = true
-lui-renderer-wgpu = { path = "../../renderers-v1/lui-renderer-wgpu" }
+lui-renderer-wgpu = { path = "../../renderers/lui-renderer-wgpu" }
 lui-text         = { path = "../../crates-v1/lui-text" }
 pollster.workspace     = true
 bevy = { version = "0.18", default-features = false, features = [
