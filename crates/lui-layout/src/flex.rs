@@ -577,18 +577,44 @@ fn layout_flex_item<'a>(
     b.content.y = margin.edges.top + border.top + padding.top;
 
     let child_ctx = LayoutContext { containing_width: b.content.width, ..*ctx };
-    let mut cursor_y = b.content.y;
-    for child in b.children.iter_mut() {
-        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
-        let old = std::mem::replace(child, placeholder);
-        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache, bump);
-        *child = result;
-        cursor_y += child.outer_height();
+    let origin = Point::new(b.content.x, b.content.y);
+
+    // For flex/grid items that are themselves containers, set their width
+    // from the override before dispatching to their own layout algorithm.
+    if let Some(w) = override_w {
+        b.content.width = w;
     }
-    let content_h = (cursor_y - b.content.y).max(0.0);
-    b.content.height = override_h
-        .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height))
-        .unwrap_or(content_h);
+
+    match b.kind {
+        BoxKind::FlexContainer | BoxKind::InlineFlex => {
+            let outer = override_w.map(|w| w + b.border.horizontal() + b.padding.horizontal() + b.margin.horizontal());
+            let flex_ctx = LayoutContext { containing_width: outer.unwrap_or(child_ctx.containing_width), ..child_ctx };
+            crate::flex::layout_flex(b, &flex_ctx, origin, text_ctx, rects, cache, bump);
+            if let Some(w) = override_w { b.content.width = w; }
+            if let Some(h) = override_h { b.content.height = h; }
+        }
+        BoxKind::GridContainer | BoxKind::InlineGrid => {
+            let outer = override_w.map(|w| w + b.border.horizontal() + b.padding.horizontal() + b.margin.horizontal());
+            let grid_ctx = LayoutContext { containing_width: outer.unwrap_or(child_ctx.containing_width), ..child_ctx };
+            crate::grid::layout_grid(b, &grid_ctx, origin, text_ctx, rects, cache, bump);
+            if let Some(w) = override_w { b.content.width = w; }
+            if let Some(h) = override_h { b.content.height = h; }
+        }
+        _ => {
+            let mut cursor_y = b.content.y;
+            for child in b.children.iter_mut() {
+                let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
+                let old = std::mem::replace(child, placeholder);
+                let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache, bump);
+                *child = result;
+                cursor_y += child.outer_height();
+            }
+            let content_h = (cursor_y - b.content.y).max(0.0);
+            b.content.height = override_h
+                .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height))
+                .unwrap_or(content_h);
+        }
+    }
 }
 
 // ── Translation helpers ───────────────────────────────────────────────
@@ -853,6 +879,10 @@ fn measure_max_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
     let border = sides::resolve_border(box_.style);
     let padding = sides::resolve_padding(box_.style);
     let frame = border.vertical() + padding.vertical();
+
+    if let Some(h) = sizes::resolve_length(box_.style.height, 0.0) {
+        return h + frame;
+    }
 
     let mut block_sum = 0.0_f32;
     let mut max_inline = 0.0_f32;

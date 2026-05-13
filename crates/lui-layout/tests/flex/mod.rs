@@ -944,3 +944,16 @@ fn nested_column_flex_with_row_flex_children() {
     assert!(inner.children[1].content.x > inner.children[0].content.x + 100.0,
         "child B should be right of child A");
 }
+
+#[test]
+fn debug_shrink_issue() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:200px"><div style="width:150px; flex-shrink:1">A</div><div style="width:150px; flex-shrink:1">B</div></div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    eprintln!("flex: kind={:?} w={} h={} children={}", flex.kind, flex.content.width, flex.content.height, flex.children.len());
+    for (i, c) in flex.children.iter().enumerate() {
+        eprintln!("  child[{}]: kind={:?} w={} h={} x={}", i, c.kind, c.content.width, c.content.height, c.content.x);
+    }
+}
