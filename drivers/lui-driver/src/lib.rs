@@ -54,8 +54,8 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
     pub fn render_frame(&mut self, doc: &HtmlDocument) -> FrameOutcome {
         let (pw, ph) = self.driver.inner_size();
         let scale = self.driver.scale_factor() as f32;
-        let vw = pw as f32 / scale;
-        let vh = ph as f32 / scale;
+        let vw = pw as f32;
+        let vh = ph as f32;
         let list = self.paint_frame_scaled(doc, vw, vh, scale);
 
         self.text_ctx.flush_dirty(|rect, data| {
