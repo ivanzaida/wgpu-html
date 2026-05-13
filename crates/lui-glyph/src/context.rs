@@ -10,7 +10,7 @@ use lui_core::{CssUnit, CssValue};
 use crate::atlas::{Atlas, AtlasRect};
 use crate::font::FontContext;
 use crate::font_face::{FontFace, FontHandle, FontStyleAxis};
-use crate::shape::{PositionedGlyph, RunMetrics, ShapedRun, TextStyle, parse_line_height_multiplier, utf8_boundaries};
+use crate::shape::{PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle, parse_line_height_multiplier, utf8_boundaries};
 
 const TEXT_CACHE_MAX: usize = 4096;
 
@@ -26,10 +26,42 @@ struct TextCacheKey {
     style: FontStyleAxis,
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct LinesCacheKey {
+    text_hash: u64,
+    family_hash: u64,
+    size_px_bits: u32,
+    line_height_bits: u32,
+    weight: u16,
+    max_width_bits: u32,
+}
+
 fn hash_str(s: &str) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     s.hash(&mut h);
     h.finish()
+}
+
+fn shape_cache_key(text: &str, style: &TextStyle) -> TextCacheKey {
+    TextCacheKey {
+        text_hash: hash_str(text),
+        family_hash: hash_str(style.font_family),
+        size_px_bits: style.font_size.to_bits(),
+        line_height_bits: style.line_height.to_bits(),
+        weight: style.weight,
+        style: FontStyleAxis::Normal,
+    }
+}
+
+fn lines_cache_key(text: &str, style: &TextStyle, max_width: f32) -> LinesCacheKey {
+    LinesCacheKey {
+        text_hash: hash_str(text),
+        family_hash: hash_str(style.font_family),
+        size_px_bits: style.font_size.to_bits(),
+        line_height_bits: style.line_height.to_bits(),
+        weight: style.weight,
+        max_width_bits: max_width.to_bits(),
+    }
 }
 
 /// Cached atlas slot for a single glyph raster.
@@ -47,6 +79,7 @@ pub struct TextContext {
     swash: cosmic_text::SwashCache,
     glyph_cache: HashMap<CacheKey, AtlasGlyph>,
     text_cache: HashMap<TextCacheKey, ShapedRun>,
+    lines_cache: HashMap<LinesCacheKey, Vec<ShapedLine>>,
     text_cache_gen: u64,
 }
 
@@ -58,6 +91,7 @@ impl TextContext {
             swash: cosmic_text::SwashCache::new(),
             glyph_cache: HashMap::new(),
             text_cache: HashMap::new(),
+            lines_cache: HashMap::new(),
             text_cache_gen: 0,
         }
     }
@@ -66,10 +100,36 @@ impl TextContext {
         let current_gen = self.font_ctx.registry().generation();
         if current_gen != self.text_cache_gen {
             self.text_cache.clear();
+            self.lines_cache.clear();
             self.text_cache_gen = current_gen;
-        } else if self.text_cache.len() >= TEXT_CACHE_MAX {
+        } else if self.text_cache.len() + self.lines_cache.len() >= TEXT_CACHE_MAX {
             self.text_cache.clear();
+            self.lines_cache.clear();
         }
+    }
+
+    /// Cached text shaping — returns a clone from cache on hit.
+    pub fn shape(&mut self, text: &str, style: &TextStyle) -> ShapedRun {
+        self.maybe_invalidate_text_cache();
+        let key = shape_cache_key(text, style);
+        if let Some(cached) = self.text_cache.get(&key) {
+            return cached.clone();
+        }
+        let run = self.font_ctx.shape(text, style);
+        self.text_cache.insert(key, run.clone());
+        run
+    }
+
+    /// Cached line breaking — returns a clone from cache on hit.
+    pub fn break_into_lines(&mut self, text: &str, style: &TextStyle, max_width: f32) -> Vec<ShapedLine> {
+        self.maybe_invalidate_text_cache();
+        let key = lines_cache_key(text, style, max_width);
+        if let Some(cached) = self.lines_cache.get(&key) {
+            return cached.clone();
+        }
+        let lines = self.font_ctx.break_into_lines(text, style, max_width);
+        self.lines_cache.insert(key, lines.clone());
+        lines
     }
 
     /// Register a custom font face (e.g. an icon font like Lucide).

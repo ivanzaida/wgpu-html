@@ -103,17 +103,17 @@ fn layout_text_node(
 
             let can_wrap = matches!(white_space, "pre-wrap" | "pre-line");
             if can_wrap && max_width > 0.0 {
-                let lines = text_ctx.font_ctx.break_into_lines(&segment, &style, max_width);
+                let lines = text_ctx.break_into_lines(&segment, &style, max_width);
                 for line in &lines {
                     max_line_width = max_line_width.max(line.width);
                     total_height += line.height;
                 }
                 if first_ascent.is_none() && !lines.is_empty() {
-                    let run = text_ctx.font_ctx.shape(&segment, &style);
+                    let run = text_ctx.shape(&segment, &style);
                     first_ascent = Some(run.ascent);
                 }
             } else {
-                let run = text_ctx.font_ctx.shape(&segment, &style);
+                let run = text_ctx.shape(&segment, &style);
                 max_line_width = max_line_width.max(run.width);
                 total_height += run.height;
                 if first_ascent.is_none() { first_ascent = Some(run.ascent); }
@@ -135,7 +135,7 @@ fn layout_text_node(
             text.to_string()
         };
 
-        let lines = text_ctx.font_ctx.break_into_lines(&effective_text, &style, max_width);
+        let lines = text_ctx.break_into_lines(&effective_text, &style, max_width);
         if lines.is_empty() {
             b.content.x = pos.x;
             b.content.y = pos.y;
@@ -153,10 +153,10 @@ fn layout_text_node(
         b.content.y = pos.y;
         b.content.width = adjust_width(max_line_width, text);
         b.content.height = total_height;
-        let first_line_run = text_ctx.font_ctx.shape(text, &style);
+        let first_line_run = text_ctx.shape(text, &style);
         b.baseline = Some(first_line_run.ascent);
     } else {
-        let run = text_ctx.font_ctx.shape(text, &style);
+        let run = text_ctx.shape(text, &style);
         b.content.x = pos.x;
         b.content.y = pos.y;
         b.content.width = adjust_width(run.width, text);
@@ -174,12 +174,12 @@ fn break_long_words(
     let mut result = String::with_capacity(text.len() + 10);
     for word in text.split(' ') {
         if !result.is_empty() { result.push(' '); }
-        let run = text_ctx.font_ctx.shape(word, style);
+        let run = text_ctx.shape(word, style);
         if run.width > max_width && word.len() > 1 {
             let mut current = String::new();
             for ch in word.chars() {
                 current.push(ch);
-                let w = text_ctx.font_ctx.shape(&current, style).width;
+                let w = text_ctx.shape(&current, style).width;
                 if w > max_width && current.len() > 1 {
                     current.pop();
                     result.push_str(&current);

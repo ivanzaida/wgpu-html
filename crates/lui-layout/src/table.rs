@@ -549,7 +549,7 @@ fn estimate_cell_height(cell: &LayoutBox, cell_w: f32, ctx: &LayoutContext, text
   for child in &cell.children {
     if let lui_core::HtmlElement::Text(ref content) = child.node.element {
       let style = crate::text::text_style_from_cascade(child.style);
-      let lines = text_ctx.font_ctx.break_into_lines(content, &style, inner_w);
+      let lines = text_ctx.break_into_lines(content, &style, inner_w);
       h += lines.iter().map(|l| l.height).sum::<f32>();
     } else if let Some(ch) = sizes::resolve_length(child.style.height, ctx.containing_height) {
       h += ch;

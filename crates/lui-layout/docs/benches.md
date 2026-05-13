@@ -20,7 +20,7 @@ Stylesheets: UA (WHATWG ~605 rules) + reset (`* { margin:0; padding:0; border-wi
 | 2 | Skip `build_box` for clean subtrees in incremental mode | incremental | done | 2 |
 | 3 | Arena-allocate `LayoutBox` children (replace per-node `Vec`) | all | done | 3 |
 | 4 | Pre-allocate rects `Vec` from previous frame's count | all | done | 4 |
-| 5 | Cache text shaping results across layout passes | inline | pending | — |
+| 5 | Cache text shaping results across layout passes | all | done | 5 |
 
 ### Fixtures
 
@@ -513,3 +513,89 @@ Changes: `LayoutCache` stores previous frame's rects count. `LayoutEngine::layou
 | large incremental 1 leaf | 381 µs | −96.8% | −0.3% |
 
 > **Summary:** Biggest wins on large trees where rects Vec had many reallocations: large mixed −5.2%, large full baseline −6.2%, 50×8 table −8.0%, 20×6 table −9.4%. Small trees within noise (already few rects). Free functions (first call) unaffected since they start with capacity 0.
+
+---
+
+## Run 5 — Cache text shaping across layout passes
+
+Date: 2026-05-13
+Changes: Added `TextContext::shape()` and `TextContext::break_into_lines()` with HashMap cache. Layout now calls these instead of `font_ctx.shape()` directly. Repeat layout passes hit cache for all text nodes — cosmic-text `shape_until_scroll` bypassed entirely.
+
+### Block Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| 50 stacked divs | 50 | 40.0 µs | 800 | **−93.9%** |
+| 200 stacked divs | 200 | 160 µs | 800 | **−94.2%** |
+| nested 4×3 | 120 | 81.7 µs | 681 | **−89.8%** |
+| nested 3×8 | 585 | 932 µs | 1,593 | **−84.2%** |
+
+### Flex Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| row 10 items | 10 | 13.1 µs | 1,310 | **−94.4%** |
+| row 50 items | 50 | 63.1 µs | 1,262 | **−94.7%** |
+| wrap 5×4 | 20 | 28.7 µs | 1,435 | **−95.3%** |
+| wrap 10×8 | 80 | 114 µs | 1,425 | **−95.5%** |
+| nested 3 deep | 40 | 54.2 µs | 1,355 | **−92.8%** |
+| nested 4 deep | 120 | 204 µs | 1,700 | **−93.4%** |
+
+### Grid Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| 4×4 fixed | 16 | 15.1 µs | 944 | **−93.5%** |
+| 10×6 fixed | 60 | 59.6 µs | 993 | **−93.1%** |
+| auto 24 items | 24 | 21.3 µs | 888 | **−93.8%** |
+| auto 100 items | 100 | 89.9 µs | 899 | **−93.9%** |
+
+### Table Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| 5×4 simple | 24 | 20.0 µs | 833 | **−91.1%** |
+| 20×6 simple | 126 | 105 µs | 833 | **−91.5%** |
+| 50×8 simple | 408 | 354 µs | 868 | **−91.7%** |
+| 20×6 colspan | 106 | 95.4 µs | 900 | **−91.6%** |
+
+### Inline Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| 20 spans | 20 | 16.7 µs | 835 | **−93.2%** |
+| 100 spans | 100 | 79.2 µs | 792 | **−93.5%** |
+| 500 spans | 500 | 546 µs | 1,092 | **−91.5%** |
+
+### Positioned Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| 20 absolute | 20 | 16.7 µs | 835 | **−93.4%** |
+| 100 absolute | 100 | 76.9 µs | 769 | **−94.4%** |
+
+### Mixed Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| dashboard page | 40 | 36.9 µs | 923 | **−93.0%** |
+
+### End-to-End (cascade + layout)
+
+| Fixture | Nodes | Time | ns/node | vs Run 4 |
+|---------|-------|------|---------|----------|
+| cascade + layout | 40 | 437 µs | 10,925 | **−53.1%** |
+| large mixed tree | 300 | 1.63 ms | 5,433 | **−56.2%** |
+
+### Incremental Layout
+
+| Fixture | Time | vs full | vs Run 4 |
+|---------|------|---------|----------|
+| full baseline (dashboard) | 35.4 µs | — | **−92.8%** |
+| incremental 0 dirty | 34.1 µs | −3.7% | **−93.6%** |
+| incremental 1 dirty leaf | 36.6 µs | +3.4% | **−40.5%** |
+| incremental 1 dirty near root | 76.5 µs | +116% | **−85.9%** |
+| large full baseline | 10.85 ms | — | **−9.0%** |
+| large incremental 1 leaf | 364 µs | −96.6% | −4.5% |
+
+> **Summary:** Text shaping cache delivers **~93% improvement** across all layout benchmarks on the second+ call. `shape()` and `break_into_lines()` now hit a HashMap cache, completely bypassing cosmic-text's Buffer/shaping pipeline. First call still pays full cost; subsequent calls with same text+style are essentially free. End-to-end (cascade+layout) shows −53% since cascade isn't cached here. Large tree full baseline −9% (first call benefits from cross-node cache hits for identical text).

@@ -759,7 +759,7 @@ fn find_first_baseline(box_: &LayoutBox) -> Option<f32> {
 fn measure_max_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
     if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
         let style = crate::text::text_style_from_cascade(box_.style);
-        let run = text_ctx.font_ctx.shape(content, &style);
+        let run = text_ctx.shape(content, &style);
         return run.width;
     }
 
@@ -792,7 +792,7 @@ fn measure_min_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f3
         let style = crate::text::text_style_from_cascade(box_.style);
         let mut max_word = 0.0_f32;
         for word in content.split_whitespace() {
-            let run = text_ctx.font_ctx.shape(word, &style);
+            let run = text_ctx.shape(word, &style);
             max_word = max_word.max(run.width);
         }
         return max_word;
@@ -814,12 +814,12 @@ fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
         let style = crate::text::text_style_from_cascade(box_.style);
         let min_w = measure_min_content_width(box_, text_ctx);
         if min_w > 0.0 {
-            let lines = text_ctx.font_ctx.break_into_lines(content, &style, min_w);
+            let lines = text_ctx.break_into_lines(content, &style, min_w);
             if !lines.is_empty() {
                 return lines.iter().map(|l| l.height).sum();
             }
         }
-        let run = text_ctx.font_ctx.shape(content, &style);
+        let run = text_ctx.shape(content, &style);
         return run.height;
     }
 
@@ -846,7 +846,7 @@ fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
 fn measure_max_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
     if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
         let style = crate::text::text_style_from_cascade(box_.style);
-        let run = text_ctx.font_ctx.shape(content, &style);
+        let run = text_ctx.shape(content, &style);
         return run.height;
     }
 
