@@ -19,7 +19,7 @@ Stylesheets: UA (WHATWG ~605 rules) + reset (`* { margin:0; padding:0; border-wi
 | 1 | Eliminate `LayoutCache` HashMap clone on incremental path | incremental | done | 1 |
 | 2 | Skip `build_box` for clean subtrees in incremental mode | incremental | done | 2 |
 | 3 | Arena-allocate `LayoutBox` children (replace per-node `Vec`) | all | done | 3 |
-| 4 | Pre-allocate rects `Vec` from previous frame's count | all | pending | — |
+| 4 | Pre-allocate rects `Vec` from previous frame's count | all | done | 4 |
 | 5 | Cache text shaping results across layout passes | inline | pending | — |
 
 ### Fixtures
@@ -427,3 +427,89 @@ Changes: `LayoutBox.children` changed from `Vec<LayoutBox>` to `bumpalo::collect
 | large incremental 1 leaf | 382 µs | −97.0% | **−10.1%** |
 
 > **Summary:** Modest but consistent improvement across the board. Largest gains on big trees: 50×8 table −4.9%, 500 spans −4.3%, large mixed tree −2.5%, large incremental −10.1%. Arena eliminates per-node malloc/free overhead; deallocation is a single Bump reset instead of hundreds of free() calls.
+
+---
+
+## Run 4 — Pre-allocate rects Vec
+
+Date: 2026-05-13
+Changes: `LayoutCache` stores previous frame's rects count. `LayoutEngine::layout()` and incremental paths use `Vec::with_capacity(prev_count)` to avoid rects Vec reallocations.
+
+### Block Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| 50 stacked divs | 50 | 657 µs | 13,140 | −4.4% |
+| 200 stacked divs | 200 | 2.78 ms | 13,900 | −6.7% |
+| nested 4×3 | 120 | 799 µs | 6,658 | −1.7% |
+| nested 3×8 | 585 | 5.91 ms | 10,103 | −0.9% |
+
+### Flex Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| row 10 items | 10 | 233 µs | 23,300 | +1.7% |
+| row 50 items | 50 | 1.20 ms | 24,000 | −4.8% |
+| wrap 5×4 | 20 | 616 µs | 30,800 | +0.3% |
+| wrap 10×8 | 80 | 2.52 ms | 31,500 | +0.0% |
+| nested 3 deep | 40 | 754 µs | 18,850 | −2.0% |
+| nested 4 deep | 120 | 3.10 ms | 25,833 | +0.0% |
+
+### Grid Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| 4×4 fixed | 16 | 232 µs | 14,500 | +0.4% |
+| 10×6 fixed | 60 | 858 µs | 14,300 | −0.3% |
+| auto 24 items | 24 | 345 µs | 14,375 | −1.5% |
+| auto 100 items | 100 | 1.47 ms | 14,700 | +0.7% |
+
+### Table Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| 5×4 simple | 24 | 224 µs | 9,333 | −5.5% |
+| 20×6 simple | 126 | 1.23 ms | 9,762 | −9.4% |
+| 50×8 simple | 408 | 4.25 ms | 10,417 | −8.0% |
+| 20×6 colspan | 106 | 1.14 ms | 10,755 | −5.0% |
+
+### Inline Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| 20 spans | 20 | 247 µs | 12,350 | −1.2% |
+| 100 spans | 100 | 1.22 ms | 12,200 | −1.6% |
+| 500 spans | 500 | 6.45 ms | 12,900 | −4.6% |
+
+### Positioned Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| 20 absolute | 20 | 253 µs | 12,650 | −7.0% |
+| 100 absolute | 100 | 1.37 ms | 13,700 | +0.7% |
+
+### Mixed Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| dashboard page | 40 | 528 µs | 13,200 | +2.5% |
+
+### End-to-End (cascade + layout)
+
+| Fixture | Nodes | Time | ns/node | vs Run 3 |
+|---------|-------|------|---------|----------|
+| cascade + layout | 40 | 932 µs | 23,300 | +0.5% |
+| large mixed tree | 300 | 3.72 ms | 12,400 | −5.2% |
+
+### Incremental Layout
+
+| Fixture | Time | vs full | vs Run 3 |
+|---------|------|---------|----------|
+| full baseline (dashboard) | 490 µs | — | −4.7% |
+| incremental 0 dirty | 531 µs | +8.4% | +5.4% |
+| incremental 1 dirty leaf | 61.5 µs | −87.4% | +3.7% |
+| incremental 1 dirty near root | 543 µs | +10.8% | −2.5% |
+| large full baseline | 11.92 ms | — | **−6.2%** |
+| large incremental 1 leaf | 381 µs | −96.8% | −0.3% |
+
+> **Summary:** Biggest wins on large trees where rects Vec had many reallocations: large mixed −5.2%, large full baseline −6.2%, 50×8 table −8.0%, 20×6 table −9.4%. Small trees within noise (already few rects). Free functions (first call) unaffected since they start with capacity 0.

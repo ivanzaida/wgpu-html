@@ -39,7 +39,7 @@ impl LayoutEngine {
         viewport_width: f32,
         viewport_height: f32,
     ) -> LayoutTree<'a> {
-        let tree = layout_tree_with(styled, viewport_width, viewport_height, &mut self.text_ctx);
+        let tree = layout_tree_inner(styled, viewport_width, viewport_height, &mut self.text_ctx, self.cache.prev_rects_count);
         self.cache = LayoutCache::snapshot(&tree);
         tree
     }
@@ -74,13 +74,15 @@ pub fn layout_tree<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport
 
 /// Compute layout reusing an existing `TextContext` (avoids re-scanning system fonts).
 pub fn layout_tree_with<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport_height: f32, text_ctx: &mut TextContext) -> LayoutTree<'a> {
+    layout_tree_inner(styled, viewport_width, viewport_height, text_ctx, 0)
+}
+
+fn layout_tree_inner<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport_height: f32, text_ctx: &mut TextContext, rects_hint: usize) -> LayoutTree<'a> {
     let arena_ptr = Box::into_raw(Box::new(Bump::new()));
-    // SAFETY: arena_ptr is valid, and the &'a Bump reference lives as long as the LayoutTree
-    // (which owns the arena and drops root before freeing it).
     let bump: &'a Bump = unsafe { &*arena_ptr };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
-    let mut rects = Vec::new();
+    let mut rects = Vec::with_capacity(rects_hint);
     let view = CacheView::Full;
     let root = build_box(styled, bump);
     let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view, bump);

@@ -38,6 +38,7 @@ pub struct CachedBox {
 pub struct LayoutCache {
     boxes: FxHashMap<*const HtmlNode, CachedBox>,
     old_tree: FxHashMap<*const HtmlNode, OldBoxRef>,
+    pub(crate) prev_rects_count: usize,
 }
 
 /// Per-frame dirty set, built from dirty paths.
@@ -63,6 +64,7 @@ impl LayoutCache {
         Self {
             boxes: FxHashMap::default(),
             old_tree: FxHashMap::default(),
+            prev_rects_count: 0,
         }
     }
 
@@ -70,7 +72,7 @@ impl LayoutCache {
         let mut boxes = FxHashMap::default();
         let mut old_tree = FxHashMap::default();
         collect_cached(&tree.root, &mut boxes, &mut old_tree, tree.root.content.width);
-        Self { boxes, old_tree }
+        Self { boxes, old_tree, prev_rects_count: tree.rects.len() }
     }
 
     pub fn from_tree(prev: &LayoutTree) -> Self {
@@ -338,7 +340,7 @@ pub fn layout_incremental_with<'a>(
     let view = CacheView::Incremental { cache: prev_cache, dirty: &dirty };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
-    let mut rects = Vec::new();
+    let mut rects = Vec::with_capacity(prev_cache.prev_rects_count);
     let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty, bump);
     let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view, bump);
     LayoutTree::new(root, rects, arena_ptr)
@@ -375,7 +377,7 @@ pub fn layout_tree_incremental_with<'a>(
     let view = CacheView::Incremental { cache: &cache, dirty: &dirty };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
-    let mut rects = Vec::new();
+    let mut rects = Vec::with_capacity(cache.prev_rects_count);
     let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty, bump);
     let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view, bump);
     LayoutTree::new(root, rects, arena_ptr)
