@@ -1,0 +1,12 @@
+[package]
+name = "lui-driver-winit"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-driver = { path = "../lui-driver" }
+lui-parse = { path = "../../crates/lui-parse" }
+lui-display-list.workspace = true
+lui-renderer-wgpu.workspace = true
+winit.workspace = true
+pollster.workspace = true

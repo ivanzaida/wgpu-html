@@ -25,6 +25,9 @@ members = [
     "renderers/lui-render-api",
     "renderers/lui-renderer-wgpu",
 
+    "drivers/lui-driver",
+    "drivers/lui-driver-winit",
+
     "drivers-v1/lui-driver",
     "drivers-v1/lui-driver-bevy",
     "drivers-v1/lui-driver-egui",
