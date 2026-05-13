@@ -32,6 +32,19 @@ impl ApplicationHandler for App {
         event_loop.exit();
         return;
       }
+      WindowEvent::KeyboardInput { event, .. }
+        if event.state == winit::event::ElementState::Pressed =>
+      {
+        if event.physical_key == winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::F12) {
+          if let Some(driver) = &mut self.driver {
+            match driver.screenshot_to("screenshot.png") {
+              Ok(()) => eprintln!("[lui-demo] saved screenshot.png"),
+              Err(e) => eprintln!("[lui-demo] screenshot failed: {e:?}"),
+            }
+          }
+          return;
+        }
+      }
       _ => {}
     }
     if let Some(driver) = &mut self.driver {

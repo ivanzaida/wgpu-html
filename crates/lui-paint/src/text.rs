@@ -25,7 +25,7 @@ pub fn paint_text(
     let font_size = style::css_f32(b.style.font_size).max(1.0);
     let line_height = match b.style.line_height {
         Some(lui_core::CssValue::Dimension { value, unit: lui_core::CssUnit::Px }) => *value as f32,
-        Some(lui_core::CssValue::Number(n)) => (*n as f32 * font_size),
+        Some(lui_core::CssValue::Number(n)) => *n as f32 * font_size,
         _ => font_size * 1.2,
     };
     let weight = match b.style.font_weight {
