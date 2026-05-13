@@ -12,11 +12,14 @@ pub struct TextStyle<'a> {
     pub line_height: f32,
     pub font_family: &'a str,
     pub weight: u16,
+    pub letter_spacing: f32,
+    pub word_spacing: f32,
 }
 
 impl Default for TextStyle<'_> {
     fn default() -> Self {
-        Self { font_size: 16.0, line_height: 19.2, font_family: "sans-serif", weight: 400 }
+        Self { font_size: 16.0, line_height: 19.2, font_family: "sans-serif", weight: 400,
+            letter_spacing: 0.0, word_spacing: 0.0 }
     }
 }
 
@@ -195,7 +198,7 @@ impl FontContext {
         } else {
             let ts = TextStyle {
                 font_family: families.first().copied().unwrap_or("sans-serif"),
-                font_size, line_height, weight,
+                font_size, line_height, weight, ..Default::default()
             };
             let attrs = build_attrs(&ts);
             self.shape_with_attrs(text, &attrs, font_size, line_height)
@@ -222,7 +225,7 @@ impl FontContext {
         } else {
             let ts = TextStyle {
                 font_family: families.first().copied().unwrap_or("sans-serif"),
-                font_size, line_height, weight,
+                font_size, line_height, weight, ..Default::default()
             };
             let attrs = build_attrs(&ts);
             self.measure_with_attrs(text, &attrs, font_size, line_height)
@@ -234,7 +237,7 @@ impl FontContext {
     fn shape_with_attrs(&mut self, text: &str, attrs: &Attrs, font_size: f32, line_height: f32) -> ShapedRun {
         let metrics = Metrics::new(font_size, line_height);
         let mut buffer = Buffer::new(&mut self.system, metrics);
-        buffer.set_size(Some(font_size), Some(line_height));
+        buffer.set_size(None, None);
         buffer.set_text(text, attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(&mut self.system, false);
 
@@ -279,7 +282,7 @@ impl FontContext {
     fn measure_with_attrs(&mut self, text: &str, attrs: &Attrs, font_size: f32, line_height: f32) -> RunMetrics {
         let metrics = Metrics::new(font_size, line_height);
         let mut buffer = Buffer::new(&mut self.system, metrics);
-        buffer.set_size(Some(font_size), Some(line_height));
+        buffer.set_size(None, None);
         buffer.set_text(text, attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(&mut self.system, false);
 

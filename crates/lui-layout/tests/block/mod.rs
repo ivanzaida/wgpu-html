@@ -559,3 +559,217 @@ fn overflow_hidden_prevents_margin_collapse() {
     assert!((parent.margin.top - 10.0).abs() < 1.0,
         "overflow:hidden should prevent collapse, got {}", parent.margin.top);
 }
+
+// ── Empty block self-collapsing ───────────────────────────────────────
+
+#[test]
+fn empty_block_self_collapses_margins() {
+    // An empty block with margin-top:20 and margin-bottom:30 collapses
+    // to a single 30px margin (max). The next sibling sees that collapsed margin.
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:300px">
+            <div style="height:50px">before</div>
+            <div style="margin-top:20px; margin-bottom:30px"></div>
+            <div style="height:50px">after</div>
+        </div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // before: 50px, then empty collapses to max(20,30)=30, then after: 50px
+    // Total should be 50 + 30 + 50 = 130, not 50 + 20 + 30 + 50 = 150
+    assert!((container.content.height - 130.0).abs() < 1.0,
+        "empty block should self-collapse to 30px margin, total={}", container.content.height);
+}
+
+#[test]
+fn empty_block_collapses_with_adjacent_siblings() {
+    // Empty block's self-collapsed margin (20px) collapses with
+    // previous sibling's margin-bottom (40px) → max(40,20)=40
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:300px">
+            <div style="height:50px; margin-bottom:40px">before</div>
+            <div style="margin-top:20px; margin-bottom:20px"></div>
+            <div style="height:50px">after</div>
+        </div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // before(50) + collapsed(max(40, max(20,20))=40) + after(50) = 140
+    assert!((container.content.height - 140.0).abs() < 1.0,
+        "empty block collapses through, total={}", container.content.height);
+}
+
+#[test]
+fn empty_block_with_border_does_not_self_collapse() {
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:300px">
+            <div style="height:50px">before</div>
+            <div style="margin-top:20px; margin-bottom:30px; border-top-width:1px"></div>
+            <div style="height:50px">after</div>
+        </div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // border prevents self-collapsing → margins stay separate
+    // 50 + 20 + 1(border) + 30 + 50 = 151 (with sibling collapsing on 20 and 30)
+    // Actually the empty div has border so it's not empty — normal sibling collapse applies
+    assert!(container.content.height > 130.0,
+        "border should prevent self-collapse, total={}", container.content.height);
+}
+
+#[test]
+fn multiple_empty_blocks_collapse_together() {
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:300px">
+            <div style="height:50px; margin-bottom:10px">before</div>
+            <div style="margin-top:15px; margin-bottom:15px"></div>
+            <div style="margin-top:20px; margin-bottom:20px"></div>
+            <div style="margin-top:10px; height:50px">after</div>
+        </div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // All margins between before and after collapse:
+    // max(10, 15, 15, 20, 20, 10) = 20
+    // Total: 50 + 20 + 50 = 120
+    assert!((container.content.height - 120.0).abs() < 1.0,
+        "multiple empty blocks collapse, total={}", container.content.height);
+}
+
+// ============================================================================
+// display: flow-root
+// ============================================================================
+
+#[test]
+fn flow_root_prevents_margin_collapse_with_children() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flow-root; width:200px">
+        <div style="margin-top:30px; height:50px">child</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let fr = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // flow-root is a BFC: child's 30px margin-top should NOT collapse through
+    assert!(fr.content.height >= 79.0,
+        "flow-root should contain child margin, height={}", fr.content.height);
+}
+
+#[test]
+// ============================================================================
+// text-align
+// ============================================================================
+
+#[test]
+fn text_align_center_centers_inline_content() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="text-align:center; width:300px">Hello</div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let div = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let text_box = &div.children[0];
+    let text_center = text_box.content.x + text_box.content.width / 2.0;
+    let div_center = div.content.x + div.content.width / 2.0;
+    assert!((text_center - div_center).abs() < 2.0,
+        "text-align:center should center text, text_center={}, div_center={}", text_center, div_center);
+}
+
+#[test]
+fn text_align_right_pushes_to_end() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="text-align:right; width:300px">Hello</div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let div = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let text_box = &div.children[0];
+    let text_end = text_box.content.x + text_box.content.width;
+    let div_end = div.content.x + div.content.width;
+    assert!((div_end - text_end).abs() < 2.0,
+        "text-align:right should push text to right edge, text_end={}, div_end={}", text_end, div_end);
+}
+
+#[test]
+fn text_align_justify_stretches_block() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="text-align:justify; width:300px">Hello</div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let div = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let text_box = &div.children[0];
+    assert!((text_box.content.width - 300.0).abs() < 1.0,
+        "text-align:justify should stretch block to 300px, got {}", text_box.content.width);
+}
+
+#[test]
+fn flow_root_lays_out_as_block() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flow-root; width:200px">
+        <div style="height:50px">A</div><div style="height:50px">B</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let fr = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((fr.content.height - 100.0).abs() < 1.0,
+        "flow-root stacks children vertically: 50+50=100, got {}", fr.content.height);
+}
+
+// ============================================================================
+// Table layout
+// ============================================================================
+
+#[test]
+fn table_distributes_columns_equally() {
+    let (doc, ctx) = flex_lt(r#"
+        <table style="width:300px">
+            <tr><td style="height:30px">A</td><td style="height:30px">B</td><td style="height:30px">C</td></tr>
+        </table>
+    "#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let table = find_by_tag(&lt.root, "table").unwrap();
+    let row = find_by_tag(table, "tr").unwrap();
+    // 3 cells, 300px wide → 100px each
+    assert!((row.children[0].content.width - 100.0).abs() < 1.0,
+        "cell width should be 100px, got {}", row.children[0].content.width);
+    // Cells should be at different x positions
+    assert!(row.children[1].content.x > row.children[0].content.x, "B right of A");
+    assert!(row.children[2].content.x > row.children[1].content.x, "C right of B");
+}
+
+#[test]
+fn table_rows_stack_vertically() {
+    let (doc, ctx) = flex_lt(r#"
+        <table style="width:200px">
+            <tr><td style="height:40px">R1</td></tr>
+            <tr><td style="height:40px">R2</td></tr>
+        </table>
+    "#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let table = find_by_tag(&lt.root, "table").unwrap();
+    assert!(table.content.height >= 79.0,
+        "two rows at 40px each = 80px, got {}", table.content.height);
+}

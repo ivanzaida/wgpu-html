@@ -15,6 +15,10 @@ use crate::sides;
 use crate::sizes;
 use crate::text::TextContext;
 
+use std::collections::HashMap;
+
+type LineNames = HashMap<String, usize>;
+
 // ── Track sizing ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -32,20 +36,20 @@ enum TrackMax {
     Auto,
 }
 
-fn parse_track_list(value: Option<&CssValue>, container_width: f32) -> Vec<TrackSize> {
+fn parse_track_list(value: Option<&CssValue>, container_width: f32) -> (Vec<TrackSize>, LineNames) {
     match value {
         Some(CssValue::Unknown(s)) | Some(CssValue::String(s)) => {
             let raw = s.as_ref();
-            if raw == "none" || raw.is_empty() { return vec![]; }
+            if raw == "none" || raw.is_empty() { return (vec![], LineNames::new()); }
             parse_track_str(raw, container_width)
         }
-        Some(CssValue::Dimension { value, unit: CssUnit::Px }) => vec![TrackSize::Px(*value as f32)],
-        Some(CssValue::Dimension { value, unit: CssUnit::Fr }) => vec![TrackSize::Fr(*value as f32)],
-        Some(CssValue::Number(n)) if *n == 0.0 => vec![TrackSize::Px(0.0)],
+        Some(CssValue::Dimension { value, unit: CssUnit::Px }) => (vec![TrackSize::Px(*value as f32)], LineNames::new()),
+        Some(CssValue::Dimension { value, unit: CssUnit::Fr }) => (vec![TrackSize::Fr(*value as f32)], LineNames::new()),
+        Some(CssValue::Number(n)) if *n == 0.0 => (vec![TrackSize::Px(0.0)], LineNames::new()),
         Some(CssValue::Function { function, args }) => {
-            parse_track_function(function, args, container_width)
+            (parse_track_function(function, args, container_width), LineNames::new())
         }
-        _ => vec![],
+        _ => (vec![], LineNames::new()),
     }
 }
 
@@ -53,9 +57,22 @@ fn parse_track_function(function: &lui_core::CssFunction, args: &[CssValue], con
     let name = function.name();
     if name == "repeat" || name.contains("repeat") {
         if args.len() >= 2 {
-            let count = match &args[0] {
-                CssValue::Number(n) => *n as usize,
-                _ => 1,
+            let auto_mode = match &args[0] {
+                CssValue::Unknown(s) | CssValue::String(s) => match s.as_ref() {
+                    "auto-fill" => Some(false),
+                    "auto-fit" => Some(true),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let count = if let Some(_) = auto_mode {
+                let track_size = estimate_track_px(&args[1..], container_width);
+                if track_size > 0.0 { (container_width / track_size).floor().max(1.0) as usize } else { 1 }
+            } else {
+                match &args[0] {
+                    CssValue::Number(n) => *n as usize,
+                    _ => 1,
+                }
             };
             let mut pattern = Vec::new();
             for arg in &args[1..] {
@@ -89,8 +106,21 @@ fn parse_track_function(function: &lui_core::CssFunction, args: &[CssValue], con
     vec![]
 }
 
-fn parse_track_str(raw: &str, container_width: f32) -> Vec<TrackSize> {
+fn estimate_track_px(args: &[CssValue], container_width: f32) -> f32 {
+    let mut total = 0.0_f32;
+    for arg in args {
+        match arg {
+            CssValue::Dimension { value, unit: CssUnit::Px } => total += *value as f32,
+            CssValue::Percentage(p) => total += *p as f32 / 100.0 * container_width,
+            _ => {}
+        }
+    }
+    total
+}
+
+fn parse_track_str(raw: &str, container_width: f32) -> (Vec<TrackSize>, LineNames) {
     let mut tracks = Vec::new();
+    let mut names = LineNames::new();
     let mut chars = raw.chars().peekable();
     let mut buf = String::new();
 
@@ -98,9 +128,24 @@ fn parse_track_str(raw: &str, container_width: f32) -> Vec<TrackSize> {
         skip_ws(&mut chars);
         if chars.peek().is_none() { break; }
 
+        if chars.peek() == Some(&'[') {
+            chars.next();
+            let mut name_buf = String::new();
+            while let Some(&c) = chars.peek() {
+                if c == ']' { chars.next(); break; }
+                name_buf.push(c);
+                chars.next();
+            }
+            let line_idx = tracks.len();
+            for n in name_buf.split_whitespace() {
+                names.insert(n.to_owned(), line_idx);
+            }
+            continue;
+        }
+
         buf.clear();
         while let Some(&c) = chars.peek() {
-            if c.is_ascii_whitespace() { break; }
+            if c.is_ascii_whitespace() || c == '[' { break; }
             if c == '(' {
                 buf.push(c);
                 chars.next();
@@ -123,11 +168,18 @@ fn parse_track_str(raw: &str, container_width: f32) -> Vec<TrackSize> {
             let inner = &buf[7..buf.len()-1];
             if let Some((count_str, pattern)) = inner.split_once(',') {
                 let count_str = count_str.trim();
-                if let Ok(count) = count_str.parse::<usize>() {
-                    let pattern_tracks = parse_track_str(pattern.trim(), container_width);
-                    for _ in 0..count {
-                        tracks.extend(pattern_tracks.iter().cloned());
-                    }
+                let (pattern_tracks, _pattern_names) = parse_track_str(pattern.trim(), container_width);
+                let count = if count_str == "auto-fill" || count_str == "auto-fit" {
+                    let track_px: f32 = pattern_tracks.iter().map(|t| match t {
+                        TrackSize::Px(v) => *v,
+                        _ => 0.0,
+                    }).sum();
+                    if track_px > 0.0 { (container_width / track_px).floor().max(1.0) as usize } else { 1 }
+                } else {
+                    count_str.parse::<usize>().unwrap_or(1)
+                };
+                for _ in 0..count {
+                    tracks.extend(pattern_tracks.iter().cloned());
                 }
             }
         } else if buf.starts_with("minmax(") && buf.ends_with(')') {
@@ -151,7 +203,7 @@ fn parse_track_str(raw: &str, container_width: f32) -> Vec<TrackSize> {
             tracks.push(parse_single_size(&buf, container_width));
         }
     }
-    tracks
+    (tracks, names)
 }
 
 fn parse_single_size(token: &str, container_width: f32) -> TrackSize {
@@ -226,6 +278,60 @@ fn resolve_tracks(defs: &[TrackSize], available: f32, gap: f32, auto_sizes: &[f3
 
 // ── Grid item placement ───────────────────────────────────────────────
 
+struct AreaPlacement {
+    col_start: usize,
+    col_end: usize,
+    row_start: usize,
+    row_end: usize,
+}
+
+fn parse_template_areas(
+    value: Option<&CssValue>,
+    col_names: &mut LineNames,
+    row_names: &mut LineNames,
+    col_defs: &mut Vec<TrackSize>,
+    row_defs: &mut Vec<TrackSize>,
+) -> HashMap<String, AreaPlacement> {
+    let mut areas: HashMap<String, AreaPlacement> = HashMap::new();
+    let raw = match value {
+        Some(CssValue::Unknown(s)) | Some(CssValue::String(s)) => s.as_ref(),
+        _ => return areas,
+    };
+    if raw == "none" || raw.is_empty() { return areas; }
+
+    let rows: Vec<&str> = raw.split('"')
+        .filter(|s| !s.trim().is_empty())
+        .collect();
+
+    for (row_idx, row_str) in rows.iter().enumerate() {
+        let cells: Vec<&str> = row_str.split_whitespace().collect();
+        for (col_idx, &name) in cells.iter().enumerate() {
+            if name == "." { continue; }
+            let entry = areas.entry(name.to_owned()).or_insert(AreaPlacement {
+                col_start: col_idx, col_end: col_idx + 1,
+                row_start: row_idx, row_end: row_idx + 1,
+            });
+            if col_idx < entry.col_start { entry.col_start = col_idx; }
+            if col_idx + 1 > entry.col_end { entry.col_end = col_idx + 1; }
+            if row_idx < entry.row_start { entry.row_start = row_idx; }
+            if row_idx + 1 > entry.row_end { entry.row_end = row_idx + 1; }
+        }
+
+        while col_defs.len() < cells.len() { col_defs.push(TrackSize::Fr(1.0)); }
+    }
+
+    while row_defs.len() < rows.len() { row_defs.push(TrackSize::Auto); }
+
+    for (name, area) in &areas {
+        col_names.entry(format!("{}-start", name)).or_insert(area.col_start);
+        col_names.entry(format!("{}-end", name)).or_insert(area.col_end);
+        row_names.entry(format!("{}-start", name)).or_insert(area.row_start);
+        row_names.entry(format!("{}-end", name)).or_insert(area.row_end);
+    }
+
+    areas
+}
+
 fn css_str(v: Option<&CssValue>) -> &str {
     match v {
         Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => s.as_ref(),
@@ -256,7 +362,7 @@ fn parse_line_value(v: Option<&CssValue>) -> LinePlacement {
             if let Ok(n) = s.parse::<i32>() {
                 return LinePlacement::Line(n.max(1) as usize);
             }
-            LinePlacement::Auto
+            LinePlacement::Name(s.to_owned())
         }
         _ => LinePlacement::Auto,
     }
@@ -267,6 +373,7 @@ enum LinePlacement {
     Auto,
     Line(usize),
     Span(usize),
+    Name(String),
 }
 
 fn resolve_placement(
@@ -274,9 +381,13 @@ fn resolve_placement(
     auto_col: &mut usize,
     auto_row: &mut usize,
     num_cols: usize,
+    num_rows: usize,
     occupied: &mut Vec<Vec<bool>>,
     flow_column: bool,
     dense: bool,
+    col_names: &LineNames,
+    row_names: &LineNames,
+    area_map: &HashMap<String, AreaPlacement>,
 ) -> GridPlacement {
     let cs = parse_line_value(style.grid_column_start);
     let ce = parse_line_value(style.grid_column_end);
@@ -294,29 +405,56 @@ fn resolve_placement(
         _ => 1,
     };
 
+    let resolve_name_start = |name: &str, names: &LineNames, area_map: &HashMap<String, AreaPlacement>, is_col: bool| -> Option<usize> {
+        if let Some(area) = area_map.get(name) {
+            return Some(if is_col { area.col_start } else { area.row_start });
+        }
+        let suffixed = format!("{}-start", name);
+        names.get(suffixed.as_str()).or_else(|| names.get(name)).copied()
+    };
+    let resolve_name_end = |name: &str, names: &LineNames, area_map: &HashMap<String, AreaPlacement>, is_col: bool| -> Option<usize> {
+        if let Some(area) = area_map.get(name) {
+            return Some(if is_col { area.col_end } else { area.row_end });
+        }
+        let suffixed = format!("{}-end", name);
+        names.get(suffixed.as_str()).or_else(|| names.get(name)).copied()
+    };
+
     let col_start = match &cs {
         LinePlacement::Line(n) => (*n - 1).min(num_cols.saturating_sub(1)),
+        LinePlacement::Name(name) => resolve_name_start(name, col_names, area_map, true).unwrap_or(0),
         _ => {
             if flow_column {
-                *auto_row
+                *auto_col
             } else {
-                find_auto_slot(auto_col, auto_row, col_span, row_span, num_cols, occupied, flow_column, dense)
+                find_auto_slot(auto_col, auto_row, col_span, row_span, num_cols, num_rows, occupied, flow_column, dense)
             }
         }
     };
     let row_start = match &rs {
         LinePlacement::Line(n) => *n - 1,
+        LinePlacement::Name(name) => resolve_name_start(name, row_names, area_map, false).unwrap_or(0),
         _ => {
             if flow_column {
-                find_auto_slot(auto_col, auto_row, col_span, row_span, num_cols, occupied, flow_column, dense)
+                find_auto_slot(auto_col, auto_row, col_span, row_span, num_cols, num_rows, occupied, flow_column, dense)
             } else {
                 *auto_row
             }
         }
     };
 
-    let col_end = col_start + col_span;
-    let row_end = row_start + row_span;
+    let col_end = match &ce {
+        LinePlacement::Line(n) => (*n - 1).max(col_start + 1),
+        LinePlacement::Span(n) => col_start + n,
+        LinePlacement::Name(name) => resolve_name_end(name, col_names, area_map, true).unwrap_or(col_start + 1),
+        LinePlacement::Auto => col_start + col_span,
+    };
+    let row_end = match &re {
+        LinePlacement::Line(n) => (*n - 1).max(row_start + 1),
+        LinePlacement::Span(n) => row_start + n,
+        LinePlacement::Name(name) => resolve_name_end(name, row_names, area_map, false).unwrap_or(row_start + 1),
+        LinePlacement::Auto => row_start + row_span,
+    };
 
     // Mark cells as occupied
     while occupied.len() <= row_end {
@@ -330,7 +468,7 @@ fn resolve_placement(
     // Advance auto cursor past this item
     if flow_column {
         *auto_row = row_end;
-        if *auto_row >= occupied.len() { *auto_row = 0; *auto_col += 1; }
+        if *auto_row >= num_rows { *auto_row = 0; *auto_col += 1; }
     } else {
         *auto_col = col_end;
         if *auto_col >= num_cols { *auto_col = 0; *auto_row += 1; }
@@ -342,19 +480,25 @@ fn resolve_placement(
 fn find_auto_slot(
     auto_col: &mut usize, auto_row: &mut usize,
     col_span: usize, row_span: usize,
-    num_cols: usize, occupied: &mut Vec<Vec<bool>>,
-    flow_column: bool, _dense: bool,
+    num_cols: usize, num_rows: usize, occupied: &mut Vec<Vec<bool>>,
+    flow_column: bool, dense: bool,
 ) -> usize {
-    let max_iter = (occupied.len() + row_span + 20) * (num_cols + col_span);
+    if dense {
+        *auto_col = 0;
+        *auto_row = 0;
+    }
+    let max_iter = (num_rows.max(occupied.len()) + row_span + 20) * (num_cols + col_span + 20);
     for _ in 0..max_iter {
         let c = *auto_col;
         let r = *auto_row;
-        if c + col_span <= num_cols && fits(occupied, r, c, row_span, col_span) {
+        let fits_cols = if flow_column { true } else { c + col_span <= num_cols };
+        let fits_rows = if flow_column { r + row_span <= num_rows } else { true };
+        if fits_cols && fits_rows && fits(occupied, r, c, row_span, col_span) {
             return if flow_column { r } else { c };
         }
         if flow_column {
             *auto_row += 1;
-            if *auto_row + row_span > occupied.len() + 10 {
+            if *auto_row + row_span > num_rows {
                 *auto_row = 0;
                 *auto_col += 1;
             }
@@ -389,9 +533,9 @@ pub fn layout_grid<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
 ) {
-    let margin = sides::resolve_margin(b.style);
+    let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
-    let padding = sides::resolve_padding(b.style);
+    let padding = sides::resolve_padding_against(b.style, ctx.containing_width);
     b.margin = margin.edges;
     b.border = border;
     b.padding = padding;
@@ -415,8 +559,12 @@ pub fn layout_grid<'a>(
     let align_items = css_str(b.style.align_items);
     let justify_items = css_str(b.style.justify_items);
 
-    let mut col_defs = parse_track_list(b.style.grid_template_columns, inner_width);
-    let mut row_defs = parse_track_list(b.style.grid_template_rows, inner_width);
+    let (mut col_defs, mut col_names) = parse_track_list(b.style.grid_template_columns, inner_width);
+    let (mut row_defs, mut row_names) = parse_track_list(b.style.grid_template_rows, inner_width);
+
+    // Parse grid-template-areas and generate implicit named lines + area map
+    let area_map = parse_template_areas(b.style.grid_template_areas, &mut col_names, &mut row_names,
+        &mut col_defs, &mut row_defs);
 
     let child_count = b.children.len();
     if child_count == 0 {
@@ -432,14 +580,11 @@ pub fn layout_grid<'a>(
 
     let auto_row_size = parse_auto_track_size(b.style.grid_auto_rows);
     let auto_col_size = parse_auto_track_size(b.style.grid_auto_columns);
-    let _ = auto_col_size;
-
-    // Resolve initial column sizes (auto tracks get 0 initially)
-    let col_sizes = resolve_tracks(&col_defs, inner_width, gap_col, &vec![0.0; num_cols]);
 
     // Phase 1: place items
     let taken_children = std::mem::take(&mut b.children);
-    let mut items: Vec<(GridPlacement, LayoutBox<'a>)> = Vec::with_capacity(taken_children.len());
+    let mut placements: Vec<GridPlacement> = Vec::with_capacity(taken_children.len());
+    let mut children: Vec<LayoutBox<'a>> = Vec::with_capacity(taken_children.len());
     let mut auto_col = 0_usize;
     let mut auto_row = 0_usize;
     let mut occupied: Vec<Vec<bool>> = Vec::new();
@@ -448,8 +593,24 @@ pub fn layout_grid<'a>(
         if css_str(child.style.display) == "none" { continue; }
         if positioned::is_out_of_flow(child.style) { continue; }
 
-        let placement = resolve_placement(child.style, &mut auto_col, &mut auto_row, num_cols, &mut occupied, flow_column, dense);
+        let num_rows_for_placement = row_defs.len().max(1);
+        let placement = resolve_placement(child.style, &mut auto_col, &mut auto_row, num_cols, num_rows_for_placement, &mut occupied, flow_column, dense, &col_names, &row_names, &area_map);
+        placements.push(placement);
+        children.push(child);
+    }
 
+    // Grow implicit columns for column-flow
+    let max_col_end = placements.iter().map(|p| p.col_end).max().unwrap_or(num_cols);
+    while col_defs.len() < max_col_end {
+        col_defs.push(auto_col_size.clone());
+    }
+
+    // Resolve column sizes
+    let col_sizes = resolve_tracks(&col_defs, inner_width, gap_col, &vec![0.0; col_defs.len()]);
+
+    // Phase 1b: layout items at resolved column widths
+    let mut items: Vec<(GridPlacement, LayoutBox<'a>)> = Vec::with_capacity(children.len());
+    for (placement, child) in placements.into_iter().zip(children.into_iter()) {
         let item_w: f32 = (placement.col_start..placement.col_end)
             .map(|c| col_sizes.get(c).copied().unwrap_or(0.0))
             .sum::<f32>()

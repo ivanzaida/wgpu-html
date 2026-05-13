@@ -339,3 +339,165 @@ fn grid_percentage_tracks() {
     assert!((grid.children[0].content.width - 100.0).abs() < 1.0, "25% of 400=100, got {}", grid.children[0].content.width);
     assert!((grid.children[1].content.width - 300.0).abs() < 1.0, "75% of 400=300, got {}", grid.children[1].content.width);
 }
+
+// ── grid-auto-flow: dense ────────────────────────────────────────────
+
+#[test]
+fn grid_auto_flow_dense_fills_gaps() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-columns:1fr 1fr 1fr; grid-auto-flow:dense; width:300px">
+        <div style="height:30px; grid-column-start:2">B</div>
+        <div style="height:30px">A</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // B is explicitly placed at col 2. With dense, A should fill col 1 (the gap).
+    let b_x = grid.children[0].content.x - grid.content.x;
+    let a_x = grid.children[1].content.x - grid.content.x;
+    assert!(a_x < b_x, "dense: A should fill gap at col 1 (a_x={}, b_x={})", a_x, b_x);
+    assert!(a_x < 1.0, "dense: A should be at col 0, got offset {}", a_x);
+}
+
+// ── auto-fill / auto-fit ─────────────────────────────────────────────
+
+#[test]
+fn grid_repeat_auto_fill_computes_track_count() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-columns:repeat(auto-fill, 100px); width:350px">
+        <div style="height:30px">A</div><div style="height:30px">B</div><div style="height:30px">C</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // 350px / 100px = 3 columns. All three items on same row.
+    assert!((grid.children[0].content.width - 100.0).abs() < 1.0,
+        "auto-fill 100px tracks, got {}", grid.children[0].content.width);
+    assert!((grid.children[0].content.y - grid.children[2].content.y).abs() < 1.0,
+        "all items should be on the same row");
+}
+
+#[test]
+fn grid_repeat_auto_fill_wraps_when_needed() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-columns:repeat(auto-fill, 100px); width:250px">
+        <div style="height:30px">A</div><div style="height:30px">B</div>
+        <div style="height:30px">C</div><div style="height:30px">D</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // 250px / 100px = 2 columns. A,B on row 0; C,D on row 1.
+    assert!(grid.children[2].content.y > grid.children[0].content.y,
+        "C should wrap to next row");
+}
+
+#[test]
+fn grid_repeat_auto_fit_collapses_empty_tracks() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-columns:repeat(auto-fit, 100px); width:400px">
+        <div style="height:30px">A</div><div style="height:30px">B</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // 400px / 100px = 4 tracks. Only 2 items. auto-fit collapses empty tracks 3 and 4.
+    // With fr-like behavior on collapsed tracks, A and B should each get 100px.
+    assert!((grid.children[0].content.width - 100.0).abs() < 1.0,
+        "auto-fit items should be 100px, got {}", grid.children[0].content.width);
+}
+
+// ── grid-auto-flow: column ───────────────────────────────────────────
+
+#[test]
+fn grid_auto_flow_column_places_items_column_first() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-rows:50px 50px; grid-auto-flow:column; grid-auto-columns:100px; width:400px">
+        <div>A</div><div>B</div><div>C</div><div>D</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // Column flow: A→row0/col0, B→row1/col0, C→row0/col1, D→row1/col1
+    assert!((grid.children[0].content.y - grid.children[2].content.y).abs() < 1.0,
+        "A and C should be on same row (row 0)");
+    assert!(grid.children[2].content.x > grid.children[0].content.x,
+        "C should be right of A (different column)");
+}
+
+#[test]
+fn grid_auto_columns_size_used_in_column_flow() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-rows:50px; grid-auto-flow:column; grid-auto-columns:80px; width:400px">
+        <div>A</div><div>B</div><div>C</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // All items in row 0, implicit columns at 80px each
+    assert!((grid.children[1].content.width - 80.0).abs() < 1.0,
+        "auto-columns:80px, got {}", grid.children[1].content.width);
+}
+
+// ── Named grid lines ─────────────────────────────────────────────────
+
+#[test]
+fn grid_named_lines_placement() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-columns:[start] 100px [mid] 200px [end]; width:400px">
+        <div style="height:30px; grid-column-start:mid">B</div>
+        <div style="height:30px">A</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let b_x = grid.children[0].content.x - grid.content.x;
+    assert!(b_x >= 99.0, "grid-column-start:mid should place at col 1 (100px offset), got {}", b_x);
+}
+
+// ── grid-template-areas ──────────────────────────────────────────────
+
+#[test]
+fn grid_template_areas_basic() {
+    let (doc, ctx) = flex_lt(r#"<div style='display:grid; grid-template-areas:"header header" "sidebar main"; grid-template-columns:100px 200px; grid-template-rows:40px 60px; width:400px'>
+        <div style="grid-area:header; height:40px">H</div>
+        <div style="grid-area:sidebar; height:60px">S</div>
+        <div style="grid-area:main; height:60px">M</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let header = &grid.children[0];
+    let sidebar = &grid.children[1];
+    let main = &grid.children[2];
+    // Header should span both columns (300px total)
+    assert!(header.content.width >= 290.0,
+        "header should span 2 cols (300px), got {}", header.content.width);
+    // Sidebar at col 0, row 1
+    let sidebar_x = sidebar.content.x - grid.content.x;
+    assert!(sidebar_x < 1.0, "sidebar at col 0, got offset {}", sidebar_x);
+    let sidebar_y = sidebar.content.y - grid.content.y;
+    assert!(sidebar_y >= 39.0, "sidebar at row 1 (40px offset), got {}", sidebar_y);
+    // Main at col 1, row 1
+    let main_x = main.content.x - grid.content.x;
+    assert!(main_x >= 99.0, "main at col 1 (100px offset), got {}", main_x);
+}
+
+// ── grid-area shorthand ──────────────────────────────────────────────
+
+#[test]
+fn grid_area_shorthand_four_values() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:50px 50px; width:300px">
+        <div style="grid-area:1/2/3/4; height:30px">span</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let item = &grid.children[0];
+    // grid-area: 1/2/3/4 → row 0-1, col 1-2 (line numbers are 1-based)
+    let x_offset = item.content.x - grid.content.x;
+    assert!(x_offset >= 99.0, "should start at col 1 (100px), got {}", x_offset);
+    assert!(item.content.width >= 190.0, "should span 2 cols (200px), got {}", item.content.width);
+}

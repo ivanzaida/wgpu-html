@@ -113,6 +113,10 @@ impl CascadeContext {
     let mut cache = DeclCache::new();
     let mut bloom = AncestorBloom::new();
 
+    let root_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
+      media.viewport_width, media.viewport_height, 16.0, 16.0,
+    ));
+
     let result = cascade_node(
       doc,
       doc,
@@ -123,7 +127,7 @@ impl CascadeContext {
       media,
       interaction,
       arena,
-      &self.res,
+      &root_res,
       &mut cache,
       &mut bloom,
     );
@@ -152,6 +156,10 @@ impl CascadeContext {
     let mut cache = DeclCache::new();
     let mut bloom = AncestorBloom::new();
 
+    let root_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
+      media.viewport_width, media.viewport_height, 16.0, 16.0,
+    ));
+
     let result = cascade_node_incremental(
       doc,
       doc,
@@ -162,7 +170,7 @@ impl CascadeContext {
       media,
       interaction,
       arena,
-      &self.res,
+      &root_res,
       prev,
       dirty_paths,
       &mut cache,
@@ -250,7 +258,7 @@ fn cascade_node_incremental<'a>(
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
-  res: &'a ResolutionContext,
+  res: &ResolutionContext,
   prev: &StyledNode<'a>,
   dirty_paths: &[ElementPath],
   cache: &mut DeclCache<'a>,
@@ -288,7 +296,7 @@ fn cascade_node_with_prev<'a>(
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
-  res: &'a ResolutionContext,
+  res: &ResolutionContext,
   prev: Option<&StyledNode<'a>>,
   dirty_paths: &[ElementPath],
   cache: &mut DeclCache<'a>,
@@ -304,6 +312,13 @@ fn cascade_node_with_prev<'a>(
 
   resolve_vars(&mut style, arena);
   resolve_math_style(&mut style, res, arena);
+
+  let self_font_size = extract_font_size_px(&style, res.env.parent_font_size);
+  let child_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
+    res.env.viewport_width, res.env.viewport_height,
+    res.env.root_font_size, self_font_size,
+  ));
+
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
@@ -313,7 +328,7 @@ fn cascade_node_with_prev<'a>(
 
   let tag = node.element.tag_name();
   let id = node.id.as_deref();
-  
+
   bloom.push(tag, id, &node.class_list);
 
   let children: Vec<StyledNode<'a>> = node
@@ -329,13 +344,13 @@ fn cascade_node_with_prev<'a>(
         } else {
           cascade_node_with_prev(
             root, child, sheets, Some(&style), &child_ancestors, path,
-            media, interaction, arena, res, Some(pc), dirty_paths, cache, bloom,
+            media, interaction, arena, &child_res, Some(pc), dirty_paths, cache, bloom,
           )
         }
       } else {
         cascade_node(
           root, child, sheets, Some(&style), &child_ancestors, path,
-          media, interaction, arena, res, cache, bloom,
+          media, interaction, arena, &child_res, cache, bloom,
         )
       };
       path.pop();
@@ -423,7 +438,7 @@ fn cascade_node<'a>(
   media: &MediaContext,
   interaction: &'a InteractionState,
   arena: &'a Bump,
-  res: &'a ResolutionContext,
+  res: &ResolutionContext,
   cache: &mut DeclCache<'a>,
   bloom: &mut AncestorBloom,
 ) -> StyledNode<'a> {
@@ -437,6 +452,13 @@ fn cascade_node<'a>(
 
   resolve_vars(&mut style, arena);
   resolve_math_style(&mut style, res, arena);
+
+  let self_font_size = extract_font_size_px(&style, res.env.parent_font_size);
+  let child_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
+    res.env.viewport_width, res.env.viewport_height,
+    res.env.root_font_size, self_font_size,
+  ));
+
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
   child_ancestors.push(AncestorEntry { node, ctx: ctx.clone() });
   child_ancestors.extend(ancestors.iter().map(|a| AncestorEntry {
@@ -466,7 +488,7 @@ fn cascade_node<'a>(
         path.push(i);
         let child_node = cascade_node(
           root, child, sheets, Some(&style), &child_ancestors,
-          path, media, interaction, arena, res, cache, bloom,
+          path, media, interaction, arena, &child_res, cache, bloom,
         );
         path.pop();
         child_node
@@ -716,8 +738,9 @@ fn cascade_children_parallel<'a>(
       let arena = Box::new(Bump::new());
       let mut cache = DeclCache::new();
       let mut child_bloom = *bloom;
+      let parent_fs = style.map(|s| extract_font_size_px(s, 16.0)).unwrap_or(16.0);
       let res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
-        media.viewport_width, media.viewport_height, 16.0, 16.0,
+        media.viewport_width, media.viewport_height, 16.0, parent_fs,
       ));
 
       let child_node = cascade_node(
@@ -761,6 +784,34 @@ fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext
         matches!(v, CssValue::Function { .. } | CssValue::Var { .. })
             || matches!(v, CssValue::Dimension { unit, .. } if !matches!(unit, lui_core::CssUnit::Px))
     }
+
+    // Resolve font-size first (em in font-size resolves against parent's font-size)
+    if let Some(val) = &style.font_size {
+        if needs_resolve(val) {
+            let new_val = res.resolve_value(val, arena);
+            if !std::ptr::eq(*val, new_val) {
+                style.font_size = Some(new_val);
+            }
+        }
+    }
+
+    // Extract the element's own resolved font-size for em resolution of other properties
+    let self_font_size = match style.font_size {
+        Some(CssValue::Dimension { value, unit: lui_core::CssUnit::Px }) => *value as f32,
+        Some(CssValue::Number(n)) => *n as f32,
+        _ => res.env.parent_font_size,
+    };
+
+    let self_res = if (self_font_size - res.env.parent_font_size).abs() > 0.001 {
+        let env = lui_resolve::ResolverContext::from_cascade(
+            res.env.viewport_width, res.env.viewport_height,
+            res.env.root_font_size, self_font_size,
+        );
+        Some(ResolutionContext::new(env))
+    } else {
+        None
+    };
+    let res = self_res.as_ref().unwrap_or(res);
 
     macro_rules! r {
         ($($field:ident),* $(,)?) => {
@@ -821,6 +872,14 @@ fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext
         for (prop, new_val) in to_update {
             extra.insert(prop, new_val);
         }
+    }
+}
+
+fn extract_font_size_px(style: &ComputedStyle, fallback: f32) -> f32 {
+    match style.font_size {
+        Some(lui_core::CssValue::Dimension { value, unit: lui_core::CssUnit::Px }) => *value as f32,
+        Some(lui_core::CssValue::Number(n)) => *n as f32,
+        _ => fallback,
     }
 }
 

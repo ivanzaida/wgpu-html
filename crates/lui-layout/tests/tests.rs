@@ -11,4 +11,7 @@ mod grid;
 mod positioned;
 mod inline;
 mod engine;
+mod float;
+mod overflow;
 mod units;
+mod table;

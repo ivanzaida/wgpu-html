@@ -18,6 +18,8 @@ pub struct ComputedStyle<'a> {
     pub right: Option<&'a CssValue>,
     pub bottom: Option<&'a CssValue>,
     pub left: Option<&'a CssValue>,
+    pub direction: Option<&'a CssValue>,
+    pub writing_mode: Option<&'a CssValue>,
     pub float: Option<&'a CssValue>,
     pub clear: Option<&'a CssValue>,
 
@@ -86,6 +88,7 @@ pub struct ComputedStyle<'a> {
     pub font_weight: Option<&'a CssValue>,
     pub font_style: Option<&'a CssValue>,
     pub line_height: Option<&'a CssValue>,
+    pub text_indent: Option<&'a CssValue>,
     pub letter_spacing: Option<&'a CssValue>,
     pub word_spacing: Option<&'a CssValue>,
     pub text_align: Option<&'a CssValue>,
@@ -95,6 +98,7 @@ pub struct ComputedStyle<'a> {
     pub text_transform: Option<&'a CssValue>,
     pub white_space: Option<&'a CssValue>,
     pub word_break: Option<&'a CssValue>,
+    pub overflow_wrap: Option<&'a CssValue>,
     pub text_overflow: Option<&'a CssValue>,
     pub vertical_align: Option<&'a CssValue>,
 
@@ -115,6 +119,7 @@ pub struct ComputedStyle<'a> {
     // ── Grid ──
     pub grid_template_columns: Option<&'a CssValue>,
     pub grid_template_rows: Option<&'a CssValue>,
+    pub grid_template_areas: Option<&'a CssValue>,
     pub grid_auto_columns: Option<&'a CssValue>,
     pub grid_auto_rows: Option<&'a CssValue>,
     pub grid_auto_flow: Option<&'a CssValue>,
@@ -124,6 +129,12 @@ pub struct ComputedStyle<'a> {
     pub grid_row_end: Option<&'a CssValue>,
     pub justify_items: Option<&'a CssValue>,
     pub justify_self: Option<&'a CssValue>,
+
+    // ── Table ──
+    pub border_collapse: Option<&'a CssValue>,
+    pub border_spacing: Option<&'a CssValue>,
+    pub caption_side: Option<&'a CssValue>,
+    pub table_layout: Option<&'a CssValue>,
 
     // ── Overflow & scroll ──
     pub overflow_x: Option<&'a CssValue>,
@@ -262,6 +273,8 @@ property_field_map! {
     Right => right,
     Bottom => bottom,
     Left => left,
+    Direction => direction,
+    WritingMode => writing_mode,
     Float => float,
     Clear => clear,
 
@@ -320,6 +333,7 @@ property_field_map! {
     FontWeight => font_weight,
     FontStyle => font_style,
     LineHeight => line_height,
+    TextIndent => text_indent,
     LetterSpacing => letter_spacing,
     WordSpacing => word_spacing,
     TextAlign => text_align,
@@ -329,6 +343,7 @@ property_field_map! {
     TextTransform => text_transform,
     WhiteSpace => white_space,
     WordBreak => word_break,
+    OverflowWrap => overflow_wrap,
     TextOverflow => text_overflow,
     VerticalAlign => vertical_align,
 
@@ -347,6 +362,7 @@ property_field_map! {
 
     GridTemplateColumns => grid_template_columns,
     GridTemplateRows => grid_template_rows,
+    GridTemplateAreas => grid_template_areas,
     GridAutoColumns => grid_auto_columns,
     GridAutoRows => grid_auto_rows,
     GridAutoFlow => grid_auto_flow,
@@ -356,6 +372,11 @@ property_field_map! {
     GridRowEnd => grid_row_end,
     JustifyItems => justify_items,
     JustifySelf => justify_self,
+
+    BorderCollapse => border_collapse,
+    BorderSpacing => border_spacing,
+    CaptionSide => caption_side,
+    TableLayout => table_layout,
 
     OverflowX => overflow_x,
     OverflowY => overflow_y,

@@ -29,13 +29,16 @@ pub fn layout_node<'a>(
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
 ) -> LayoutBox<'a> {
     match b.kind {
-        BoxKind::FlexContainer => {
+        BoxKind::FlexContainer | BoxKind::InlineFlex => {
             crate::flex::layout_flex(&mut b, ctx, pos, text_ctx, rects);
         }
-        BoxKind::GridContainer => {
+        BoxKind::GridContainer | BoxKind::InlineGrid => {
             crate::grid::layout_grid(&mut b, ctx, pos, text_ctx, rects);
         }
-        BoxKind::Block | BoxKind::Root => {
+        BoxKind::Table => {
+            crate::table::layout_table(&mut b, ctx, pos, text_ctx, rects);
+        }
+        BoxKind::Block | BoxKind::Root | BoxKind::ListItem => {
             crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
         }
         BoxKind::InlineBlock => {
@@ -47,9 +50,71 @@ pub fn layout_node<'a>(
         BoxKind::AnonymousBlock => {
             crate::block::layout_anonymous_block(&mut b, ctx, pos, text_ctx, rects);
         }
+        BoxKind::TableRow | BoxKind::TableCell | BoxKind::TableRowGroup | BoxKind::TableCaption => {
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
+        }
         _ => {}
     }
 
+    crate::positioned::apply_z_index(&mut b);
+    apply_text_overflow_ellipsis(&mut b);
+    apply_text_decoration(&mut b);
+    if b.kind == BoxKind::ListItem {
+        fn css_str_li(v: Option<&lui_core::CssValue>) -> &str {
+            match v { Some(lui_core::CssValue::String(s)) | Some(lui_core::CssValue::Unknown(s)) => s.as_ref(), _ => "" }
+        }
+        let marker = match css_str_li(b.style.list_style_type) {
+            "none" => None,
+            "disc" | "" => Some("\u{2022} ".to_owned()),
+            "circle" => Some("\u{25CB} ".to_owned()),
+            "square" => Some("\u{25A0} ".to_owned()),
+            "decimal" => Some("1. ".to_owned()),
+            other => Some(format!("{} ", other)),
+        };
+        b.list_marker = marker;
+    }
+    {
+        fn css_str2(v: Option<&lui_core::CssValue>) -> &str {
+            match v {
+                Some(lui_core::CssValue::String(s)) | Some(lui_core::CssValue::Unknown(s)) => s.as_ref(),
+                _ => "",
+            }
+        }
+        let wm = css_str2(b.style.writing_mode);
+        if !wm.is_empty() && wm != "horizontal-tb" {
+            b.writing_mode = Some(wm.to_owned());
+        }
+    }
     rects.push((b.node, b.content));
     b
+}
+
+fn apply_text_decoration(b: &mut LayoutBox) {
+    fn css_str(v: Option<&lui_core::CssValue>) -> &str {
+        match v {
+            Some(lui_core::CssValue::String(s)) | Some(lui_core::CssValue::Unknown(s)) => s.as_ref(),
+            _ => "",
+        }
+    }
+    let line = css_str(b.style.text_decoration_line);
+    if !line.is_empty() && line != "none" {
+        b.text_decoration = Some(line.to_owned());
+    }
+}
+
+fn apply_text_overflow_ellipsis(b: &mut LayoutBox) {
+    fn css_str(v: Option<&lui_core::CssValue>) -> &str {
+        match v {
+            Some(lui_core::CssValue::String(s)) | Some(lui_core::CssValue::Unknown(s)) => s.as_ref(),
+            _ => "",
+        }
+    }
+    if css_str(b.style.text_overflow) != "ellipsis" { return; }
+    let overflow = css_str(b.style.overflow_x);
+    if !matches!(overflow, "hidden" | "clip" | "scroll") { return; }
+    for child in &mut b.children {
+        if child.content.width > b.content.width {
+            child.text_overflow_ellipsis = true;
+        }
+    }
 }

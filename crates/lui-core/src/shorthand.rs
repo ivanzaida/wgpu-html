@@ -89,9 +89,166 @@ pub fn distribute_values(values: &[CssValue], longhands: &[CssProperty]) -> Vec<
 
 /// Expand a shorthand property value into its longhand declarations.
 pub fn expand(property: CssProperty, values: &[CssValue]) -> Vec<(CssProperty, CssValue)> {
+    match property {
+        CssProperty::Flex => return expand_flex(values),
+        CssProperty::GridArea => return expand_grid_area(values),
+        CssProperty::GridColumn => return expand_grid_line_pair(
+            values, CssProperty::GridColumnStart, CssProperty::GridColumnEnd),
+        CssProperty::GridRow => return expand_grid_line_pair(
+            values, CssProperty::GridRowStart, CssProperty::GridRowEnd),
+        CssProperty::GridTemplate => return expand_grid_template(values),
+        _ => {}
+    }
     let longhands = longhands_of(property);
     if longhands.is_empty() {
         return vec![];
     }
     distribute_values(values, longhands)
+}
+
+fn expand_flex(values: &[CssValue]) -> Vec<(CssProperty, CssValue)> {
+    let grow = CssProperty::FlexGrow;
+    let shrink = CssProperty::FlexShrink;
+    let basis = CssProperty::FlexBasis;
+
+    if values.len() == 1 {
+        let s = match &values[0] {
+            CssValue::String(s) | CssValue::Unknown(s) => s.as_ref(),
+            _ => "",
+        };
+        match s {
+            "none" => return vec![
+                (grow, CssValue::Number(0.0)),
+                (shrink, CssValue::Number(0.0)),
+                (basis, CssValue::Unknown("auto".into())),
+            ],
+            "auto" => return vec![
+                (grow, CssValue::Number(1.0)),
+                (shrink, CssValue::Number(1.0)),
+                (basis, CssValue::Unknown("auto".into())),
+            ],
+            _ => {}
+        }
+        if let CssValue::Number(n) = &values[0] {
+            return vec![
+                (grow, CssValue::Number(*n)),
+                (shrink, CssValue::Number(1.0)),
+                (basis, CssValue::Number(0.0)),
+            ];
+        }
+    }
+
+    if values.len() == 2 {
+        if let (CssValue::Number(g), CssValue::Number(s_val)) = (&values[0], &values[1]) {
+            return vec![
+                (grow, CssValue::Number(*g)),
+                (shrink, CssValue::Number(*s_val)),
+                (basis, CssValue::Number(0.0)),
+            ];
+        }
+    }
+
+    distribute_values(values, &[grow, shrink, basis])
+}
+
+fn is_custom_ident(v: &CssValue) -> bool {
+    matches!(v, CssValue::String(_) | CssValue::Unknown(_))
+        && !matches!(v, CssValue::Unknown(s) | CssValue::String(s) if s.as_ref() == "auto" || s.as_ref() == "span")
+}
+
+fn auto_val() -> CssValue {
+    CssValue::Unknown("auto".into())
+}
+
+fn expand_grid_line_pair(values: &[CssValue], start: CssProperty, end: CssProperty) -> Vec<(CssProperty, CssValue)> {
+    let values = split_slash_values(values);
+    match values.len() {
+        0 => vec![(start, auto_val()), (end, auto_val())],
+        1 => {
+            let end_val = if is_custom_ident(&values[0]) { values[0].clone() } else { auto_val() };
+            vec![(start, values[0].clone()), (end, end_val)]
+        }
+        _ => vec![(start, values[0].clone()), (end, values[1].clone())],
+    }
+}
+
+fn expand_grid_template(values: &[CssValue]) -> Vec<(CssProperty, CssValue)> {
+    let rows = CssProperty::GridTemplateRows;
+    let cols = CssProperty::GridTemplateColumns;
+    let areas = CssProperty::GridTemplateAreas;
+
+    if values.len() == 1 {
+        if let CssValue::Unknown(s) | CssValue::String(s) = &values[0] {
+            let raw = s.as_ref();
+            if raw == "none" {
+                return vec![
+                    (rows, auto_val()), (cols, auto_val()),
+                    (areas, CssValue::Unknown("none".into())),
+                ];
+            }
+            if let Some((row_part, col_part)) = raw.split_once('/') {
+                return vec![
+                    (rows, CssValue::Unknown(row_part.trim().into())),
+                    (cols, CssValue::Unknown(col_part.trim().into())),
+                    (areas, CssValue::Unknown("none".into())),
+                ];
+            }
+        }
+    }
+
+    distribute_values(values, &[rows, cols, areas])
+}
+
+fn split_slash_values(values: &[CssValue]) -> Vec<CssValue> {
+    if values.len() == 1 {
+        if let CssValue::Unknown(s) | CssValue::String(s) = &values[0] {
+            if s.contains('/') {
+                return s.split('/')
+                    .map(|p| {
+                        let p = p.trim();
+                        if let Ok(n) = p.parse::<f64>() {
+                            CssValue::Number(n)
+                        } else {
+                            CssValue::Unknown(p.into())
+                        }
+                    })
+                    .collect();
+            }
+        }
+    }
+    values.to_vec()
+}
+
+fn expand_grid_area(values: &[CssValue]) -> Vec<(CssProperty, CssValue)> {
+    let values = split_slash_values(values);
+    let rs = CssProperty::GridRowStart;
+    let cs = CssProperty::GridColumnStart;
+    let re = CssProperty::GridRowEnd;
+    let ce = CssProperty::GridColumnEnd;
+
+    let get = |i: usize| values.get(i).cloned().unwrap_or_else(auto_val);
+    let ident_or_auto = |src: &CssValue| {
+        if is_custom_ident(src) { src.clone() } else { auto_val() }
+    };
+
+    match values.len() {
+        0 => vec![(rs, auto_val()), (cs, auto_val()), (re, auto_val()), (ce, auto_val())],
+        1 => {
+            if is_custom_ident(&values[0]) {
+                let v = values[0].clone();
+                vec![(rs, v.clone()), (cs, v.clone()), (re, v.clone()), (ce, v)]
+            } else {
+                vec![(rs, values[0].clone()), (cs, auto_val()), (re, auto_val()), (ce, auto_val())]
+            }
+        }
+        2 => vec![
+            (rs, get(0)), (cs, get(1)),
+            (re, ident_or_auto(&values[0])), (ce, ident_or_auto(&values[1])),
+        ],
+        3 => vec![
+            (rs, get(0)), (cs, get(1)), (re, get(2)),
+            (ce, ident_or_auto(&values[1])),
+        ],
+        _ => vec![(rs, get(0)), (cs, get(1)), (re, get(2)), (ce, get(3))],
+    }
 }

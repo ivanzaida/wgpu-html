@@ -16,16 +16,24 @@ pub fn resolve_length(value: Option<&CssValue>, containing: f32) -> Option<f32> 
 
 /// Resolve a length value with font-size context for em/rem.
 pub fn resolve_length_ctx(value: Option<&CssValue>, containing: f32, ctx: &LayoutContext) -> Option<f32> {
-    resolve_length_with_font(value, containing, ctx.parent_font_size, ctx.root_font_size)
+    resolve_length_full(value, containing, ctx.parent_font_size, ctx.root_font_size,
+        ctx.viewport_width, ctx.viewport_height)
 }
 
 fn resolve_length_with_font(value: Option<&CssValue>, containing: f32, em: f32, rem: f32) -> Option<f32> {
+    resolve_length_full(value, containing, em, rem, 0.0, 0.0)
+}
+
+fn resolve_length_full(value: Option<&CssValue>, containing: f32, em: f32, rem: f32, vw: f32, vh: f32) -> Option<f32> {
     match value {
         Some(CssValue::Dimension { value, unit }) => match unit {
             CssUnit::Px => Some(*value as f32),
             CssUnit::Em => Some(*value as f32 * em),
             CssUnit::Rem => Some(*value as f32 * rem),
-            CssUnit::Vw | CssUnit::Vh | CssUnit::Vmin | CssUnit::Vmax => None,
+            CssUnit::Vw => Some(*value as f32 / 100.0 * vw),
+            CssUnit::Vh => Some(*value as f32 / 100.0 * vh),
+            CssUnit::Vmin => Some(*value as f32 / 100.0 * vw.min(vh)),
+            CssUnit::Vmax => Some(*value as f32 / 100.0 * vw.max(vh)),
             CssUnit::Pt => Some(*value as f32 * 4.0 / 3.0),
             CssUnit::Cm => Some(*value as f32 * 96.0 / 2.54),
             CssUnit::Mm => Some(*value as f32 * 96.0 / 25.4),

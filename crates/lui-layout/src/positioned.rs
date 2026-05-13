@@ -29,6 +29,14 @@ pub fn is_out_of_flow(style: &lui_cascade::ComputedStyle) -> bool {
 /// True if the element establishes a containing block for positioned descendants.
 pub fn is_positioned(style: &lui_cascade::ComputedStyle) -> bool {
     matches!(css_str(style.position), "relative" | "absolute" | "fixed" | "sticky")
+        || has_transform(style)
+}
+
+fn has_transform(style: &lui_cascade::ComputedStyle) -> bool {
+    match css_str(style.transform) {
+        "" | "none" => false,
+        _ => true,
+    }
 }
 
 /// Layout an absolutely or fixed-positioned box.
@@ -125,17 +133,32 @@ pub fn layout_out_of_flow<'a>(
 
 /// Apply `position: relative` offset after normal layout.
 pub fn apply_relative_offset(b: &mut LayoutBox, containing_width: f32, containing_height: f32) {
-    if css_str(b.style.position) != "relative" { return; }
+    let pos = css_str(b.style.position);
+    if pos == "relative" {
+        let dx = sizes::resolve_length(b.style.left, containing_width)
+            .or_else(|| sizes::resolve_length(b.style.right, containing_width).map(|v| -v))
+            .unwrap_or(0.0);
+        let dy = sizes::resolve_length(b.style.top, containing_height)
+            .or_else(|| sizes::resolve_length(b.style.bottom, containing_height).map(|v| -v))
+            .unwrap_or(0.0);
 
-    let dx = sizes::resolve_length(b.style.left, containing_width)
-        .or_else(|| sizes::resolve_length(b.style.right, containing_width).map(|v| -v))
-        .unwrap_or(0.0);
-    let dy = sizes::resolve_length(b.style.top, containing_height)
-        .or_else(|| sizes::resolve_length(b.style.bottom, containing_height).map(|v| -v))
-        .unwrap_or(0.0);
+        if dx.abs() > 0.001 || dy.abs() > 0.001 {
+            translate_recursive(b, dx, dy);
+        }
+    } else if pos == "sticky" {
+        b.sticky = Some(crate::box_tree::StickyInsets {
+            top: sizes::resolve_length(b.style.top, containing_height),
+            right: sizes::resolve_length(b.style.right, containing_width),
+            bottom: sizes::resolve_length(b.style.bottom, containing_height),
+            left: sizes::resolve_length(b.style.left, containing_width),
+        });
+    }
+}
 
-    if dx.abs() > 0.001 || dy.abs() > 0.001 {
-        translate_recursive(b, dx, dy);
+/// Populate z-index on a LayoutBox from its computed style.
+pub fn apply_z_index(b: &mut LayoutBox) {
+    if let Some(lui_core::CssValue::Number(n)) = b.style.z_index {
+        b.z_index = Some(*n as i32);
     }
 }
 

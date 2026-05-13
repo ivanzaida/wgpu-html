@@ -17,12 +17,20 @@ pub enum BoxKind {
     InlineBlock,
     /// Flex container.
     FlexContainer,
+    /// Inline flex container — inline outside, flex inside.
+    InlineFlex,
     /// Grid container.
     GridContainer,
+    /// Inline grid container — inline outside, grid inside.
+    InlineGrid,
     /// Absolute/fixed positioned — removed from flow.
     Absolute,
     /// Table wrapper / table / table-row / table-cell.
     Table, TableRow, TableCell,
+    /// Table row group (<thead>, <tbody>, <tfoot>).
+    TableRowGroup,
+    /// Table caption (<caption>).
+    TableCaption,
     /// Anonymous box created for text runs between block siblings.
     AnonymousBlock,
     /// Anonymous box for inline text content.
@@ -31,6 +39,36 @@ pub enum BoxKind {
     Root,
     /// List-item marker box.
     ListItem,
+}
+
+/// Overflow behavior for a box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Overflow {
+    Visible,
+    Hidden,
+    Scroll,
+    Auto,
+    Clip,
+}
+
+/// Scroll container state — present when overflow is scroll/auto/hidden.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ScrollInfo {
+    pub scroll_width: f32,
+    pub scroll_height: f32,
+    pub scroll_x: f32,
+    pub scroll_y: f32,
+    pub scrollbar_width: f32,
+}
+
+impl ScrollInfo {
+    pub fn max_scroll_x(&self, content_width: f32) -> f32 {
+        (self.scroll_width - content_width).max(0.0)
+    }
+
+    pub fn max_scroll_y(&self, content_height: f32) -> f32 {
+        (self.scroll_height - content_height).max(0.0)
+    }
 }
 
 /// A box in the layout tree. One LayoutBox per CSS box.
@@ -45,13 +83,47 @@ pub struct LayoutBox<'a> {
     pub content: Rect,
     pub intrinsic: Option<Size>,
     pub children: Vec<LayoutBox<'a>>,
+    pub overflow_x: Overflow,
+    pub overflow_y: Overflow,
+    pub clip: Option<Rect>,
+    pub scroll: Option<ScrollInfo>,
+    pub baseline: Option<f32>,
+    pub z_index: Option<i32>,
+    pub sticky: Option<StickyInsets>,
+    pub text_overflow_ellipsis: bool,
+    pub text_decoration: Option<String>,
+    pub writing_mode: Option<String>,
+    pub list_marker: Option<String>,
+}
+
+/// Sticky positioning thresholds. Values are the distance from the scroll
+/// container edge at which the element starts sticking.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StickyInsets {
+    pub top: Option<f32>,
+    pub right: Option<f32>,
+    pub bottom: Option<f32>,
+    pub left: Option<f32>,
 }
 
 impl<'a> LayoutBox<'a> {
     pub fn new(kind: BoxKind, node: &'a HtmlNode, style: &'a ComputedStyle<'a>) -> Self {
         Self { kind, node, style, margin: RectEdges::default(),
             border: RectEdges::default(), padding: RectEdges::default(),
-            content: Rect::default(), intrinsic: None, children: Vec::new() }
+            content: Rect::default(), intrinsic: None, children: Vec::new(),
+            overflow_x: Overflow::Visible, overflow_y: Overflow::Visible,
+            clip: None, scroll: None, baseline: None,
+            z_index: None, sticky: None, text_overflow_ellipsis: false,
+            text_decoration: None, writing_mode: None, list_marker: None }
+    }
+
+    pub fn padding_rect(&self) -> Rect {
+        Rect::new(
+            self.content.x - self.padding.left,
+            self.content.y - self.padding.top,
+            self.content.width + self.padding.horizontal(),
+            self.content.height + self.padding.vertical(),
+        )
     }
 
     /// Total width consumed: margin + border + padding + content.
@@ -73,6 +145,94 @@ impl<'a> LayoutBox<'a> {
             self.content.height + self.border.vertical() + self.padding.vertical(),
         )
     }
+
+    /// True if this box is a scroll container.
+    pub fn is_scroll_container(&self) -> bool {
+        self.scroll.is_some()
+    }
+
+    /// Set scroll position, clamped to valid range.
+    /// Returns true if the position actually changed.
+    pub fn set_scroll(&mut self, x: f32, y: f32) -> bool {
+        let Some(ref mut info) = self.scroll else { return false; };
+        let max_x = info.max_scroll_x(self.content.width);
+        let max_y = info.max_scroll_y(self.content.height);
+        let new_x = x.clamp(0.0, max_x);
+        let new_y = y.clamp(0.0, max_y);
+        let changed = (new_x - info.scroll_x).abs() > 0.001
+            || (new_y - info.scroll_y).abs() > 0.001;
+        info.scroll_x = new_x;
+        info.scroll_y = new_y;
+        changed
+    }
+
+    /// Scroll by a delta, clamped. Returns true if position changed.
+    pub fn scroll_by(&mut self, dx: f32, dy: f32) -> bool {
+        let Some(ref info) = self.scroll else { return false; };
+        let x = info.scroll_x + dx;
+        let y = info.scroll_y + dy;
+        self.set_scroll(x, y)
+    }
+
+    /// Get the visible rect for a child, accounting for this box's scroll offset.
+    /// Returns the child's position in the viewport coordinate space.
+    pub fn child_visible_rect(&self, child_content: Rect) -> Rect {
+        if let Some(ref info) = self.scroll {
+            Rect::new(
+                child_content.x - info.scroll_x,
+                child_content.y - info.scroll_y,
+                child_content.width,
+                child_content.height,
+            )
+        } else {
+            child_content
+        }
+    }
+
+    /// Find a descendant scroll container by node pointer.
+    pub fn find_scroll_container_mut(&mut self, node: &HtmlNode) -> Option<&mut LayoutBox<'a>> {
+        let ptr = node as *const HtmlNode;
+        if self.node as *const _ == ptr && self.is_scroll_container() {
+            return Some(self);
+        }
+        for child in &mut self.children {
+            if let Some(found) = child.find_scroll_container_mut(node) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    /// Compute the scroll offset that would make `target_rect` visible
+    /// within this scroll container. Returns `(scroll_x, scroll_y)`.
+    pub fn scroll_to_reveal(&self, target: Rect) -> Option<(f32, f32)> {
+        let info = self.scroll.as_ref()?;
+        let mut sx = info.scroll_x;
+        let mut sy = info.scroll_y;
+
+        let view_left = self.content.x + sx;
+        let view_top = self.content.y + sy;
+        let view_right = view_left + self.content.width;
+        let view_bottom = view_top + self.content.height;
+
+        // Horizontal
+        if target.x < view_left {
+            sx -= view_left - target.x;
+        } else if target.x + target.width > view_right {
+            sx += (target.x + target.width) - view_right;
+        }
+
+        // Vertical
+        if target.y < view_top {
+            sy -= view_top - target.y;
+        } else if target.y + target.height > view_bottom {
+            sy += (target.y + target.height) - view_bottom;
+        }
+
+        let max_x = info.max_scroll_x(self.content.width);
+        let max_y = info.max_scroll_y(self.content.height);
+        Some((sx.clamp(0.0, max_x), sy.clamp(0.0, max_y)))
+    }
 }
 
 /// The full layout tree, plus a node → content-rect map for fast lookup.
@@ -87,4 +247,70 @@ impl<'a> LayoutTree<'a> {
         let ptr = node as *const HtmlNode;
         self.rects.iter().find(|(n, _)| *n as *const _ == ptr).map(|(_, r)| *r)
     }
+
+    /// Hit-test: find the deepest node at the given point,
+    /// accounting for scroll offsets and clip rects.
+    pub fn hit_test(&self, x: f32, y: f32) -> Option<&'a HtmlNode> {
+        hit_test_box(&self.root, x, y, 0.0, 0.0)
+    }
+
+    /// Set scroll position on a scroll container identified by node.
+    pub fn set_scroll(&mut self, node: &HtmlNode, x: f32, y: f32) -> bool {
+        if let Some(b) = self.root.find_scroll_container_mut(node) {
+            b.set_scroll(x, y)
+        } else {
+            false
+        }
+    }
+
+    /// Scroll a container by delta. Returns true if position changed.
+    pub fn scroll_by(&mut self, node: &HtmlNode, dx: f32, dy: f32) -> bool {
+        if let Some(b) = self.root.find_scroll_container_mut(node) {
+            b.scroll_by(dx, dy)
+        } else {
+            false
+        }
+    }
+}
+
+fn hit_test_box<'a>(
+    b: &LayoutBox<'a>,
+    x: f32,
+    y: f32,
+    scroll_offset_x: f32,
+    scroll_offset_y: f32,
+) -> Option<&'a HtmlNode> {
+    let adjusted_x = x + scroll_offset_x;
+    let adjusted_y = y + scroll_offset_y;
+
+    let br = b.border_rect();
+    if adjusted_x < br.x || adjusted_x > br.x + br.width
+        || adjusted_y < br.y || adjusted_y > br.y + br.height
+    {
+        return None;
+    }
+
+    // If this box clips, check if point is inside clip rect
+    if let Some(clip) = b.clip {
+        let clip_x = clip.x - scroll_offset_x;
+        let clip_y = clip.y - scroll_offset_y;
+        if x < clip_x || x > clip_x + clip.width
+            || y < clip_y || y > clip_y + clip.height
+        {
+            return None;
+        }
+    }
+
+    // Accumulate scroll offset for children
+    let child_sx = scroll_offset_x + b.scroll.map(|s| s.scroll_x).unwrap_or(0.0);
+    let child_sy = scroll_offset_y + b.scroll.map(|s| s.scroll_y).unwrap_or(0.0);
+
+    // Check children deepest-first (last child paints on top)
+    for child in b.children.iter().rev() {
+        if let Some(hit) = hit_test_box(child, x, y, child_sx, child_sy) {
+            return Some(hit);
+        }
+    }
+
+    Some(b.node)
 }

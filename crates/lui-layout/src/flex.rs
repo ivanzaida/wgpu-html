@@ -52,9 +52,9 @@ pub fn layout_flex<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
 ) {
-    let margin = sides::resolve_margin(b.style);
+    let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
-    let padding = sides::resolve_padding(b.style);
+    let padding = sides::resolve_padding_against(b.style, ctx.containing_width);
 
     b.margin = margin.edges;
     b.border = border;
@@ -94,12 +94,17 @@ pub fn layout_flex<'a>(
         sizes::resolve_length(b.style.column_gap, inner_width)
     }.unwrap_or(0.0);
 
-    // Phase 1: build flex items
+    // Phase 1: build flex items (filter out-of-flow children)
     let mut items: Vec<FlexItem<'a>> = Vec::with_capacity(b.children.len());
+    let mut out_of_flow: Vec<LayoutBox<'a>> = Vec::new();
     let taken_children = std::mem::take(&mut b.children);
     for (idx, child) in taken_children.into_iter().enumerate() {
         if css_str(child.style.display) == "none" { continue; }
-        let item = build_item(child, idx, is_row, main_axis_size, cross_axis_size, ctx);
+        if crate::positioned::is_out_of_flow(child.style) {
+            out_of_flow.push(child);
+            continue;
+        }
+        let item = build_item(child, idx, is_row, main_axis_size, cross_axis_size, ctx, text_ctx);
         items.push(item);
     }
     if items.is_empty() {
@@ -141,7 +146,7 @@ pub fn layout_flex<'a>(
     // Phase 4: per-item layout at resolved main size
     let child_ctx = LayoutContext { containing_width: inner_width, ..*ctx };
     for item in &mut items {
-        let main = item.resolved_main;
+        let main = if item.collapsed { item.hypothetical_main } else { item.resolved_main };
         let (item_w, item_h) = if is_row {
             (Some(main), None)
         } else {
@@ -153,15 +158,46 @@ pub fn layout_flex<'a>(
         } else {
             item.box_.content.width
         };
+        if item.collapsed {
+            if is_row { item.box_.content.width = 0.0; }
+            else { item.box_.content.height = 0.0; }
+        }
     }
 
-    // Phase 5: line cross sizes
+    // Phase 4.5: compute baselines after layout
+    if is_row {
+        for item in &mut items {
+            item.first_baseline = find_first_baseline(&item.box_).map(|bl| {
+                bl + item.box_.padding.top + item.box_.border.top
+            });
+        }
+    }
+
+    // Phase 5: line cross sizes (including baseline contributions)
+    let mut line_baselines: Vec<f32> = Vec::new();
     let mut line_cross_sizes: Vec<f32> = Vec::with_capacity(lines.len());
     for line in &lines {
         let mut max_cross = 0.0_f32;
+        let mut max_above_bl = 0.0_f32;
+        let mut max_below_bl = 0.0_f32;
+        let mut has_baseline = false;
         for &i in line {
             max_cross = max_cross.max(items[i].outer_cross());
+            let align = resolve_align_self(items[i].align_self, align_items_str);
+            if align == "baseline" {
+                if let Some(bl) = items[i].first_baseline {
+                    has_baseline = true;
+                    let above = bl + items[i].margin_cross_start;
+                    let below = items[i].outer_cross() - above;
+                    max_above_bl = max_above_bl.max(above);
+                    max_below_bl = max_below_bl.max(below);
+                }
+            }
         }
+        if has_baseline {
+            max_cross = max_cross.max(max_above_bl + max_below_bl);
+        }
+        line_baselines.push(max_above_bl);
         line_cross_sizes.push(max_cross);
     }
 
@@ -250,6 +286,11 @@ pub fn layout_flex<'a>(
                 if ac > 0 && line_free_cross > 0.0 {
                     if item.auto_cross_start { item_cross_pos += line_free_cross / ac as f32; }
                 }
+            } else if align == "baseline" && is_row {
+                if let Some(bl) = item.first_baseline {
+                    let line_bl = line_baselines[line_idx];
+                    item_cross_pos += line_bl - bl - item.margin_cross_start;
+                }
             } else if !stretched {
                 match align {
                     "flex-end" | "end" => item_cross_pos += line_free_cross,
@@ -319,7 +360,17 @@ pub fn layout_flex<'a>(
     };
     b.content.width = sizes::resolve_length(b.style.width, ctx.containing_width).unwrap_or(content_w);
     b.content.height = inner_height.unwrap_or(content_h);
+
+    // Layout out-of-flow children against the flex container's padding box
+    let containing_block = Rect::new(b.content.x - padding.left, b.content.y - padding.top,
+        b.content.width + padding.horizontal(), b.content.height + padding.vertical());
     b.children = items.into_iter().map(|i| i.box_).collect();
+    for mut oof in out_of_flow {
+        let static_pos = Point::new(b.content.x, b.content.y);
+        crate::positioned::layout_out_of_flow(&mut oof, ctx, static_pos, containing_block, text_ctx, rects);
+        rects.push((oof.node, oof.content));
+        b.children.push(oof);
+    }
 }
 
 // ── FlexItem ──────────────────────────────────────────────────────────
@@ -348,10 +399,13 @@ struct FlexItem<'a> {
     has_explicit_cross_size: bool,
     align_self: &'a str,
     measured_cross_inner: f32,
+    collapsed: bool,
+    first_baseline: Option<f32>,
 }
 
 impl FlexItem<'_> {
     fn outer_main(&self) -> f32 {
+        if self.collapsed { return 0.0; }
         self.resolved_main + self.frame_main + self.margin_main_start + self.margin_main_end
     }
     fn outer_cross(&self) -> f32 {
@@ -361,6 +415,7 @@ impl FlexItem<'_> {
         self.frame_cross + self.margin_cross_start + self.margin_cross_end
     }
     fn hypothetical_outer_main(&self) -> f32 {
+        if self.collapsed { return 0.0; }
         self.hypothetical_main + self.frame_main + self.margin_main_start + self.margin_main_end
     }
 }
@@ -372,15 +427,17 @@ fn build_item<'a>(
     parent_main: Option<f32>,
     parent_cross: Option<f32>,
     ctx: &LayoutContext,
+    text_ctx: &mut TextContext,
 ) -> FlexItem<'a> {
     let style = child.style;
     let order = css_i32(style.order).unwrap_or(0);
     let flex_grow = css_f32(style.flex_grow).unwrap_or(0.0).max(0.0);
     let flex_shrink = css_f32(style.flex_shrink).unwrap_or(1.0).max(0.0);
 
-    let margin = sides::resolve_margin(style);
+    let containing = parent_main.unwrap_or(ctx.containing_width);
+    let margin = sides::resolve_margin_against(style, containing);
     let border = sides::resolve_border(style);
-    let padding = sides::resolve_padding(style);
+    let padding = sides::resolve_padding_against(style, containing);
 
     let frame_h = border.horizontal() + padding.horizontal();
     let frame_v = border.vertical() + padding.vertical();
@@ -413,18 +470,40 @@ fn build_item<'a>(
     };
 
     // Flex basis
-    let containing = parent_main.unwrap_or(ctx.containing_width);
     let main_prop = if is_row { style.width } else { style.height };
-    let basis = sizes::resolve_length(style.flex_basis, containing)
-        .or_else(|| sizes::resolve_length(main_prop, containing));
-    let base_size = basis.unwrap_or(0.0).max(0.0);
+    let basis_keyword = css_str(style.flex_basis);
+    let basis = match basis_keyword {
+        "content" | "max-content" => Some(if is_row {
+            measure_max_content_width(&child, text_ctx)
+        } else {
+            measure_max_content_height(&child, text_ctx)
+        }),
+        "min-content" => Some(if is_row {
+            measure_min_content_width(&child, text_ctx)
+        } else {
+            measure_min_content_height(&child, text_ctx)
+        }),
+        _ => sizes::resolve_length(style.flex_basis, containing)
+            .or_else(|| sizes::resolve_length(main_prop, containing)),
+    };
+    let base_size = basis.unwrap_or_else(|| {
+        if is_row { measure_max_content_width(&child, text_ctx) }
+        else { measure_max_content_height(&child, text_ctx) }
+    }).max(0.0);
 
     let (min_prop, max_prop) = if is_row {
         (style.min_width, style.max_width)
     } else {
         (style.min_height, style.max_height)
     };
-    let main_min = sizes::resolve_length(min_prop, containing).unwrap_or(0.0);
+    let main_min = sizes::resolve_length(min_prop, containing).unwrap_or_else(|| {
+        let content_min = if is_row {
+            measure_min_content_width(&child, text_ctx)
+        } else {
+            measure_min_content_height(&child, text_ctx)
+        };
+        if basis.is_some() { content_min.min(base_size) } else { content_min }
+    });
     let main_max = sizes::resolve_length(max_prop, containing).unwrap_or(f32::INFINITY);
 
     let hypothetical_main = base_size.clamp(main_min, main_max);
@@ -435,6 +514,7 @@ fn build_item<'a>(
         && !(is_pct_cross && parent_cross.is_none());
 
     let align_self_str = css_str(style.align_self);
+    let collapsed = css_str(style.visibility) == "collapse";
 
     FlexItem {
         box_: child,
@@ -460,6 +540,8 @@ fn build_item<'a>(
         has_explicit_cross_size,
         align_self: align_self_str,
         measured_cross_inner: 0.0,
+        collapsed,
+        first_baseline: None,
     }
 }
 
@@ -474,9 +556,9 @@ fn layout_flex_item<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
 ) {
-    let margin = sides::resolve_margin(b.style);
+    let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
-    let padding = sides::resolve_padding(b.style);
+    let padding = sides::resolve_padding_against(b.style, ctx.containing_width);
     b.margin = margin.edges;
     b.border = border;
     b.padding = padding;
@@ -499,7 +581,9 @@ fn layout_flex_item<'a>(
         cursor_y += child.outer_height();
     }
     let content_h = (cursor_y - b.content.y).max(0.0);
-    b.content.height = override_h.unwrap_or(content_h);
+    b.content.height = override_h
+        .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height))
+        .unwrap_or(content_h);
 }
 
 // ── Translation helpers ───────────────────────────────────────────────
@@ -528,7 +612,7 @@ fn resolve_flexible_lengths(items: &mut [FlexItem<'_>], line: &[usize], main_axi
     if line.is_empty() { return; }
 
     for &i in line {
-        items[i].resolved_main = items[i].hypothetical_main;
+        items[i].resolved_main = if items[i].collapsed { 0.0 } else { items[i].hypothetical_main };
     }
 
     let initial_outer: f32 = line.iter().map(|&i| items[i].hypothetical_outer_main()).sum::<f32>()
@@ -539,6 +623,7 @@ fn resolve_flexible_lengths(items: &mut [FlexItem<'_>], line: &[usize], main_axi
 
     let mut frozen = vec![false; line.len()];
     for (k, &i) in line.iter().enumerate() {
+        if items[i].collapsed { frozen[k] = true; continue; }
         let factor = if growing { items[i].flex_grow } else { items[i].flex_shrink };
         if factor <= 0.0 || (!growing && items[i].base_size <= 0.0) {
             frozen[k] = true;
@@ -648,4 +733,135 @@ fn resolve_align_self<'a>(item_align: &'a str, parent_align: &'a str) -> &'a str
     } else {
         item_align
     }
+}
+
+// ── Intrinsic (max-content) measurement ──────────────────────────────
+
+fn find_first_baseline(box_: &LayoutBox) -> Option<f32> {
+    if box_.baseline.is_some() {
+        return box_.baseline;
+    }
+    for child in &box_.children {
+        if let Some(child_bl) = find_first_baseline(child) {
+            let child_top = child.content.y - child.padding.top - child.border.top;
+            let parent_top = box_.content.y;
+            return Some(child_bl + (child_top - parent_top));
+        }
+    }
+    None
+}
+
+fn measure_max_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
+    if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+        let style = crate::text::text_style_from_cascade(box_.style);
+        let run = text_ctx.font_ctx.shape(content, &style);
+        return run.width;
+    }
+
+    let border = sides::resolve_border(box_.style);
+    let padding = sides::resolve_padding(box_.style);
+    let frame = border.horizontal() + padding.horizontal();
+
+    let mut inline_run = 0.0_f32;
+    let mut max_block = 0.0_f32;
+
+    for child in &box_.children {
+        let child_w = measure_max_content_width(child, text_ctx);
+        match child.kind {
+            BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer => {
+                max_block = max_block.max(inline_run);
+                inline_run = 0.0;
+                max_block = max_block.max(child_w);
+            }
+            _ => {
+                inline_run += child_w;
+            }
+        }
+    }
+    max_block = max_block.max(inline_run);
+    max_block + frame
+}
+
+fn measure_min_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
+    if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+        let style = crate::text::text_style_from_cascade(box_.style);
+        let mut max_word = 0.0_f32;
+        for word in content.split_whitespace() {
+            let run = text_ctx.font_ctx.shape(word, &style);
+            max_word = max_word.max(run.width);
+        }
+        return max_word;
+    }
+
+    let border = sides::resolve_border(box_.style);
+    let padding = sides::resolve_padding(box_.style);
+    let frame = border.horizontal() + padding.horizontal();
+
+    let mut max_child = 0.0_f32;
+    for child in &box_.children {
+        max_child = max_child.max(measure_min_content_width(child, text_ctx));
+    }
+    max_child + frame
+}
+
+fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
+    if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+        let style = crate::text::text_style_from_cascade(box_.style);
+        let min_w = measure_min_content_width(box_, text_ctx);
+        if min_w > 0.0 {
+            let lines = text_ctx.font_ctx.break_into_lines(content, &style, min_w);
+            if !lines.is_empty() {
+                return lines.iter().map(|l| l.height).sum();
+            }
+        }
+        let run = text_ctx.font_ctx.shape(content, &style);
+        return run.height;
+    }
+
+    let border = sides::resolve_border(box_.style);
+    let padding = sides::resolve_padding(box_.style);
+    let frame = border.vertical() + padding.vertical();
+
+    let mut block_sum = 0.0_f32;
+    let mut max_inline = 0.0_f32;
+    for child in &box_.children {
+        let child_h = measure_min_content_height(child, text_ctx);
+        match child.kind {
+            BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer => {
+                block_sum += child_h;
+            }
+            _ => {
+                max_inline = max_inline.max(child_h);
+            }
+        }
+    }
+    block_sum + max_inline + frame
+}
+
+fn measure_max_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
+    if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+        let style = crate::text::text_style_from_cascade(box_.style);
+        let run = text_ctx.font_ctx.shape(content, &style);
+        return run.height;
+    }
+
+    let border = sides::resolve_border(box_.style);
+    let padding = sides::resolve_padding(box_.style);
+    let frame = border.vertical() + padding.vertical();
+
+    let mut block_sum = 0.0_f32;
+    let mut max_inline = 0.0_f32;
+
+    for child in &box_.children {
+        let child_h = measure_max_content_height(child, text_ctx);
+        match child.kind {
+            BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer => {
+                block_sum += child_h;
+            }
+            _ => {
+                max_inline = max_inline.max(child_h);
+            }
+        }
+    }
+    block_sum + max_inline + frame
 }

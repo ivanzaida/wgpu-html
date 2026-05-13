@@ -31,7 +31,7 @@ fn flex_column_stacks_children_vertically() {
 
 #[test]
 fn flex_grow_distributes_free_space() {
-    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:300px"><div style="flex-grow:1">A</div><div style="flex-grow:2">B</div></div>"#, 800.0);
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:300px"><div style="flex-basis:0; flex-grow:1">A</div><div style="flex-basis:0; flex-grow:2">B</div></div>"#, 800.0);
     let media = MediaContext::default(); let interaction = InteractionState::default();
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     let lt = layout_tree(&styled, 800.0, 600.0);
@@ -507,4 +507,386 @@ fn flex_align_content_stretch_multiline() {
     let line_gap = b_y - a_y;
     assert!(line_gap > 140.0 && line_gap < 160.0,
         "stretch should distribute cross space equally, line_gap={}", line_gap);
+}
+
+// ============================================================================
+// Intrinsic sizing — flex-basis:auto content measurement
+// ============================================================================
+
+#[test]
+fn flex_basis_auto_sizes_to_text_content() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:500px"><div>Hello</div><div>World</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let a_w = flex.children[0].content.width;
+    let b_w = flex.children[1].content.width;
+    assert!(a_w > 5.0, "flex item with text 'Hello' should have non-zero width, got {}", a_w);
+    assert!(b_w > 5.0, "flex item with text 'World' should have non-zero width, got {}", b_w);
+}
+
+#[test]
+fn flex_basis_auto_with_padding_includes_content() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:500px"><div style="padding:10px">Hello</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let child = &flex.children[0];
+    assert!(child.content.width > 5.0,
+        "flex item content width should reflect text, got {}", child.content.width);
+}
+
+#[test]
+fn flex_min_width_zero_allows_full_shrink() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:100px"><div style="min-width:0">Superlongword</div><div style="min-width:0">B</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let total: f32 = flex.children.iter().map(|c| c.outer_width()).sum();
+    assert!(total <= 101.0,
+        "min-width:0 should allow shrinking to fit container, got {}", total);
+}
+
+#[test]
+fn flex_auto_min_prevents_shrinking_below_content() {
+    // Use min-width:0 version as baseline, then check auto min is wider
+    let (doc_zero, ctx_zero) = flex_lt(
+        r#"<div style="display:flex; width:5px"><div style="min-width:0">Longword</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled_zero = ctx_zero.cascade(&doc_zero.root, &media, &interaction);
+    let lt_zero = layout_tree(&styled_zero, 800.0, 600.0);
+    let w_zero = find_by_tag(&lt_zero.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    let (doc_auto, ctx_auto) = flex_lt(
+        r#"<div style="display:flex; width:5px"><div>Longword</div></div>"#,
+        800.0,
+    );
+    let styled_auto = ctx_auto.cascade(&doc_auto.root, &media, &interaction);
+    let lt_auto = layout_tree(&styled_auto, 800.0, 600.0);
+    let w_auto = find_by_tag(&lt_auto.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    assert!(w_auto > w_zero,
+        "auto min-width ({}) should be wider than min-width:0 ({})", w_auto, w_zero);
+}
+
+#[test]
+fn flex_auto_min_with_multiword_uses_widest_word() {
+    // Multi-word text: min-content = widest word, max-content = full text
+    // Item should shrink to widest word width but no further
+    let (doc_auto, ctx_auto) = flex_lt(
+        r#"<div style="display:flex; width:5px"><div>A Longword here</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx_auto.cascade(&doc_auto.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let w_auto = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    // With min-width:0, can shrink freely
+    let (doc_zero, ctx_zero) = flex_lt(
+        r#"<div style="display:flex; width:5px"><div style="min-width:0">A Longword here</div></div>"#,
+        800.0,
+    );
+    let styled_zero = ctx_zero.cascade(&doc_zero.root, &media, &interaction);
+    let lt_zero = layout_tree(&styled_zero, 800.0, 600.0);
+    let w_zero = find_by_tag(&lt_zero.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    assert!(w_auto > w_zero,
+        "auto min ({}) should be wider than min-width:0 ({})", w_auto, w_zero);
+}
+
+// ============================================================================
+// visibility: collapse on flex items
+// ============================================================================
+
+#[test]
+fn flex_visibility_collapse_zero_main_size() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:300px">
+        <div style="width:100px; height:50px">A</div>
+        <div style="width:100px; height:50px; visibility:collapse">B</div>
+        <div style="width:100px; height:50px">C</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let collapsed = &flex.children[1];
+    assert!(collapsed.content.width < 1.0,
+        "collapsed item main size should be ~0, got {}", collapsed.content.width);
+}
+
+#[test]
+fn flex_visibility_collapse_preserves_cross_size() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:300px; align-items:stretch">
+        <div style="width:100px">short</div>
+        <div style="width:100px; height:80px; visibility:collapse">tall</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let short = &flex.children[0];
+    assert!(short.content.height >= 79.0,
+        "non-collapsed item should stretch to collapsed item's cross size (80), got {}", short.content.height);
+}
+
+// ============================================================================
+// Column-direction intrinsic sizing
+// ============================================================================
+
+#[test]
+fn flex_column_basis_auto_sizes_to_text_content() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; flex-direction:column; width:200px">
+        <div>Hello</div><div>World</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let a_h = flex.children[0].content.height;
+    let b_h = flex.children[1].content.height;
+    assert!(a_h > 5.0, "column flex item with text should have non-zero height, got {}", a_h);
+    assert!(b_h > 5.0, "column flex item with text should have non-zero height, got {}", b_h);
+}
+
+// ============================================================================
+// Baseline alignment
+// ============================================================================
+
+#[test]
+fn flex_align_items_baseline_aligns_text() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:400px; align-items:baseline">
+        <div style="padding-top:20px">A</div>
+        <div>B</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let a = &flex.children[0];
+    let b = &flex.children[1];
+    // A has 20px padding-top, B has none. For baselines to align,
+    // B should be pushed down by ~20px relative to flex start.
+    let b_offset = b.content.y - b.padding.top - b.border.top - b.margin.top - flex.content.y;
+    assert!(b_offset > 15.0,
+        "baseline alignment should push B down to match A's baseline, B offset={}", b_offset);
+}
+
+#[test]
+fn flex_align_self_baseline_with_others_stretch() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:400px; height:100px; align-items:stretch">
+        <div style="align-self:baseline; padding-top:30px">base</div>
+        <div>stretched</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let stretched = &flex.children[1];
+    assert!(stretched.content.height >= 99.0,
+        "stretched item should still fill cross axis, got {}", stretched.content.height);
+}
+
+// ============================================================================
+// flex shorthand keywords
+// ============================================================================
+
+#[test]
+fn flex_shorthand_single_number() {
+    // flex:1 → flex-grow:1, flex-shrink:1, flex-basis:0
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:300px"><div style="flex:1">A</div><div style="flex:2">B</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let ratio = flex.children[1].content.width / flex.children[0].content.width;
+    assert!((ratio - 2.0).abs() < 0.1, "flex:1 vs flex:2 should give 2:1 ratio, got {}", ratio);
+}
+
+#[test]
+fn flex_shorthand_none() {
+    // flex:none → flex-grow:0, flex-shrink:0, flex-basis:auto
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:300px"><div style="flex:none; width:100px">A</div><div style="flex:1">B</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((flex.children[0].content.width - 100.0).abs() < 1.0,
+        "flex:none should keep width:100px, got {}", flex.children[0].content.width);
+}
+
+// ============================================================================
+// Absolutely-positioned flex children
+// ============================================================================
+
+#[test]
+fn flex_absolute_child_not_a_flex_item() {
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:300px; position:relative">
+        <div style="width:100px">A</div>
+        <div style="position:absolute; top:0; left:0; width:50px; height:50px">abs</div>
+        <div style="width:100px">B</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // A and B should be adjacent (abs child removed from flow)
+    let a = &flex.children[0];
+    let b = &flex.children[1];
+    let gap = b.content.x - (a.content.x + a.content.width);
+    assert!(gap < 1.0,
+        "A and B should be adjacent (abs child not in flow), gap={}", gap);
+}
+
+// ============================================================================
+// Percentage margins/padding
+// ============================================================================
+
+#[test]
+fn block_percentage_padding_resolves_against_width() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="width:200px; padding:10%">content</div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let div = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // 10% of containing width (800) = 80px on each side
+    assert!((div.padding.left - 80.0).abs() < 1.0,
+        "10% padding should be 80px (10% of 800), got {}", div.padding.left);
+}
+
+#[test]
+fn flex_item_percentage_margin() {
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:400px"><div style="width:100px; margin-left:10%">A</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let item = &flex.children[0];
+    // 10% of flex container inner width (400) = 40px
+    assert!((item.margin.left - 40.0).abs() < 1.0,
+        "10% margin-left should be 40px (10% of 400), got {}", item.margin.left);
+}
+
+// ============================================================================
+// flex-basis keywords: content, max-content, min-content
+// ============================================================================
+
+#[test]
+fn flex_basis_max_content_uses_content_width() {
+    // Two items with flex-basis:max-content should size to their text
+    let (doc, ctx) = flex_lt(
+        r#"<div style="display:flex; width:500px">
+            <div style="flex-basis:max-content">Hello</div>
+            <div style="flex-basis:max-content">World</div>
+        </div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!(flex.children[0].content.width > 1.0,
+        "flex-basis:max-content should size to text, got {}", flex.children[0].content.width);
+}
+
+#[test]
+fn flex_basis_min_content_differs_from_zero() {
+    let (doc_min, ctx_min) = flex_lt(
+        r#"<div style="display:flex; width:500px">
+            <div style="flex-basis:min-content">Hello</div>
+        </div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled_min = ctx_min.cascade(&doc_min.root, &media, &interaction);
+    let lt_min = layout_tree(&styled_min, 800.0, 600.0);
+    let w_min = find_by_tag(&lt_min.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    let (doc_zero, ctx_zero) = flex_lt(
+        r#"<div style="display:flex; width:500px">
+            <div style="flex-basis:0">Hello</div>
+        </div>"#,
+        800.0,
+    );
+    let styled_zero = ctx_zero.cascade(&doc_zero.root, &media, &interaction);
+    let lt_zero = layout_tree(&styled_zero, 800.0, 600.0);
+    let w_zero = find_by_tag(&lt_zero.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    assert!((w_min - w_zero).abs() > 0.1,
+        "flex-basis:min-content ({}) should differ from flex-basis:0 ({})", w_min, w_zero);
+}
+
+#[test]
+fn flex_basis_content_same_as_max_content() {
+    let (doc_content, ctx_content) = flex_lt(
+        r#"<div style="display:flex; width:500px"><div style="flex-basis:content">Hello</div></div>"#,
+        800.0,
+    );
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx_content.cascade(&doc_content.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let w_content = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    let (doc_max, ctx_max) = flex_lt(
+        r#"<div style="display:flex; width:500px"><div style="flex-basis:max-content">Hello</div></div>"#,
+        800.0,
+    );
+    let styled_max = ctx_max.cascade(&doc_max.root, &media, &interaction);
+    let lt_max = layout_tree(&styled_max, 800.0, 600.0);
+    let w_max = find_by_tag(&lt_max.root, "body").unwrap().children.first().unwrap()
+        .children[0].content.width;
+
+    assert!((w_content - w_max).abs() < 0.1,
+        "flex-basis:content ({}) should equal flex-basis:max-content ({})", w_content, w_max);
 }

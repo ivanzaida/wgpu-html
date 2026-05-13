@@ -145,7 +145,7 @@ impl TextContext {
             return run;
         }
 
-        let ts = TextStyle { font_family: "sans-serif", font_size, line_height, weight };
+        let ts = TextStyle { font_family: "sans-serif", font_size, line_height, weight, ..Default::default() };
         let attrs = crate::shape::build_attrs(&ts);
 
         let metrics = Metrics::new(font_size, line_height);
@@ -408,7 +408,17 @@ pub fn text_style_from_cascade<'a>(style: &'a ComputedStyle<'a>) -> TextStyle<'a
         Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => s.as_ref(),
         _ => "sans-serif",
     };
-    TextStyle { font_size, line_height, font_family: family, weight }
+    let letter_spacing = match style.letter_spacing {
+        Some(CssValue::Dimension { value, unit: CssUnit::Px }) => *value as f32,
+        Some(CssValue::Number(n)) => *n as f32,
+        _ => 0.0,
+    };
+    let word_spacing = match style.word_spacing {
+        Some(CssValue::Dimension { value, unit: CssUnit::Px }) => *value as f32,
+        Some(CssValue::Number(n)) => *n as f32,
+        _ => 0.0,
+    };
+    TextStyle { font_size, line_height, font_family: family, weight, letter_spacing, word_spacing }
 }
 
 // ── Paragraph types ───────────────────────────────────────────────────

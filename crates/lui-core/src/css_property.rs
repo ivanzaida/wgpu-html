@@ -8468,7 +8468,7 @@ impl CssProperty {
             CssProperty::VoiceRate => true,
             CssProperty::VoiceStress => true,
             CssProperty::VoiceVolume => true,
-            CssProperty::WhiteSpace => false,
+            CssProperty::WhiteSpace => true,
             CssProperty::WhiteSpaceCollapse => true,
             CssProperty::WhiteSpaceTrim => false,
             CssProperty::Widows => true,

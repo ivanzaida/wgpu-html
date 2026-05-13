@@ -31,6 +31,7 @@ fn custom_values_are_preserved() {
         line_height: 32.0,
         font_family: "monospace",
         weight: 700,
+        ..Default::default()
     };
     assert_eq!(ts.font_size, 24.0);
     assert_eq!(ts.line_height, 32.0);

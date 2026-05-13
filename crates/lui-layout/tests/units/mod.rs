@@ -52,7 +52,7 @@ fn em_height_resolved_at_cascade_time() {
 
 #[test]
 fn em_font_size_doubles_parent() {
-    // font-size: 2em → 2*16=32px. width: 5em → cascade uses parent 16px → 5*16=80px
+    // font-size: 2em → 2*16=32px. width: 5em → 5 * element's font-size (32px) = 160px
     let (doc, ctx) = flex_lt(r#"
         <div style="font-size:2em; width:5em; height:50px">nested</div>
     "#, 800.0);
@@ -60,8 +60,8 @@ fn em_font_size_doubles_parent() {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     let lt = layout_tree(&styled, 800.0, 600.0);
     let el = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
-    assert!((el.content.width - 80.0).abs() < 1.0,
-        "5em at cascade-default 16px should be 80px, got {}", el.content.width);
+    assert!((el.content.width - 160.0).abs() < 1.0,
+        "5em at element's 32px font-size should be 160px, got {}", el.content.width);
 }
 
 #[test]
@@ -99,4 +99,77 @@ fn resolve_length_pt_unit() {
         0.0,
     );
     assert!((result.unwrap() - 16.0).abs() < 0.01, "12pt = 16px");
+}
+
+#[test]
+fn calc_resolved_by_cascade() {
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:calc(100px + 50px); height:50px">calc</div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let el = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((el.content.width - 150.0).abs() < 1.0,
+        "calc(100px + 50px) should be 150px, got {}", el.content.width);
+}
+
+#[test]
+fn ch_unit_resolved_by_cascade() {
+    // 1ch ≈ 0.5em ≈ 8px at default 16px font
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:10ch; height:50px">ch-sized</div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let el = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((el.content.width - 80.0).abs() < 1.0,
+        "10ch at 16px should be ~80px (0.5em approx), got {}", el.content.width);
+}
+
+#[test]
+fn ex_unit_resolved_by_cascade() {
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:100px; height:4ex">ex-sized</div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let el = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((el.content.height - 32.0).abs() < 1.0,
+        "4ex at 16px should be ~32px (0.5em approx), got {}", el.content.height);
+}
+
+// ============================================================================
+// Viewport units
+// ============================================================================
+
+#[test]
+fn vw_unit_resolves_against_viewport() {
+    // 50vw at 800px viewport = 400px
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:50vw; height:50px">half viewport</div>
+    "#, 800.0);
+    let media = MediaContext { viewport_width: 800.0, viewport_height: 600.0, ..MediaContext::default() };
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let el = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((el.content.width - 400.0).abs() < 1.0,
+        "50vw at 800px viewport should be 400px, got {}", el.content.width);
+}
+
+#[test]
+fn vh_unit_resolves_against_viewport() {
+    let (doc, ctx) = flex_lt(r#"
+        <div style="width:100px; height:100vh">full height</div>
+    "#, 800.0);
+    let media = MediaContext { viewport_width: 800.0, viewport_height: 600.0, ..MediaContext::default() };
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let el = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert!((el.content.height - 600.0).abs() < 1.0,
+        "100vh at 600px viewport should be 600px, got {}", el.content.height);
 }

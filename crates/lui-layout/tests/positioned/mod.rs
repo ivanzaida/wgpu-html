@@ -203,3 +203,99 @@ fn position_absolute_percentage_insets() {
     assert!((offset_x - 100.0).abs() < 1.0, "left:25% of 400=100, got {}", offset_x);
     assert!((offset_y - 100.0).abs() < 1.0, "top:50% of 200=100, got {}", offset_y);
 }
+
+// ============================================================================
+// position: sticky
+// ============================================================================
+
+#[test]
+fn position_sticky_stays_in_flow() {
+    let (doc, ctx) = flex_lt(r#"<div style="width:300px">
+        <div style="height:50px">before</div>
+        <div style="position:sticky; top:10px; height:30px">sticky</div>
+        <div style="height:50px">after</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let before = &container.children[0];
+    let sticky = &container.children[1];
+    let after = &container.children[2];
+    // Sticky element is in-flow: after "before" (50px) and before "after"
+    assert!(sticky.content.y > before.content.y, "sticky after before");
+    assert!(after.content.y > sticky.content.y, "after after sticky");
+    // Total height = 50 + 30 + 50 = 130
+    assert!((container.content.height - 130.0).abs() < 1.0,
+        "sticky stays in flow, total height should be 130, got {}", container.content.height);
+}
+
+#[test]
+fn position_sticky_has_insets() {
+    let (doc, ctx) = flex_lt(r#"<div style="width:200px">
+        <div style="position:sticky; top:10px; height:30px">sticky</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let sticky = &container.children[0];
+    assert!(sticky.sticky.is_some(), "sticky element should have StickyInsets");
+    let insets = sticky.sticky.unwrap();
+    assert!((insets.top.unwrap() - 10.0).abs() < 0.1, "top:10px, got {:?}", insets.top);
+}
+
+// ============================================================================
+// z-index
+// ============================================================================
+
+#[test]
+fn z_index_stored_on_layout_box() {
+    let (doc, ctx) = flex_lt(r#"<div style="width:200px">
+        <div style="position:relative; z-index:5; height:30px">front</div>
+        <div style="position:relative; z-index:1; height:30px">back</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let front = &container.children[0];
+    let back = &container.children[1];
+    assert_eq!(front.z_index, Some(5), "z-index:5");
+    assert_eq!(back.z_index, Some(1), "z-index:1");
+}
+
+#[test]
+fn z_index_none_when_not_set() {
+    let (doc, ctx) = flex_lt(r#"<div style="width:200px">
+        <div style="height:30px">no z-index</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    assert_eq!(container.children[0].z_index, None);
+}
+
+// ============================================================================
+// Containing block from transforms
+// ============================================================================
+
+#[test]
+fn transform_establishes_containing_block() {
+    let (doc, ctx) = flex_lt(r#"<div style="width:400px; height:200px; transform:translateX(0)">
+        <div style="position:absolute; top:10px; left:10px; width:50px; height:50px">abs</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let container = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // The abs child should be positioned relative to the transform container
+    let abs = container.children.last().unwrap();
+    let offset_x = abs.content.x - container.content.x;
+    let offset_y = abs.content.y - container.content.y;
+    assert!((offset_x - 10.0).abs() < 1.0,
+        "abs left:10px relative to transform container, got {}", offset_x);
+    assert!((offset_y - 10.0).abs() < 1.0,
+        "abs top:10px relative to transform container, got {}", offset_y);
+}
