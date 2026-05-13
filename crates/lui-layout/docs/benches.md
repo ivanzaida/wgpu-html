@@ -17,7 +17,7 @@ Stylesheets: UA (WHATWG ~605 rules) + reset (`* { margin:0; padding:0; border-wi
 |---|-------------|---------|--------|-----|
 | 0 | Reuse `TextContext` across frames (`LayoutEngine`) | all | done | 1 |
 | 1 | Eliminate `LayoutCache` HashMap clone on incremental path | incremental | done | 1 |
-| 2 | Skip `build_box` for clean subtrees in incremental mode | incremental | pending | — |
+| 2 | Skip `build_box` for clean subtrees in incremental mode | incremental | done | 2 |
 | 3 | Arena-allocate `LayoutBox` children (replace per-node `Vec`) | all | pending | — |
 | 4 | Pre-allocate rects `Vec` from previous frame's count | all | pending | — |
 | 5 | Cache text shaping results across layout passes | inline | pending | — |
@@ -258,14 +258,100 @@ Changes: `LayoutEngine` struct owns `TextContext`, reused across calls. `LayoutC
 
 ---
 
-## Run 2 — `(pending)`
+## Run 2 — Skip build_box for clean subtrees
+
+Date: 2026-05-13
+Changes: `build_box_incremental` checks dirty set; clean nodes get a leaf LayoutBox (no children allocated). Cache clone synthesizes children from snapshots via stored node/style pointers.
+
+### Block Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| 50 stacked divs | 50 | 722 µs | 14,440 | +2.6% |
+| 200 stacked divs | 200 | 2.90 ms | 14,500 | −5.8% |
+| nested 4×3 | 120 | 848 µs | 7,067 | +3.5% |
+| nested 3×8 | 585 | 5.99 ms | 10,239 | +1.4% |
+
+### Flex Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| row 10 items | 10 | 230 µs | 23,000 | −0.4% |
+| row 50 items | 50 | 1.23 ms | 24,600 | +0.0% |
+| wrap 5×4 | 20 | 613 µs | 30,650 | +0.5% |
+| wrap 10×8 | 80 | 2.48 ms | 31,000 | +1.2% |
+| nested 3 deep | 40 | 800 µs | 20,000 | +1.4% |
+| nested 4 deep | 120 | 3.12 ms | 26,000 | −1.9% |
+
+### Grid Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| 4×4 fixed | 16 | 220 µs | 13,750 | −0.5% |
+| 10×6 fixed | 60 | 863 µs | 14,383 | −2.0% |
+| auto 24 items | 24 | 356 µs | 14,833 | −0.8% |
+| auto 100 items | 100 | 1.47 ms | 14,700 | +5.8% |
+
+### Table Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| 5×4 simple | 24 | 246 µs | 10,250 | +0.0% |
+| 20×6 simple | 126 | 1.36 ms | 10,794 | +0.7% |
+| 50×8 simple | 408 | 4.86 ms | 11,912 | −0.6% |
+| 20×6 colspan | 106 | 1.21 ms | 11,415 | +0.8% |
+
+### Inline Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| 20 spans | 20 | 253 µs | 12,650 | +3.3% |
+| 100 spans | 100 | 1.27 ms | 12,700 | +0.8% |
+| 500 spans | 500 | 7.06 ms | 14,120 | −0.4% |
+
+### Positioned Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| 20 absolute | 20 | 276 µs | 13,800 | +7.4% |
+| 100 absolute | 100 | 1.39 ms | 13,900 | +5.3% |
+
+### Mixed Layout
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| dashboard page | 40 | 528 µs | 13,200 | −2.4% |
+
+### End-to-End (cascade + layout)
+
+| Fixture | Nodes | Time | ns/node | vs Run 1 |
+|---------|-------|------|---------|----------|
+| cascade + layout | 40 | 958 µs | 23,950 | −0.4% |
+| large mixed tree | 300 | 4.02 ms | 13,400 | −5.9% |
+
+### Incremental Layout
+
+| Fixture | Time | vs full | vs Run 1 |
+|---------|------|---------|----------|
+| full baseline (dashboard) | 531 µs | — | −2.0% |
+| incremental 0 dirty | 522 µs | −1.7% | −3.9% |
+| incremental 1 dirty leaf | 62.5 µs | −88.2% | **−84.0%** |
+| incremental 1 dirty near root | 582 µs | +9.6% | +0.5% |
+| large full baseline | 13.07 ms | — | −0.4% |
+| large incremental 1 leaf | 425 µs | −96.7% | **−18.7%** |
+
+> **Summary:** Full layout within noise (opt doesn't affect full path). Incremental 1-dirty-leaf: **62.5 µs** (was 391 µs, −84%). Large incremental 1-leaf: **425 µs** (was 523 µs, −19%). Skipping box generation for clean subtrees eliminates allocation overhead proportional to tree size.
+
+---
+
+## Run 3 — `(pending)`
 
 Date: `(pending)`
 Changes: `(describe what changed)`
 
 ### Block Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | 50 stacked divs | 50 | — | — | — |
 | 200 stacked divs | 200 | — | — | — |
@@ -274,7 +360,7 @@ Changes: `(describe what changed)`
 
 ### Flex Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | row 10 items | 10 | — | — | — |
 | row 50 items | 50 | — | — | — |
@@ -285,7 +371,7 @@ Changes: `(describe what changed)`
 
 ### Grid Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | 4×4 fixed | 16 | — | — | — |
 | 10×6 fixed | 60 | — | — | — |
@@ -294,7 +380,7 @@ Changes: `(describe what changed)`
 
 ### Table Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | 5×4 simple | 24 | — | — | — |
 | 20×6 simple | 126 | — | — | — |
@@ -303,7 +389,7 @@ Changes: `(describe what changed)`
 
 ### Inline Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | 20 spans | 20 | — | — | — |
 | 100 spans | 100 | — | — | — |
@@ -311,27 +397,27 @@ Changes: `(describe what changed)`
 
 ### Positioned Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | 20 absolute | 20 | — | — | — |
 | 100 absolute | 100 | — | — | — |
 
 ### Mixed Layout
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | dashboard page | 40 | — | — | — |
 
 ### End-to-End (cascade + layout)
 
-| Fixture | Nodes | Time | ns/node | vs Run 1 |
+| Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
 | cascade + layout | 40 | — | — | — |
 | large mixed tree | 300 | — | — | — |
 
 ### Incremental Layout
 
-| Fixture | Time | vs full | vs Run 1 |
+| Fixture | Time | vs full | vs Run 2 |
 |---------|------|---------|----------|
 | full baseline (dashboard) | — | — | — |
 | incremental 0 dirty | — | — | — |

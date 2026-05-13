@@ -6,7 +6,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use lui_core::Rect;
 use lui_parse::HtmlNode;
 
-use crate::box_gen::build_box;
 use crate::box_tree::{BoxKind, LayoutBox, LayoutTree, Overflow, ScrollInfo, StickyInsets};
 use crate::context::LayoutContext;
 use crate::engine::layout_node;
@@ -40,9 +39,9 @@ pub struct LayoutCache {
     old_tree: FxHashMap<*const HtmlNode, OldBoxRef>,
 }
 
-/// Per-frame dirty set, built from dirty paths. Borrows the snapshot.
+/// Per-frame dirty set, built from dirty paths.
 pub(crate) struct DirtySet {
-    dirty: FxHashSet<*const HtmlNode>,
+    pub(crate) dirty: FxHashSet<*const HtmlNode>,
 }
 
 struct OldBoxRef {
@@ -52,6 +51,7 @@ struct OldBoxRef {
 
 struct ChildSnapshot {
     node_ptr: *const HtmlNode,
+    style_ptr: *const u8,
     kind: BoxKind,
     cached: CachedBox,
     children: Vec<ChildSnapshot>,
@@ -160,6 +160,7 @@ fn snapshot_children(b: &LayoutBox) -> Vec<ChildSnapshot> {
     let cw = b.content.width;
     b.children.iter().map(|c| ChildSnapshot {
         node_ptr: c.node as *const HtmlNode,
+        style_ptr: c.style as *const _ as *const u8,
         kind: c.kind,
         cached: snapshot_box(c, cw),
         children: snapshot_children(c),
@@ -243,7 +244,11 @@ fn try_clone_from_cache<'a>(
         clip.y += dy;
     }
 
-    restore_children(&mut b.children, &old_ref.child_snapshots, dx, dy);
+    if b.children.is_empty() && !old_ref.child_snapshots.is_empty() {
+        synthesize_children(b, &old_ref.child_snapshots, dx, dy);
+    } else {
+        restore_children(&mut b.children, &old_ref.child_snapshots, dx, dy);
+    }
     rebuild_rects(b, rects);
     true
 }
@@ -265,6 +270,29 @@ fn apply_cached(cached: &CachedBox, b: &mut LayoutBox) {
     b.text_decoration = cached.text_decoration.clone();
     b.writing_mode = cached.writing_mode.clone();
     b.list_marker = cached.list_marker.clone();
+}
+
+/// Create children from snapshots when build_box was skipped for a clean subtree.
+/// SAFETY: node_ptr and style_ptr were captured from a LayoutBox whose referents
+/// (HtmlNode in the parsed document, ComputedStyle in the cascade arena) outlive
+/// the layout tree.
+fn synthesize_children<'a>(parent: &mut LayoutBox<'a>, snapshots: &[ChildSnapshot], dx: f32, dy: f32) {
+    parent.children = snapshots.iter().map(|snap| {
+        let node: &'a HtmlNode = unsafe { &*(snap.node_ptr as *const HtmlNode) };
+        let style: &'a lui_cascade::ComputedStyle<'a> = unsafe { &*(snap.style_ptr as *const lui_cascade::ComputedStyle<'a>) };
+        let mut child = LayoutBox::new(snap.kind, node, style);
+        apply_cached(&snap.cached, &mut child);
+        child.content.x = snap.cached.content.x + dx;
+        child.content.y = snap.cached.content.y + dy;
+        if let Some(ref mut clip) = child.clip {
+            clip.x += dx;
+            clip.y += dy;
+        }
+        if !snap.children.is_empty() {
+            synthesize_children(&mut child, &snap.children, dx, dy);
+        }
+        child
+    }).collect();
 }
 
 fn restore_children(new_children: &mut [LayoutBox], old_snapshots: &[ChildSnapshot], dx: f32, dy: f32) {
@@ -305,7 +333,7 @@ pub fn layout_incremental_with<'a>(
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
-    let root = build_box(styled);
+    let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty);
     let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
     LayoutTree { root, rects }
 }
@@ -339,7 +367,7 @@ pub fn layout_tree_incremental_with<'a>(
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
-    let root = build_box(styled);
+    let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty);
     let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
     LayoutTree { root, rects }
 }

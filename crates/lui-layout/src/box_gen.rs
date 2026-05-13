@@ -195,6 +195,70 @@ fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledN
     }
 }
 
+/// Like `build_box` but skips recursion into clean subtrees.
+/// Clean nodes get a LayoutBox with correct node/style but empty children —
+/// the incremental cache restores them from snapshots.
+pub fn build_box_incremental<'a>(
+    styled: &'a StyledNode<'a>,
+    dirty: &rustc_hash::FxHashSet<*const lui_parse::HtmlNode>,
+) -> LayoutBox<'a> {
+    if styled.node.element.is_text() {
+        return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style);
+    }
+
+    let kind = resolve_box_kind_with_node(&styled.style, styled.node);
+    let ptr = styled.node as *const lui_parse::HtmlNode;
+
+    if !dirty.contains(&ptr) {
+        return LayoutBox::new(kind, styled.node, &styled.style);
+    }
+
+    let mut child_boxes = Vec::new();
+    let mut pending_inlines: Vec<&StyledNode> = Vec::new();
+
+    for child in &styled.children {
+        collect_child_incremental(child, &mut pending_inlines, &mut child_boxes, styled, dirty);
+    }
+    flush_inlines(&mut pending_inlines, &mut child_boxes, styled);
+
+    let mut b = LayoutBox::new(kind, styled.node, &styled.style);
+    b.children = child_boxes;
+    fixup_anonymous_table_wrappers(&mut b, styled);
+    b
+}
+
+fn collect_child_incremental<'a>(
+    child: &'a StyledNode<'a>,
+    pending_inlines: &mut Vec<&'a StyledNode<'a>>,
+    child_boxes: &mut Vec<LayoutBox<'a>>,
+    parent: &'a StyledNode<'a>,
+    dirty: &rustc_hash::FxHashSet<*const lui_parse::HtmlNode>,
+) {
+    if is_display_none(&child.style) { return; }
+    if is_display_contents(&child.style) {
+        for grandchild in &child.children {
+            collect_child_incremental(grandchild, pending_inlines, child_boxes, parent, dirty);
+        }
+        return;
+    }
+    if child.node.element.is_text() {
+        pending_inlines.push(child);
+        return;
+    }
+    let child_kind = resolve_box_kind_with_node(&child.style, child.node);
+    match child_kind {
+        BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer
+        | BoxKind::Table | BoxKind::TableRowGroup | BoxKind::TableCaption | BoxKind::ListItem => {
+            flush_inlines(pending_inlines, child_boxes, parent);
+            child_boxes.push(build_box_incremental(child, dirty));
+        }
+        BoxKind::Inline | BoxKind::InlineBlock | BoxKind::InlineFlex | BoxKind::InlineGrid => {
+            pending_inlines.push(child);
+        }
+        _ => child_boxes.push(build_box_incremental(child, dirty)),
+    }
+}
+
 fn is_display_none(style: &ComputedStyle) -> bool {
     match style.display {
         Some(&CssValue::Unknown(ref s)) | Some(&CssValue::String(ref s)) => s.as_ref() == "none",
