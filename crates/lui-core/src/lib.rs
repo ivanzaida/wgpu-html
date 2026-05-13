@@ -20,6 +20,8 @@ impl Rect {
 
 // ── CSS types ─────────────────────────────────────────────────────────
 
+pub mod events;
+
 pub mod color;
 pub mod combinator;
 pub mod css_at_rule;
@@ -48,7 +50,7 @@ pub use css_property::CssProperty;
 pub use css_pseudo::CssPseudo;
 pub use css_type::CssType;
 pub use element::{HtmlElement, SVG_ELEMENTS, should_auto_close};
-pub use node::{HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag};
+pub use node::{EventHandler, EventListenerOptions, HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag};
 pub use error::ParseError;
 pub use media::{MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList};
 pub use selector::{AttrOp, AttributeSelector, CompoundSelector, ComplexSelector, PseudoSelector, SelectorList};

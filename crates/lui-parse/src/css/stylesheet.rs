@@ -200,8 +200,14 @@ pub fn parse_declaration_block(input: &str) -> Result<Vec<Declaration>, ParseErr
             } else {
                 &val_str
             };
-            let (property, value) = parse_declaration(prop, val_str)?;
-            decls.push(Declaration { property, value, important });
+            match parse_declaration(prop, val_str) {
+                Ok((property, value)) => decls.push(Declaration { property, value, important }),
+                Err(_) => {
+                    let property = lui_core::CssProperty::from_name(prop);
+                    let value = lui_core::CssValue::String(lui_core::ArcStr::from(val_str));
+                    decls.push(Declaration { property, value, important });
+                }
+            }
         }
     }
     Ok(decls)

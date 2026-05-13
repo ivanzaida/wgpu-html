@@ -2,6 +2,7 @@
 name = "lui-layout"
 version = "0.1.0"
 edition = "2024"
+autotests = false
 
 [dependencies]
 lui-core = { path = "../lui-core" }
@@ -11,3 +12,7 @@ lui-resolve = { path = "../lui-resolve" }
 bumpalo.workspace = true
 rustc-hash = "2"
 lui-glyph = { path = "../lui-glyph" }
+
+[[test]]
+name = "tests"
+path = "tests/tests.rs"

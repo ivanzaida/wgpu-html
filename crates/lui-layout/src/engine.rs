@@ -29,11 +29,20 @@ pub fn layout_node<'a>(
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
 ) -> LayoutBox<'a> {
     match b.kind {
-        BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer | BoxKind::Root => {
+        BoxKind::FlexContainer => {
+            crate::flex::layout_flex(&mut b, ctx, pos, text_ctx, rects);
+        }
+        BoxKind::GridContainer => {
+            crate::grid::layout_grid(&mut b, ctx, pos, text_ctx, rects);
+        }
+        BoxKind::Block | BoxKind::Root => {
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
+        }
+        BoxKind::InlineBlock => {
             crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
         }
         BoxKind::Inline | BoxKind::AnonymousInline => {
-            flow::layout_inline(&mut b, ctx, pos, text_ctx);
+            flow::layout_inline(&mut b, ctx, pos, text_ctx, rects);
         }
         BoxKind::AnonymousBlock => {
             crate::block::layout_anonymous_block(&mut b, ctx, pos, text_ctx, rects);

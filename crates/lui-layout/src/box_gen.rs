@@ -18,6 +18,7 @@ pub fn build_box<'a>(styled: &'a StyledNode<'a>) -> LayoutBox<'a> {
     let mut pending_inlines: Vec<&StyledNode> = Vec::new();
 
     for child in &styled.children {
+        if is_display_none(&child.style) { continue; }
         if child.node.element.is_text() {
             pending_inlines.push(child);
             continue;
@@ -64,5 +65,12 @@ fn resolve_box_kind(style: &ComputedStyle) -> BoxKind {
             _ => BoxKind::Block,
         },
         _ => BoxKind::Block,
+    }
+}
+
+fn is_display_none(style: &ComputedStyle) -> bool {
+    match style.display {
+        Some(&CssValue::Unknown(ref s)) | Some(&CssValue::String(ref s)) => s.as_ref() == "none",
+        _ => false,
     }
 }

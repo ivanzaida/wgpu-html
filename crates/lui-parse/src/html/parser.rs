@@ -98,7 +98,7 @@ impl TreeBuilder {
         } else {
             HtmlNode::new(HtmlElement::Html).with_children(self.document)
         };
-        HtmlDocument { root, stylesheets: self.stylesheets }
+        HtmlDocument::new(root, self.stylesheets)
     }
 
     fn push_node(&mut self, node: HtmlNode) {
