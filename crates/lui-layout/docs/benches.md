@@ -1,0 +1,220 @@
+# Layout Benchmarks
+
+## Setup
+
+| Field | Value |
+|-------|-------|
+| CPU | `(fill in)` |
+| OS | `(fill in)` |
+| Rust | `(fill in)` |
+| Command | `cargo bench --manifest-path crates/lui-layout/Cargo.toml` |
+
+Stylesheets: UA (WHATWG ~605 rules) + reset (`* { margin:0; padding:0; border-width:0 }`)
+
+### Fixtures
+
+#### Block
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| 50 stacked divs | Flat list, each with height/width/padding/margin | ~50 |
+| 200 stacked divs | Same pattern, 4× | ~200 |
+| nested 4×3 | 4 levels deep, 3 children each | ~120 |
+| nested 3×8 | 3 levels deep, 8 children each | ~585 |
+
+#### Flex
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| row 10 items | Single flex row, `flex:1`, gap | 10 |
+| row 50 items | Same, 50 items | 50 |
+| wrap 5×4 | `flex-wrap:wrap`, 20 items | 20 |
+| wrap 10×8 | Same, 80 items | 80 |
+| nested 3 deep | Alternating row/column flex, 3 levels × 3 items | ~40 |
+| nested 4 deep | Same, 4 levels | ~120 |
+
+#### Grid
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| 4×4 fixed | `1fr` columns, 16 cells | 16 |
+| 10×6 fixed | Same, 60 cells | 60 |
+| auto 24 items | `repeat(4, 1fr)`, auto-placement | 24 |
+| auto 100 items | Same, 100 items | 100 |
+
+#### Table
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| 5×4 simple | thead + tbody, border-spacing | ~24 |
+| 20×6 simple | Same pattern, 120 cells | ~126 |
+| 50×8 simple | 400 cells | ~408 |
+| 20×6 colspan | Every 3rd row has `colspan=2` | ~106 |
+
+#### Inline
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| 20 spans | `<span>` words in 400px container | 20 |
+| 100 spans | Same, line breaking | 100 |
+| 500 spans | Heavy text shaping + wrapping | 500 |
+
+#### Positioned
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| 20 absolute | `position:absolute` children in relative parent | 20 |
+| 100 absolute | Same, 100 elements | 100 |
+
+#### Mixed / End-to-end
+
+| Fixture | Description | Nodes |
+|---------|-------------|-------|
+| dashboard page | Flex sidebar + grid cards (9) + table (3×3) | ~40 |
+| cascade + layout | Dashboard with full cascade | ~40 |
+| large mixed tree | Nested blocks (3×5) + nested flex (3×3) + grid (6×4) | ~300 |
+
+---
+
+## Run 1 — Baseline
+
+Date: 2026-05-13
+
+### Block Layout
+
+| Fixture | Time |
+|---------|------|
+| 50 stacked divs | 11.05 ms |
+| 200 stacked divs | 13.39 ms |
+| nested 4×3 | 11.14 ms |
+| nested 3×8 | 16.40 ms |
+
+### Flex Layout
+
+| Fixture | Time |
+|---------|------|
+| row 10 items | 10.33 ms |
+| row 50 items | 10.94 ms |
+| wrap 5×4 | 10.16 ms |
+| wrap 10×8 | 12.24 ms |
+| nested 3 deep | 10.30 ms |
+| nested 4 deep | 12.86 ms |
+
+### Grid Layout
+
+| Fixture | Time |
+|---------|------|
+| 4×4 fixed | 9.86 ms |
+| 10×6 fixed | 10.64 ms |
+| auto 24 items | 9.76 ms |
+| auto 100 items | 11.48 ms |
+
+### Table Layout
+
+| Fixture | Time |
+|---------|------|
+| 5×4 simple | 9.83 ms |
+| 20×6 simple | 10.64 ms |
+| 50×8 simple | 14.09 ms |
+| 20×6 colspan | 11.03 ms |
+
+### Inline Layout
+
+| Fixture | Time |
+|---------|------|
+| 20 spans | 9.98 ms |
+| 100 spans | 11.05 ms |
+| 500 spans | 16.87 ms |
+
+### Positioned Layout
+
+| Fixture | Time |
+|---------|------|
+| 20 absolute | 9.93 ms |
+| 100 absolute | 11.30 ms |
+
+### Mixed Layout
+
+| Fixture | Time |
+|---------|------|
+| dashboard page | 10.31 ms |
+
+### End-to-End (cascade + layout)
+
+| Fixture | Time |
+|---------|------|
+| cascade + layout | 10.85 ms |
+| large mixed tree | 13.64 ms |
+
+---
+
+## Run 2 — `(pending)`
+
+Date: `(pending)`
+Changes: `(describe what changed)`
+
+### Block Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| 50 stacked divs | — | — |
+| 200 stacked divs | — | — |
+| nested 4×3 | — | — |
+| nested 3×8 | — | — |
+
+### Flex Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| row 10 items | — | — |
+| row 50 items | — | — |
+| wrap 5×4 | — | — |
+| wrap 10×8 | — | — |
+| nested 3 deep | — | — |
+| nested 4 deep | — | — |
+
+### Grid Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| 4×4 fixed | — | — |
+| 10×6 fixed | — | — |
+| auto 24 items | — | — |
+| auto 100 items | — | — |
+
+### Table Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| 5×4 simple | — | — |
+| 20×6 simple | — | — |
+| 50×8 simple | — | — |
+| 20×6 colspan | — | — |
+
+### Inline Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| 20 spans | — | — |
+| 100 spans | — | — |
+| 500 spans | — | — |
+
+### Positioned Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| 20 absolute | — | — |
+| 100 absolute | — | — |
+
+### Mixed Layout
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| dashboard page | — | — |
+
+### End-to-End (cascade + layout)
+
+| Fixture | Time | vs baseline |
+|---------|------|-------------|
+| cascade + layout | — | — |
+| large mixed tree | — | — |

@@ -13,6 +13,13 @@ bumpalo.workspace = true
 rustc-hash = "2"
 lui-glyph = { path = "../lui-glyph" }
 
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
 [[test]]
 name = "tests"
 path = "tests/tests.rs"
+
+[[bench]]
+name = "layout_bench"
+harness = false
