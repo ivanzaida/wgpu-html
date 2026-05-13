@@ -890,3 +890,57 @@ fn flex_basis_content_same_as_max_content() {
     assert!((w_content - w_max).abs() < 0.1,
         "flex-basis:content ({}) should equal flex-basis:max-content ({})", w_content, w_max);
 }
+
+#[test]
+fn flex_row_with_explicit_sized_children() {
+    let html = r#"<div style="display:flex; gap:16px">
+        <div style="width:120px; height:120px">A</div>
+        <div style="width:120px; height:120px">B</div>
+        <div style="width:120px; height:120px">C</div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let ch = &flex.children;
+    assert_eq!(ch.len(), 3, "flex should have 3 children");
+    // All children should be on the same row (same y)
+    assert!((ch[0].content.y - ch[1].content.y).abs() < 1.0,
+        "children should share y: {} vs {}", ch[0].content.y, ch[1].content.y);
+    // Children should be distributed horizontally with gaps
+    assert!(ch[1].content.x > ch[0].content.x + 100.0,
+        "child B x={} should be > child A x={} + 100", ch[1].content.x, ch[0].content.x);
+    assert!(ch[2].content.x > ch[1].content.x + 100.0,
+        "child C x={} should be > child B x={} + 100", ch[2].content.x, ch[1].content.x);
+    // Container height should be at least 120px
+    assert!(flex.content.height >= 119.0,
+        "flex height should be >= 120px, got {}", flex.content.height);
+}
+
+#[test]
+fn nested_column_flex_with_row_flex_children() {
+    let html = r#"<div style="display:flex; flex-direction:column; padding:40px">
+        <div style="display:flex; gap:16px">
+            <div style="width:120px; height:120px">A</div>
+            <div style="width:120px; height:120px">B</div>
+            <div style="width:120px; height:120px">C</div>
+        </div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let outer = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let inner = &outer.children[0];
+    eprintln!("outer: kind={:?} w={} h={}", outer.kind, outer.content.width, outer.content.height);
+    eprintln!("inner: kind={:?} w={} h={}", inner.kind, inner.content.width, inner.content.height);
+    for (i, c) in inner.children.iter().enumerate() {
+        eprintln!("  child[{}]: x={} y={} w={} h={}", i, c.content.x, c.content.y, c.content.width, c.content.height);
+    }
+    // Inner flex row children should be horizontal
+    assert!((inner.children[0].content.y - inner.children[1].content.y).abs() < 1.0,
+        "row children should share y");
+    assert!(inner.children[1].content.x > inner.children[0].content.x + 100.0,
+        "child B should be right of child A");
+}
