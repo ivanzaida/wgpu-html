@@ -5,6 +5,7 @@ members = [
     "crates/lui-core",
     "crates/lui-glyph",
     "crates/lui-layout",
+    "crates/lui-paint",
     "crates/lui-parse",
     "crates/lui-resolve",
 
