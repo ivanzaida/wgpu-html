@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "playwright:screenshot": "node scripts/browser-screenshot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}
