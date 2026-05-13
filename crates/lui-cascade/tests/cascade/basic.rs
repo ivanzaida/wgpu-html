@@ -2,8 +2,7 @@ use lui_cascade::{
     cascade::{CascadeContext, InteractionState},
     media::MediaContext,
 };
-use lui_css_parser::parse_stylesheet;
-use lui_html_parser::parse;
+use lui_parse::{parse_stylesheet, parse};
 
 #[test]
 fn single_rule_applies_to_matching_element() {

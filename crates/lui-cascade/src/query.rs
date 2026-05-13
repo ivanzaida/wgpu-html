@@ -1,5 +1,4 @@
-use lui_css_parser::parse_selector_list;
-use lui_html_parser::HtmlNode;
+use lui_parse::{parse_selector_list, HtmlNode};
 
 use crate::matching::{
     AncestorEntry, MatchContext, matches_selector,
@@ -73,7 +72,7 @@ pub fn closest<'a>(
 
 // ---------------------------------------------------------------------------
 
-use lui_css_parser::selector::ComplexSelector;
+use lui_core::selector::ComplexSelector;
 
 fn walk_collect<'a>(
     tree_root: &'a HtmlNode,

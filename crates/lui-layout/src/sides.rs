@@ -6,7 +6,7 @@
 //! block-centering).
 
 use lui_cascade::ComputedStyle;
-use lui_css_parser::{CssUnit, CssValue};
+use lui_core::{CssUnit, CssValue};
 
 use crate::geometry::RectEdges;
 

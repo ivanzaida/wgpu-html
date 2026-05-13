@@ -1,10 +1,10 @@
-use lui_css_parser::{
+use lui_core::{
     CssCombinator, CssPseudo, SelectorList,
 };
-use lui_css_parser::selector::{
+use lui_core::selector::{
     AttrOp, AttributeSelector, CompoundSelector, ComplexSelector, PseudoSelector,
 };
-use lui_html_parser::HtmlNode;
+use lui_parse::HtmlNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dir { Ltr, Rtl }
@@ -495,7 +495,7 @@ fn matches_pseudo(
 
         // ── Functional pseudo-classes ──
         CssPseudo::Not => match &pseudo.arg {
-            Some(arg) => match lui_css_parser::parse_selector_list(arg) {
+            Some(arg) => match lui_parse::parse_selector_list(arg) {
                 Ok(inner) => !inner.0.iter().any(|sel| {
                     matches_selector(sel, node, ctx, ancestors, parent_node)
                 }),
@@ -504,7 +504,7 @@ fn matches_pseudo(
             None => true,
         },
         CssPseudo::Is | CssPseudo::Where | CssPseudo::Matches => match &pseudo.arg {
-            Some(arg) => match lui_css_parser::parse_selector_list(arg) {
+            Some(arg) => match lui_parse::parse_selector_list(arg) {
                 Ok(inner) => inner.0.iter().any(|sel| {
                     matches_selector(sel, node, ctx, ancestors, parent_node)
                 }),
@@ -554,7 +554,7 @@ fn matches_pseudo(
 
 fn match_has(node: &HtmlNode, arg: &str) -> bool {
     if let Some(rest) = arg.strip_prefix('>') {
-        match lui_css_parser::parse_selector_list(rest.trim()) {
+        match lui_parse::parse_selector_list(rest.trim()) {
             Ok(inner) => node.children.iter().enumerate().any(|(i, child)| {
                 let ctx = child_ctx_for(i, node.children.len());
                 inner.0.iter().any(|sel| {
@@ -567,7 +567,7 @@ fn match_has(node: &HtmlNode, arg: &str) -> bool {
         // :has(+ .sibling) / :has(~ .sibling) — requires parent context, not supported
         false
     } else {
-        match lui_css_parser::parse_selector_list(arg) {
+        match lui_parse::parse_selector_list(arg) {
             Ok(inner) => has_matching_descendant(node, &inner),
             Err(_) => false,
         }

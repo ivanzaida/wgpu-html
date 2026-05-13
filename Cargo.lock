@@ -916,7 +916,7 @@ dependencies = [
  "bevy_reflect",
  "derive_more",
  "log",
- "smol_str",
+ "smol_str 0.2.2",
  "thiserror 2.0.18",
 ]
 
@@ -1165,7 +1165,7 @@ dependencies = [
  "inventory",
  "serde",
  "smallvec",
- "smol_str",
+ "smol_str 0.2.2",
  "thiserror 2.0.18",
  "uuid",
  "variadics_please",
@@ -2051,14 +2051,38 @@ checksum = "c4cadaea21e24c49c0c82116f2b465ae6a49d63c90e428b0f8d9ae1f638ac91f"
 dependencies = [
  "bitflags 2.11.1",
  "fontdb 0.23.0",
- "harfrust",
+ "harfrust 0.4.1",
  "linebender_resource_handle",
  "log",
  "rangemap",
  "rustc-hash 1.1.0",
  "self_cell",
  "skrifa 0.39.0",
- "smol_str",
+ "smol_str 0.2.2",
+ "swash 0.2.7",
+ "sys-locale",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-script",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "cosmic-text"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be17b688510d934ce13f48a2beba700e11583e281e0fda99c22bb256a14eda73"
+dependencies = [
+ "bitflags 2.11.1",
+ "fontdb 0.23.0",
+ "harfrust 0.5.2",
+ "linebender_resource_handle",
+ "log",
+ "rangemap",
+ "rustc-hash 2.1.2",
+ "self_cell",
+ "skrifa 0.40.0",
+ "smol_str 0.3.6",
  "swash 0.2.7",
  "sys-locale",
  "unicode-bidi",
@@ -3083,6 +3107,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "harfrust"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da2e5ae821f6e96664977bf974d6d6a2d6682f9ccee23e62ec1d134246845f9"
+dependencies = [
+ "bitflags 2.11.1",
+ "bytemuck",
+ "core_maths",
+ "read-fonts 0.37.0",
+ "smallvec",
+]
+
+[[package]]
 name = "hash32"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3609,8 +3646,8 @@ version = "0.1.0"
 dependencies = [
  "bumpalo",
  "criterion",
- "lui-css-parser",
- "lui-html-parser",
+ "lui-core",
+ "lui-parse",
  "lui-resolve",
  "rayon",
  "rustc-hash 2.1.2",
@@ -3618,11 +3655,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "lui-css-old"
+name = "lui-core"
 version = "0.1.0"
 
 [[package]]
-name = "lui-css-parser"
+name = "lui-css-old"
 version = "0.1.0"
 
 [[package]]
@@ -3731,16 +3768,11 @@ version = "0.1.0"
 name = "lui-glyph"
 version = "0.1.0"
 dependencies = [
- "cosmic-text 0.12.1",
- "lui-css-parser",
+ "cosmic-text 0.19.0",
+ "fontdb 0.23.0",
+ "lui-cascade",
+ "lui-core",
  "rustc-hash 2.1.2",
-]
-
-[[package]]
-name = "lui-html-parser"
-version = "0.1.0"
-dependencies = [
- "lui-css-parser",
 ]
 
 [[package]]
@@ -3749,9 +3781,9 @@ version = "0.1.0"
 dependencies = [
  "bumpalo",
  "lui-cascade",
- "lui-css-parser",
+ "lui-core",
  "lui-glyph",
- "lui-html-parser",
+ "lui-parse",
  "lui-resolve",
  "rustc-hash 2.1.2",
 ]
@@ -3774,6 +3806,13 @@ name = "lui-models"
 version = "0.1.0"
 dependencies = [
  "lui-css-old",
+]
+
+[[package]]
+name = "lui-parse"
+version = "0.1.0"
+dependencies = [
+ "lui-core",
 ]
 
 [[package]]
@@ -3810,7 +3849,7 @@ name = "lui-resolve"
 version = "0.1.0"
 dependencies = [
  "bumpalo",
- "lui-css-parser",
+ "lui-core",
  "rustc-hash 2.1.2",
 ]
 
@@ -4954,6 +4993,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b634fabf032fab15307ffd272149b622260f55974d9fad689292a5d33df02e5"
 dependencies = [
  "bytemuck",
+ "core_maths",
  "font-types 0.11.3",
 ]
 
@@ -5543,6 +5583,12 @@ checksum = "dd538fb6910ac1099850255cf94a94df6551fbdd602454387d0adb2d1ca6dead"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "smol_str"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523"
 
 [[package]]
 name = "spin"
@@ -7391,7 +7437,7 @@ dependencies = [
  "rustix 0.38.44",
  "sctk-adwaita",
  "smithay-client-toolkit 0.19.2",
- "smol_str",
+ "smol_str 0.2.2",
  "tracing",
  "unicode-segmentation",
  "wasm-bindgen",

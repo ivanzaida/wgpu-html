@@ -6,7 +6,7 @@
 //! 2. Resolve chains (--a: var(--b) where --b: 10px) with cycle detection
 
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssValue};
+use lui_core::{ArcStr, CssValue};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Resolve `var()` references in a CSS value using resolved and raw

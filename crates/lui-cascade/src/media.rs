@@ -1,4 +1,4 @@
-use lui_css_parser::{
+use lui_core::{
     CssProperty, CssUnit, CssValue,
     MediaQueryList, MediaQuery, MediaModifier, MediaCondition, MediaFeature,
     SupportsCondition, SupportsFeature,

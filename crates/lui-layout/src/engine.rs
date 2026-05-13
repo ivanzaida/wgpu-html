@@ -1,7 +1,8 @@
 //! Layout engine: entry point and recursive dispatcher.
 
 use lui_cascade::StyledNode;
-use lui_html_parser::{HtmlNode, Rect};
+use lui_core::Rect;
+use lui_parse::HtmlNode;
 
 use crate::box_gen::build_box;
 use crate::box_tree::{BoxKind, LayoutBox, LayoutTree};

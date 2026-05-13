@@ -2,7 +2,7 @@
 //! Handles anonymous box creation for inline-between-block content.
 
 use lui_cascade::{ComputedStyle, StyledNode};
-use lui_css_parser::CssValue;
+use lui_core::CssValue;
 
 use crate::box_tree::{BoxKind, LayoutBox};
 

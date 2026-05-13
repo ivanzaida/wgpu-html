@@ -92,7 +92,7 @@ fn bloom_hash(s: &str, salt: u8) -> usize {
 /// match given the current bloom filter? Returns false if any ancestor
 /// compound requires a tag/id/class that's definitely not in the filter.
 pub fn bloom_might_match(
-    selector: &lui_css_parser::selector::ComplexSelector,
+    selector: &lui_core::selector::ComplexSelector,
     bloom: &AncestorBloom,
 ) -> bool {
     let compounds = &selector.compounds;

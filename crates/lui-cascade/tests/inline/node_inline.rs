@@ -1,6 +1,6 @@
 use lui_cascade::inline::node_inline_style;
-use lui_css_parser::CssProperty;
-use lui_html_parser::parse;
+use lui_core::CssProperty;
+use lui_parse::parse;
 
 #[test]
 fn extracts_style_from_node() {

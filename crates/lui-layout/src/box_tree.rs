@@ -1,7 +1,8 @@
 //! Layout box types and the box tree.
 
 use lui_cascade::ComputedStyle;
-use lui_html_parser::{HtmlNode, Rect};
+use lui_core::Rect;
+use lui_parse::HtmlNode;
 
 use crate::geometry::{RectEdges, Size};
 

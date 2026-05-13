@@ -1,23 +1,5 @@
-use crate::error::ParseError;
+use crate::{ParseError, SupportsCondition, SupportsFeature};
 
-/// A parsed `@supports` condition.
-#[derive(Debug, Clone, PartialEq)]
-pub enum SupportsCondition {
-    Feature(SupportsFeature),
-    Not(Box<SupportsCondition>),
-    And(Vec<SupportsCondition>),
-    Or(Vec<SupportsCondition>),
-}
-
-/// A single feature test like `(display: grid)` or `selector(.foo)`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SupportsFeature {
-    pub name: String,
-    pub value: Option<String>,
-    pub is_selector: bool,
-}
-
-/// Parse the prelude of a `@supports` rule.
 pub fn parse_supports_condition(input: &str) -> Result<SupportsCondition, ParseError> {
     let chars: Vec<char> = input.chars().collect();
     let mut pos = 0;
@@ -27,7 +9,6 @@ pub fn parse_supports_condition(input: &str) -> Result<SupportsCondition, ParseE
 fn parse_condition(chars: &[char], pos: &mut usize) -> Result<SupportsCondition, ParseError> {
     skip_ws(chars, pos);
 
-    // `not <parens>`
     if let Some(_) = match_word(chars, pos, "not") {
         let inner = parse_parens_or_selector(chars, pos)?;
         return Ok(SupportsCondition::Not(Box::new(inner)));
@@ -36,7 +17,6 @@ fn parse_condition(chars: &[char], pos: &mut usize) -> Result<SupportsCondition,
     let first = parse_parens_or_selector(chars, pos)?;
     skip_ws(chars, pos);
 
-    // and/or chain
     if let Some(_) = match_word(chars, pos, "and") {
         let mut terms = vec![first];
         loop {
@@ -91,7 +71,6 @@ fn parse_parens(chars: &[char], pos: &mut usize) -> Result<SupportsCondition, Pa
     *pos += 1;
     skip_ws(chars, pos);
 
-    // Nested `( <condition> )`
     if *pos < chars.len() && chars[*pos] == '(' {
         let inner = parse_parens(chars, pos)?;
         skip_ws(chars, pos);
@@ -99,7 +78,6 @@ fn parse_parens(chars: &[char], pos: &mut usize) -> Result<SupportsCondition, Pa
         return Ok(inner);
     }
 
-    // `selector(...)` feature
     if let Some(_) = match_word(chars, pos, "selector") {
         if *pos < chars.len() && chars[*pos] == '(' {
             *pos += 1;
@@ -111,14 +89,12 @@ fn parse_parens(chars: &[char], pos: &mut usize) -> Result<SupportsCondition, Pa
             }
             let sel: String = chars[start..*pos - 1].iter().collect();
             let feat = SupportsFeature { name: "selector".into(), value: Some(sel.trim().into()), is_selector: true };
-            // consume the outer ')'
             skip_ws(chars, pos);
             expect(chars, pos, ')')?;
             return Ok(SupportsCondition::Feature(feat));
         }
     }
 
-    // `( property: value )` feature
     let name_start = *pos;
     while *pos < chars.len() && (chars[*pos].is_ascii_alphanumeric() || chars[*pos] == '-') {
         *pos += 1;

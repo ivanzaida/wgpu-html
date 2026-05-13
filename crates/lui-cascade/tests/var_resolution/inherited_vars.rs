@@ -1,7 +1,7 @@
 use bumpalo::Bump;
 use lui_cascade::style::{ComputedStyle, alloc_value};
 use lui_cascade::var_resolution::resolve_vars;
-use lui_css_parser::{ArcStr, CssValue};
+use lui_core::{ArcStr, CssValue};
 
 #[test]
 fn var_resolves_from_inherited_custom_property() {

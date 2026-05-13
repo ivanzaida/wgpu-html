@@ -1,6 +1,5 @@
 use lui_cascade::matching::any_selector_matches;
-use lui_css_parser::parse_selector_list;
-use lui_html_parser::parse;
+use lui_parse::{parse_selector_list, parse};
 use crate::helpers::root_ctx;
 
 #[test]

@@ -1,6 +1,6 @@
 use lui_cascade::query::{query_selector_all, query_selector, matches, closest};
 use lui_cascade::matching::AncestorEntry;
-use lui_html_parser::{HtmlElement, parse};
+use lui_parse::{HtmlElement, parse};
 
 // ── query_selector_all ──
 

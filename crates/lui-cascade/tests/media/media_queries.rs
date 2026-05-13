@@ -1,5 +1,5 @@
 use lui_cascade::media::{MediaContext, evaluate_media};
-use lui_css_parser::parse_media_query_list;
+use lui_parse::parse_media_query_list;
 
 fn ctx(w: f32, h: f32) -> MediaContext {
     MediaContext { viewport_width: w, viewport_height: h, ..Default::default() }

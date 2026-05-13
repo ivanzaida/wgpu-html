@@ -4,7 +4,7 @@
 //! Returns `Option<f32>` — `None` means `auto` (deferred to content/layout mode).
 
 use lui_cascade::ComputedStyle;
-use lui_css_parser::{CssUnit, CssValue};
+use lui_core::{CssUnit, CssValue};
 
 /// Resolve a length value against a containing-block dimension.
 /// Returns `None` for `auto`, `Some(px)` otherwise.

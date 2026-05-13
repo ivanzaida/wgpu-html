@@ -1,7 +1,6 @@
 use lui_cascade::cascade::{CascadeContext, InteractionState};
 use lui_cascade::media::MediaContext;
-use lui_css_parser::parse_stylesheet;
-use lui_html_parser::parse;
+use lui_parse::{parse_stylesheet, parse};
 
 #[test]
 fn before_pseudo_element_collected() {

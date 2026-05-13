@@ -1,6 +1,6 @@
 use bumpalo::Bump;
 use lui_cascade::style::{ComputedStyle, alloc_value};
-use lui_css_parser::{CssProperty, CssValue, CssUnit};
+use lui_core::{CssProperty, CssValue, CssUnit};
 
 #[test]
 fn set_and_get_hot_property() {

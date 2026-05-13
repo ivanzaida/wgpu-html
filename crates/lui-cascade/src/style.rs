@@ -1,7 +1,7 @@
 use rustc_hash::FxHashMap;
 
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssProperty, CssValue};
+use lui_core::{ArcStr, CssProperty, CssValue};
 
 /// Computed style for a single node.
 ///

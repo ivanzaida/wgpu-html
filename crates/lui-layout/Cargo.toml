@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-css-parser = { path = "../lui-css-parser" }
-lui-html-parser = { path = "../lui-html-parser" }
+lui-core = { path = "../lui-core" }
+lui-parse = { path = "../lui-parse" }
 lui-cascade = { path = "../lui-cascade" }
 lui-resolve = { path = "../lui-resolve" }
 bumpalo.workspace = true

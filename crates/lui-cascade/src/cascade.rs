@@ -4,8 +4,8 @@ use std::{
 };
 
 use bumpalo::Bump;
-use lui_css_parser::{expand_shorthand, longhands_of, ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
-use lui_html_parser::HtmlNode;
+use lui_core::{ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
+use lui_parse::{expand_shorthand, longhands_of, HtmlNode};
 use lui_resolve::ResolutionContext;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
@@ -678,7 +678,7 @@ fn matched_specificity_bloom(
       continue;
     }
     if matches_selector(sel, node, ctx, ancestors, parent) {
-      return Some(sel.specificity());
+      return Some(lui_parse::complex_specificity(sel));
     }
   }
   None
@@ -756,10 +756,10 @@ fn cascade_children_parallel<'a>(
 
 /// Resolve math functions and var() in all style properties.
 fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext, arena: &'a Bump) {
-    use lui_css_parser::CssValue;
+    use lui_core::CssValue;
     fn needs_resolve(v: &CssValue) -> bool {
         matches!(v, CssValue::Function { .. } | CssValue::Var { .. })
-            || matches!(v, CssValue::Dimension { unit, .. } if !matches!(unit, lui_css_parser::CssUnit::Px))
+            || matches!(v, CssValue::Dimension { unit, .. } if !matches!(unit, lui_core::CssUnit::Px))
     }
 
     macro_rules! r {

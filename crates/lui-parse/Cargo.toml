@@ -1,0 +1,7 @@
+[package]
+name = "lui-parse"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-core = { path = "../lui-core" }

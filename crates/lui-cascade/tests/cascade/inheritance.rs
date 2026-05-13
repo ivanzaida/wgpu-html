@@ -2,10 +2,9 @@ use lui_cascade::{
   cascade::{CascadeContext, InteractionState},
   media::MediaContext,
 };
-use lui_css_parser::{parse_stylesheet, parse_value};
-use lui_html_parser::parse;
+use lui_parse::{parse_stylesheet, parse_value, parse};
 
-fn val(css: &str) -> lui_css_parser::CssValue {
+fn val(css: &str) -> lui_core::CssValue {
   parse_value(css).unwrap()
 }
 

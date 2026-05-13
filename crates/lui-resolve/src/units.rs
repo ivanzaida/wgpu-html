@@ -2,7 +2,7 @@
 //! and absolute units (`cm`, `mm`, `in`, `pt`, `pc`, `Q`) into `px`.
 //! Non-length units (angles, time, frequency, resolution) are left as-is.
 
-use lui_css_parser::{CssFunction, CssUnit, CssValue};
+use lui_core::{CssFunction, CssUnit, CssValue};
 
 use crate::ResolverContext;
 use crate::math::resolve_math;

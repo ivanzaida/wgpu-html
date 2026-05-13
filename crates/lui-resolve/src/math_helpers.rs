@@ -1,6 +1,6 @@
 //! Shared types and helpers for math and unit resolution.
 
-use lui_css_parser::{CssUnit, CssValue};
+use lui_core::{CssUnit, CssValue};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum MathValue {

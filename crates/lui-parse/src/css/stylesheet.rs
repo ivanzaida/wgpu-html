@@ -1,57 +1,12 @@
-use crate::CssAtRule;
-use crate::CssProperty;
-use crate::error::ParseError;
-use crate::media::{MediaQueryList, parse_media_query_list};
-use crate::parser::parse_declaration;
-use crate::selector::{SelectorList, parse_selector_list};
-use crate::supports::{SupportsCondition, parse_supports_condition};
-use crate::value::CssValue;
+use lui_core::{
+    AtRule, CssAtRule, Declaration, ParseError, SelectorList,
+    StyleRule, Stylesheet,
+};
+use crate::css::media::parse_media_query_list;
+use crate::css::parser::parse_declaration;
+use crate::css::selector::{complex_specificity, parse_selector_list};
+use crate::css::supports::parse_supports_condition;
 
-/// One parsed CSS rule: a selector list with its declarations and computed specificity.
-#[derive(Debug, Clone)]
-pub struct StyleRule {
-    pub selector: SelectorList,
-    pub declarations: Vec<Declaration>,
-    pub specificity: (u32, u32, u32),
-}
-
-impl StyleRule {
-    pub fn new(selector: SelectorList, declarations: Vec<Declaration>, specificity: (u32, u32, u32)) -> Self {
-        Self { selector, declarations, specificity }
-    }
-}
-
-/// A single `property: value` pair (potentially `!important`).
-#[derive(Debug, Clone, PartialEq)]
-pub struct Declaration {
-    pub property: CssProperty,
-    pub value: CssValue,
-    pub important: bool,
-}
-
-/// A parsed at-rule (e.g. `@media`, `@keyframes`, `@font-face`).
-#[derive(Debug, Clone)]
-pub struct AtRule {
-    pub at_rule: CssAtRule,
-    pub prelude: String,
-    pub media: Option<MediaQueryList>,
-    pub supports: Option<SupportsCondition>,
-    pub rules: Vec<StyleRule>,
-    pub at_rules: Vec<AtRule>,
-    /// Comments inside this at-rule's block.
-    pub comments: Vec<String>,
-}
-
-/// A full parsed stylesheet.
-#[derive(Debug, Clone, Default)]
-pub struct Stylesheet {
-    pub rules: Vec<StyleRule>,
-    pub at_rules: Vec<AtRule>,
-    /// All `/* ... */` comments found in the stylesheet.
-    pub comments: Vec<String>,
-}
-
-/// Parse a full CSS stylesheet string.
 pub fn parse_stylesheet(input: &str) -> Result<Stylesheet, ParseError> {
     let (stylesheet, _) = parse_rule_list(input, false, None)?;
     Ok(stylesheet)
@@ -68,7 +23,6 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
         skip_ws_and_comments(&chars, &mut pos, &mut comments);
         if pos >= chars.len() { break; }
 
-        // Inside @keyframes, rules are keyframe selectors
         if inside_at_rule && at_rule_name == Some("@keyframes") {
             if let Some(rule) = parse_keyframe_rule(&chars, &mut pos)? {
                 rules.push(rule);
@@ -76,7 +30,6 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
             }
         }
 
-        // At-rule
         if chars[pos] == '@' {
             pos += 1;
             let name_start = pos;
@@ -143,13 +96,11 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
             continue;
         }
 
-        // Skip garbage before selectors
         if !chars[pos].is_ascii_alphabetic() && chars[pos] != '.' && chars[pos] != '#' && chars[pos] != '*' && chars[pos] != '&' && chars[pos] != ':' && chars[pos] != '[' {
             pos += 1;
             continue;
         }
 
-        // Regular style rule
         match parse_style_rule(&chars, &mut pos) {
             Ok(rule) => rules.push(rule),
             Err(_) => {
@@ -204,8 +155,6 @@ fn parse_style_rule(chars: &[char], pos: &mut usize) -> Result<StyleRule, ParseE
 
 fn parse_keyframe_rule(chars: &[char], pos: &mut usize) -> Result<Option<StyleRule>, ParseError> {
     let sel_start = *pos;
-
-    // Keyframe selectors: "from", "to", or percentages
     while *pos < chars.len() && chars[*pos] != '{' {
         *pos += 1;
     }
@@ -229,15 +178,13 @@ fn parse_keyframe_rule(chars: &[char], pos: &mut usize) -> Result<Option<StyleRu
     }
     let decl_str: String = chars[decl_start..*pos - 1].iter().collect();
 
-    let selector = SelectorList(vec![]); // Keyframe selectors aren't real selectors — placeholder
+    let selector = SelectorList(vec![]);
     let declarations = parse_declaration_block(&decl_str)?;
     let specificity = (0, 0, 0);
 
     Ok(Some(StyleRule { selector, declarations, specificity }))
 }
 
-/// Parse a semicolon-separated block of CSS declarations (e.g. the body
-/// of a rule or an inline `style=""` attribute).
 pub fn parse_declaration_block(input: &str) -> Result<Vec<Declaration>, ParseError> {
     let mut decls = Vec::new();
     for part in input.split(';') {
@@ -282,16 +229,14 @@ fn strip_comments(input: &str) -> String {
 
 fn compute_specificity(selector: &SelectorList) -> (u32, u32, u32) {
     selector.0.iter()
-        .map(|complex| complex.specificity())
+        .map(|complex| complex_specificity(complex))
         .max()
         .unwrap_or((0, 0, 0))
 }
 
 fn skip_ws_and_comments(chars: &[char], pos: &mut usize, comments: &mut Vec<String>) {
     loop {
-        // Skip whitespace
         while *pos < chars.len() && chars[*pos].is_ascii_whitespace() { *pos += 1; }
-        // Check for comment
         if *pos + 1 < chars.len() && chars[*pos] == '/' && chars[*pos + 1] == '*' {
             let comment_start = *pos;
             *pos += 2;

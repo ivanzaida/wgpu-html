@@ -1,7 +1,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
-use lui_css_parser::{CssAtRule, CssPseudo, Stylesheet, StyleRule, AtRule};
+use lui_core::{CssAtRule, CssPseudo, Stylesheet, StyleRule, AtRule};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RuleRef {
@@ -28,8 +28,8 @@ pub struct ConditionalRule {
 
 #[derive(Debug)]
 pub enum RuleCondition {
-    Media(lui_css_parser::MediaQueryList),
-    Supports(lui_css_parser::SupportsCondition),
+    Media(lui_core::MediaQueryList),
+    Supports(lui_core::SupportsCondition),
 }
 
 #[derive(Debug)]
@@ -129,7 +129,7 @@ fn build_conditional_index(rules: &[ConditionalRule]) -> RuleIndex {
 fn index_selector(
     index: &mut RuleIndex,
     entry: &RuleRef,
-    complex: &lui_css_parser::selector::ComplexSelector,
+    complex: &lui_core::selector::ComplexSelector,
 ) {
     let subject = match complex.compounds.last() {
         Some(s) => s,
@@ -201,9 +201,9 @@ pub fn candidate_rules<'a>(
     tag: &str,
     id: Option<&str>,
     classes: &[&str],
-    attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
-    data_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
-    aria_attrs: &std::collections::HashMap<lui_css_parser::ArcStr, lui_css_parser::ArcStr>,
+    attrs: &std::collections::HashMap<lui_core::ArcStr, lui_core::ArcStr>,
+    data_attrs: &std::collections::HashMap<lui_core::ArcStr, lui_core::ArcStr>,
+    aria_attrs: &std::collections::HashMap<lui_core::ArcStr, lui_core::ArcStr>,
 ) -> SmallVec<[&'a RuleRef; 32]> {
     let mut seen = FxHashSet::default();
     let mut candidates: SmallVec<[&'a RuleRef; 32]> = smallvec::smallvec![];

@@ -1,5 +1,5 @@
 use lui_cascade::index::{PreparedStylesheet, candidate_rules};
-use lui_css_parser::parse_stylesheet;
+use lui_parse::parse_stylesheet;
 use std::collections::HashMap;
 
 #[test]

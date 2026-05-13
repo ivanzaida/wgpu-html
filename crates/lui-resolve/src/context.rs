@@ -5,7 +5,7 @@
 //! via a match on [`CssFunction`] and cannot be overridden.
 //! Custom functions use a string-keyed registry.
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssFunction, CssUnit, CssValue};
+use lui_core::{ArcStr, CssFunction, CssUnit, CssValue};
 use rustc_hash::FxHashMap;
 
 use crate::ResolverContext;

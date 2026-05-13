@@ -1,5 +1,5 @@
 use lui_resolve::{resolve, ResolverContext, ResolutionContext};
-use lui_css_parser::{CssValue, CssUnit, CssFunction, ArcStr};
+use lui_core::{CssValue, CssUnit, CssFunction, ArcStr};
 use bumpalo::Bump;
 
 // ── helpers ────────────────────────────────────────────────────────────

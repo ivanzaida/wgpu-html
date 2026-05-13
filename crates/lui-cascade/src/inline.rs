@@ -1,5 +1,5 @@
-use lui_css_parser::{Declaration, parse_declaration};
-use lui_html_parser::HtmlNode;
+use lui_core::Declaration;
+use lui_parse::{parse_declaration, HtmlNode};
 
 /// Return inline style declarations for a node.
 /// The parser already parses `style=""` into `node.styles`.

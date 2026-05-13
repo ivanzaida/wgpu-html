@@ -1,5 +1,5 @@
 use lui_cascade::index::{PreparedStylesheet, RuleCondition};
-use lui_css_parser::parse_stylesheet;
+use lui_parse::parse_stylesheet;
 
 #[test]
 fn indexes_by_id() {

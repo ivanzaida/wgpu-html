@@ -1,7 +1,7 @@
 use bumpalo::Bump;
 use lui_cascade::style::{ComputedStyle, alloc_value};
 use lui_cascade::var_resolution::resolve_vars;
-use lui_css_parser::{ArcStr, CssValue, CssUnit};
+use lui_core::{ArcStr, CssValue, CssUnit};
 
 // ── Basic substitution ──
 
@@ -141,7 +141,7 @@ fn resolves_var_inside_function_args() {
     let arena = Bump::new();
     let cp_val = alloc_value(&arena, CssValue::Number(50.0));
     let func_val = alloc_value(&arena, CssValue::Function {
-        function: lui_css_parser::CssFunction::Calc,
+        function: lui_core::CssFunction::Calc,
         args: vec![CssValue::Var {
             name: ArcStr::from("--w"),
             fallback: None,

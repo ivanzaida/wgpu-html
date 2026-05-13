@@ -1,5 +1,5 @@
-use lui_css_parser::ArcStr;
-use lui_html_parser::HtmlNode;
+use lui_core::ArcStr;
+use lui_parse::HtmlNode;
 use bumpalo::Bump;
 pub use style::ComputedStyle;
 

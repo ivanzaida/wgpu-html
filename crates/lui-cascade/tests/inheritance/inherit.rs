@@ -1,6 +1,6 @@
 use bumpalo::Bump;
 use lui_cascade::style::{ComputedStyle, alloc_value};
-use lui_css_parser::{ArcStr, CssValue};
+use lui_core::{ArcStr, CssValue};
 
 #[test]
 fn inherits_color() {

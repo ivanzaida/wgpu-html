@@ -1,7 +1,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssValue, CssProperty};
+use lui_core::{ArcStr, CssValue, CssProperty};
 
 use crate::style::ComputedStyle;
 

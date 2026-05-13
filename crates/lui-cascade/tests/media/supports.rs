@@ -1,5 +1,5 @@
 use lui_cascade::media::evaluate_supports;
-use lui_css_parser::parse_supports_condition;
+use lui_parse::parse_supports_condition;
 
 #[test]
 fn supports_known_property() {

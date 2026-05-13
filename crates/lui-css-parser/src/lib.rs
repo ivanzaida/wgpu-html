@@ -1,42 +1,20 @@
-use std::sync::Arc;
+// Re-export all types from lui-core so downstream crates see the same API.
+pub use lui_core::*;
 
-/// Cheaply-cloneable string — `Arc<str>`.
-pub type ArcStr = Arc<str>;
-
-pub mod color;
-pub mod combinator;
-pub mod css_at_rule;
-pub mod css_function;
-pub mod css_property;
-pub mod css_pseudo;
-pub mod css_type;
-pub mod error;
-pub mod media;
+// Parsing modules (local to this crate).
 pub mod parser;
-pub mod selector;
-pub mod shorthand;
-pub mod stylesheet;
-pub mod supports;
 pub mod tokenizer;
-pub mod type_keywords;
-pub mod unit;
-pub mod validate;
-pub mod value;
 
-pub use color::CssColor;
-pub use combinator::CssCombinator;
-pub use css_at_rule::{AtRuleKind, CssAtRule};
-pub use css_function::CssFunction;
-pub use css_property::CssProperty;
-pub use css_pseudo::CssPseudo;
-pub use css_type::CssType;
-pub use error::ParseError;
-pub use media::{parse_media_query_list, MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList};
+// The mixed modules still live here — they contain both types (re-exported
+// from lui-core above) and parsing functions. We declare them so parsing
+// functions are accessible, but their type re-exports come from lui-core.
+mod selector_parse;
+mod stylesheet_parse;
+mod media_parse;
+mod supports_parse;
+
 pub use parser::{parse_declaration, parse_value};
-pub use selector::{parse_selector_list, SelectorList};
-pub use shorthand::{expand as expand_shorthand, distribute_values, longhands_of};
-pub use supports::{parse_supports_condition, SupportsCondition, SupportsFeature};
-pub use stylesheet::{parse_declaration_block, parse_stylesheet, AtRule, Declaration, StyleRule, Stylesheet};
-pub use unit::CssUnit;
-pub use validate::{validate_value, Validation};
-pub use value::CssValue;
+pub use selector_parse::{complex_specificity, parse_selector_list};
+pub use stylesheet_parse::{parse_declaration_block, parse_stylesheet};
+pub use media_parse::parse_media_query_list;
+pub use supports_parse::parse_supports_condition;

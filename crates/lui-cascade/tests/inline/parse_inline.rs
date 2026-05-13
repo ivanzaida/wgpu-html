@@ -1,5 +1,5 @@
 use lui_cascade::inline::parse_inline_style;
-use lui_css_parser::CssProperty;
+use lui_core::CssProperty;
 
 #[test]
 fn parses_single_declaration() {

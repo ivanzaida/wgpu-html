@@ -50,7 +50,7 @@ impl ResolverContext {
 }
 
 /// Convenience: resolve a value with a default context (no unit conversion).
-pub fn resolve(value: &lui_css_parser::CssValue, ctx: &ResolverContext) -> lui_css_parser::CssValue {
+pub fn resolve(value: &lui_core::CssValue, ctx: &ResolverContext) -> lui_core::CssValue {
     let res = ResolutionContext::new(*ctx);
     let arena = Bump::new();
     res.resolve_value(value, &arena).clone()

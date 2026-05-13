@@ -31,8 +31,8 @@ pub fn layout_inline(b: &mut LayoutBox, ctx: &LayoutContext, pos: Point, text_ct
     }
 }
 
-fn get_text(node: &lui_html_parser::HtmlNode) -> Option<String> {
-    if let lui_html_parser::HtmlElement::Text(t) = &node.element {
+fn get_text(node: &lui_parse::HtmlNode) -> Option<String> {
+    if let lui_parse::HtmlElement::Text(t) = &node.element {
         Some(t.to_string())
     } else {
         None

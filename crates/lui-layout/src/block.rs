@@ -1,6 +1,7 @@
 //! Block layout: stack children vertically in a block formatting context.
 
-use lui_html_parser::{HtmlNode, Rect};
+use lui_core::Rect;
+use lui_parse::HtmlNode;
 
 use crate::box_tree::{BoxKind, LayoutBox};
 use crate::context::LayoutContext;

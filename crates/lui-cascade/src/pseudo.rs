@@ -1,5 +1,5 @@
 use bumpalo::Bump;
-use lui_css_parser::{ArcStr, CssPseudo, CssValue, StyleRule};
+use lui_core::{ArcStr, CssPseudo, CssValue, StyleRule};
 
 use crate::PseudoElementStyle;
 use crate::index::PreparedStylesheet;
@@ -13,7 +13,7 @@ use crate::cascade::apply_declaration_ref;
 /// if any rule generates content for it.
 pub fn collect_pseudo_element<'a>(
     pseudo: CssPseudo,
-    node: &'a lui_html_parser::HtmlNode,
+    node: &'a lui_parse::HtmlNode,
     parent_style: &ComputedStyle<'a>,
     sheets: &[&'a PreparedStylesheet],
     ancestors: &[AncestorEntry<'_>],
@@ -74,7 +74,7 @@ pub fn collect_pseudo_element<'a>(
 /// `::selection`, `::marker`.
 pub fn collect_pseudo_style<'a>(
     pseudo: CssPseudo,
-    node: &'a lui_html_parser::HtmlNode,
+    node: &'a lui_parse::HtmlNode,
     parent_style: &ComputedStyle<'a>,
     sheets: &[&'a PreparedStylesheet],
     ancestors: &[AncestorEntry<'_>],
@@ -111,13 +111,13 @@ pub fn collect_pseudo_style<'a>(
 fn matching_rules_for_pseudo<'a>(
     sheet: &'a PreparedStylesheet,
     pseudo: &CssPseudo,
-    node: &lui_html_parser::HtmlNode,
+    node: &lui_parse::HtmlNode,
     ctx: &MatchContext<'_>,
     ancestors: &[AncestorEntry<'_>],
-    parent: Option<&lui_html_parser::HtmlNode>,
+    parent: Option<&lui_parse::HtmlNode>,
     arena: &'a Bump,
     important: bool,
-) -> Vec<&'a lui_css_parser::Declaration> {
+) -> Vec<&'a lui_core::Declaration> {
     let mut decls = Vec::new();
     let Some(rule_indices) = sheet.pseudo_index.get(pseudo) else {
         return decls;

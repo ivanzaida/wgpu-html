@@ -1,7 +1,6 @@
 use lui_cascade::cascade::{CascadeContext, InteractionState};
 use lui_cascade::media::MediaContext;
-use lui_css_parser::parse_stylesheet;
-use lui_html_parser::parse;
+use lui_parse::{parse_stylesheet, parse};
 
 fn cascade_check(html: &str, css: &str) -> bool {
     let doc = parse(html);

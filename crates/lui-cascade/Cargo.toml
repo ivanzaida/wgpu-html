@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-html-parser = { path = "../lui-html-parser" }
-lui-css-parser = { path = "../lui-css-parser" }
+lui-core = { path = "../lui-core" }
+lui-parse = { path = "../lui-parse" }
 bumpalo.workspace = true
 rustc-hash = "2"
 smallvec = "1"

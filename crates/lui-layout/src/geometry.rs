@@ -1,9 +1,9 @@
 //! Geometry primitives.
 //!
-//! `Rect` is defined in `lui_html_parser` and re-exported here so
+//! `Rect` is defined in `lui_core` and re-exported here so
 //! `HtmlNode.layout_rect` and `LayoutBox.content` share the same type.
 
-pub use lui_html_parser::Rect;
+pub use lui_core::Rect;
 
 /// A 2D position or offset.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -43,7 +43,7 @@ impl RectEdges<f32> {
     pub fn vertical(&self) -> f32 { self.top + self.bottom }
 }
 
-/// Extension methods for `Rect` from `lui_html_parser`.
+/// Extension methods for `Rect` from `lui_core`.
 pub trait RectExt {
     fn max_x(&self) -> f32;
     fn max_y(&self) -> f32;

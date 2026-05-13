@@ -2,7 +2,7 @@
 //! Does NOT resolve relative units — use the full [`crate::ResolutionContext`]
 //! for unit-aware resolution.
 
-use lui_css_parser::{CssFunction, CssValue};
+use lui_core::{CssFunction, CssValue};
 
 use crate::math_helpers::MathValue;
 

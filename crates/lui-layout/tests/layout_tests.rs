@@ -7,8 +7,8 @@ use bumpalo::Bump;
 use lui_cascade::cascade::{CascadeContext, InteractionState};
 use lui_cascade::media::MediaContext;
 use lui_cascade::ComputedStyle;
-use lui_css_parser::{ArcStr, CssUnit, CssValue};
-use lui_html_parser::{HtmlElement, HtmlNode, Rect, parse};
+use lui_core::{ArcStr, CssUnit, CssValue, Rect};
+use lui_parse::{HtmlElement, HtmlNode, parse};
 use lui_layout::{
     BoxKind, LayoutBox, LayoutContext, LayoutTree, Point, RectEdges, Size,
     block::layout_block,

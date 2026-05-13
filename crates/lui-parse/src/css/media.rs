@@ -1,41 +1,6 @@
-use crate::{error::ParseError, parser::parse_value, value::CssValue};
+use lui_core::{MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList, ParseError};
+use crate::css::parser::parse_value;
 
-/// A comma-separated list of media queries.
-#[derive(Debug, Clone, PartialEq)]
-#[repr(transparent)]
-pub struct MediaQueryList(pub Vec<MediaQuery>);
-
-/// A single media query: optional modifier, optional type, and conditions.
-#[derive(Debug, Clone, PartialEq)]
-pub struct MediaQuery {
-  pub modifier: Option<MediaModifier>,
-  pub media_type: Option<String>,
-  pub conditions: Vec<MediaCondition>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MediaModifier {
-  Not,
-  Only,
-}
-
-/// A single condition within a media query.
-#[derive(Debug, Clone, PartialEq)]
-pub enum MediaCondition {
-  Feature(MediaFeature),
-  And(Box<MediaCondition>),
-  Or(Box<MediaCondition>),
-  Not(Box<MediaCondition>),
-}
-
-/// A single media feature like `(min-width: 600px)` or `(color)`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct MediaFeature {
-  pub name: String,
-  pub value: Option<CssValue>,
-}
-
-/// Parse a media query list (the prelude of `@media`).
 pub fn parse_media_query_list(input: &str) -> Result<MediaQueryList, ParseError> {
   let chars: Vec<char> = input.chars().collect();
   let mut pos = 0;
@@ -43,9 +8,7 @@ pub fn parse_media_query_list(input: &str) -> Result<MediaQueryList, ParseError>
 
   loop {
     skip_ws(&chars, &mut pos);
-    if pos >= chars.len() {
-      break;
-    }
+    if pos >= chars.len() { break; }
     queries.push(parse_media_query(&chars, &mut pos)?);
     skip_ws(&chars, &mut pos);
     if pos < chars.len() && chars[pos] == ',' {
@@ -87,11 +50,7 @@ fn parse_media_query(chars: &[char], pos: &mut usize) -> Result<MediaQuery, Pars
     }
   }
 
-  Ok(MediaQuery {
-    modifier,
-    media_type,
-    conditions,
-  })
+  Ok(MediaQuery { modifier, media_type, conditions })
 }
 
 fn parse_modifier(chars: &[char], pos: &mut usize) -> Option<MediaModifier> {
@@ -113,7 +72,7 @@ fn parse_modifier(chars: &[char], pos: &mut usize) -> Option<MediaModifier> {
 }
 
 fn parse_media_feature(chars: &[char], pos: &mut usize) -> Result<MediaFeature, ParseError> {
-  *pos += 1; // skip '('
+  *pos += 1;
   skip_ws(chars, pos);
 
   let name_start = *pos;

@@ -3,11 +3,8 @@ use std::hash::{Hash, Hasher, DefaultHasher};
 
 use lui_css_parser::{Declaration, Stylesheet, parse_declaration_block, parse_stylesheet};
 
-use crate::{
-    element::{should_auto_close, HtmlElement},
-    tokenizer::{tokenize, Token},
-    ArcStr,
-};
+use lui_core::{ArcStr, HtmlElement, should_auto_close};
+use crate::tokenizer::{tokenize, Token};
 
 /// A node in the parsed HTML tree.
 #[derive(Debug, Clone)]

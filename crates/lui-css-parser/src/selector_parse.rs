@@ -1,109 +1,57 @@
-use crate::CssCombinator;
-use crate::CssPseudo;
-use crate::error::ParseError;
+use crate::{
+    AttrOp, AttributeSelector, CompoundSelector, ComplexSelector,
+    CssCombinator, CssPseudo, ParseError, PseudoSelector, SelectorList,
+};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct SelectorList(pub Vec<ComplexSelector>);
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ComplexSelector {
-    pub compounds: Vec<CompoundSelector>,
-    pub combinators: Vec<CssCombinator>,
-}
-
-impl ComplexSelector {
-    pub fn specificity(&self) -> (u32, u32, u32) {
-        let mut a = 0u32;
-        let mut b = 0u32;
-        let mut c = 0u32;
-        for compound in &self.compounds {
-            let (ca, cb, cc) = compound.specificity();
-            a += ca;
-            b += cb;
-            c += cc;
-        }
-        (a, b, c)
+/// Compute the CSS specificity of a complex selector.
+pub fn complex_specificity(sel: &ComplexSelector) -> (u32, u32, u32) {
+    let mut a = 0u32;
+    let mut b = 0u32;
+    let mut c = 0u32;
+    for compound in &sel.compounds {
+        let (ca, cb, cc) = compound_specificity(compound);
+        a += ca;
+        b += cb;
+        c += cc;
     }
+    (a, b, c)
 }
 
-impl CompoundSelector {
-    pub fn specificity(&self) -> (u32, u32, u32) {
-        let mut a = 0u32;
-        let mut b = 0u32;
-        let mut c = 0u32;
+fn compound_specificity(compound: &CompoundSelector) -> (u32, u32, u32) {
+    let mut a = 0u32;
+    let mut b = 0u32;
+    let mut c = 0u32;
 
-        if self.id.is_some() { a += 1; }
-        b += self.classes.len() as u32;
-        b += self.attrs.len() as u32;
+    if compound.id.is_some() { a += 1; }
+    b += compound.classes.len() as u32;
+    b += compound.attrs.len() as u32;
 
-        if let Some(ref tag) = self.tag {
-            if tag != "*" { c += 1; }
-        }
+    if let Some(ref tag) = compound.tag {
+        if tag != "*" { c += 1; }
+    }
 
-        for pseudo in &self.pseudos {
-            match &pseudo.pseudo {
-                // :where() contributes zero specificity
-                CssPseudo::Where => {}
-
-                // :is(), :not(), :has(), :matches() contribute the specificity
-                // of their most specific argument
-                CssPseudo::Is | CssPseudo::Not | CssPseudo::Has | CssPseudo::Matches => {
-                    if let Some(ref arg) = pseudo.arg {
-                        if let Ok(inner) = crate::parse_selector_list(arg) {
-                            let max = inner.0.iter()
-                                .map(|sel| sel.specificity())
-                                .max()
-                                .unwrap_or((0, 0, 0));
-                            a += max.0;
-                            b += max.1;
-                            c += max.2;
-                        }
+    for pseudo in &compound.pseudos {
+        match &pseudo.pseudo {
+            CssPseudo::Where => {}
+            CssPseudo::Is | CssPseudo::Not | CssPseudo::Has | CssPseudo::Matches => {
+                if let Some(ref arg) = pseudo.arg {
+                    if let Ok(inner) = parse_selector_list(arg) {
+                        let max = inner.0.iter()
+                            .map(|sel| complex_specificity(sel))
+                            .max()
+                            .unwrap_or((0, 0, 0));
+                        a += max.0;
+                        b += max.1;
+                        c += max.2;
                     }
                 }
-
-                // Pseudo-elements → c
-                p if p.name().starts_with("::") => { c += 1; }
-
-                // Other pseudo-classes → b
-                _ => { b += 1; }
             }
+            p if p.name().starts_with("::") => { c += 1; }
+            _ => { b += 1; }
         }
-
-        (a, b, c)
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct CompoundSelector {
-    pub tag: Option<String>,
-    pub classes: Vec<String>,
-    pub id: Option<String>,
-    pub attrs: Vec<AttributeSelector>,
-    pub pseudos: Vec<PseudoSelector>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AttributeSelector {
-    pub name: String,
-    pub op: Option<AttrOp>,
-    pub value: Option<String>,
-    pub modifier: Option<char>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttrOp {
-    Eq,
-    Contains,
-    StartsWith,
-    EndsWith,
-    Includes,
-    Hyphen,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PseudoSelector {
-    pub pseudo: CssPseudo,
-    pub arg: Option<String>,
+    (a, b, c)
 }
 
 pub fn parse_selector_list(input: &str) -> Result<SelectorList, ParseError> {
@@ -144,8 +92,6 @@ fn parse_complex_selector(chars: &[char], pos: &mut usize) -> Result<ComplexSele
         skip_ws(chars, pos);
         if *pos >= chars.len() || chars[*pos] == ',' { break; }
 
-        // Whitespace between compounds is a descendant combinator,
-        // unless an explicit combinator (>, +, ~, ||) follows.
         let had_ws = *pos > before_ws;
         let comb = parse_combinator(chars, pos);
         match comb {
@@ -187,10 +133,7 @@ fn parse_compound_selector(chars: &[char], pos: &mut usize) -> Result<CompoundSe
         match chars[*pos] {
             '&' => {
                 *pos += 1;
-                sel.pseudos.push(PseudoSelector {
-                    pseudo: CssPseudo::Ampersand,
-                    arg: None,
-                });
+                sel.pseudos.push(PseudoSelector { pseudo: CssPseudo::Ampersand, arg: None });
                 continue;
             }
             '#' => {
@@ -271,14 +214,11 @@ fn parse_pseudo(chars: &[char], pos: &mut usize) -> Result<PseudoSelector, Parse
         None
     };
 
-    Ok(PseudoSelector {
-        pseudo: CssPseudo::from_name(&name),
-        arg,
-    })
+    Ok(PseudoSelector { pseudo: CssPseudo::from_name(&name), arg })
 }
 
 fn parse_attr(chars: &[char], pos: &mut usize) -> Result<AttributeSelector, ParseError> {
-    *pos += 1; // skip '['
+    *pos += 1;
     skip_ws(chars, pos);
     let name = parse_ident(chars, pos)?;
     skip_ws(chars, pos);
@@ -320,7 +260,7 @@ fn parse_attr(chars: &[char], pos: &mut usize) -> Result<AttributeSelector, Pars
                 *pos += 1;
             }
             value = Some(chars[v_start..*pos].iter().collect());
-            *pos += 1; // closing quote
+            *pos += 1;
         } else if *pos < chars.len() && chars[*pos] != ']' {
             value = Some(parse_ident(chars, pos)?);
         }
@@ -351,7 +291,6 @@ fn parse_ident(chars: &[char], pos: &mut usize) -> Result<String, ParseError> {
         *pos += 1;
     }
     if *pos == start {
-        // Maybe a bare hyphen
         if *pos < chars.len() && chars[*pos] == '-' { *pos += 1; return Ok("-".to_string()); }
         return Err(ParseError { message: "expected identifier".to_string(), position: *pos });
     }
