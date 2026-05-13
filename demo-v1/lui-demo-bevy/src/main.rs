@@ -2,7 +2,7 @@ mod devtools;
 mod scene;
 
 use bevy::prelude::*;
-use lui_driver_bevy::LuiPlugin;
+use lui_driver_bevy_v1::LuiPlugin;
 
 fn main() {
   App::new()

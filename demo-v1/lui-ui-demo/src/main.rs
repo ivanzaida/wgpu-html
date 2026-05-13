@@ -3,7 +3,7 @@ mod text_input;
 
 use std::sync::Arc;
 
-use lui_driver_winit::{WindowEvent, WinitDriver};
+use lui_driver_winit_v1::{WindowEvent, WinitDriver};
 use lui_models::common::css_enums::*;
 use lui_tree::Tree;
 use lui_ui::{

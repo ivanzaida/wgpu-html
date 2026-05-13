@@ -3,8 +3,8 @@
 //! `Devtools` owns a UI [`Tree`] and a [`Mount`] that drives the
 //! devtools component. It knows nothing about windowing — the host
 //! is responsible for creating a window, routing events via
-//! [`dispatch`](lui_driver_winit::dispatch), and calling
-//! [`render_frame`](lui_driver::Runtime::render_frame) on
+//! [`dispatch`](lui_driver_winit_v1::dispatch), and calling
+//! [`render_frame`](lui_driver_v1::Runtime::render_frame) on
 //! `devtools.tree()`.
 
 use std::sync::{
@@ -238,7 +238,7 @@ impl Devtools {
   }
 }
 
-impl lui_driver::SecondaryWindow for Devtools {
+impl lui_driver_v1::SecondaryWindow for Devtools {
   fn poll(&mut self, tree: &Tree) {
     self.poll_with_layout(tree, None);
   }

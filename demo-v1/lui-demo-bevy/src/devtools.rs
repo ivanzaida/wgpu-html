@@ -6,7 +6,7 @@ use bevy::{
   window::CursorMoved,
 };
 use lui_devtools::Devtools;
-use lui_driver_bevy::{HtmlOverlay, key_code_to_dom_code, logical_key_to_dom_key};
+use lui_driver_bevy_v1::{HtmlOverlay, key_code_to_dom_code, logical_key_to_dom_key};
 use lui_renderer_wgpu::RenderBackend;
 
 #[derive(Component)]

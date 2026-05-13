@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-driver-bevy  = { path = "../../drivers-v1/lui-driver-bevy" }
+lui-driver-bevy-v1 = { path = "../../drivers-v1/lui-driver-bevy" }
 lui-devtools     = { path = "../../crates-v1/lui-devtools" }
 lui.workspace    = true
 lui-renderer-wgpu = { path = "../../renderers-v1/lui-renderer-wgpu" }

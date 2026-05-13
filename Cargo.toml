@@ -52,11 +52,11 @@ lui-renderer-wgpu = { path = "renderers-v1/lui-renderer-wgpu" }
 lui-style = { path = "crates-v1/lui-style" }
 lui-text = { path = "crates-v1/lui-text" }
 lui-tree = { path = "crates-v1/lui-tree" }
-lui-driver = { path = "drivers-v1/lui-driver" }
+lui-driver-v1 = { path = "drivers-v1/lui-driver" }
 lui-assets = { path = "crates-v1/lui-assets" }
-lui-driver-bevy = { path = "drivers-v1/lui-driver-bevy" }
-lui-driver-egui = { path = "drivers-v1/lui-driver-egui" }
-lui-driver-winit = { path = "drivers-v1/lui-driver-winit" }
+lui-driver-bevy-v1 = { path = "drivers-v1/lui-driver-bevy" }
+lui-driver-egui-v1 = { path = "drivers-v1/lui-driver-egui" }
+lui-driver-winit-v1 = { path = "drivers-v1/lui-driver-winit" }
 lui-ui = { path = "crates-v1/lui-ui" }
 
 wgpu = "29"

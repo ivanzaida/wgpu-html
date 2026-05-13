@@ -1,4 +1,4 @@
-//! egui integration for [`lui_driver`].
+//! egui integration for [`lui_driver_v1`].
 //!
 //! Provides [`EguiRunner`] — wraps a [`Runtime`] and runs the full
 //! cascade→layout→paint pipeline inside an egui region. Input is
@@ -30,7 +30,7 @@ use lui::{
   layout::LayoutBox,
   renderer::{DisplayList, Rect},
 };
-use lui_driver::{Driver, Runtime};
+use lui_driver_v1::{Driver, Runtime};
 use lui_renderer_wgpu::Renderer;
 use lui_tree::{Modifier, MouseButton, Tree};
 use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};

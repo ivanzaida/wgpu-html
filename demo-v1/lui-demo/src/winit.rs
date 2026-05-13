@@ -1,6 +1,6 @@
 //! lui winit demo.
 //!
-//! Uses [`lui_driver_winit`] for a manual event loop.
+//! Uses [`lui_driver_winit_v1`] for a manual event loop.
 
 use std::{
   collections::VecDeque,
@@ -12,7 +12,7 @@ use std::{
 };
 
 use lui_devtools::Devtools;
-use lui_driver_winit::WinitDriver;
+use lui_driver_winit_v1::WinitDriver;
 use lui_tree::Tree;
 use winit::{
   application::ApplicationHandler,

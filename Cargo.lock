@@ -3671,8 +3671,8 @@ dependencies = [
  "egui",
  "lui",
  "lui-devtools",
- "lui-driver-egui",
- "lui-driver-winit",
+ "lui-driver-egui-v1",
+ "lui-driver-winit-v1",
  "lui-models",
  "lui-style",
  "lui-text",
@@ -3687,7 +3687,7 @@ dependencies = [
  "bevy",
  "lui",
  "lui-devtools",
- "lui-driver-bevy",
+ "lui-driver-bevy-v1",
  "lui-renderer-wgpu",
  "lui-text",
  "pollster",
@@ -3697,7 +3697,7 @@ dependencies = [
 name = "lui-devtools"
 version = "0.1.0"
 dependencies = [
- "lui-driver",
+ "lui-driver-v1",
  "lui-events",
  "lui-layout-old",
  "lui-models",
@@ -3711,7 +3711,34 @@ name = "lui-display-list"
 version = "0.1.0"
 
 [[package]]
-name = "lui-driver"
+name = "lui-driver-bevy-v1"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "lui",
+ "lui-driver-v1",
+ "lui-parser",
+ "lui-renderer-wgpu",
+ "lui-text",
+ "lui-tree",
+ "pollster",
+]
+
+[[package]]
+name = "lui-driver-egui-v1"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "lui",
+ "lui-driver-v1",
+ "lui-renderer-wgpu",
+ "lui-tree",
+ "pollster",
+ "wgpu 29.0.3",
+]
+
+[[package]]
+name = "lui-driver-v1"
 version = "0.1.0"
 dependencies = [
  "lui",
@@ -3721,39 +3748,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "lui-driver-bevy"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "lui",
- "lui-driver",
- "lui-parser",
- "lui-renderer-wgpu",
- "lui-text",
- "lui-tree",
- "pollster",
-]
-
-[[package]]
-name = "lui-driver-egui"
-version = "0.1.0"
-dependencies = [
- "egui",
- "lui",
- "lui-driver",
- "lui-renderer-wgpu",
- "lui-tree",
- "pollster",
- "wgpu 29.0.3",
-]
-
-[[package]]
-name = "lui-driver-winit"
+name = "lui-driver-winit-v1"
 version = "0.1.0"
 dependencies = [
  "arboard",
  "lui",
- "lui-driver",
+ "lui-driver-v1",
  "lui-renderer-wgpu",
  "lui-tree",
  "pollster",
@@ -3807,6 +3807,17 @@ name = "lui-models"
 version = "0.1.0"
 dependencies = [
  "lui-css-old",
+]
+
+[[package]]
+name = "lui-paint"
+version = "0.1.0"
+dependencies = [
+ "lui-cascade",
+ "lui-core",
+ "lui-display-list",
+ "lui-glyph",
+ "lui-layout",
 ]
 
 [[package]]
@@ -3895,7 +3906,7 @@ name = "lui-ui-demo"
 version = "0.1.0"
 dependencies = [
  "lui-devtools",
- "lui-driver-winit",
+ "lui-driver-winit-v1",
  "lui-models",
  "lui-tree",
  "lui-ui",

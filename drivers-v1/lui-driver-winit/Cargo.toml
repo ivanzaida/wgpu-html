@@ -1,11 +1,11 @@
 [package]
-name = "lui-driver-winit"
+name = "lui-driver-winit-v1"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 lui.workspace      = true
-lui-driver         = { path = "../lui-driver" }
+lui-driver-v1      = { path = "../lui-driver" }
 lui-renderer-wgpu.workspace = true
 lui-tree.workspace = true
 winit.workspace          = true

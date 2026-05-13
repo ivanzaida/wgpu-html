@@ -12,5 +12,5 @@ lui-ui.workspace       = true
 lui-models.workspace   = true
 lui-tree.workspace     = true
 lui-devtools.workspace = true
-lui-driver-winit       = { path = "../../drivers-v1/lui-driver-winit" }
+lui-driver-winit-v1    = { path = "../../drivers-v1/lui-driver-winit" }
 winit.workspace               = true

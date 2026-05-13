@@ -1,4 +1,4 @@
-//! egui demo shell over `lui-driver-egui`.
+//! egui demo shell over `lui-driver-egui-v1`.
 
 use std::{
   process::ExitCode,
@@ -10,7 +10,7 @@ use std::{
 };
 
 use eframe::egui;
-use lui_driver_egui::EguiRunner;
+use lui_driver_egui_v1::EguiRunner;
 use lui_tree::Tree;
 
 pub(crate) fn run(tree: Tree, doc_source: String, profiling_enabled: bool) -> ExitCode {

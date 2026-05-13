@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use lui_driver_bevy::HtmlOverlay;
+use lui_driver_bevy_v1::HtmlOverlay;
 
 pub fn setup(
   mut commands: Commands,

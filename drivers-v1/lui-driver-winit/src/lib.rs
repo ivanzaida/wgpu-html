@@ -1,4 +1,4 @@
-//! winit integration for [`lui_driver`].
+//! winit integration for [`lui_driver_v1`].
 //!
 //! ## Quick start
 //!
@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 use lui::{PipelineTimings, layout::Cursor};
-use lui_driver::{Driver, Runtime};
+use lui_driver_v1::{Driver, Runtime};
 use lui_tree::{Modifier, MouseButton, Tree};
 use winit::{
   event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta},
