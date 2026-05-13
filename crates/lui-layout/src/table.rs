@@ -260,7 +260,7 @@ pub fn layout_table<'a>(
   pos: Point,
   text_ctx: &mut TextContext,
   rects: &mut Vec<(&'a HtmlNode, Rect)>,
-  cache: &crate::incremental::LayoutCache,
+  cache: &crate::incremental::CacheView,
 ) {
   let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
   let border = sides::resolve_border(b.style);
@@ -468,7 +468,7 @@ fn layout_bottom_captions<'a>(
   cursor_y: &mut f32,
   text_ctx: &mut TextContext,
   rects: &mut Vec<(&'a HtmlNode, Rect)>,
-  cache: &crate::incremental::LayoutCache,
+  cache: &crate::incremental::CacheView,
 ) {
   for child in b.children.iter_mut() {
     if child.kind != BoxKind::TableCaption {

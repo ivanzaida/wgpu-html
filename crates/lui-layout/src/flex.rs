@@ -51,7 +51,7 @@ pub fn layout_flex<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -556,7 +556,7 @@ fn layout_flex_item<'a>(
     override_h: Option<f32>,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);

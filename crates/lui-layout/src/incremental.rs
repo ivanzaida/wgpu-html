@@ -33,19 +33,23 @@ pub struct CachedBox {
     pub list_marker: Option<String>,
 }
 
+/// Immutable snapshot of a previous frame's layout results.
+/// Cheap to keep across frames — never cloned during incremental layout.
 pub struct LayoutCache {
     boxes: FxHashMap<*const HtmlNode, CachedBox>,
     old_tree: FxHashMap<*const HtmlNode, OldBoxRef>,
+}
+
+/// Per-frame dirty set, built from dirty paths. Borrows the snapshot.
+pub(crate) struct DirtySet {
     dirty: FxHashSet<*const HtmlNode>,
 }
 
-#[derive(Clone)]
 struct OldBoxRef {
     cached: CachedBox,
     child_snapshots: Vec<ChildSnapshot>,
 }
 
-#[derive(Clone)]
 struct ChildSnapshot {
     node_ptr: *const HtmlNode,
     kind: BoxKind,
@@ -58,53 +62,76 @@ impl LayoutCache {
         Self {
             boxes: FxHashMap::default(),
             old_tree: FxHashMap::default(),
-            dirty: FxHashSet::default(),
         }
     }
 
-    /// Snapshot a completed layout tree (no dirty set — used by LayoutEngine
-    /// to store results between frames).
     pub fn snapshot(tree: &LayoutTree) -> Self {
         let mut boxes = FxHashMap::default();
         let mut old_tree = FxHashMap::default();
         collect_cached(&tree.root, &mut boxes, &mut old_tree, tree.root.content.width);
-        Self { boxes, old_tree, dirty: FxHashSet::default() }
+        Self { boxes, old_tree }
     }
 
-    /// Build a cache from a previous snapshot + dirty paths for incremental use.
-    fn with_dirty(&self, dirty_paths: &[Vec<usize>], doc_root: &HtmlNode) -> Self {
-        let mut dirty = FxHashSet::default();
-        expand_dirty_set(doc_root, dirty_paths, &mut dirty);
-        Self {
-            boxes: self.boxes.clone(),
-            old_tree: self.old_tree.clone(),
-            dirty,
-        }
+    pub fn from_tree(prev: &LayoutTree) -> Self {
+        Self::snapshot(prev)
     }
 
-    pub fn from_tree(prev: &LayoutTree, dirty_paths: &[Vec<usize>], doc_root: &HtmlNode) -> Self {
-        let mut boxes = FxHashMap::default();
-        let mut old_tree = FxHashMap::default();
-        collect_cached(&prev.root, &mut boxes, &mut old_tree, LayoutContext::new(0.0, 0.0).containing_width);
-        let mut dirty = FxHashSet::default();
-        expand_dirty_set(doc_root, dirty_paths, &mut dirty);
-        Self { boxes, old_tree, dirty }
+    fn is_clean(&self, node: &HtmlNode, dirty: &DirtySet) -> bool {
+        !dirty.dirty.contains(&(node as *const HtmlNode))
     }
 
-    pub fn is_clean(&self, node: &HtmlNode) -> bool {
-        !self.dirty.contains(&(node as *const HtmlNode))
-    }
-
-    pub fn get(&self, node: &HtmlNode) -> Option<&CachedBox> {
-        self.boxes.get(&(node as *const HtmlNode))
-    }
-
-    pub fn get_tree(&self, node: &HtmlNode) -> Option<&OldBoxRef> {
+    fn get_tree(&self, node: &HtmlNode) -> Option<&OldBoxRef> {
         self.old_tree.get(&(node as *const HtmlNode))
     }
 
-    pub fn prev_viewport_width(&self) -> Option<f32> {
-        self.boxes.values().next().map(|b| b.containing_width)
+    pub fn is_empty(&self) -> bool {
+        self.boxes.is_empty()
+    }
+}
+
+impl DirtySet {
+    fn new() -> Self {
+        Self { dirty: FxHashSet::default() }
+    }
+
+    fn from_paths(doc_root: &HtmlNode, dirty_paths: &[Vec<usize>]) -> Self {
+        let mut dirty = FxHashSet::default();
+        expand_dirty_set(doc_root, dirty_paths, &mut dirty);
+        Self { dirty }
+    }
+
+    fn all_dirty() -> Self {
+        Self { dirty: FxHashSet::default() }
+    }
+
+    fn is_all_dirty(&self) -> bool {
+        false
+    }
+}
+
+// For full layout: everything is dirty, cache lookups always miss.
+pub(crate) struct FullDirtyMarker;
+
+/// Combined view passed through layout — either (snapshot + dirty set) or empty.
+pub enum CacheView<'a> {
+    Full,
+    Incremental { cache: &'a LayoutCache, dirty: &'a DirtySet },
+}
+
+impl<'a> CacheView<'a> {
+    pub fn try_clone<'b>(
+        &self,
+        b: &mut LayoutBox<'b>,
+        ctx: &LayoutContext,
+        pos: Point,
+        rects: &mut Vec<(&'b HtmlNode, Rect)>,
+    ) -> bool {
+        match self {
+            CacheView::Full => false,
+            CacheView::Incremental { cache, dirty } => {
+                try_clone_from_cache(b, cache, dirty, ctx, pos, rects)
+            }
+        }
     }
 }
 
@@ -185,9 +212,10 @@ fn expand_dirty_walk(
     }
 }
 
-pub fn try_clone_from_cache<'a>(
+fn try_clone_from_cache<'a>(
     b: &mut LayoutBox<'a>,
     cache: &LayoutCache,
+    dirty: &DirtySet,
     ctx: &LayoutContext,
     pos: Point,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
@@ -195,7 +223,7 @@ pub fn try_clone_from_cache<'a>(
     if matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline) {
         return false;
     }
-    if !cache.is_clean(b.node) { return false; }
+    if !cache.is_clean(b.node, dirty) { return false; }
     let old_ref = match cache.get_tree(b.node) {
         Some(r) => r,
         None => return false,
@@ -272,12 +300,13 @@ pub fn layout_incremental_with<'a>(
         return crate::engine::layout_tree_with(styled, viewport_width, viewport_height, text_ctx);
     }
 
-    let cache = prev_cache.with_dirty(dirty_paths, styled.node);
+    let dirty = DirtySet::from_paths(styled.node, dirty_paths);
+    let view = CacheView::Incremental { cache: prev_cache, dirty: &dirty };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
     let root = build_box(styled);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &cache);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
     LayoutTree { root, rects }
 }
 
@@ -304,12 +333,13 @@ pub fn layout_tree_incremental_with<'a>(
         return crate::engine::layout_tree_with(styled, viewport_width, viewport_height, text_ctx);
     }
 
-    let doc_root = styled.node;
-    let cache = LayoutCache::from_tree(prev, dirty_paths, doc_root);
+    let cache = LayoutCache::from_tree(prev);
+    let dirty = DirtySet::from_paths(styled.node, dirty_paths);
+    let view = CacheView::Incremental { cache: &cache, dirty: &dirty };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
     let root = build_box(styled);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &cache);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
     LayoutTree { root, rects }
 }

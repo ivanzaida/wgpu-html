@@ -24,7 +24,7 @@ pub fn layout_inline<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     if let Some(text) = get_text(b.node) {
         layout_text_node(b, ctx, pos, &text, text_ctx);
@@ -200,7 +200,7 @@ fn layout_inline_container<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     let is_anon = matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline);
     if !is_anon {

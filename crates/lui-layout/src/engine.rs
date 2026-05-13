@@ -9,7 +9,7 @@ use crate::box_tree::{BoxKind, LayoutBox, LayoutTree};
 use crate::context::LayoutContext;
 use crate::flow;
 use crate::geometry::Point;
-use crate::incremental::LayoutCache;
+use crate::incremental::{CacheView, LayoutCache};
 use crate::text::TextContext;
 
 /// Stateful layout engine. Owns the font context and caches previous
@@ -75,9 +75,9 @@ pub fn layout_tree<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport
 pub fn layout_tree_with<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport_height: f32, text_ctx: &mut TextContext) -> LayoutTree<'a> {
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
-    let cache = LayoutCache::empty();
+    let view = CacheView::Full;
     let root = build_box(styled);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &cache);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
     LayoutTree { root, rects }
 }
 
@@ -87,9 +87,9 @@ pub fn layout_node<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &LayoutCache,
+    cache: &CacheView,
 ) -> LayoutBox<'a> {
-    if crate::incremental::try_clone_from_cache(&mut b, cache, ctx, pos, rects) {
+    if cache.try_clone(&mut b, ctx, pos, rects) {
         return b;
     }
     match b.kind {

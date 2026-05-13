@@ -124,7 +124,7 @@ pub fn layout_block<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -489,7 +489,7 @@ pub fn layout_anonymous_block<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     crate::flow::layout_inline(b, ctx, pos, text_ctx, rects, cache);
 }

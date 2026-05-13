@@ -51,7 +51,7 @@ pub fn layout_out_of_flow<'a>(
     containing_block: Rect,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
-    cache: &crate::incremental::LayoutCache,
+    cache: &crate::incremental::CacheView,
 ) {
     let is_fixed = css_str(b.style.position) == "fixed";
     let cb = if is_fixed {
