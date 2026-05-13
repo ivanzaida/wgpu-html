@@ -1,5 +1,6 @@
 //! Layout box types and the box tree.
 
+use bumpalo::Bump;
 use lui_cascade::ComputedStyle;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
@@ -86,7 +87,7 @@ pub struct LayoutBox<'a> {
     pub padding: RectEdges<f32>,
     pub content: Rect,
     pub intrinsic: Option<Size>,
-    pub children: Vec<LayoutBox<'a>>,
+    pub children: bumpalo::collections::Vec<'a, LayoutBox<'a>>,
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
     pub clip: Option<Rect>,
@@ -111,10 +112,11 @@ pub struct StickyInsets {
 }
 
 impl<'a> LayoutBox<'a> {
-    pub fn new(kind: BoxKind, node: &'a HtmlNode, style: &'a ComputedStyle<'a>) -> Self {
+    pub fn new(kind: BoxKind, node: &'a HtmlNode, style: &'a ComputedStyle<'a>, bump: &'a Bump) -> Self {
         Self { kind, node, style, margin: RectEdges::default(),
             border: RectEdges::default(), padding: RectEdges::default(),
-            content: Rect::default(), intrinsic: None, children: Vec::new(),
+            content: Rect::default(), intrinsic: None,
+            children: bumpalo::collections::Vec::new_in(bump),
             overflow_x: Overflow::Visible, overflow_y: Overflow::Visible,
             clip: None, scroll: None, baseline: None,
             z_index: None, sticky: None, text_overflow_ellipsis: false,
@@ -240,13 +242,65 @@ impl<'a> LayoutBox<'a> {
 }
 
 /// The full layout tree, plus a node → content-rect map for fast lookup.
-#[derive(Debug)]
+///
+/// Owns a bump arena (`Bump`) that backs all `LayoutBox::children` vecs.
+/// The arena is heap-allocated; the root box borrows from it via
+/// `ManuallyDrop` so we can control drop order (root first, then arena).
 pub struct LayoutTree<'a> {
-    pub root: LayoutBox<'a>,
+    pub root: std::mem::ManuallyDrop<LayoutBox<'a>>,
     pub rects: Vec<(&'a HtmlNode, Rect)>,
+    arena: *mut Bump,
+}
+
+// SAFETY: The raw pointer is only used for drop; no concurrent access.
+unsafe impl Send for LayoutTree<'_> {}
+unsafe impl Sync for LayoutTree<'_> {}
+
+impl std::fmt::Debug for LayoutTree<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LayoutTree")
+            .field("root", &*self.root)
+            .field("rects", &self.rects)
+            .finish()
+    }
+}
+
+impl<'a> Drop for LayoutTree<'a> {
+    fn drop(&mut self) {
+        // Drop the root (and its bumpalo children) first, while the arena is still alive.
+        // SAFETY: ManuallyDrop::drop is safe here because we only call it once (in Drop).
+        unsafe { std::mem::ManuallyDrop::drop(&mut self.root); }
+        // Now free the arena.
+        // SAFETY: arena was allocated with Box::into_raw and is valid.
+        unsafe { drop(Box::from_raw(self.arena)); }
+    }
 }
 
 impl<'a> LayoutTree<'a> {
+    /// Create a new LayoutTree that takes ownership of the arena.
+    ///
+    /// SAFETY: `arena_ptr` must have been obtained from `Box::into_raw(Box::new(Bump::new()))`,
+    /// and `root` must have been built using a reference to that same arena.
+    pub(crate) fn new(root: LayoutBox<'a>, rects: Vec<(&'a HtmlNode, Rect)>, arena_ptr: *mut Bump) -> Self {
+        Self {
+            root: std::mem::ManuallyDrop::new(root),
+            rects,
+            arena: arena_ptr,
+        }
+    }
+
+    /// Test-only constructor that allocates a fresh arena.
+    /// The root box does **not** need to originate from this arena;
+    /// the arena will simply be freed on drop.
+    pub fn new_for_test(root: LayoutBox<'a>, rects: Vec<(&'a HtmlNode, Rect)>) -> Self {
+        let arena_ptr = Box::into_raw(Box::new(Bump::new()));
+        Self {
+            root: std::mem::ManuallyDrop::new(root),
+            rects,
+            arena: arena_ptr,
+        }
+    }
+
     pub fn find_rect(&self, node: &HtmlNode) -> Option<Rect> {
         let ptr = node as *const HtmlNode;
         self.rects.iter().find(|(n, _)| *n as *const _ == ptr).map(|(_, r)| *r)

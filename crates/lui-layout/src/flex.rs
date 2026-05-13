@@ -4,6 +4,7 @@
 //! justify-content, align-items, align-self, align-content,
 //! order, gap/row-gap/column-gap, auto margins, min/max clamping.
 
+use bumpalo::Bump;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
 
@@ -52,6 +53,7 @@ pub fn layout_flex<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -98,7 +100,7 @@ pub fn layout_flex<'a>(
     // Phase 1: build flex items (filter out-of-flow children)
     let mut items: Vec<FlexItem<'a>> = Vec::with_capacity(b.children.len());
     let mut out_of_flow: Vec<LayoutBox<'a>> = Vec::new();
-    let taken_children = std::mem::take(&mut b.children);
+    let taken_children = std::mem::replace(&mut b.children, bumpalo::collections::Vec::new_in(bump));
     for (idx, child) in taken_children.into_iter().enumerate() {
         if css_str(child.style.display) == "none" { continue; }
         if crate::positioned::is_out_of_flow(child.style) {
@@ -153,7 +155,7 @@ pub fn layout_flex<'a>(
         } else {
             (None, Some(main))
         };
-        layout_flex_item(&mut item.box_, &child_ctx, is_row, item_w, item_h, text_ctx, rects, cache);
+        layout_flex_item(&mut item.box_, &child_ctx, is_row, item_w, item_h, text_ctx, rects, cache, bump);
         item.measured_cross_inner = if is_row {
             item.box_.content.height
         } else {
@@ -310,7 +312,7 @@ pub fn layout_flex<'a>(
                     } else {
                         (Some(stretch_target), Some(item.resolved_main))
                     };
-                    layout_flex_item(&mut item.box_, &child_ctx, is_row, sw, sh, text_ctx, rects, cache);
+                    layout_flex_item(&mut item.box_, &child_ctx, is_row, sw, sh, text_ctx, rects, cache, bump);
                 }
             }
 
@@ -365,10 +367,10 @@ pub fn layout_flex<'a>(
     // Layout out-of-flow children against the flex container's padding box
     let containing_block = Rect::new(b.content.x - padding.left, b.content.y - padding.top,
         b.content.width + padding.horizontal(), b.content.height + padding.vertical());
-    b.children = items.into_iter().map(|i| i.box_).collect();
+    b.children = bumpalo::collections::Vec::from_iter_in(items.into_iter().map(|i| i.box_), bump);
     for mut oof in out_of_flow {
         let static_pos = Point::new(b.content.x, b.content.y);
-        crate::positioned::layout_out_of_flow(&mut oof, ctx, static_pos, containing_block, text_ctx, rects, cache);
+        crate::positioned::layout_out_of_flow(&mut oof, ctx, static_pos, containing_block, text_ctx, rects, cache, bump);
         rects.push((oof.node, oof.content));
         b.children.push(oof);
     }
@@ -557,6 +559,7 @@ fn layout_flex_item<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -576,9 +579,9 @@ fn layout_flex_item<'a>(
     let child_ctx = LayoutContext { containing_width: b.content.width, ..*ctx };
     let mut cursor_y = b.content.y;
     for child in b.children.iter_mut() {
-        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
+        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
         let old = std::mem::replace(child, placeholder);
-        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache);
+        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache, bump);
         *child = result;
         cursor_y += child.outer_height();
     }

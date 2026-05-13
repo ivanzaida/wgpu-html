@@ -1,6 +1,7 @@
 //! Box generation: converts `StyledNode` tree into initial `LayoutBox` tree.
 //! Handles anonymous box creation for inline-between-block content.
 
+use bumpalo::Bump;
 use lui_cascade::{ComputedStyle, StyledNode};
 use lui_core::CssValue;
 
@@ -8,23 +9,23 @@ use crate::box_tree::{BoxKind, LayoutBox};
 
 /// Build a `LayoutBox` tree from a `StyledNode` tree. Text nodes become
 /// `AnonymousInline` boxes; elements are classified by `display`.
-pub fn build_box<'a>(styled: &'a StyledNode<'a>) -> LayoutBox<'a> {
+pub fn build_box<'a>(styled: &'a StyledNode<'a>, bump: &'a Bump) -> LayoutBox<'a> {
     if styled.node.element.is_text() {
-        return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style);
+        return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style, bump);
     }
 
     let kind = resolve_box_kind_with_node(&styled.style, styled.node);
-    let mut child_boxes = Vec::new();
+    let mut child_boxes = bumpalo::collections::Vec::new_in(bump);
     let mut pending_inlines: Vec<&StyledNode> = Vec::new();
 
     for child in &styled.children {
-        collect_child(child, &mut pending_inlines, &mut child_boxes, styled);
+        collect_child(child, &mut pending_inlines, &mut child_boxes, styled, bump);
     }
-    flush_inlines(&mut pending_inlines, &mut child_boxes, styled);
+    flush_inlines(&mut pending_inlines, &mut child_boxes, styled, bump);
 
-    let mut b = LayoutBox::new(kind, styled.node, &styled.style);
+    let mut b = LayoutBox::new(kind, styled.node, &styled.style, bump);
     b.children = child_boxes;
-    fixup_anonymous_table_wrappers(&mut b, styled);
+    fixup_anonymous_table_wrappers(&mut b, styled, bump);
     b
 }
 
@@ -32,13 +33,14 @@ pub fn build_box<'a>(styled: &'a StyledNode<'a>) -> LayoutBox<'a> {
 fn collect_child<'a>(
     child: &'a StyledNode<'a>,
     pending_inlines: &mut Vec<&'a StyledNode<'a>>,
-    child_boxes: &mut Vec<LayoutBox<'a>>,
+    child_boxes: &mut bumpalo::collections::Vec<'a, LayoutBox<'a>>,
     parent: &'a StyledNode<'a>,
+    bump: &'a Bump,
 ) {
     if is_display_none(&child.style) { return; }
     if is_display_contents(&child.style) {
         for grandchild in &child.children {
-            collect_child(grandchild, pending_inlines, child_boxes, parent);
+            collect_child(grandchild, pending_inlines, child_boxes, parent, bump);
         }
         return;
     }
@@ -50,13 +52,13 @@ fn collect_child<'a>(
     match child_kind {
         BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer
         | BoxKind::Table | BoxKind::TableRowGroup | BoxKind::TableCaption | BoxKind::ListItem => {
-            flush_inlines(pending_inlines, child_boxes, parent);
-            child_boxes.push(build_box(child));
+            flush_inlines(pending_inlines, child_boxes, parent, bump);
+            child_boxes.push(build_box(child, bump));
         }
         BoxKind::Inline | BoxKind::InlineBlock | BoxKind::InlineFlex | BoxKind::InlineGrid => {
             pending_inlines.push(child);
         }
-        _ => child_boxes.push(build_box(child)),
+        _ => child_boxes.push(build_box(child, bump)),
     }
 }
 
@@ -67,11 +69,11 @@ fn is_display_contents(style: &ComputedStyle) -> bool {
     }
 }
 
-fn flush_inlines<'a>(pending: &mut Vec<&'a StyledNode<'a>>, out: &mut Vec<LayoutBox<'a>>, parent: &'a StyledNode<'a>) {
+fn flush_inlines<'a>(pending: &mut Vec<&'a StyledNode<'a>>, out: &mut bumpalo::collections::Vec<'a, LayoutBox<'a>>, parent: &'a StyledNode<'a>, bump: &'a Bump) {
     if pending.is_empty() { return; }
-    let mut anon = LayoutBox::new(BoxKind::AnonymousBlock, parent.node, &parent.style);
+    let mut anon = LayoutBox::new(BoxKind::AnonymousBlock, parent.node, &parent.style, bump);
     for s in pending.drain(..) {
-        anon.children.push(build_box(s));
+        anon.children.push(build_box(s, bump));
     }
     out.push(anon);
 }
@@ -128,12 +130,12 @@ fn resolve_display_property(style: &ComputedStyle) -> Option<BoxKind> {
 /// - A TableCell not inside a TableRow gets wrapped in an anonymous TableRow.
 /// - A TableRow not inside a Table/TableRowGroup gets wrapped in an anonymous Table.
 /// - A TableRowGroup not inside a Table gets wrapped in an anonymous Table.
-fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledNode<'a>) {
+fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledNode<'a>, bump: &'a Bump) {
     let parent_kind = b.kind;
 
     // Cells outside a row → wrap consecutive cells in an anonymous row
     if !matches!(parent_kind, BoxKind::TableRow) {
-        let mut new_children: Vec<LayoutBox<'a>> = Vec::new();
+        let mut new_children: bumpalo::collections::Vec<'a, LayoutBox<'a>> = bumpalo::collections::Vec::new_in(bump);
         let mut pending_cells: Vec<LayoutBox<'a>> = Vec::new();
 
         for child in b.children.drain(..) {
@@ -141,11 +143,11 @@ fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledN
                 pending_cells.push(child);
             } else {
                 if !pending_cells.is_empty() {
-                    let mut anon_row = LayoutBox::new(BoxKind::TableRow, styled.node, &styled.style);
-                    anon_row.children = pending_cells.drain(..).collect();
+                    let mut anon_row = LayoutBox::new(BoxKind::TableRow, styled.node, &styled.style, bump);
+                    anon_row.children = bumpalo::collections::Vec::from_iter_in(pending_cells.drain(..), bump);
                     // If parent is also not a table, wrap the row in a table too
                     if !matches!(parent_kind, BoxKind::Table | BoxKind::TableRowGroup) {
-                        let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
+                        let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style, bump);
                         anon_table.children.push(anon_row);
                         new_children.push(anon_table);
                     } else {
@@ -156,10 +158,10 @@ fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledN
             }
         }
         if !pending_cells.is_empty() {
-            let mut anon_row = LayoutBox::new(BoxKind::TableRow, styled.node, &styled.style);
-            anon_row.children = pending_cells;
+            let mut anon_row = LayoutBox::new(BoxKind::TableRow, styled.node, &styled.style, bump);
+            anon_row.children = bumpalo::collections::Vec::from_iter_in(pending_cells.into_iter(), bump);
             if !matches!(parent_kind, BoxKind::Table | BoxKind::TableRowGroup) {
-                let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
+                let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style, bump);
                 anon_table.children.push(anon_row);
                 new_children.push(anon_table);
             } else {
@@ -171,7 +173,7 @@ fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledN
 
     // Rows outside a table → wrap consecutive rows in an anonymous table
     if !matches!(parent_kind, BoxKind::Table | BoxKind::TableRowGroup) {
-        let mut new_children: Vec<LayoutBox<'a>> = Vec::new();
+        let mut new_children: bumpalo::collections::Vec<'a, LayoutBox<'a>> = bumpalo::collections::Vec::new_in(bump);
         let mut pending_rows: Vec<LayoutBox<'a>> = Vec::new();
 
         for child in b.children.drain(..) {
@@ -179,16 +181,16 @@ fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledN
                 pending_rows.push(child);
             } else {
                 if !pending_rows.is_empty() {
-                    let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
-                    anon_table.children = pending_rows.drain(..).collect();
+                    let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style, bump);
+                    anon_table.children = bumpalo::collections::Vec::from_iter_in(pending_rows.drain(..), bump);
                     new_children.push(anon_table);
                 }
                 new_children.push(child);
             }
         }
         if !pending_rows.is_empty() {
-            let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
-            anon_table.children = pending_rows;
+            let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style, bump);
+            anon_table.children = bumpalo::collections::Vec::from_iter_in(pending_rows.into_iter(), bump);
             new_children.push(anon_table);
         }
         b.children = new_children;
@@ -201,43 +203,45 @@ fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledN
 pub fn build_box_incremental<'a>(
     styled: &'a StyledNode<'a>,
     dirty: &rustc_hash::FxHashSet<*const lui_parse::HtmlNode>,
+    bump: &'a Bump,
 ) -> LayoutBox<'a> {
     if styled.node.element.is_text() {
-        return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style);
+        return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style, bump);
     }
 
     let kind = resolve_box_kind_with_node(&styled.style, styled.node);
     let ptr = styled.node as *const lui_parse::HtmlNode;
 
     if !dirty.contains(&ptr) {
-        return LayoutBox::new(kind, styled.node, &styled.style);
+        return LayoutBox::new(kind, styled.node, &styled.style, bump);
     }
 
-    let mut child_boxes = Vec::new();
+    let mut child_boxes = bumpalo::collections::Vec::new_in(bump);
     let mut pending_inlines: Vec<&StyledNode> = Vec::new();
 
     for child in &styled.children {
-        collect_child_incremental(child, &mut pending_inlines, &mut child_boxes, styled, dirty);
+        collect_child_incremental(child, &mut pending_inlines, &mut child_boxes, styled, dirty, bump);
     }
-    flush_inlines(&mut pending_inlines, &mut child_boxes, styled);
+    flush_inlines(&mut pending_inlines, &mut child_boxes, styled, bump);
 
-    let mut b = LayoutBox::new(kind, styled.node, &styled.style);
+    let mut b = LayoutBox::new(kind, styled.node, &styled.style, bump);
     b.children = child_boxes;
-    fixup_anonymous_table_wrappers(&mut b, styled);
+    fixup_anonymous_table_wrappers(&mut b, styled, bump);
     b
 }
 
 fn collect_child_incremental<'a>(
     child: &'a StyledNode<'a>,
     pending_inlines: &mut Vec<&'a StyledNode<'a>>,
-    child_boxes: &mut Vec<LayoutBox<'a>>,
+    child_boxes: &mut bumpalo::collections::Vec<'a, LayoutBox<'a>>,
     parent: &'a StyledNode<'a>,
     dirty: &rustc_hash::FxHashSet<*const lui_parse::HtmlNode>,
+    bump: &'a Bump,
 ) {
     if is_display_none(&child.style) { return; }
     if is_display_contents(&child.style) {
         for grandchild in &child.children {
-            collect_child_incremental(grandchild, pending_inlines, child_boxes, parent, dirty);
+            collect_child_incremental(grandchild, pending_inlines, child_boxes, parent, dirty, bump);
         }
         return;
     }
@@ -249,13 +253,13 @@ fn collect_child_incremental<'a>(
     match child_kind {
         BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer
         | BoxKind::Table | BoxKind::TableRowGroup | BoxKind::TableCaption | BoxKind::ListItem => {
-            flush_inlines(pending_inlines, child_boxes, parent);
-            child_boxes.push(build_box_incremental(child, dirty));
+            flush_inlines(pending_inlines, child_boxes, parent, bump);
+            child_boxes.push(build_box_incremental(child, dirty, bump));
         }
         BoxKind::Inline | BoxKind::InlineBlock | BoxKind::InlineFlex | BoxKind::InlineGrid => {
             pending_inlines.push(child);
         }
-        _ => child_boxes.push(build_box_incremental(child, dirty)),
+        _ => child_boxes.push(build_box_incremental(child, dirty, bump)),
     }
 }
 

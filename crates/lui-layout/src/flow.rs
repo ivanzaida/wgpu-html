@@ -1,5 +1,6 @@
 //! Inline layout: horizontal flow with line breaking.
 
+use bumpalo::Bump;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
 
@@ -25,11 +26,12 @@ pub fn layout_inline<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     if let Some(text) = get_text(b.node) {
         layout_text_node(b, ctx, pos, &text, text_ctx);
     } else {
-        layout_inline_container(b, ctx, pos, text_ctx, rects, cache);
+        layout_inline_container(b, ctx, pos, text_ctx, rects, cache, bump);
     }
 }
 
@@ -201,6 +203,7 @@ fn layout_inline_container<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     let is_anon = matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline);
     if !is_anon {
@@ -233,16 +236,16 @@ fn layout_inline_container<'a>(
         let is_inline_block = matches!(child.kind, BoxKind::InlineBlock | BoxKind::InlineFlex | BoxKind::InlineGrid);
 
         if is_inline_block {
-            let placeholder = LayoutBox::new(BoxKind::InlineBlock, child.node, child.style);
+            let placeholder = LayoutBox::new(BoxKind::InlineBlock, child.node, child.style, bump);
             let old = std::mem::replace(child, placeholder);
             let result = crate::engine::layout_node(
                 old, ctx,
                 Point::new(b.content.x + cursor_x, b.content.y + cursor_y),
-                text_ctx, rects, cache,
+                text_ctx, rects, cache, bump,
             );
             *child = result;
         } else {
-            layout_inline(child, ctx, Point::new(b.content.x + cursor_x, b.content.y + cursor_y), text_ctx, rects, cache);
+            layout_inline(child, ctx, Point::new(b.content.x + cursor_x, b.content.y + cursor_y), text_ctx, rects, cache, bump);
         }
 
         let child_w = child.outer_width();
@@ -257,16 +260,16 @@ fn layout_inline_container<'a>(
             line_start_idx = idx;
             let child = &mut b.children[idx];
             if is_inline_block {
-                let placeholder = LayoutBox::new(BoxKind::InlineBlock, child.node, child.style);
+                let placeholder = LayoutBox::new(BoxKind::InlineBlock, child.node, child.style, bump);
                 let old = std::mem::replace(child, placeholder);
                 let result = crate::engine::layout_node(
                     old, ctx,
                     Point::new(b.content.x, b.content.y + cursor_y),
-                    text_ctx, rects, cache,
+                    text_ctx, rects, cache, bump,
                 );
                 *child = result;
             } else {
-                layout_inline(child, ctx, Point::new(b.content.x, b.content.y + cursor_y), text_ctx, rects, cache);
+                layout_inline(child, ctx, Point::new(b.content.x, b.content.y + cursor_y), text_ctx, rects, cache, bump);
             }
             let child_w_new = child.outer_width();
             let child_h_new = child.outer_height();

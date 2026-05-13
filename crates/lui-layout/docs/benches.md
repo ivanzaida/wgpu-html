@@ -18,7 +18,7 @@ Stylesheets: UA (WHATWG ~605 rules) + reset (`* { margin:0; padding:0; border-wi
 | 0 | Reuse `TextContext` across frames (`LayoutEngine`) | all | done | 1 |
 | 1 | Eliminate `LayoutCache` HashMap clone on incremental path | incremental | done | 1 |
 | 2 | Skip `build_box` for clean subtrees in incremental mode | incremental | done | 2 |
-| 3 | Arena-allocate `LayoutBox` children (replace per-node `Vec`) | all | pending | — |
+| 3 | Arena-allocate `LayoutBox` children (replace per-node `Vec`) | all | done | 3 |
 | 4 | Pre-allocate rects `Vec` from previous frame's count | all | pending | — |
 | 5 | Cache text shaping results across layout passes | inline | pending | — |
 
@@ -344,84 +344,86 @@ Changes: `build_box_incremental` checks dirty set; clean nodes get a leaf Layout
 
 ---
 
-## Run 3 — `(pending)`
+## Run 3 — Arena-allocate LayoutBox children (bumpalo)
 
-Date: `(pending)`
-Changes: `(describe what changed)`
+Date: 2026-05-13
+Changes: `LayoutBox.children` changed from `Vec<LayoutBox>` to `bumpalo::collections::Vec<LayoutBox>`. Arena owned by `LayoutTree` (via `ManuallyDrop` for correct drop order). `&Bump` threaded through all layout functions.
 
 ### Block Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| 50 stacked divs | 50 | — | — | — |
-| 200 stacked divs | 200 | — | — | — |
-| nested 4×3 | 120 | — | — | — |
-| nested 3×8 | 585 | — | — | — |
+| 50 stacked divs | 50 | 687 µs | 13,740 | −4.8% |
+| 200 stacked divs | 200 | 2.98 ms | 14,900 | +2.8% |
+| nested 4×3 | 120 | 813 µs | 6,775 | −4.1% |
+| nested 3×8 | 585 | 5.96 ms | 10,188 | −0.5% |
 
 ### Flex Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| row 10 items | 10 | — | — | — |
-| row 50 items | 50 | — | — | — |
-| wrap 5×4 | 20 | — | — | — |
-| wrap 10×8 | 80 | — | — | — |
-| nested 3 deep | 40 | — | — | — |
-| nested 4 deep | 120 | — | — | — |
+| row 10 items | 10 | 229 µs | 22,900 | −0.4% |
+| row 50 items | 50 | 1.26 ms | 25,200 | +2.4% |
+| wrap 5×4 | 20 | 614 µs | 30,700 | +0.2% |
+| wrap 10×8 | 80 | 2.52 ms | 31,500 | +1.6% |
+| nested 3 deep | 40 | 769 µs | 19,225 | −3.9% |
+| nested 4 deep | 120 | 3.10 ms | 25,833 | −0.6% |
 
 ### Grid Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| 4×4 fixed | 16 | — | — | — |
-| 10×6 fixed | 60 | — | — | — |
-| auto 24 items | 24 | — | — | — |
-| auto 100 items | 100 | — | — | — |
+| 4×4 fixed | 16 | 231 µs | 14,438 | +5.0% |
+| 10×6 fixed | 60 | 861 µs | 14,350 | −0.2% |
+| auto 24 items | 24 | 350 µs | 14,583 | −1.7% |
+| auto 100 items | 100 | 1.46 ms | 14,600 | −0.7% |
 
 ### Table Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| 5×4 simple | 24 | — | — | — |
-| 20×6 simple | 126 | — | — | — |
-| 50×8 simple | 408 | — | — | — |
-| 20×6 colspan | 106 | — | — | — |
+| 5×4 simple | 24 | 237 µs | 9,875 | −3.7% |
+| 20×6 simple | 126 | 1.36 ms | 10,794 | +0.0% |
+| 50×8 simple | 408 | 4.62 ms | 11,324 | −4.9% |
+| 20×6 colspan | 106 | 1.20 ms | 11,321 | −0.8% |
 
 ### Inline Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| 20 spans | 20 | — | — | — |
-| 100 spans | 100 | — | — | — |
-| 500 spans | 500 | — | — | — |
+| 20 spans | 20 | 250 µs | 12,500 | −1.2% |
+| 100 spans | 100 | 1.24 ms | 12,400 | −2.4% |
+| 500 spans | 500 | 6.76 ms | 13,520 | −4.3% |
 
 ### Positioned Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| 20 absolute | 20 | — | — | — |
-| 100 absolute | 100 | — | — | — |
+| 20 absolute | 20 | 272 µs | 13,600 | −1.4% |
+| 100 absolute | 100 | 1.36 ms | 13,600 | −2.2% |
 
 ### Mixed Layout
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| dashboard page | 40 | — | — | — |
+| dashboard page | 40 | 515 µs | 12,875 | −2.5% |
 
 ### End-to-End (cascade + layout)
 
 | Fixture | Nodes | Time | ns/node | vs Run 2 |
 |---------|-------|------|---------|----------|
-| cascade + layout | 40 | — | — | — |
-| large mixed tree | 300 | — | — | — |
+| cascade + layout | 40 | 927 µs | 23,175 | −3.2% |
+| large mixed tree | 300 | 3.92 ms | 13,067 | −2.5% |
 
 ### Incremental Layout
 
 | Fixture | Time | vs full | vs Run 2 |
 |---------|------|---------|----------|
-| full baseline (dashboard) | — | — | — |
-| incremental 0 dirty | — | — | — |
-| incremental 1 dirty leaf | — | — | — |
-| incremental 1 dirty near root | — | — | — |
-| large full baseline | — | — | — |
-| large incremental 1 leaf | — | — | — |
+| full baseline (dashboard) | 514 µs | — | −3.2% |
+| incremental 0 dirty | 504 µs | −1.9% | −3.4% |
+| incremental 1 dirty leaf | 59.3 µs | −88.5% | −5.1% |
+| incremental 1 dirty near root | 557 µs | +8.4% | −4.3% |
+| large full baseline | 12.71 ms | — | −2.8% |
+| large incremental 1 leaf | 382 µs | −97.0% | **−10.1%** |
+
+> **Summary:** Modest but consistent improvement across the board. Largest gains on big trees: 50×8 table −4.9%, 500 spans −4.3%, large mixed tree −2.5%, large incremental −10.1%. Arena eliminates per-node malloc/free overhead; deallocation is a single Bump reset instead of hundreds of free() calls.

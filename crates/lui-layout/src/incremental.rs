@@ -1,6 +1,7 @@
 //! Incremental layout — skip computation for clean subtrees by cloning
 //! cached results from the previous frame.
 
+use bumpalo::Bump;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use lui_core::Rect;
@@ -125,11 +126,12 @@ impl<'a> CacheView<'a> {
         ctx: &LayoutContext,
         pos: Point,
         rects: &mut Vec<(&'b HtmlNode, Rect)>,
+        bump: &'b Bump,
     ) -> bool {
         match self {
             CacheView::Full => false,
             CacheView::Incremental { cache, dirty } => {
-                try_clone_from_cache(b, cache, dirty, ctx, pos, rects)
+                try_clone_from_cache(b, cache, dirty, ctx, pos, rects, bump)
             }
         }
     }
@@ -220,6 +222,7 @@ fn try_clone_from_cache<'a>(
     ctx: &LayoutContext,
     pos: Point,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    bump: &'a Bump,
 ) -> bool {
     if matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline) {
         return false;
@@ -245,7 +248,7 @@ fn try_clone_from_cache<'a>(
     }
 
     if b.children.is_empty() && !old_ref.child_snapshots.is_empty() {
-        synthesize_children(b, &old_ref.child_snapshots, dx, dy);
+        synthesize_children(b, &old_ref.child_snapshots, dx, dy, bump);
     } else {
         restore_children(&mut b.children, &old_ref.child_snapshots, dx, dy);
     }
@@ -276,11 +279,11 @@ fn apply_cached(cached: &CachedBox, b: &mut LayoutBox) {
 /// SAFETY: node_ptr and style_ptr were captured from a LayoutBox whose referents
 /// (HtmlNode in the parsed document, ComputedStyle in the cascade arena) outlive
 /// the layout tree.
-fn synthesize_children<'a>(parent: &mut LayoutBox<'a>, snapshots: &[ChildSnapshot], dx: f32, dy: f32) {
-    parent.children = snapshots.iter().map(|snap| {
+fn synthesize_children<'a>(parent: &mut LayoutBox<'a>, snapshots: &[ChildSnapshot], dx: f32, dy: f32, bump: &'a Bump) {
+    parent.children = bumpalo::collections::Vec::from_iter_in(snapshots.iter().map(|snap| {
         let node: &'a HtmlNode = unsafe { &*(snap.node_ptr as *const HtmlNode) };
         let style: &'a lui_cascade::ComputedStyle<'a> = unsafe { &*(snap.style_ptr as *const lui_cascade::ComputedStyle<'a>) };
-        let mut child = LayoutBox::new(snap.kind, node, style);
+        let mut child = LayoutBox::new(snap.kind, node, style, bump);
         apply_cached(&snap.cached, &mut child);
         child.content.x = snap.cached.content.x + dx;
         child.content.y = snap.cached.content.y + dy;
@@ -289,10 +292,10 @@ fn synthesize_children<'a>(parent: &mut LayoutBox<'a>, snapshots: &[ChildSnapsho
             clip.y += dy;
         }
         if !snap.children.is_empty() {
-            synthesize_children(&mut child, &snap.children, dx, dy);
+            synthesize_children(&mut child, &snap.children, dx, dy, bump);
         }
         child
-    }).collect();
+    }), bump);
 }
 
 fn restore_children(new_children: &mut [LayoutBox], old_snapshots: &[ChildSnapshot], dx: f32, dy: f32) {
@@ -328,14 +331,17 @@ pub fn layout_incremental_with<'a>(
         return crate::engine::layout_tree_with(styled, viewport_width, viewport_height, text_ctx);
     }
 
+    let arena_ptr = Box::into_raw(Box::new(Bump::new()));
+    let bump: &'a Bump = unsafe { &*arena_ptr };
+
     let dirty = DirtySet::from_paths(styled.node, dirty_paths);
     let view = CacheView::Incremental { cache: prev_cache, dirty: &dirty };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
-    let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
-    LayoutTree { root, rects }
+    let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty, bump);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view, bump);
+    LayoutTree::new(root, rects, arena_ptr)
 }
 
 pub fn layout_tree_incremental<'a>(
@@ -361,13 +367,16 @@ pub fn layout_tree_incremental_with<'a>(
         return crate::engine::layout_tree_with(styled, viewport_width, viewport_height, text_ctx);
     }
 
+    let arena_ptr = Box::into_raw(Box::new(Bump::new()));
+    let bump: &'a Bump = unsafe { &*arena_ptr };
+
     let cache = LayoutCache::from_tree(prev);
     let dirty = DirtySet::from_paths(styled.node, dirty_paths);
     let view = CacheView::Incremental { cache: &cache, dirty: &dirty };
 
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
-    let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
-    LayoutTree { root, rects }
+    let root = crate::box_gen::build_box_incremental(styled, &dirty.dirty, bump);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view, bump);
+    LayoutTree::new(root, rects, arena_ptr)
 }

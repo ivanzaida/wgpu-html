@@ -17,14 +17,15 @@ use crate::helpers::*;
 
 #[test]
 fn layout_block_no_children_fills_available_width_height_zero() {
+    let bump = Bump::new();
     let node = HtmlNode::new(HtmlElement::Div);
     let style = ComputedStyle::default();
-    let mut b = LayoutBox::new(BoxKind::Block, &node, &style);
+    let mut b = LayoutBox::new(BoxKind::Block, &node, &style, &bump);
     let ctx = LayoutContext::new(800.0, 600.0);
     let mut rects = Vec::new();
 
     let mut text_ctx = TextContext::new();
-    layout_block(&mut b, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full);
+    layout_block(&mut b, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full, &bump);
 
     // Default margin/border/padding are all 0, so content width fills the containing block (800px)
     assert_eq!(b.content.width, 800.0, "block should fill available width");
@@ -40,12 +41,13 @@ fn layout_block_with_explicit_px_width_respects_width() {
     let mut style = ComputedStyle::default();
     style.width = Some(arena.alloc(px(200.0)));
 
-    let mut b = LayoutBox::new(BoxKind::Block, &node, &style);
+    let bump = Bump::new();
+    let mut b = LayoutBox::new(BoxKind::Block, &node, &style, &bump);
     let ctx = LayoutContext::new(800.0, 600.0);
     let mut rects = Vec::new();
 
     let mut text_ctx = TextContext::new();
-    layout_block(&mut b, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full);
+    layout_block(&mut b, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full, &bump);
 
     assert_eq!(b.content.width, 200.0, "should respect explicit width");
     assert_eq!(b.content.height, 0.0, "height should be 0 without children");
@@ -58,12 +60,13 @@ fn layout_block_width_clamped_to_available() {
     let mut style = ComputedStyle::default();
     style.width = Some(arena.alloc(px(2000.0)));
 
-    let mut b = LayoutBox::new(BoxKind::Block, &node, &style);
+    let bump = Bump::new();
+    let mut b = LayoutBox::new(BoxKind::Block, &node, &style, &bump);
     let ctx = LayoutContext::new(800.0, 600.0);
     let mut rects = Vec::new();
 
     let mut text_ctx = TextContext::new();
-    layout_block(&mut b, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full);
+    layout_block(&mut b, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full, &bump);
 
     // width = min(2000, 800) = 800. Available is containing_width - margin - border - padding = 800 - 0 = 800
     assert!(b.content.width <= 800.0, "width should be clamped to available");
@@ -72,22 +75,23 @@ fn layout_block_width_clamped_to_available() {
 
 #[test]
 fn layout_block_children_stacked_vertically() {
+    let bump = Bump::new();
     let node1 = HtmlNode::text("hello");
     let node2 = HtmlNode::text("world");
     let parent_node = HtmlNode::new(HtmlElement::Div);
     let style = ComputedStyle::default();
 
     // Build a parent with two text children
-    let mut parent = LayoutBox::new(BoxKind::Block, &parent_node, &style);
-    let child1 = LayoutBox::new(BoxKind::AnonymousInline, &node1, &style);
-    let child2 = LayoutBox::new(BoxKind::AnonymousInline, &node2, &style);
+    let mut parent = LayoutBox::new(BoxKind::Block, &parent_node, &style, &bump);
+    let child1 = LayoutBox::new(BoxKind::AnonymousInline, &node1, &style, &bump);
+    let child2 = LayoutBox::new(BoxKind::AnonymousInline, &node2, &style, &bump);
     parent.children.push(child1);
     parent.children.push(child2);
 
     let ctx = LayoutContext::new(800.0, 600.0);
     let mut rects = Vec::new();
     let mut text_ctx = TextContext::new();
-    layout_block(&mut parent, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full);
+    layout_block(&mut parent, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full, &bump);
 
     // Each inline text child gets height from font metrics (via cosmic-text shaping)
     let h1 = parent.children[0].content.height;
@@ -112,14 +116,15 @@ fn layout_block_with_margin_and_padding_adjusts_child_position() {
     style.padding_top = Some(arena.alloc(px(8.0)));
     style.padding_left = Some(arena.alloc(px(6.0)));
 
-    let mut parent = LayoutBox::new(BoxKind::Block, &parent_node, &style);
-    let child = LayoutBox::new(BoxKind::AnonymousInline, &text_node, &style);
+    let bump = Bump::new();
+    let mut parent = LayoutBox::new(BoxKind::Block, &parent_node, &style, &bump);
+    let child = LayoutBox::new(BoxKind::AnonymousInline, &text_node, &style, &bump);
     parent.children.push(child);
 
     let ctx = LayoutContext::new(800.0, 600.0);
     let mut rects = Vec::new();
     let mut text_ctx = TextContext::new();
-    layout_block(&mut parent, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full);
+    layout_block(&mut parent, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &lui_layout::incremental::CacheView::Full, &bump);
 
     assert_eq!(parent.margin.top, 10.0);
     assert_eq!(parent.margin.left, 5.0);

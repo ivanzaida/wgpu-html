@@ -1,3 +1,4 @@
+use bumpalo::Bump;
 use lui_cascade::cascade::{CascadeContext, InteractionState};
 use lui_cascade::media::MediaContext;
 use lui_parse::parse;
@@ -22,7 +23,8 @@ fn build_box_single_text_node_is_anonymous_inline() {
     let text_child = styled.children.iter()
         .find(|c| c.node.element.is_text()).unwrap();
     assert!(text_child.node.element.is_text(), "child should be text node");
-    let lb = build_box(text_child);
+    let bump = Bump::new();
+    let lb = build_box(text_child, &bump);
     assert_eq!(lb.kind, BoxKind::AnonymousInline, "text node should produce AnonymousInline box");
 }
 
@@ -37,7 +39,8 @@ fn build_box_div_without_ua_stylesheet_defaults_to_block() {
 
     // Parser: html > div (no head/body auto-insertion)
     let div = &styled.children[0];
-    let lb = build_box(div);
+    let bump = Bump::new();
+    let lb = build_box(div, &bump);
     // Without UA stylesheet, display is None → falls to Block (default)
     assert_eq!(lb.kind, BoxKind::Block, "div without UA stylesheet should default to Block");
 }
@@ -53,7 +56,8 @@ fn build_box_display_none_still_produces_block() {
 
     // Parser: html > div
     let div = &styled.children[0];
-    let lb = build_box(div);
+    let bump = Bump::new();
+    let lb = build_box(div, &bump);
     // Per current code, display:none maps to BoxKind::Block
     assert_eq!(lb.kind, BoxKind::Block, "display:none currently defaults to Block");
 }
@@ -69,7 +73,8 @@ fn build_box_inline_text_between_blocks_wrapped_in_anonymous_block() {
 
     // Parser: html > div > [h1, "inline text", h2]
     let div = &styled.children[0];
-    let lb = build_box(div);
+    let bump = Bump::new();
+    let lb = build_box(div, &bump);
 
     // Children should be: h1 (Block), AnonymousBlock (wrapping "inline text"), h2 (Block)
     assert_eq!(lb.children.len(), 3, "should have 3 children: h1, anon-block, h2");

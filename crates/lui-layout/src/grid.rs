@@ -4,6 +4,7 @@
 //! gap, auto-placement (row/column/dense), grid-column/row-start/end,
 //! span N, grid-auto-rows/columns, align-items/justify-items on cells.
 
+use bumpalo::Bump;
 use lui_core::{CssUnit, CssValue, Rect};
 use lui_parse::HtmlNode;
 
@@ -533,6 +534,7 @@ pub fn layout_grid<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -583,7 +585,7 @@ pub fn layout_grid<'a>(
     let auto_col_size = parse_auto_track_size(b.style.grid_auto_columns);
 
     // Phase 1: place items
-    let taken_children = std::mem::take(&mut b.children);
+    let taken_children = std::mem::replace(&mut b.children, bumpalo::collections::Vec::new_in(bump));
     let mut placements: Vec<GridPlacement> = Vec::with_capacity(taken_children.len());
     let mut children: Vec<LayoutBox<'a>> = Vec::with_capacity(taken_children.len());
     let mut auto_col = 0_usize;
@@ -619,7 +621,7 @@ pub fn layout_grid<'a>(
 
         let child_ctx = LayoutContext { containing_width: item_w, ..*ctx };
         let mut laid = child;
-        crate::block::layout_block(&mut laid, &child_ctx, Point::new(0.0, 0.0), text_ctx, rects, cache);
+        crate::block::layout_block(&mut laid, &child_ctx, Point::new(0.0, 0.0), text_ctx, rects, cache, bump);
 
         items.push((placement, laid));
     }
@@ -710,7 +712,7 @@ pub fn layout_grid<'a>(
         }
     }
 
-    b.children = items.into_iter().map(|(_, item)| item).collect();
+    b.children = bumpalo::collections::Vec::from_iter_in(items.into_iter().map(|(_, item)| item), bump);
 
     let total_h: f32 = row_heights.iter().sum::<f32>() + total_row_gap;
     b.content.height = inner_height.unwrap_or(total_h);

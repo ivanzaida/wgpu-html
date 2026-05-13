@@ -1,5 +1,6 @@
 //! Layout engine: entry point and recursive dispatcher.
 
+use bumpalo::Bump;
 use lui_cascade::StyledNode;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
@@ -73,12 +74,17 @@ pub fn layout_tree<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport
 
 /// Compute layout reusing an existing `TextContext` (avoids re-scanning system fonts).
 pub fn layout_tree_with<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport_height: f32, text_ctx: &mut TextContext) -> LayoutTree<'a> {
+    let arena_ptr = Box::into_raw(Box::new(Bump::new()));
+    // SAFETY: arena_ptr is valid, and the &'a Bump reference lives as long as the LayoutTree
+    // (which owns the arena and drops root before freeing it).
+    let bump: &'a Bump = unsafe { &*arena_ptr };
+
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
     let view = CacheView::Full;
-    let root = build_box(styled);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view);
-    LayoutTree { root, rects }
+    let root = build_box(styled, bump);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &view, bump);
+    LayoutTree::new(root, rects, arena_ptr)
 }
 
 pub fn layout_node<'a>(
@@ -88,34 +94,35 @@ pub fn layout_node<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &CacheView,
+    bump: &'a Bump,
 ) -> LayoutBox<'a> {
-    if cache.try_clone(&mut b, ctx, pos, rects) {
+    if cache.try_clone(&mut b, ctx, pos, rects, bump) {
         return b;
     }
     match b.kind {
         BoxKind::FlexContainer | BoxKind::InlineFlex => {
-            crate::flex::layout_flex(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::flex::layout_flex(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::GridContainer | BoxKind::InlineGrid => {
-            crate::grid::layout_grid(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::grid::layout_grid(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::Table => {
-            crate::table::layout_table(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::table::layout_table(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::Block | BoxKind::Root | BoxKind::ListItem => {
-            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::InlineBlock => {
-            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::Inline | BoxKind::AnonymousInline => {
-            flow::layout_inline(&mut b, ctx, pos, text_ctx, rects, cache);
+            flow::layout_inline(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::AnonymousBlock => {
-            crate::block::layout_anonymous_block(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::block::layout_anonymous_block(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::TableRow | BoxKind::TableCell | BoxKind::TableRowGroup | BoxKind::TableCaption => {
-            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache);
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache, bump);
         }
         BoxKind::TableColumnGroup | BoxKind::TableColumn => {
             // Column groups/columns don't produce visible boxes;

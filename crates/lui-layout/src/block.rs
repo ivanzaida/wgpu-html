@@ -1,5 +1,6 @@
 //! Block layout: stack children vertically in a block formatting context.
 
+use bumpalo::Bump;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
 
@@ -125,6 +126,7 @@ pub fn layout_block<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -209,11 +211,11 @@ pub fn layout_block<'a>(
     for child in b.children.iter_mut() {
         if positioned::is_out_of_flow(child.style) {
             let static_pos = Point::new(b.content.x, cursor_y);
-            let placeholder = LayoutBox::new(child.kind, child.node, child.style);
+            let placeholder = LayoutBox::new(child.kind, child.node, child.style, bump);
             let old = std::mem::replace(child, placeholder);
             let mut result = old;
             positioned::layout_out_of_flow(
-                &mut result, &child_ctx, static_pos, containing_block, text_ctx, rects, cache,
+                &mut result, &child_ctx, static_pos, containing_block, text_ctx, rects, cache, bump,
             );
             rects.push((result.node, result.content));
             *child = result;
@@ -235,9 +237,9 @@ pub fn layout_block<'a>(
 
         if float_val == "left" || float_val == "right" {
             // Float child: layout then position at edge
-            let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
+            let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
             let old = std::mem::replace(child, placeholder);
-            let mut result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache);
+            let mut result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache, bump);
 
             let float_w = result.outer_width();
             let float_h = result.outer_height();
@@ -271,9 +273,9 @@ pub fn layout_block<'a>(
                 child_ctx
             };
 
-            let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
+            let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
             let old = std::mem::replace(child, placeholder);
-            let mut result = crate::engine::layout_node(old, &float_adjusted_ctx, Point::new(avail_x, cursor_y), text_ctx, rects, cache);
+            let mut result = crate::engine::layout_node(old, &float_adjusted_ctx, Point::new(avail_x, cursor_y), text_ctx, rects, cache, bump);
 
             let mt = result.margin.top;
 
@@ -490,6 +492,7 @@ pub fn layout_anonymous_block<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
-    crate::flow::layout_inline(b, ctx, pos, text_ctx, rects, cache);
+    crate::flow::layout_inline(b, ctx, pos, text_ctx, rects, cache, bump);
 }

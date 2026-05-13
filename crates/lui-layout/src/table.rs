@@ -3,15 +3,16 @@
 //! Implements: auto & fixed column sizing, border-spacing, border-collapse,
 //! colspan/rowspan, caption, row groups (thead/tbody/tfoot).
 
+use bumpalo::Bump;
 use lui_core::{CssUnit, CssValue, Rect};
 use lui_parse::HtmlNode;
 
 use crate::{
-    box_tree::{BoxKind, LayoutBox},
-    context::LayoutContext,
-    geometry::Point,
-    sides, sizes,
-    text::TextContext,
+  box_tree::{BoxKind, LayoutBox},
+  context::LayoutContext,
+  geometry::Point,
+  sides, sizes,
+  text::TextContext,
 };
 
 fn css_str(v: Option<&CssValue>) -> &str {
@@ -261,6 +262,7 @@ pub fn layout_table<'a>(
   text_ctx: &mut TextContext,
   rects: &mut Vec<(&'a HtmlNode, Rect)>,
   cache: &crate::incremental::CacheView,
+  bump: &'a Bump,
 ) {
   let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
   let border = sides::resolve_border(b.style);
@@ -302,7 +304,15 @@ pub fn layout_table<'a>(
       containing_width: table_width,
       ..*ctx
     };
-    crate::block::layout_block(child, &cap_ctx, Point::new(table_x, cursor_y), text_ctx, rects, cache);
+    crate::block::layout_block(
+      child,
+      &cap_ctx,
+      Point::new(table_x, cursor_y),
+      text_ctx,
+      rects,
+      cache,
+      bump,
+    );
     cursor_y += child.outer_height();
   }
 
@@ -310,7 +320,17 @@ pub fn layout_table<'a>(
   let row_infos = collect_row_info(b);
   let num_rows = row_infos.len();
   if num_rows == 0 {
-    layout_bottom_captions(b, table_x, table_width, ctx, &mut cursor_y, text_ctx, rects, cache);
+    layout_bottom_captions(
+      b,
+      table_x,
+      table_width,
+      ctx,
+      &mut cursor_y,
+      text_ctx,
+      rects,
+      cache,
+      bump,
+    );
     b.content.height =
       sizes::resolve_length(b.style.height, ctx.containing_height).unwrap_or((cursor_y - b.content.y).max(0.0));
     return;
@@ -424,7 +444,15 @@ pub fn layout_table<'a>(
       };
 
       let cell = &mut row.children[ci];
-      crate::block::layout_block(cell, &cell_ctx, Point::new(cell_x, row_ys[ri]), text_ctx, rects, cache);
+      crate::block::layout_block(
+        cell,
+        &cell_ctx,
+        Point::new(cell_x, row_ys[ri]),
+        text_ctx,
+        rects,
+        cache,
+        bump,
+      );
       cell.content.width = cw;
       if rs > 1 {
         let cell_h: f32 = (ri..ri + rs).map(|r| row_heights[r]).sum::<f32>() + sp_v * (rs as f32 - 1.0);
@@ -454,7 +482,17 @@ pub fn layout_table<'a>(
   }
 
   // Phase 7: Layout bottom captions
-  layout_bottom_captions(b, table_x, table_width, ctx, &mut cursor_y, text_ctx, rects, cache);
+  layout_bottom_captions(
+    b,
+    table_x,
+    table_width,
+    ctx,
+    &mut cursor_y,
+    text_ctx,
+    rects,
+    cache,
+    bump,
+  );
 
   b.content.height =
     sizes::resolve_length(b.style.height, ctx.containing_height).unwrap_or((cursor_y - b.content.y).max(0.0));
@@ -469,6 +507,7 @@ fn layout_bottom_captions<'a>(
   text_ctx: &mut TextContext,
   rects: &mut Vec<(&'a HtmlNode, Rect)>,
   cache: &crate::incremental::CacheView,
+  bump: &'a Bump,
 ) {
   for child in b.children.iter_mut() {
     if child.kind != BoxKind::TableCaption {
@@ -482,7 +521,15 @@ fn layout_bottom_captions<'a>(
       containing_width: table_width,
       ..*ctx
     };
-    crate::block::layout_block(child, &cap_ctx, Point::new(table_x, *cursor_y), text_ctx, rects, cache);
+    crate::block::layout_block(
+      child,
+      &cap_ctx,
+      Point::new(table_x, *cursor_y),
+      text_ctx,
+      rects,
+      cache,
+      bump,
+    );
     *cursor_y += child.outer_height();
   }
 }

@@ -4,6 +4,7 @@
 //! - `absolute`: removed from flow, positioned against nearest positioned ancestor
 //! - `fixed`: removed from flow, positioned against viewport
 
+use bumpalo::Bump;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
 
@@ -52,6 +53,7 @@ pub fn layout_out_of_flow<'a>(
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
     cache: &crate::incremental::CacheView,
+    bump: &'a Bump,
 ) {
     let is_fixed = css_str(b.style.position) == "fixed";
     let cb = if is_fixed {
@@ -122,9 +124,9 @@ pub fn layout_out_of_flow<'a>(
     let child_ctx = LayoutContext { containing_width: content_w, ..*ctx };
     let mut cursor_y = b.content.y;
     for child in b.children.iter_mut() {
-        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
+        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
         let old = std::mem::replace(child, placeholder);
-        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache);
+        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache, bump);
         *child = result;
         cursor_y += child.outer_height();
     }
