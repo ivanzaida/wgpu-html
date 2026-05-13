@@ -31,6 +31,10 @@ pub enum BoxKind {
     TableRowGroup,
     /// Table caption (<caption>).
     TableCaption,
+    /// Table column group (<colgroup>).
+    TableColumnGroup,
+    /// Table column (<col>).
+    TableColumn,
     /// Anonymous box created for text runs between block siblings.
     AnonymousBlock,
     /// Anonymous box for inline text content.

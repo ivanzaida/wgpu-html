@@ -24,6 +24,7 @@ pub fn build_box<'a>(styled: &'a StyledNode<'a>) -> LayoutBox<'a> {
 
     let mut b = LayoutBox::new(kind, styled.node, &styled.style);
     b.children = child_boxes;
+    fixup_anonymous_table_wrappers(&mut b, styled);
     b
 }
 
@@ -87,6 +88,8 @@ fn resolve_box_kind_with_node(style: &ComputedStyle, node: &lui_parse::HtmlNode)
         "li" => BoxKind::ListItem,
         "thead" | "tbody" | "tfoot" => BoxKind::TableRowGroup,
         "caption" => BoxKind::TableCaption,
+        "colgroup" => BoxKind::TableColumnGroup,
+        "col" => BoxKind::TableColumn,
         _ => BoxKind::Block,
     }
 }
@@ -110,11 +113,85 @@ fn resolve_display_property(style: &ComputedStyle) -> Option<BoxKind> {
             "table-cell" => Some(BoxKind::TableCell),
             "table-row-group" | "table-header-group" | "table-footer-group" => Some(BoxKind::TableRowGroup),
             "table-caption" => Some(BoxKind::TableCaption),
+            "table-column-group" => Some(BoxKind::TableColumnGroup),
+            "table-column" => Some(BoxKind::TableColumn),
             "list-item" => Some(BoxKind::ListItem),
             "none" => Some(BoxKind::Block),
             _ => None,
         },
         _ => None,
+    }
+}
+
+/// CSS 2.1 §17.2.1 — wrap orphaned table-internal elements in anonymous boxes.
+///
+/// - A TableCell not inside a TableRow gets wrapped in an anonymous TableRow.
+/// - A TableRow not inside a Table/TableRowGroup gets wrapped in an anonymous Table.
+/// - A TableRowGroup not inside a Table gets wrapped in an anonymous Table.
+fn fixup_anonymous_table_wrappers<'a>(b: &mut LayoutBox<'a>, styled: &'a StyledNode<'a>) {
+    let parent_kind = b.kind;
+
+    // Cells outside a row → wrap consecutive cells in an anonymous row
+    if !matches!(parent_kind, BoxKind::TableRow) {
+        let mut new_children: Vec<LayoutBox<'a>> = Vec::new();
+        let mut pending_cells: Vec<LayoutBox<'a>> = Vec::new();
+
+        for child in b.children.drain(..) {
+            if child.kind == BoxKind::TableCell {
+                pending_cells.push(child);
+            } else {
+                if !pending_cells.is_empty() {
+                    let mut anon_row = LayoutBox::new(BoxKind::TableRow, styled.node, &styled.style);
+                    anon_row.children = pending_cells.drain(..).collect();
+                    // If parent is also not a table, wrap the row in a table too
+                    if !matches!(parent_kind, BoxKind::Table | BoxKind::TableRowGroup) {
+                        let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
+                        anon_table.children.push(anon_row);
+                        new_children.push(anon_table);
+                    } else {
+                        new_children.push(anon_row);
+                    }
+                }
+                new_children.push(child);
+            }
+        }
+        if !pending_cells.is_empty() {
+            let mut anon_row = LayoutBox::new(BoxKind::TableRow, styled.node, &styled.style);
+            anon_row.children = pending_cells;
+            if !matches!(parent_kind, BoxKind::Table | BoxKind::TableRowGroup) {
+                let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
+                anon_table.children.push(anon_row);
+                new_children.push(anon_table);
+            } else {
+                new_children.push(anon_row);
+            }
+        }
+        b.children = new_children;
+    }
+
+    // Rows outside a table → wrap consecutive rows in an anonymous table
+    if !matches!(parent_kind, BoxKind::Table | BoxKind::TableRowGroup) {
+        let mut new_children: Vec<LayoutBox<'a>> = Vec::new();
+        let mut pending_rows: Vec<LayoutBox<'a>> = Vec::new();
+
+        for child in b.children.drain(..) {
+            if matches!(child.kind, BoxKind::TableRow | BoxKind::TableRowGroup) {
+                pending_rows.push(child);
+            } else {
+                if !pending_rows.is_empty() {
+                    let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
+                    anon_table.children = pending_rows.drain(..).collect();
+                    new_children.push(anon_table);
+                }
+                new_children.push(child);
+            }
+        }
+        if !pending_rows.is_empty() {
+            let mut anon_table = LayoutBox::new(BoxKind::Table, styled.node, &styled.style);
+            anon_table.children = pending_rows;
+            new_children.push(anon_table);
+        }
+        b.children = new_children;
     }
 }
 

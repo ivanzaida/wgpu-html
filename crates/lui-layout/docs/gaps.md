@@ -212,7 +212,7 @@ Status of every CSS layout feature relative to the spec. Updated 2026-05-13.
 | `<th>`                               | done    | Same as td (styling from UA stylesheet)                            |
 | `<thead>` / `<tbody>` / `<tfoot>`    | done    | TableRowGroup kind; rows inside laid out as part of table grid     |
 | `<caption>`                          | done    | Laid out above (default) or below (`caption-side: bottom`) table   |
-| `<colgroup>` / `<col>`               | missing |                                                                    |
+| `<colgroup>` / `<col>`               | done    | Width hints via style; `span` attribute; colgroup with/without col children |
 | Auto table layout algorithm          | done    | Explicit cell widths respected; remaining space distributed equally |
 | Fixed table layout                   | done    | First row cell widths determine columns; remaining split equally   |
 | `border-collapse` / `border-spacing` | done    | Separate model with h/v spacing; collapse zeroes spacing           |
@@ -222,13 +222,13 @@ Status of every CSS layout feature relative to the spec. Updated 2026-05-13.
 
 | Issue                                            | Impact     | Notes                                                              |
 |--------------------------------------------------|------------|--------------------------------------------------------------------|
-| No stacking context tree                         | Medium     | z-index has no effect; paint order = DOM order                     |
+| No cross-branch stacking contexts                | Medium     | z-index sibling ordering works; cross-branch reordering missing    |
 | ~~No intrinsic sizing pass~~                     | ~~Medium~~ | Fixed — max-content and min-content measurement implemented        |
-| Percentage margins/padding silently zero         | High       | `sides.rs` only resolves px/auto; percentage values dropped        |
+| ~~Percentage margins/padding silently zero~~     | ~~High~~   | Fixed — `resolve_margin_against` / `resolve_padding_against` handle % |
 | ~~Abs-positioned children in flex not filtered~~ | ~~High~~   | Fixed — filtered and laid out against flex container's padding box |
-| em units resolved at cascade with default 16px   | Medium     | Nested font-size inheritance doesn't propagate to em resolution    |
+| ~~em units resolved at cascade with default 16px~~ | ~~Medium~~ | Fixed — cascade resolves font-size first, threads it to em resolution |
 | ~~Single layout pass~~                            | ~~Low~~    | Table uses multi-pass (height estimation → row positioning → cell layout) |
-| No anonymous table wrappers                      | Low        | Table elements outside `<table>` not wrapped automatically         |
+| ~~No anonymous table wrappers~~                  | ~~Low~~    | Fixed — orphaned td/tr/tbody wrapped in anonymous table/row boxes  |
 
 ---
 

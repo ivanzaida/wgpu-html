@@ -53,6 +53,10 @@ pub fn layout_node<'a>(
         BoxKind::TableRow | BoxKind::TableCell | BoxKind::TableRowGroup | BoxKind::TableCaption => {
             crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
         }
+        BoxKind::TableColumnGroup | BoxKind::TableColumn => {
+            // Column groups/columns don't produce visible boxes;
+            // their width hints are read by the table layout algorithm.
+        }
         _ => {}
     }
 

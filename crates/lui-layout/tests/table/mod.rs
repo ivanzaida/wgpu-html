@@ -431,3 +431,94 @@ table_test!(empty_table_has_zero_height,
     assert!((t.content.height).abs() < 1.0,
         "empty table should have ~0 height, got {}", t.content.height);
 });
+
+// ============================================================================
+// <colgroup> / <col> column width hints
+// ============================================================================
+
+table_test!(col_sets_column_width,
+    r#"<table style="width:300px">
+        <col style="width:100px"><col style="width:200px">
+        <tr><td style="height:30px">A</td><td style="height:30px">B</td></tr>
+    </table>"#, 800.0, |t| {
+    let row = &t.children.iter()
+        .find(|c| c.kind == BoxKind::TableRow).unwrap();
+    assert!((row.children[0].content.width - 100.0).abs() < 2.0,
+        "col 0 should be 100px from <col>, got {}", row.children[0].content.width);
+    assert!((row.children[1].content.width - 200.0).abs() < 2.0,
+        "col 1 should be 200px from <col>, got {}", row.children[1].content.width);
+});
+
+table_test!(colgroup_with_col_children,
+    r#"<table style="width:300px">
+        <colgroup><col style="width:100px"><col style="width:200px"></colgroup>
+        <tr><td style="height:30px">A</td><td style="height:30px">B</td></tr>
+    </table>"#, 800.0, |t| {
+    let row = &t.children.iter()
+        .find(|c| c.kind == BoxKind::TableRow).unwrap();
+    assert!((row.children[0].content.width - 100.0).abs() < 2.0,
+        "col 0 should be 100px, got {}", row.children[0].content.width);
+    assert!((row.children[1].content.width - 200.0).abs() < 2.0,
+        "col 1 should be 200px, got {}", row.children[1].content.width);
+});
+
+table_test!(colgroup_width_without_col_children,
+    r#"<table style="width:200px">
+        <colgroup span="2" style="width:100px"></colgroup>
+        <tr><td style="height:30px">A</td><td style="height:30px">B</td></tr>
+    </table>"#, 800.0, |t| {
+    let row = &t.children.iter()
+        .find(|c| c.kind == BoxKind::TableRow).unwrap();
+    assert!((row.children[0].content.width - 100.0).abs() < 2.0,
+        "col 0 should be 100px from colgroup, got {}", row.children[0].content.width);
+    assert!((row.children[1].content.width - 100.0).abs() < 2.0,
+        "col 1 should be 100px from colgroup, got {}", row.children[1].content.width);
+});
+
+table_test!(col_span_attribute,
+    r#"<table style="width:300px">
+        <col span="2" style="width:100px"><col style="width:100px">
+        <tr><td style="height:30px">A</td><td style="height:30px">B</td><td style="height:30px">C</td></tr>
+    </table>"#, 800.0, |t| {
+    let row = &t.children.iter()
+        .find(|c| c.kind == BoxKind::TableRow).unwrap();
+    assert!((row.children[0].content.width - 100.0).abs() < 2.0,
+        "col 0 should be 100px, got {}", row.children[0].content.width);
+    assert!((row.children[1].content.width - 100.0).abs() < 2.0,
+        "col 1 should be 100px (span=2), got {}", row.children[1].content.width);
+    assert!((row.children[2].content.width - 100.0).abs() < 2.0,
+        "col 2 should be 100px, got {}", row.children[2].content.width);
+});
+
+// ============================================================================
+// Anonymous table wrappers
+// ============================================================================
+
+#[test]
+fn orphaned_td_gets_anonymous_table_wrapper() {
+    let html = r#"<div><td style="height:30px">A</td></div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let div = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // The td should be wrapped in anonymous row → anonymous table
+    let anon_table = &div.children[0];
+    assert_eq!(anon_table.kind, BoxKind::Table,
+        "orphaned td should be wrapped in anonymous table, got {:?}", anon_table.kind);
+}
+
+#[test]
+fn orphaned_tr_gets_anonymous_table_wrapper() {
+    let html = r#"<div><tr><td style="height:30px">A</td></tr></div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let div = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let anon_table = &div.children[0];
+    assert_eq!(anon_table.kind, BoxKind::Table,
+        "orphaned tr should be wrapped in anonymous table, got {:?}", anon_table.kind);
+}

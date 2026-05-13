@@ -70,6 +70,52 @@ fn get_rowspan(node: &HtmlNode) -> usize {
         .max(1)
 }
 
+fn get_span(node: &HtmlNode) -> usize {
+    node.attr("span")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(1)
+        .max(1)
+}
+
+/// Collect column width hints from <colgroup>/<col> children.
+/// Returns a vec of Option<f32> indexed by column number.
+fn collect_col_widths(b: &LayoutBox, available: f32) -> Vec<Option<f32>> {
+    let mut col_hints: Vec<Option<f32>> = Vec::new();
+    for child in &b.children {
+        match child.kind {
+            BoxKind::TableColumnGroup => {
+                if child.children.is_empty() {
+                    let span = get_span(child.node);
+                    let w = sizes::resolve_length(child.style.width, available);
+                    for _ in 0..span {
+                        col_hints.push(w);
+                    }
+                } else {
+                    for col in &child.children {
+                        if col.kind == BoxKind::TableColumn {
+                            let span = get_span(col.node);
+                            let w = sizes::resolve_length(col.style.width, available)
+                                .or_else(|| sizes::resolve_length(child.style.width, available));
+                            for _ in 0..span {
+                                col_hints.push(w);
+                            }
+                        }
+                    }
+                }
+            }
+            BoxKind::TableColumn => {
+                let span = get_span(child.node);
+                let w = sizes::resolve_length(child.style.width, available);
+                for _ in 0..span {
+                    col_hints.push(w);
+                }
+            }
+            _ => {}
+        }
+    }
+    col_hints
+}
+
 #[derive(Clone, Copy)]
 struct RowPath {
     child_idx: usize,
@@ -262,11 +308,14 @@ pub fn layout_table<'a>(
         num_cols = num_cols.max(c);
     }
 
+    // Collect <col> width hints
+    let col_hints = collect_col_widths(b, table_width);
+
     // Phase 3: Compute column widths
     let col_widths = if fixed {
-        compute_column_widths_fixed(b, &row_infos, &start_cols, num_cols, table_width, &spacing)
+        compute_column_widths_fixed(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing)
     } else {
-        compute_column_widths_auto(b, &row_infos, &start_cols, num_cols, table_width, &spacing)
+        compute_column_widths_auto(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing)
     };
 
     // Phase 4: Compute row heights — first pass (non-rowspan cells)
@@ -428,6 +477,7 @@ fn compute_column_widths_fixed(
     b: &LayoutBox,
     row_infos: &[RowInfo],
     start_cols: &[Vec<usize>],
+    col_hints: &[Option<f32>],
     num_cols: usize,
     table_width: f32,
     spacing: &Spacing,
@@ -437,6 +487,16 @@ fn compute_column_widths_fixed(
 
     let mut col_widths: Vec<Option<f32>> = vec![None; num_cols];
 
+    // Apply <col> width hints first
+    for (i, w) in col_hints.iter().enumerate() {
+        if i < num_cols {
+            if let Some(w) = w {
+                col_widths[i] = Some(*w);
+            }
+        }
+    }
+
+    // First row cell widths override
     if let Some(first) = row_infos.first() {
         let row = get_row(b, first.path);
         for ci in 0..first.num_cells {
@@ -466,6 +526,7 @@ fn compute_column_widths_auto(
     b: &LayoutBox,
     row_infos: &[RowInfo],
     start_cols: &[Vec<usize>],
+    col_hints: &[Option<f32>],
     num_cols: usize,
     table_width: f32,
     spacing: &Spacing,
@@ -476,6 +537,17 @@ fn compute_column_widths_auto(
     let mut col_widths = vec![0.0_f32; num_cols];
     let mut col_has_explicit = vec![false; num_cols];
 
+    // Apply <col> width hints
+    for (i, w) in col_hints.iter().enumerate() {
+        if i < num_cols {
+            if let Some(w) = w {
+                col_widths[i] = *w;
+                col_has_explicit[i] = true;
+            }
+        }
+    }
+
+    // Cell widths can override col hints (take the max)
     for (ri, info) in row_infos.iter().enumerate() {
         let row = get_row(b, info.path);
         for ci in 0..info.num_cells {
