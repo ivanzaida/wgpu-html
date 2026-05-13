@@ -124,6 +124,7 @@ pub fn layout_block<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -212,7 +213,7 @@ pub fn layout_block<'a>(
             let old = std::mem::replace(child, placeholder);
             let mut result = old;
             positioned::layout_out_of_flow(
-                &mut result, &child_ctx, static_pos, containing_block, text_ctx, rects,
+                &mut result, &child_ctx, static_pos, containing_block, text_ctx, rects, cache,
             );
             rects.push((result.node, result.content));
             *child = result;
@@ -236,7 +237,7 @@ pub fn layout_block<'a>(
             // Float child: layout then position at edge
             let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
             let old = std::mem::replace(child, placeholder);
-            let mut result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects);
+            let mut result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache);
 
             let float_w = result.outer_width();
             let float_h = result.outer_height();
@@ -272,7 +273,7 @@ pub fn layout_block<'a>(
 
             let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
             let old = std::mem::replace(child, placeholder);
-            let mut result = crate::engine::layout_node(old, &float_adjusted_ctx, Point::new(avail_x, cursor_y), text_ctx, rects);
+            let mut result = crate::engine::layout_node(old, &float_adjusted_ctx, Point::new(avail_x, cursor_y), text_ctx, rects, cache);
 
             let mt = result.margin.top;
 
@@ -488,6 +489,7 @@ pub fn layout_anonymous_block<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
-    crate::flow::layout_inline(b, ctx, pos, text_ctx, rects);
+    crate::flow::layout_inline(b, ctx, pos, text_ctx, rects, cache);
 }

@@ -532,6 +532,7 @@ pub fn layout_grid<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -618,7 +619,7 @@ pub fn layout_grid<'a>(
 
         let child_ctx = LayoutContext { containing_width: item_w, ..*ctx };
         let mut laid = child;
-        crate::block::layout_block(&mut laid, &child_ctx, Point::new(0.0, 0.0), text_ctx, rects);
+        crate::block::layout_block(&mut laid, &child_ctx, Point::new(0.0, 0.0), text_ctx, rects, cache);
 
         items.push((placement, laid));
     }

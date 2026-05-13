@@ -9,6 +9,7 @@ use crate::box_tree::{BoxKind, LayoutBox, LayoutTree};
 use crate::context::LayoutContext;
 use crate::flow;
 use crate::geometry::Point;
+use crate::incremental::LayoutCache;
 use crate::text::TextContext;
 
 /// Compute layout for the entire styled tree.
@@ -16,8 +17,9 @@ pub fn layout_tree<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport
     let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut text_ctx = TextContext::new();
     let mut rects = Vec::new();
+    let cache = LayoutCache::empty();
     let root = build_box(styled);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &cache);
     LayoutTree { root, rects }
 }
 
@@ -27,31 +29,35 @@ pub fn layout_node<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &LayoutCache,
 ) -> LayoutBox<'a> {
+    if crate::incremental::try_clone_from_cache(&mut b, cache, ctx, pos, rects) {
+        return b;
+    }
     match b.kind {
         BoxKind::FlexContainer | BoxKind::InlineFlex => {
-            crate::flex::layout_flex(&mut b, ctx, pos, text_ctx, rects);
+            crate::flex::layout_flex(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::GridContainer | BoxKind::InlineGrid => {
-            crate::grid::layout_grid(&mut b, ctx, pos, text_ctx, rects);
+            crate::grid::layout_grid(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::Table => {
-            crate::table::layout_table(&mut b, ctx, pos, text_ctx, rects);
+            crate::table::layout_table(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::Block | BoxKind::Root | BoxKind::ListItem => {
-            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::InlineBlock => {
-            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::Inline | BoxKind::AnonymousInline => {
-            flow::layout_inline(&mut b, ctx, pos, text_ctx, rects);
+            flow::layout_inline(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::AnonymousBlock => {
-            crate::block::layout_anonymous_block(&mut b, ctx, pos, text_ctx, rects);
+            crate::block::layout_anonymous_block(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::TableRow | BoxKind::TableCell | BoxKind::TableRowGroup | BoxKind::TableCaption => {
-            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects);
+            crate::block::layout_block(&mut b, ctx, pos, text_ctx, rects, cache);
         }
         BoxKind::TableColumnGroup | BoxKind::TableColumn => {
             // Column groups/columns don't produce visible boxes;

@@ -82,69 +82,71 @@ Date: 2026-05-13
 
 ### Block Layout
 
-| Fixture | Time |
-|---------|------|
-| 50 stacked divs | 11.05 ms |
-| 200 stacked divs | 13.39 ms |
-| nested 4×3 | 11.14 ms |
-| nested 3×8 | 16.40 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| 50 stacked divs | 50 | 11.05 ms | 221,000 |
+| 200 stacked divs | 200 | 13.39 ms | 66,950 |
+| nested 4×3 | 120 | 11.14 ms | 92,833 |
+| nested 3×8 | 585 | 16.40 ms | 28,034 |
 
 ### Flex Layout
 
-| Fixture | Time |
-|---------|------|
-| row 10 items | 10.33 ms |
-| row 50 items | 10.94 ms |
-| wrap 5×4 | 10.16 ms |
-| wrap 10×8 | 12.24 ms |
-| nested 3 deep | 10.30 ms |
-| nested 4 deep | 12.86 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| row 10 items | 10 | 10.33 ms | 1,033,000 |
+| row 50 items | 50 | 10.94 ms | 218,800 |
+| wrap 5×4 | 20 | 10.16 ms | 508,000 |
+| wrap 10×8 | 80 | 12.24 ms | 153,000 |
+| nested 3 deep | 40 | 10.30 ms | 257,500 |
+| nested 4 deep | 120 | 12.86 ms | 107,167 |
 
 ### Grid Layout
 
-| Fixture | Time |
-|---------|------|
-| 4×4 fixed | 9.86 ms |
-| 10×6 fixed | 10.64 ms |
-| auto 24 items | 9.76 ms |
-| auto 100 items | 11.48 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| 4×4 fixed | 16 | 9.86 ms | 616,250 |
+| 10×6 fixed | 60 | 10.64 ms | 177,333 |
+| auto 24 items | 24 | 9.76 ms | 406,667 |
+| auto 100 items | 100 | 11.48 ms | 114,800 |
 
 ### Table Layout
 
-| Fixture | Time |
-|---------|------|
-| 5×4 simple | 9.83 ms |
-| 20×6 simple | 10.64 ms |
-| 50×8 simple | 14.09 ms |
-| 20×6 colspan | 11.03 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| 5×4 simple | 24 | 9.83 ms | 409,583 |
+| 20×6 simple | 126 | 10.64 ms | 84,444 |
+| 50×8 simple | 408 | 14.09 ms | 34,534 |
+| 20×6 colspan | 106 | 11.03 ms | 104,057 |
 
 ### Inline Layout
 
-| Fixture | Time |
-|---------|------|
-| 20 spans | 9.98 ms |
-| 100 spans | 11.05 ms |
-| 500 spans | 16.87 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| 20 spans | 20 | 9.98 ms | 499,000 |
+| 100 spans | 100 | 11.05 ms | 110,500 |
+| 500 spans | 500 | 16.87 ms | 33,740 |
 
 ### Positioned Layout
 
-| Fixture | Time |
-|---------|------|
-| 20 absolute | 9.93 ms |
-| 100 absolute | 11.30 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| 20 absolute | 20 | 9.93 ms | 496,500 |
+| 100 absolute | 100 | 11.30 ms | 113,000 |
 
 ### Mixed Layout
 
-| Fixture | Time |
-|---------|------|
-| dashboard page | 10.31 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| dashboard page | 40 | 10.31 ms | 257,750 |
 
 ### End-to-End (cascade + layout)
 
-| Fixture | Time |
-|---------|------|
-| cascade + layout | 10.85 ms |
-| large mixed tree | 13.64 ms |
+| Fixture | Nodes | Time | ns/node |
+|---------|-------|------|---------|
+| cascade + layout | 40 | 10.85 ms | 271,250 |
+| large mixed tree | 300 | 13.64 ms | 45,467 |
+
+> **Note:** Small trees show high ns/node due to ~9.5 ms fixed overhead (font context initialization). Marginal per-node cost is ~13 µs (derived from large-tree scaling).
 
 ---
 
@@ -155,66 +157,66 @@ Changes: `(describe what changed)`
 
 ### Block Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| 50 stacked divs | — | — |
-| 200 stacked divs | — | — |
-| nested 4×3 | — | — |
-| nested 3×8 | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| 50 stacked divs | 50 | — | — | — |
+| 200 stacked divs | 200 | — | — | — |
+| nested 4×3 | 120 | — | — | — |
+| nested 3×8 | 585 | — | — | — |
 
 ### Flex Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| row 10 items | — | — |
-| row 50 items | — | — |
-| wrap 5×4 | — | — |
-| wrap 10×8 | — | — |
-| nested 3 deep | — | — |
-| nested 4 deep | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| row 10 items | 10 | — | — | — |
+| row 50 items | 50 | — | — | — |
+| wrap 5×4 | 20 | — | — | — |
+| wrap 10×8 | 80 | — | — | — |
+| nested 3 deep | 40 | — | — | — |
+| nested 4 deep | 120 | — | — | — |
 
 ### Grid Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| 4×4 fixed | — | — |
-| 10×6 fixed | — | — |
-| auto 24 items | — | — |
-| auto 100 items | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| 4×4 fixed | 16 | — | — | — |
+| 10×6 fixed | 60 | — | — | — |
+| auto 24 items | 24 | — | — | — |
+| auto 100 items | 100 | — | — | — |
 
 ### Table Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| 5×4 simple | — | — |
-| 20×6 simple | — | — |
-| 50×8 simple | — | — |
-| 20×6 colspan | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| 5×4 simple | 24 | — | — | — |
+| 20×6 simple | 126 | — | — | — |
+| 50×8 simple | 408 | — | — | — |
+| 20×6 colspan | 106 | — | — | — |
 
 ### Inline Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| 20 spans | — | — |
-| 100 spans | — | — |
-| 500 spans | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| 20 spans | 20 | — | — | — |
+| 100 spans | 100 | — | — | — |
+| 500 spans | 500 | — | — | — |
 
 ### Positioned Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| 20 absolute | — | — |
-| 100 absolute | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| 20 absolute | 20 | — | — | — |
+| 100 absolute | 100 | — | — | — |
 
 ### Mixed Layout
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| dashboard page | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| dashboard page | 40 | — | — | — |
 
 ### End-to-End (cascade + layout)
 
-| Fixture | Time | vs baseline |
-|---------|------|-------------|
-| cascade + layout | — | — |
-| large mixed tree | — | — |
+| Fixture | Nodes | Time | ns/node | vs baseline |
+|---------|-------|------|---------|-------------|
+| cascade + layout | 40 | — | — | — |
+| large mixed tree | 300 | — | — | — |

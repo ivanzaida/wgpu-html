@@ -24,11 +24,12 @@ pub fn layout_inline<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     if let Some(text) = get_text(b.node) {
         layout_text_node(b, ctx, pos, &text, text_ctx);
     } else {
-        layout_inline_container(b, ctx, pos, text_ctx, rects);
+        layout_inline_container(b, ctx, pos, text_ctx, rects, cache);
     }
 }
 
@@ -199,6 +200,7 @@ fn layout_inline_container<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     let is_anon = matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline);
     if !is_anon {
@@ -236,11 +238,11 @@ fn layout_inline_container<'a>(
             let result = crate::engine::layout_node(
                 old, ctx,
                 Point::new(b.content.x + cursor_x, b.content.y + cursor_y),
-                text_ctx, rects,
+                text_ctx, rects, cache,
             );
             *child = result;
         } else {
-            layout_inline(child, ctx, Point::new(b.content.x + cursor_x, b.content.y + cursor_y), text_ctx, rects);
+            layout_inline(child, ctx, Point::new(b.content.x + cursor_x, b.content.y + cursor_y), text_ctx, rects, cache);
         }
 
         let child_w = child.outer_width();
@@ -260,11 +262,11 @@ fn layout_inline_container<'a>(
                 let result = crate::engine::layout_node(
                     old, ctx,
                     Point::new(b.content.x, b.content.y + cursor_y),
-                    text_ctx, rects,
+                    text_ctx, rects, cache,
                 );
                 *child = result;
             } else {
-                layout_inline(child, ctx, Point::new(b.content.x, b.content.y + cursor_y), text_ctx, rects);
+                layout_inline(child, ctx, Point::new(b.content.x, b.content.y + cursor_y), text_ctx, rects, cache);
             }
             let child_w_new = child.outer_width();
             let child_h_new = child.outer_height();

@@ -51,6 +51,7 @@ pub fn layout_out_of_flow<'a>(
     containing_block: Rect,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     let is_fixed = css_str(b.style.position) == "fixed";
     let cb = if is_fixed {
@@ -123,7 +124,7 @@ pub fn layout_out_of_flow<'a>(
     for child in b.children.iter_mut() {
         let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
         let old = std::mem::replace(child, placeholder);
-        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects);
+        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache);
         *child = result;
         cursor_y += child.outer_height();
     }

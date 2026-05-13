@@ -51,6 +51,7 @@ pub fn layout_flex<'a>(
     pos: Point,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -152,7 +153,7 @@ pub fn layout_flex<'a>(
         } else {
             (None, Some(main))
         };
-        layout_flex_item(&mut item.box_, &child_ctx, is_row, item_w, item_h, text_ctx, rects);
+        layout_flex_item(&mut item.box_, &child_ctx, is_row, item_w, item_h, text_ctx, rects, cache);
         item.measured_cross_inner = if is_row {
             item.box_.content.height
         } else {
@@ -309,7 +310,7 @@ pub fn layout_flex<'a>(
                     } else {
                         (Some(stretch_target), Some(item.resolved_main))
                     };
-                    layout_flex_item(&mut item.box_, &child_ctx, is_row, sw, sh, text_ctx, rects);
+                    layout_flex_item(&mut item.box_, &child_ctx, is_row, sw, sh, text_ctx, rects, cache);
                 }
             }
 
@@ -367,7 +368,7 @@ pub fn layout_flex<'a>(
     b.children = items.into_iter().map(|i| i.box_).collect();
     for mut oof in out_of_flow {
         let static_pos = Point::new(b.content.x, b.content.y);
-        crate::positioned::layout_out_of_flow(&mut oof, ctx, static_pos, containing_block, text_ctx, rects);
+        crate::positioned::layout_out_of_flow(&mut oof, ctx, static_pos, containing_block, text_ctx, rects, cache);
         rects.push((oof.node, oof.content));
         b.children.push(oof);
     }
@@ -555,6 +556,7 @@ fn layout_flex_item<'a>(
     override_h: Option<f32>,
     text_ctx: &mut TextContext,
     rects: &mut Vec<(&'a HtmlNode, Rect)>,
+    cache: &crate::incremental::LayoutCache,
 ) {
     let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
     let border = sides::resolve_border(b.style);
@@ -576,7 +578,7 @@ fn layout_flex_item<'a>(
     for child in b.children.iter_mut() {
         let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style);
         let old = std::mem::replace(child, placeholder);
-        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects);
+        let result = crate::engine::layout_node(old, &child_ctx, Point::new(b.content.x, cursor_y), text_ctx, rects, cache);
         *child = result;
         cursor_y += child.outer_height();
     }

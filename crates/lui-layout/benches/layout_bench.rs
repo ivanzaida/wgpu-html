@@ -6,6 +6,7 @@ use lui_cascade::{
     media::MediaContext,
 };
 use lui_layout::engine::layout_tree;
+use lui_layout::incremental::layout_tree_incremental;
 use lui_parse::{parse, parse_stylesheet};
 
 const UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
@@ -534,6 +535,76 @@ fn bench_end_to_end(c: &mut Criterion) {
   group.finish();
 }
 
+fn bench_incremental_layout(c: &mut Criterion) {
+  let mut group = c.benchmark_group("incremental_layout");
+
+  let html = mixed_layout();
+  let (doc, ctx) = setup(&html);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+
+  group.bench_function("full_baseline", |b| {
+    b.iter(|| {
+      let lt = layout_tree(&styled, 800.0, 600.0);
+      black_box(&lt);
+    });
+  });
+
+  group.bench_function("incremental_0_dirty", |b| {
+    let prev = layout_tree(&styled, 800.0, 600.0);
+    b.iter(|| {
+      let lt = layout_tree_incremental(&styled, &prev, &[], 800.0, 600.0);
+      black_box(&lt);
+    });
+  });
+
+  group.bench_function("incremental_1_dirty_leaf", |b| {
+    let prev = layout_tree(&styled, 800.0, 600.0);
+    let dirty = vec![vec![0, 0, 1, 0, 0]];
+    b.iter(|| {
+      let lt = layout_tree_incremental(&styled, &prev, &dirty, 800.0, 600.0);
+      black_box(&lt);
+    });
+  });
+
+  group.bench_function("incremental_1_dirty_near_root", |b| {
+    let prev = layout_tree(&styled, 800.0, 600.0);
+    let dirty = vec![vec![0, 0]];
+    b.iter(|| {
+      let lt = layout_tree_incremental(&styled, &prev, &dirty, 800.0, 600.0);
+      black_box(&lt);
+    });
+  });
+
+  let html_large = format!(
+    "<div>{}{}{}</div>",
+    nested_blocks(3, 5),
+    flex_nested(3, 3),
+    grid_fixed(6, 4),
+  );
+  let (doc_l, ctx_l) = setup(&html_large);
+  let styled_l = ctx_l.cascade(&doc_l.root, &media, &interaction);
+
+  group.bench_function("large_full_baseline", |b| {
+    b.iter(|| {
+      let lt = layout_tree(&styled_l, 1024.0, 768.0);
+      black_box(&lt);
+    });
+  });
+
+  group.bench_function("large_incremental_1_leaf", |b| {
+    let prev = layout_tree(&styled_l, 1024.0, 768.0);
+    let dirty = vec![vec![0, 0, 0, 0, 0]];
+    b.iter(|| {
+      let lt = layout_tree_incremental(&styled_l, &prev, &dirty, 1024.0, 768.0);
+      black_box(&lt);
+    });
+  });
+
+  group.finish();
+}
+
 criterion_group!(
   benches,
   bench_block_layout,
@@ -544,5 +615,6 @@ criterion_group!(
   bench_positioned_layout,
   bench_mixed_layout,
   bench_end_to_end,
+  bench_incremental_layout,
 );
 criterion_main!(benches);
