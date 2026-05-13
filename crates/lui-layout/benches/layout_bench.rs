@@ -5,8 +5,9 @@ use lui_cascade::{
     cascade::{CascadeContext, InteractionState},
     media::MediaContext,
 };
-use lui_layout::engine::layout_tree;
-use lui_layout::incremental::layout_tree_incremental;
+use lui_layout::engine::{layout_tree, layout_tree_with};
+use lui_layout::incremental::{layout_tree_incremental_with};
+use lui_layout::text::TextContext;
 use lui_parse::{parse, parse_stylesheet};
 
 const UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
@@ -182,6 +183,7 @@ fn mixed_layout() -> String {
 
 fn bench_block_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("block_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = block_stack(50);
   let (doc, ctx) = setup(&html);
@@ -191,7 +193,7 @@ fn bench_block_layout(c: &mut Criterion) {
   group.bench_function("50_stacked_divs", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -202,7 +204,7 @@ fn bench_block_layout(c: &mut Criterion) {
   group.bench_function("200_stacked_divs", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -213,7 +215,7 @@ fn bench_block_layout(c: &mut Criterion) {
   group.bench_function("nested_4_deep_3_wide", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -224,7 +226,7 @@ fn bench_block_layout(c: &mut Criterion) {
   group.bench_function("nested_3_deep_8_wide", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -234,6 +236,7 @@ fn bench_block_layout(c: &mut Criterion) {
 
 fn bench_flex_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("flex_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = flex_row(10);
   let (doc, ctx) = setup(&html);
@@ -243,7 +246,7 @@ fn bench_flex_layout(c: &mut Criterion) {
   group.bench_function("row_10_items", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -254,7 +257,7 @@ fn bench_flex_layout(c: &mut Criterion) {
   group.bench_function("row_50_items", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -265,7 +268,7 @@ fn bench_flex_layout(c: &mut Criterion) {
   group.bench_function("wrap_5x4", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -276,7 +279,7 @@ fn bench_flex_layout(c: &mut Criterion) {
   group.bench_function("wrap_10x8", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -287,7 +290,7 @@ fn bench_flex_layout(c: &mut Criterion) {
   group.bench_function("nested_3_deep", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -298,7 +301,7 @@ fn bench_flex_layout(c: &mut Criterion) {
   group.bench_function("nested_4_deep", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -308,6 +311,7 @@ fn bench_flex_layout(c: &mut Criterion) {
 
 fn bench_grid_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("grid_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = grid_fixed(4, 4);
   let (doc, ctx) = setup(&html);
@@ -317,7 +321,7 @@ fn bench_grid_layout(c: &mut Criterion) {
   group.bench_function("4x4_fixed", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -328,7 +332,7 @@ fn bench_grid_layout(c: &mut Criterion) {
   group.bench_function("10x6_fixed", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -339,7 +343,7 @@ fn bench_grid_layout(c: &mut Criterion) {
   group.bench_function("auto_24_items", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -350,7 +354,7 @@ fn bench_grid_layout(c: &mut Criterion) {
   group.bench_function("auto_100_items", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -360,6 +364,7 @@ fn bench_grid_layout(c: &mut Criterion) {
 
 fn bench_table_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("table_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = table_simple(5, 4);
   let (doc, ctx) = setup(&html);
@@ -369,7 +374,7 @@ fn bench_table_layout(c: &mut Criterion) {
   group.bench_function("5x4_simple", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -380,7 +385,7 @@ fn bench_table_layout(c: &mut Criterion) {
   group.bench_function("20x6_simple", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -391,7 +396,7 @@ fn bench_table_layout(c: &mut Criterion) {
   group.bench_function("50x8_simple", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -402,7 +407,7 @@ fn bench_table_layout(c: &mut Criterion) {
   group.bench_function("20x6_with_colspan", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -412,6 +417,7 @@ fn bench_table_layout(c: &mut Criterion) {
 
 fn bench_inline_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("inline_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = inline_text(20);
   let (doc, ctx) = setup(&html);
@@ -421,7 +427,7 @@ fn bench_inline_layout(c: &mut Criterion) {
   group.bench_function("20_spans", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -432,7 +438,7 @@ fn bench_inline_layout(c: &mut Criterion) {
   group.bench_function("100_spans", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -443,7 +449,7 @@ fn bench_inline_layout(c: &mut Criterion) {
   group.bench_function("500_spans", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -453,6 +459,7 @@ fn bench_inline_layout(c: &mut Criterion) {
 
 fn bench_positioned_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("positioned_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = positioned_tree(20);
   let (doc, ctx) = setup(&html);
@@ -462,7 +469,7 @@ fn bench_positioned_layout(c: &mut Criterion) {
   group.bench_function("20_absolute", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -473,7 +480,7 @@ fn bench_positioned_layout(c: &mut Criterion) {
   group.bench_function("100_absolute", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -483,6 +490,7 @@ fn bench_positioned_layout(c: &mut Criterion) {
 
 fn bench_mixed_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("mixed_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = mixed_layout();
   let (doc, ctx) = setup(&html);
@@ -492,7 +500,7 @@ fn bench_mixed_layout(c: &mut Criterion) {
   group.bench_function("dashboard_page", |b| {
     let styled = ctx.cascade(&doc.root, &media, &interaction);
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -502,6 +510,7 @@ fn bench_mixed_layout(c: &mut Criterion) {
 
 fn bench_end_to_end(c: &mut Criterion) {
   let mut group = c.benchmark_group("end_to_end");
+  let mut text_ctx = TextContext::new();
 
   let html = mixed_layout();
   let (doc, ctx) = setup(&html);
@@ -511,7 +520,7 @@ fn bench_end_to_end(c: &mut Criterion) {
   group.bench_function("cascade_plus_layout", |b| {
     b.iter(|| {
       let styled = ctx.cascade(&doc.root, &media, &interaction);
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -527,7 +536,7 @@ fn bench_end_to_end(c: &mut Criterion) {
   group.bench_function("large_mixed_tree", |b| {
     b.iter(|| {
       let styled = ctx.cascade(&doc.root, &media, &interaction);
-      let lt = layout_tree(&styled, 1024.0, 768.0);
+      let lt = layout_tree_with(&styled, 1024.0, 768.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -537,6 +546,7 @@ fn bench_end_to_end(c: &mut Criterion) {
 
 fn bench_incremental_layout(c: &mut Criterion) {
   let mut group = c.benchmark_group("incremental_layout");
+  let mut text_ctx = TextContext::new();
 
   let html = mixed_layout();
   let (doc, ctx) = setup(&html);
@@ -546,7 +556,7 @@ fn bench_incremental_layout(c: &mut Criterion) {
 
   group.bench_function("full_baseline", |b| {
     b.iter(|| {
-      let lt = layout_tree(&styled, 800.0, 600.0);
+      let lt = layout_tree_with(&styled, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -554,7 +564,7 @@ fn bench_incremental_layout(c: &mut Criterion) {
   group.bench_function("incremental_0_dirty", |b| {
     let prev = layout_tree(&styled, 800.0, 600.0);
     b.iter(|| {
-      let lt = layout_tree_incremental(&styled, &prev, &[], 800.0, 600.0);
+      let lt = layout_tree_incremental_with(&styled, &prev, &[], 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -563,7 +573,7 @@ fn bench_incremental_layout(c: &mut Criterion) {
     let prev = layout_tree(&styled, 800.0, 600.0);
     let dirty = vec![vec![0, 0, 1, 0, 0]];
     b.iter(|| {
-      let lt = layout_tree_incremental(&styled, &prev, &dirty, 800.0, 600.0);
+      let lt = layout_tree_incremental_with(&styled, &prev, &dirty, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -572,7 +582,7 @@ fn bench_incremental_layout(c: &mut Criterion) {
     let prev = layout_tree(&styled, 800.0, 600.0);
     let dirty = vec![vec![0, 0]];
     b.iter(|| {
-      let lt = layout_tree_incremental(&styled, &prev, &dirty, 800.0, 600.0);
+      let lt = layout_tree_incremental_with(&styled, &prev, &dirty, 800.0, 600.0, &mut text_ctx);
       black_box(&lt);
     });
   });
@@ -597,7 +607,7 @@ fn bench_incremental_layout(c: &mut Criterion) {
     let prev = layout_tree(&styled_l, 1024.0, 768.0);
     let dirty = vec![vec![0, 0, 0, 0, 0]];
     b.iter(|| {
-      let lt = layout_tree_incremental(&styled_l, &prev, &dirty, 1024.0, 768.0);
+      let lt = layout_tree_incremental_with(&styled_l, &prev, &dirty, 1024.0, 768.0, &mut text_ctx);
       black_box(&lt);
     });
   });

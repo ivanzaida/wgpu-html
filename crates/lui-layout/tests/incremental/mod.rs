@@ -1,6 +1,6 @@
 use lui_cascade::cascade::InteractionState;
 use lui_cascade::media::MediaContext;
-use lui_layout::engine::layout_tree;
+use lui_layout::engine::{layout_tree, LayoutEngine};
 use lui_layout::incremental::layout_tree_incremental;
 use lui_layout::LayoutBox;
 use lui_core::Rect;
@@ -243,4 +243,61 @@ fn rects_populated_for_cloned_subtrees() {
         assert!(found, "full layout rect for {} not found in incremental rects",
             node.element.tag_name());
     }
+}
+
+// ============================================================================
+// LayoutEngine OOP API
+// ============================================================================
+
+#[test]
+fn engine_layout_matches_free_function() {
+    let html = r#"<div style="display:flex; width:400px">
+        <div style="flex:1; height:50px">A</div>
+        <div style="flex:1; height:50px">B</div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+
+    let free = layout_tree(&styled, 800.0, 600.0);
+    let mut engine = LayoutEngine::new();
+    let eng = engine.layout(&styled, 800.0, 600.0);
+    assert!(boxes_match(&free.root, &eng.root),
+        "LayoutEngine::layout should match free function");
+}
+
+#[test]
+fn engine_layout_dirty_matches_full() {
+    let html = r#"<div style="width:400px">
+        <div style="height:40px">A</div>
+        <div style="height:60px">B</div>
+        <div style="height:30px">C</div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+
+    let mut engine = LayoutEngine::new();
+    let _first = engine.layout(&styled, 800.0, 600.0);
+    let dirty = engine.layout_dirty(&styled, &[vec![0, 0, 1]], 800.0, 600.0);
+    let full = engine.layout(&styled, 800.0, 600.0);
+    assert!(boxes_match(&full.root, &dirty.root),
+        "LayoutEngine::layout_dirty should match full layout");
+}
+
+#[test]
+fn engine_reuses_text_context() {
+    let html = r#"<div style="height:30px">hello</div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+
+    let mut engine = LayoutEngine::new();
+    let t1 = engine.layout(&styled, 800.0, 600.0);
+    let t2 = engine.layout(&styled, 800.0, 600.0);
+    assert!(boxes_match(&t1.root, &t2.root),
+        "repeated layout calls should produce identical results");
 }

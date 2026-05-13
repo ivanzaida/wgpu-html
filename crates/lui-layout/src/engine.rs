@@ -12,14 +12,72 @@ use crate::geometry::Point;
 use crate::incremental::LayoutCache;
 use crate::text::TextContext;
 
-/// Compute layout for the entire styled tree.
+/// Stateful layout engine. Owns the font context and caches previous
+/// frame results so incremental re-layout can skip clean subtrees.
+///
+/// Mirrors `CascadeContext`'s OOP pattern: create once, call `layout()`
+/// or `layout_dirty()` each frame.
+pub struct LayoutEngine {
+    text_ctx: TextContext,
+    cache: LayoutCache,
+}
+
+impl LayoutEngine {
+    pub fn new() -> Self {
+        Self {
+            text_ctx: TextContext::new(),
+            cache: LayoutCache::empty(),
+        }
+    }
+
+    /// Full layout — recompute everything. Stores results for the next
+    /// `layout_dirty()` call.
+    pub fn layout<'a>(
+        &mut self,
+        styled: &'a StyledNode<'a>,
+        viewport_width: f32,
+        viewport_height: f32,
+    ) -> LayoutTree<'a> {
+        let tree = layout_tree_with(styled, viewport_width, viewport_height, &mut self.text_ctx);
+        self.cache = LayoutCache::snapshot(&tree);
+        tree
+    }
+
+    /// Incremental layout — only recompute subtrees on dirty paths.
+    /// Falls back to full layout on viewport resize or empty dirty set.
+    pub fn layout_dirty<'a>(
+        &mut self,
+        styled: &'a StyledNode<'a>,
+        dirty_paths: &[Vec<usize>],
+        viewport_width: f32,
+        viewport_height: f32,
+    ) -> LayoutTree<'a> {
+        let tree = crate::incremental::layout_incremental_with(
+            styled, &self.cache, dirty_paths,
+            viewport_width, viewport_height, &mut self.text_ctx,
+        );
+        self.cache = LayoutCache::snapshot(&tree);
+        tree
+    }
+
+    pub fn text_ctx(&mut self) -> &mut TextContext {
+        &mut self.text_ctx
+    }
+}
+
+/// Compute layout for the entire styled tree (convenience free function).
 pub fn layout_tree<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport_height: f32) -> LayoutTree<'a> {
-    let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut text_ctx = TextContext::new();
+    layout_tree_with(styled, viewport_width, viewport_height, &mut text_ctx)
+}
+
+/// Compute layout reusing an existing `TextContext` (avoids re-scanning system fonts).
+pub fn layout_tree_with<'a>(styled: &'a StyledNode<'a>, viewport_width: f32, viewport_height: f32, text_ctx: &mut TextContext) -> LayoutTree<'a> {
+    let ctx = LayoutContext::new(viewport_width, viewport_height);
     let mut rects = Vec::new();
     let cache = LayoutCache::empty();
     let root = build_box(styled);
-    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), &mut text_ctx, &mut rects, &cache);
+    let root = layout_node(root, &ctx, Point::new(0.0, 0.0), text_ctx, &mut rects, &cache);
     LayoutTree { root, rects }
 }
 

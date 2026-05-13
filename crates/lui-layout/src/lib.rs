@@ -16,6 +16,6 @@ pub mod text;
 
 pub use box_tree::{BoxKind, LayoutBox, LayoutTree, Overflow, ScrollInfo, StickyInsets};
 pub use context::LayoutContext;
-pub use engine::layout_tree;
-pub use incremental::{layout_tree_incremental, LayoutCache};
+pub use engine::{layout_tree, layout_tree_with, LayoutEngine};
+pub use incremental::{layout_tree_incremental, layout_tree_incremental_with, LayoutCache};
 pub use geometry::{Point, Rect, RectEdges, Size};
