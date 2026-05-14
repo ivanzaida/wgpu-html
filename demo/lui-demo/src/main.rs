@@ -1,12 +1,4 @@
-use std::sync::Arc;
-
 use lui::Lui;
-use winit::{
-    application::ApplicationHandler,
-    event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoop},
-    window::{WindowAttributes, WindowId},
-};
 
 const DEFAULT_HTML: &str = include_str!("../html/test.html");
 
@@ -28,79 +20,8 @@ fn read_html() -> String {
     DEFAULT_HTML.to_string()
 }
 
-fn screenshot_arg() -> Option<String> {
-    let args: Vec<String> = std::env::args().collect();
-    args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1).cloned())
-}
-
-struct App {
-    html: String,
-    lui: Option<Lui>,
-    screenshot_path: Option<String>,
-    done: bool,
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.lui.is_some() { return; }
-        let attrs = WindowAttributes::default()
-            .with_title("lui v2 demo")
-            .with_inner_size(winit::dpi::LogicalSize::new(800, 600));
-        let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        self.lui = Some(lui::winit_driver::bind(window, &self.html));
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        match &event {
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-                return;
-            }
-            WindowEvent::KeyboardInput { event, .. }
-                if event.state == winit::event::ElementState::Pressed =>
-            {
-                if event.physical_key == winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::F12) {
-                    if let Some(lui) = &mut self.lui {
-                        match lui.screenshot_to("screenshot.png") {
-                            Ok(()) => eprintln!("[lui-demo] saved screenshot.png"),
-                            Err(e) => eprintln!("[lui-demo] screenshot failed: {e:?}"),
-                        }
-                    }
-                    return;
-                }
-            }
-            _ => {}
-        }
-        if let Some(lui) = &mut self.lui {
-            lui.handle_event(&event);
-        }
-    }
-
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(ref path) = self.screenshot_path {
-            if !self.done {
-                if let Some(lui) = &mut self.lui {
-                    lui.handle_event(&WindowEvent::RedrawRequested);
-                    match lui.screenshot_to(path) {
-                        Ok(()) => eprintln!("[lui-demo] saved {path}"),
-                        Err(e) => eprintln!("[lui-demo] screenshot failed: {e:?}"),
-                    }
-                }
-                self.done = true;
-                event_loop.exit();
-                return;
-            }
-        }
-        if let Some(lui) = &self.lui {
-            lui.request_redraw();
-        }
-    }
-}
-
 fn main() {
-    let html = read_html();
-    let screenshot_path = screenshot_arg();
-    let event_loop = EventLoop::new().unwrap();
-    let mut app = App { html, lui: None, screenshot_path, done: false };
-    event_loop.run_app(&mut app).unwrap();
+    let mut lui = Lui::new();
+    lui.set_html(&read_html());
+    lui.run(800, 600, "lui v2 demo");
 }
