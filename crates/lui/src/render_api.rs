@@ -31,33 +31,22 @@ impl std::error::Error for RenderError {
 }
 
 /// A window that a renderer can create a GPU surface from.
-/// Both winit and any other window library implement `HasWindowHandle + HasDisplayHandle`.
 pub trait WindowHandle:
     raw_window_handle::HasWindowHandle
     + raw_window_handle::HasDisplayHandle
-    + Send
-    + Sync
-    + 'static
-{
-}
+    + Send + Sync + 'static
+{}
 
 impl<T> WindowHandle for T
-where
-    T: raw_window_handle::HasWindowHandle
-        + raw_window_handle::HasDisplayHandle
-        + Send
-        + Sync
-        + 'static,
-{
-}
+where T: raw_window_handle::HasWindowHandle
+    + raw_window_handle::HasDisplayHandle
+    + Send + Sync + 'static
+{}
 
-/// Creates a `RenderBackend` once the driver's window is available.
-pub trait RendererFactory {
-    fn create(&self, window: Arc<dyn WindowHandle>, width: u32, height: u32) -> Box<dyn RenderBackend>;
-}
-
-/// Active GPU render backend.
 pub trait RenderBackend {
+    /// Create the GPU surface from a window handle. Called by the driver
+    /// once the window exists.
+    fn init(&mut self, window: Arc<dyn WindowHandle>, width: u32, height: u32);
     fn resize(&mut self, width: u32, height: u32);
     fn set_clear_color(&mut self, color: [f32; 4]);
     fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]);

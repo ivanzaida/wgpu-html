@@ -662,6 +662,8 @@ impl Renderer {
 }
 
 impl RenderBackend for Renderer {
+  fn init(&mut self, _window: Arc<dyn crate::WindowHandle>, _width: u32, _height: u32) {}
+
   fn resize(&mut self, width: u32, height: u32) {
     self.resize(width, height);
   }
@@ -728,15 +730,38 @@ impl RenderBackend for Renderer {
   }
 }
 
-/// wgpu renderer factory.
-pub struct WgpuRenderer;
-
-impl WgpuRenderer {
-    pub fn new() -> Self { Self }
+/// Deferred wgpu renderer. Call `init()` with a window handle to activate.
+pub struct WgpuRenderer {
+    inner: Option<Renderer>,
 }
 
-impl crate::RendererFactory for WgpuRenderer {
-    fn create(&self, window: Arc<dyn crate::WindowHandle>, width: u32, height: u32) -> Box<dyn RenderBackend> {
-        Box::new(pollster::block_on(Renderer::new(window, width, height)))
+impl WgpuRenderer {
+    pub fn new() -> Self { Self { inner: None } }
+}
+
+impl RenderBackend for WgpuRenderer {
+    fn init(&mut self, window: Arc<dyn crate::WindowHandle>, width: u32, height: u32) {
+        self.inner = Some(pollster::block_on(Renderer::new(window, width, height)));
+    }
+
+    fn resize(&mut self, w: u32, h: u32) { self.inner.as_mut().unwrap().resize(w, h); }
+    fn set_clear_color(&mut self, c: [f32; 4]) { self.inner.as_mut().unwrap().set_clear_color(c); }
+    fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]) {
+        self.inner.as_mut().unwrap().upload_atlas_region(x, y, w, h, data);
+    }
+    fn render(&mut self, list: &DisplayList) -> FrameOutcome {
+        self.inner.as_mut().unwrap().render(list)
+    }
+    fn render_to_rgba(&mut self, list: &DisplayList, w: u32, h: u32) -> Result<Vec<u8>, RenderError> {
+        self.inner.as_mut().unwrap().render_to_rgba(list, w, h).map_err(|e| RenderError::Backend(Box::new(e)))
+    }
+    fn capture_to(&mut self, list: &DisplayList, w: u32, h: u32, path: &std::path::Path) -> Result<(), RenderError> {
+        self.inner.as_mut().unwrap().capture_to(list, w, h, path).map_err(|e| RenderError::Backend(Box::new(e)))
+    }
+    fn capture_next_frame_to(&mut self, path: PathBuf) {
+        self.inner.as_mut().unwrap().capture_next_frame_to(path);
+    }
+    fn glyph_atlas_size(&self) -> u32 {
+        self.inner.as_ref().unwrap().glyph_atlas_size()
     }
 }

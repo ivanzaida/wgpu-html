@@ -73,17 +73,17 @@ impl Driver for WinitDriver {
             let scale = window.scale_factor() as f32;
             let outcome = self.lui.render_frame(size.width, size.height, scale);
             if matches!(outcome, crate::display_list::FrameOutcome::Reconfigure) {
-              self.lui.renderer.as_mut().unwrap().resize(size.width, size.height);
+              self.lui.renderer.resize(size.width, size.height);
               window.request_redraw();
             }
           }
           WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
-            self.lui.renderer.as_mut().unwrap().resize(size.width, size.height);
+            self.lui.renderer.resize(size.width, size.height);
             window.request_redraw();
           }
           WindowEvent::ScaleFactorChanged { .. } => {
             let s = window.inner_size();
-            self.lui.renderer.as_mut().unwrap().resize(s.width, s.height);
+            self.lui.renderer.resize(s.width, s.height);
             window.request_redraw();
           }
           _ => {}
