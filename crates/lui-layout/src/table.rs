@@ -454,6 +454,8 @@ pub fn layout_table<'a>(
         bump,
       );
       cell.content.width = cw;
+      cell.overflow_x = crate::box_tree::Overflow::Visible;
+      cell.overflow_y = crate::box_tree::Overflow::Visible;
       if rs > 1 {
         let cell_h: f32 = (ri..ri + rs).map(|r| row_heights[r]).sum::<f32>() + sp_v * (rs as f32 - 1.0);
         cell.content.height = cell_h;
