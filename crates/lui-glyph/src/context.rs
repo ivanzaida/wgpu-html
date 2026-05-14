@@ -260,8 +260,10 @@ impl TextContext {
                     (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
                     (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
                 ];
+                let gx = (g.x + entry.left as f32).round();
+                let gy = (run.line_y - entry.top as f32).round();
                 glyphs.push(PositionedGlyph {
-                    glyph_id: g.glyph_id, x: g.x, y: run.line_y,
+                    glyph_id: g.glyph_id, x: gx, y: gy,
                     w: entry.rect.w as f32, h: entry.rect.h as f32,
                     uv_min, uv_max, color,
                 });
