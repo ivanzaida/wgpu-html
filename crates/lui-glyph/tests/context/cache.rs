@@ -9,8 +9,8 @@ use lui_glyph::{FontFace, TextContext};
 fn shape_and_pack_cache_hit_returns_identical_dimensions() {
     let mut ctx = TextContext::new();
     let color = [1.0, 1.0, 1.0, 1.0];
-    let first = ctx.shape_and_pack("Hello", 16.0, 19.2, 400, color, "sans-serif");
-    let second = ctx.shape_and_pack("Hello", 16.0, 19.2, 400, color, "sans-serif");
+    let first = ctx.shape_and_pack("Hello", 16.0, 19.2, 400, color, "sans-serif", 1.0);
+    let second = ctx.shape_and_pack("Hello", 16.0, 19.2, 400, color, "sans-serif", 1.0);
 
     assert_eq!(first.width, second.width);
     assert_eq!(first.height, second.height);
@@ -25,8 +25,8 @@ fn shape_and_pack_cache_hit_patches_color() {
     let red = [1.0, 0.0, 0.0, 1.0];
     let blue = [0.0, 0.0, 1.0, 1.0];
 
-    ctx.shape_and_pack("Test", 16.0, 19.2, 400, red, "sans-serif");
-    let cached = ctx.shape_and_pack("Test", 16.0, 19.2, 400, blue, "sans-serif");
+    ctx.shape_and_pack("Test", 16.0, 19.2, 400, red, "sans-serif", 1.0);
+    let cached = ctx.shape_and_pack("Test", 16.0, 19.2, 400, blue, "sans-serif", 1.0);
 
     for g in &cached.glyphs {
         assert_eq!(g.color, blue, "cached hit should patch color to blue");
@@ -37,8 +37,8 @@ fn shape_and_pack_cache_hit_patches_color() {
 fn shape_and_pack_cache_hit_preserves_uv_coords() {
     let mut ctx = TextContext::new();
     let color = [1.0; 4];
-    let first = ctx.shape_and_pack("UV", 16.0, 19.2, 400, color, "sans-serif");
-    let second = ctx.shape_and_pack("UV", 16.0, 19.2, 400, [0.0; 4], "sans-serif");
+    let first = ctx.shape_and_pack("UV", 16.0, 19.2, 400, color, "sans-serif", 1.0);
+    let second = ctx.shape_and_pack("UV", 16.0, 19.2, 400, [0.0; 4], "sans-serif", 1.0);
 
     for (a, b) in first.glyphs.iter().zip(second.glyphs.iter()) {
         assert_eq!(a.uv_min, b.uv_min, "UV coords should survive cache hit");
@@ -49,8 +49,8 @@ fn shape_and_pack_cache_hit_preserves_uv_coords() {
 #[test]
 fn shape_and_pack_cache_hit_preserves_glyph_positions() {
     let mut ctx = TextContext::new();
-    let first = ctx.shape_and_pack("Pos", 16.0, 19.2, 400, [1.0; 4], "sans-serif");
-    let second = ctx.shape_and_pack("Pos", 16.0, 19.2, 400, [0.5; 4], "sans-serif");
+    let first = ctx.shape_and_pack("Pos", 16.0, 19.2, 400, [1.0; 4], "sans-serif", 1.0);
+    let second = ctx.shape_and_pack("Pos", 16.0, 19.2, 400, [0.5; 4], "sans-serif", 1.0);
 
     for (a, b) in first.glyphs.iter().zip(second.glyphs.iter()) {
         assert_eq!(a.x, b.x);
@@ -65,8 +65,8 @@ fn shape_and_pack_cache_hit_preserves_glyph_positions() {
 fn shape_and_pack_cache_hit_preserves_text_and_char_data() {
     let mut ctx = TextContext::new();
     let color = [0.0; 4];
-    let first = ctx.shape_and_pack("café", 16.0, 19.2, 400, color, "sans-serif");
-    let second = ctx.shape_and_pack("café", 16.0, 19.2, 400, color, "sans-serif");
+    let first = ctx.shape_and_pack("café", 16.0, 19.2, 400, color, "sans-serif", 1.0);
+    let second = ctx.shape_and_pack("café", 16.0, 19.2, 400, color, "sans-serif", 1.0);
 
     assert_eq!(first.text, second.text);
     assert_eq!(first.glyph_chars, second.glyph_chars);
@@ -79,8 +79,8 @@ fn shape_and_pack_cache_hit_preserves_text_and_char_data() {
 fn cache_miss_on_different_text() {
     let mut ctx = TextContext::new();
     let color = [0.0; 4];
-    let a = ctx.shape_and_pack("AAA", 16.0, 19.2, 400, color, "sans-serif");
-    let b = ctx.shape_and_pack("BBB", 16.0, 19.2, 400, color, "sans-serif");
+    let a = ctx.shape_and_pack("AAA", 16.0, 19.2, 400, color, "sans-serif", 1.0);
+    let b = ctx.shape_and_pack("BBB", 16.0, 19.2, 400, color, "sans-serif", 1.0);
 
     assert_ne!(a.text, b.text);
 }
@@ -89,8 +89,8 @@ fn cache_miss_on_different_text() {
 fn cache_miss_on_different_font_size() {
     let mut ctx = TextContext::new();
     let color = [0.0; 4];
-    let small = ctx.shape_and_pack("X", 12.0, 14.0, 400, color, "sans-serif");
-    let large = ctx.shape_and_pack("X", 24.0, 28.0, 400, color, "sans-serif");
+    let small = ctx.shape_and_pack("X", 12.0, 14.0, 400, color, "sans-serif", 1.0);
+    let large = ctx.shape_and_pack("X", 24.0, 28.0, 400, color, "sans-serif", 1.0);
 
     assert_ne!(small.font_size, large.font_size);
 }
@@ -99,8 +99,8 @@ fn cache_miss_on_different_font_size() {
 fn cache_miss_on_different_line_height() {
     let mut ctx = TextContext::new();
     let color = [0.0; 4];
-    let a = ctx.shape_and_pack("X", 16.0, 19.2, 400, color, "sans-serif");
-    let b = ctx.shape_and_pack("X", 16.0, 32.0, 400, color, "sans-serif");
+    let a = ctx.shape_and_pack("X", 16.0, 19.2, 400, color, "sans-serif", 1.0);
+    let b = ctx.shape_and_pack("X", 16.0, 32.0, 400, color, "sans-serif", 1.0);
 
     assert_ne!(a.line_height, b.line_height);
 }
@@ -109,8 +109,8 @@ fn cache_miss_on_different_line_height() {
 fn cache_miss_on_different_weight() {
     let mut ctx = TextContext::new();
     let color = [0.0; 4];
-    let normal = ctx.shape_and_pack("W", 16.0, 19.2, 400, color, "sans-serif");
-    let bold = ctx.shape_and_pack("W", 16.0, 19.2, 700, color, "sans-serif");
+    let normal = ctx.shape_and_pack("W", 16.0, 19.2, 400, color, "sans-serif", 1.0);
+    let bold = ctx.shape_and_pack("W", 16.0, 19.2, 700, color, "sans-serif", 1.0);
 
     // Different weight may produce different glyph ids or widths
     assert_eq!(normal.text, bold.text);
@@ -120,8 +120,8 @@ fn cache_miss_on_different_weight() {
 #[test]
 fn color_does_not_affect_cache_key() {
     let mut ctx = TextContext::new();
-    let a = ctx.shape_and_pack("C", 16.0, 19.2, 400, [1.0, 0.0, 0.0, 1.0], "sans-serif");
-    let b = ctx.shape_and_pack("C", 16.0, 19.2, 400, [0.0, 1.0, 0.0, 1.0], "sans-serif");
+    let a = ctx.shape_and_pack("C", 16.0, 19.2, 400, [1.0, 0.0, 0.0, 1.0], "sans-serif", 1.0);
+    let b = ctx.shape_and_pack("C", 16.0, 19.2, 400, [0.0, 1.0, 0.0, 1.0], "sans-serif", 1.0);
 
     // Same geometry — cache hit just patches color
     assert_eq!(a.width, b.width);
@@ -139,13 +139,13 @@ fn cache_invalidated_when_font_registered() {
     let mut ctx = TextContext::new();
     let color = [0.0; 4];
 
-    let before = ctx.shape_and_pack("Test", 16.0, 19.2, 400, color, "sans-serif");
+    let before = ctx.shape_and_pack("Test", 16.0, 19.2, 400, color, "sans-serif", 1.0);
 
     // Register a font — bumps generation
     let data: Arc<[u8]> = Arc::from(vec![0u8; 16].into_boxed_slice());
     ctx.register_font(FontFace::regular("Dummy", data));
 
-    let after = ctx.shape_and_pack("Test", 16.0, 19.2, 400, color, "sans-serif");
+    let after = ctx.shape_and_pack("Test", 16.0, 19.2, 400, color, "sans-serif", 1.0);
 
     // Both should produce valid runs (cache was cleared, reshaping happened)
     assert_eq!(before.text, after.text);
@@ -158,13 +158,13 @@ fn multiple_registrations_keep_invalidating() {
     let color = [0.0; 4];
 
     for i in 0..5 {
-        ctx.shape_and_pack("stable", 16.0, 19.2, 400, color, "sans-serif");
+        ctx.shape_and_pack("stable", 16.0, 19.2, 400, color, "sans-serif", 1.0);
         let data: Arc<[u8]> = Arc::from(vec![0u8; 16].into_boxed_slice());
         ctx.register_font(FontFace::regular(format!("Font{}", i), data));
     }
 
     // Should not panic — cache invalidation handles repeated clears
-    let run = ctx.shape_and_pack("stable", 16.0, 19.2, 400, color, "sans-serif");
+    let run = ctx.shape_and_pack("stable", 16.0, 19.2, 400, color, "sans-serif", 1.0);
     assert_eq!(run.text, "stable");
 }
 
@@ -249,11 +249,11 @@ fn cache_handles_many_distinct_entries() {
 
     for i in 0..100 {
         let text = format!("entry_{}", i);
-        ctx.shape_and_pack(&text, 16.0, 19.2, 400, color, "sans-serif");
+        ctx.shape_and_pack(&text, 16.0, 19.2, 400, color, "sans-serif", 1.0);
     }
 
     // Verify first entry is still serviced (may be cache hit or reshaping)
-    let run = ctx.shape_and_pack("entry_0", 16.0, 19.2, 400, color, "sans-serif");
+    let run = ctx.shape_and_pack("entry_0", 16.0, 19.2, 400, color, "sans-serif", 1.0);
     assert_eq!(run.text, "entry_0");
 }
 
@@ -265,11 +265,11 @@ fn cache_still_works_after_overflow_clear() {
     // Pump more than TEXT_CACHE_MAX (4096) distinct entries
     for i in 0..4100 {
         let text = format!("t{}", i);
-        ctx.shape_and_pack(&text, 16.0, 19.2, 400, color, "sans-serif");
+        ctx.shape_and_pack(&text, 16.0, 19.2, 400, color, "sans-serif", 1.0);
     }
 
     // Should still function after cache clear
-    let run = ctx.shape_and_pack("final", 16.0, 19.2, 400, color, "sans-serif");
+    let run = ctx.shape_and_pack("final", 16.0, 19.2, 400, color, "sans-serif", 1.0);
     assert_eq!(run.text, "final");
     assert!(run.height > 0.0);
 }
@@ -296,7 +296,7 @@ fn repeated_shape_and_pack_same_params_is_deterministic() {
     let color = [0.5, 0.5, 0.5, 1.0];
 
     let runs: Vec<_> = (0..5)
-        .map(|_| ctx.shape_and_pack("deterministic", 16.0, 19.2, 400, color, "sans-serif"))
+        .map(|_| ctx.shape_and_pack("deterministic", 16.0, 19.2, 400, color, "sans-serif", 1.0))
         .collect();
 
     for run in &runs[1..] {

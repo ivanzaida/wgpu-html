@@ -1,0 +1,10 @@
+[package]
+name = "lui-v2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lui-core.workspace = true
+lui-layout.workspace = true
+lui-cascade.workspace = true
+lui-parse.workspace = true
