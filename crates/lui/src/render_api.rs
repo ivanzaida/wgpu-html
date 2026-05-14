@@ -29,11 +29,15 @@ impl std::error::Error for RenderError {
     }
 }
 
-/// Trait that every render backend must implement.
+/// Creates a `RenderBackend` once the window surface is available.
+/// The driver calls `create` inside its event loop, passing a type-erased
+/// window as `Box<dyn Any>`. The factory downcasts to the type it needs.
+pub trait RendererFactory {
+    fn create(&self, window: Box<dyn std::any::Any>, width: u32, height: u32) -> Box<dyn RenderBackend>;
+}
+
+/// Active GPU render backend.
 pub trait RenderBackend {
-    /// Initialize the renderer with a window surface. Called by the driver
-    /// once the window is available.
-    fn init_surface(&mut self, surface: std::sync::Arc<dyn lui_core::SurfaceHandle>, width: u32, height: u32);
     fn resize(&mut self, width: u32, height: u32);
     fn set_clear_color(&mut self, color: [f32; 4]);
     fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]);

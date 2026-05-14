@@ -16,3 +16,11 @@ impl Driver for NullDriver {
     fn request_redraw(&self) {}
     fn run(self: Box<Self>, _lui: Lui) {}
 }
+
+pub(crate) struct NullRendererFactory;
+
+impl crate::RendererFactory for NullRendererFactory {
+    fn create(&self, _window: Box<dyn std::any::Any>, _w: u32, _h: u32) -> Box<dyn crate::RenderBackend> {
+        panic!("no renderer factory set")
+    }
+}

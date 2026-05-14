@@ -8,16 +8,6 @@ use winit::{
 };
 
 use crate::{Driver, Lui};
-use lui_core::SurfaceHandle;
-
-/// Winit window wrapped as a `SurfaceHandle`.
-pub(crate) struct WinitSurface {
-    pub(crate) window: Arc<Window>,
-}
-
-impl SurfaceHandle for WinitSurface {
-    fn as_any(&self) -> &dyn std::any::Any { self }
-}
 
 static UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
 
@@ -70,8 +60,7 @@ impl Driver for WinitDriver {
           let s = window.inner_size();
           (s.width.max(1), s.height.max(1))
         };
-        let surface: Arc<dyn SurfaceHandle> = Arc::new(WinitSurface { window: window.clone() });
-        self.lui.renderer.init_surface(surface, w, h);
+        self.lui.init_renderer(Box::new(window.clone()), w, h);
         self.window = Some(window);
       }
 
@@ -84,17 +73,17 @@ impl Driver for WinitDriver {
             let scale = window.scale_factor() as f32;
             let outcome = self.lui.render_frame(size.width, size.height, scale);
             if matches!(outcome, crate::display_list::FrameOutcome::Reconfigure) {
-              self.lui.renderer.resize(size.width, size.height);
+              self.lui.renderer.as_mut().unwrap().resize(size.width, size.height);
               window.request_redraw();
             }
           }
           WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
-            self.lui.renderer.resize(size.width, size.height);
+            self.lui.renderer.as_mut().unwrap().resize(size.width, size.height);
             window.request_redraw();
           }
           WindowEvent::ScaleFactorChanged { .. } => {
             let s = window.inner_size();
-            self.lui.renderer.resize(s.width, s.height);
+            self.lui.renderer.as_mut().unwrap().resize(s.width, s.height);
             window.request_redraw();
           }
           _ => {}

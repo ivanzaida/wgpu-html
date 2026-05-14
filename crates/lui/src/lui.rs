@@ -10,7 +10,7 @@ use lui_parse::{HtmlDocument, Stylesheet};
 
 use crate::{
     display_list::{DisplayList, FrameOutcome},
-    Driver, RenderBackend, RenderError,
+    Driver, RenderBackend, RendererFactory, RenderError,
 };
 
 pub struct Lui {
@@ -20,11 +20,12 @@ pub struct Lui {
     layout_engine: LayoutEngine,
     dpi_scale_override: Option<f32>,
     pub driver: Box<dyn Driver>,
-    pub renderer: Box<dyn RenderBackend>,
+    pub renderer_factory: Box<dyn RendererFactory>,
+    pub renderer: Option<Box<dyn RenderBackend>>,
 }
 
 impl Lui {
-    pub fn new(driver: Box<dyn Driver>, renderer: Box<dyn RenderBackend>) -> Self {
+    pub fn new(driver: Box<dyn Driver>, renderer: Box<dyn RendererFactory>) -> Self {
         Self {
             doc: lui_parse::parse("<html><body></body></html>"),
             text_ctx: TextContext::new(),
@@ -32,7 +33,8 @@ impl Lui {
             layout_engine: LayoutEngine::new(),
             dpi_scale_override: None,
             driver,
-            renderer,
+            renderer_factory: renderer,
+            renderer: None,
         }
     }
 
@@ -56,9 +58,14 @@ impl Lui {
     }
 
     pub fn run(mut self) {
-        // Take driver out so it can own the event loop while Lui keeps the pipeline + renderer.
         let driver = std::mem::replace(&mut self.driver, Box::new(crate::NullDriver));
         driver.run(self);
+    }
+
+    /// Called by the driver to create the renderer once the window exists.
+    /// `window` is the driver's window object, type-erased as `Box<dyn Any>`.
+    pub fn init_renderer(&mut self, window: Box<dyn std::any::Any>, width: u32, height: u32) {
+        self.renderer = Some(self.renderer_factory.create(window, width, height));
     }
 
     pub fn render_frame(
@@ -69,7 +76,7 @@ impl Lui {
     ) -> FrameOutcome {
         let list = self.paint(physical_width, physical_height, scale);
         self.flush_atlas();
-        self.renderer.render(&list)
+        self.renderer.as_mut().expect("renderer not initialized").render(&list)
     }
 
     pub fn screenshot_to(
@@ -81,18 +88,8 @@ impl Lui {
     ) -> Result<(), RenderError> {
         let list = self.paint(physical_width, physical_height, scale);
         self.flush_atlas();
-        self.renderer.capture_to(&list, physical_width, physical_height, path.as_ref())
-    }
-
-    pub fn render_to_rgba(
-        &mut self,
-        physical_width: u32,
-        physical_height: u32,
-        scale: f32,
-    ) -> Result<Vec<u8>, RenderError> {
-        let list = self.paint(physical_width, physical_height, scale);
-        self.flush_atlas();
-        self.renderer.render_to_rgba(&list, physical_width, physical_height)
+        self.renderer.as_mut().expect("renderer not initialized")
+            .capture_to(&list, physical_width, physical_height, path.as_ref())
     }
 
     fn paint(&mut self, pw: u32, ph: u32, scale: f32) -> DisplayList {
@@ -115,8 +112,15 @@ impl Lui {
     }
 
     fn flush_atlas(&mut self) {
+        let renderer = self.renderer.as_mut().expect("renderer not initialized");
         self.text_ctx.flush_dirty(|rect, data| {
-            self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
         });
+    }
+}
+
+impl Default for Lui {
+    fn default() -> Self {
+        Self::new(Box::new(crate::NullDriver), Box::new(crate::NullRendererFactory))
     }
 }

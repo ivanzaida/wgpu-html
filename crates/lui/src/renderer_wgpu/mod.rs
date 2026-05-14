@@ -662,9 +662,6 @@ impl Renderer {
 }
 
 impl RenderBackend for Renderer {
-  fn init_surface(&mut self, _surface: Arc<dyn lui_core::SurfaceHandle>, _width: u32, _height: u32) {
-  }
-
   fn resize(&mut self, width: u32, height: u32) {
     self.resize(width, height);
   }
@@ -731,46 +728,21 @@ impl RenderBackend for Renderer {
   }
 }
 
-/// Deferred wgpu renderer — created without a window, initialized
-/// when the driver calls `init_surface()`.
-pub struct WgpuRenderer {
-    inner: Option<Renderer>,
-}
+/// wgpu renderer factory. The driver passes its window as `Box<dyn Any>`;
+/// the factory downcasts and creates the GPU renderer.
+pub struct WgpuRenderer;
 
 impl WgpuRenderer {
-    pub fn new() -> Self {
-        Self { inner: None }
-    }
-
-    fn r(&self) -> &Renderer { self.inner.as_ref().expect("renderer not initialized — driver must call init_surface first") }
-    fn r_mut(&mut self) -> &mut Renderer { self.inner.as_mut().expect("renderer not initialized — driver must call init_surface first") }
+    pub fn new() -> Self { Self }
 }
 
-impl RenderBackend for WgpuRenderer {
-    fn init_surface(&mut self, surface: Arc<dyn lui_core::SurfaceHandle>, width: u32, height: u32) {
-        let any = surface.as_any();
-
+impl crate::RendererFactory for WgpuRenderer {
+    fn create(&self, window: Box<dyn std::any::Any>, width: u32, height: u32) -> Box<dyn RenderBackend> {
         #[cfg(feature = "winit")]
-        if let Some(ws) = any.downcast_ref::<crate::winit_driver::WinitSurface>() {
-            self.inner = Some(pollster::block_on(Renderer::new(ws.window.clone(), width, height)));
-            return;
+        if let Ok(win) = window.downcast::<Arc<winit::window::Window>>() {
+            return Box::new(pollster::block_on(Renderer::new(*win, width, height)));
         }
 
-        panic!("WgpuRenderer: unsupported surface type");
+        panic!("WgpuRenderer: unsupported window type");
     }
-
-    fn resize(&mut self, w: u32, h: u32) { self.r_mut().resize(w, h); }
-    fn set_clear_color(&mut self, c: [f32; 4]) { self.r_mut().set_clear_color(c); }
-    fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]) {
-        self.r_mut().upload_atlas_region(x, y, w, h, data);
-    }
-    fn render(&mut self, list: &DisplayList) -> FrameOutcome { self.r_mut().render(list) }
-    fn render_to_rgba(&mut self, list: &DisplayList, w: u32, h: u32) -> Result<Vec<u8>, RenderError> {
-        self.r_mut().render_to_rgba(list, w, h).map_err(|e| RenderError::Backend(Box::new(e)))
-    }
-    fn capture_to(&mut self, list: &DisplayList, w: u32, h: u32, path: &std::path::Path) -> Result<(), RenderError> {
-        self.r_mut().capture_to(list, w, h, path).map_err(|e| RenderError::Backend(Box::new(e)))
-    }
-    fn capture_next_frame_to(&mut self, path: PathBuf) { self.r_mut().capture_next_frame_to(path); }
-    fn glyph_atlas_size(&self) -> u32 { self.r().glyph_atlas_size() }
 }

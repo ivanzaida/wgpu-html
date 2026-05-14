@@ -10,7 +10,7 @@ mod lui;
 pub use lui::Lui;
 
 mod render_api;
-pub use render_api::{RenderBackend, RenderError};
+pub use render_api::{RenderBackend, RendererFactory, RenderError};
 
 #[cfg(feature = "wgpu")]
 pub mod renderer_wgpu;
@@ -18,7 +18,7 @@ pub mod renderer_wgpu;
 pub use renderer_wgpu::WgpuRenderer;
 
 mod driver_api;
-pub(crate) use driver_api::NullDriver;
+pub(crate) use driver_api::{NullDriver, NullRendererFactory};
 pub use driver_api::Driver;
 
 #[cfg(feature = "winit")]
