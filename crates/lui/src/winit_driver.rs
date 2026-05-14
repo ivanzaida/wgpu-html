@@ -3,7 +3,7 @@ use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::{Driver, RenderError};
+use crate::{Driver, Lui};
 
 static UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
 
@@ -25,29 +25,27 @@ impl Driver for WinitWindow {
     }
 }
 
-/// Convenience type: `Lui` with a winit window + wgpu renderer.
-pub type WinitDriver = crate::Lui<WinitWindow, crate::renderer_wgpu::Renderer>;
+/// Create a `Lui` bound to a winit window with wgpu renderer.
+pub fn bind(window: Arc<Window>, html: &str) -> Lui {
+    let (w, h) = {
+        let s = window.inner_size();
+        (s.width.max(1), s.height.max(1))
+    };
 
-impl WinitDriver {
-    /// Create a Lui instance bound to a winit window with a wgpu renderer.
-    pub fn bind(window: Arc<Window>, html: &str) -> Self {
-        let (w, h) = {
-            let s = window.inner_size();
-            (s.width.max(1), s.height.max(1))
-        };
+    let renderer = pollster::block_on(
+        crate::renderer_wgpu::Renderer::new(window.clone(), w, h),
+    );
 
-        let renderer = pollster::block_on(
-            crate::renderer_wgpu::Renderer::new(window.clone(), w, h),
-        );
+    let driver = WinitWindow { window };
+    let mut lui = Lui::new(Box::new(driver), Box::new(renderer));
+    let ua = lui_parse::parse_stylesheet(UA_CSS).unwrap();
+    lui.set_stylesheets(&[ua]);
+    lui.set_html(html);
+    lui
+}
 
-        let driver = WinitWindow { window };
-        let mut lui = crate::Lui::new(driver, renderer);
-        let ua = lui_parse::parse_stylesheet(UA_CSS).unwrap();
-        lui.set_stylesheets(&[ua]);
-        lui.set_html(html);
-        lui
-    }
-
+/// Winit event handling for `Lui`.
+impl Lui {
     /// Handle a winit window event. Returns true if a redraw was requested.
     pub fn handle_event(&mut self, event: &WindowEvent) -> bool {
         match event {

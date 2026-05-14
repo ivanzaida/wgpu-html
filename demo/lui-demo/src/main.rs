@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lui::WinitDriver;
+use lui::Lui;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -35,19 +35,19 @@ fn screenshot_arg() -> Option<String> {
 
 struct App {
     html: String,
-    driver: Option<WinitDriver>,
+    lui: Option<Lui>,
     screenshot_path: Option<String>,
     done: bool,
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.driver.is_some() { return; }
+        if self.lui.is_some() { return; }
         let attrs = WindowAttributes::default()
             .with_title("lui v2 demo")
             .with_inner_size(winit::dpi::LogicalSize::new(800, 600));
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        self.driver = Some(WinitDriver::bind(window, &self.html));
+        self.lui = Some(lui::winit_driver::bind(window, &self.html));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -60,8 +60,8 @@ impl ApplicationHandler for App {
                 if event.state == winit::event::ElementState::Pressed =>
             {
                 if event.physical_key == winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::F12) {
-                    if let Some(driver) = &mut self.driver {
-                        match driver.screenshot_to("screenshot.png") {
+                    if let Some(lui) = &mut self.lui {
+                        match lui.screenshot_to("screenshot.png") {
                             Ok(()) => eprintln!("[lui-demo] saved screenshot.png"),
                             Err(e) => eprintln!("[lui-demo] screenshot failed: {e:?}"),
                         }
@@ -71,17 +71,17 @@ impl ApplicationHandler for App {
             }
             _ => {}
         }
-        if let Some(driver) = &mut self.driver {
-            driver.handle_event(&event);
+        if let Some(lui) = &mut self.lui {
+            lui.handle_event(&event);
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(ref path) = self.screenshot_path {
             if !self.done {
-                if let Some(driver) = &mut self.driver {
-                    driver.handle_event(&WindowEvent::RedrawRequested);
-                    match driver.screenshot_to(path) {
+                if let Some(lui) = &mut self.lui {
+                    lui.handle_event(&WindowEvent::RedrawRequested);
+                    match lui.screenshot_to(path) {
                         Ok(()) => eprintln!("[lui-demo] saved {path}"),
                         Err(e) => eprintln!("[lui-demo] screenshot failed: {e:?}"),
                     }
@@ -91,8 +91,8 @@ impl ApplicationHandler for App {
                 return;
             }
         }
-        if let Some(driver) = &self.driver {
-            driver.request_redraw();
+        if let Some(lui) = &self.lui {
+            lui.request_redraw();
         }
     }
 }
@@ -101,6 +101,6 @@ fn main() {
     let html = read_html();
     let screenshot_path = screenshot_arg();
     let event_loop = EventLoop::new().unwrap();
-    let mut app = App { html, driver: None, screenshot_path, done: false };
+    let mut app = App { html, lui: None, screenshot_path, done: false };
     event_loop.run_app(&mut app).unwrap();
 }

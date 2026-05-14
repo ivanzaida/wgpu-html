@@ -24,9 +24,7 @@ pub trait Driver {
 pub mod renderer_wgpu;
 
 #[cfg(feature = "winit")]
-mod winit_driver;
-#[cfg(feature = "winit")]
-pub use winit_driver::{WinitDriver, WinitWindow};
+pub mod winit_driver;
 
 #[cfg(feature = "winit")]
 pub use winit;
