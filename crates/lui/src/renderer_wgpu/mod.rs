@@ -49,7 +49,7 @@ impl Renderer {
   /// Create a renderer bound to the given window-like surface target.
   /// The window is held via `Arc`; the renderer keeps it alive for the
   /// lifetime of the surface.
-  pub async fn new<W>(window: Arc<W>, width: u32, height: u32) -> Self
+  pub async fn new<W: ?Sized>(window: Arc<W>, width: u32, height: u32) -> Self
   where
     W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
   {
@@ -728,8 +728,7 @@ impl RenderBackend for Renderer {
   }
 }
 
-/// wgpu renderer factory. The driver passes its window as `Box<dyn Any>`;
-/// the factory downcasts and creates the GPU renderer.
+/// wgpu renderer factory.
 pub struct WgpuRenderer;
 
 impl WgpuRenderer {
@@ -737,12 +736,7 @@ impl WgpuRenderer {
 }
 
 impl crate::RendererFactory for WgpuRenderer {
-    fn create(&self, window: Box<dyn std::any::Any>, width: u32, height: u32) -> Box<dyn RenderBackend> {
-        #[cfg(feature = "winit")]
-        if let Ok(win) = window.downcast::<Arc<winit::window::Window>>() {
-            return Box::new(pollster::block_on(Renderer::new(*win, width, height)));
-        }
-
-        panic!("WgpuRenderer: unsupported window type");
+    fn create(&self, window: Arc<dyn crate::WindowHandle>, width: u32, height: u32) -> Box<dyn RenderBackend> {
+        Box::new(pollster::block_on(Renderer::new(window, width, height)))
     }
 }

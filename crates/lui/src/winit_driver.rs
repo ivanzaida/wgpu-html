@@ -60,7 +60,7 @@ impl Driver for WinitDriver {
           let s = window.inner_size();
           (s.width.max(1), s.height.max(1))
         };
-        self.lui.init_renderer(Box::new(window.clone()), w, h);
+        self.lui.init_renderer(window.clone(), w, h);
         self.window = Some(window);
       }
 

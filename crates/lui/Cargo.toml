@@ -14,6 +14,7 @@ lui-parse.workspace = true
 lui-cascade.workspace = true
 lui-layout.workspace = true
 lui-glyph.workspace = true
+raw-window-handle = "0.6"
 
 wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }

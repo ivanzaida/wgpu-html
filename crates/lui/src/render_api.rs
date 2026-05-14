@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 use crate::display_list::{DisplayList, FrameOutcome};
 
 #[derive(Debug)]
@@ -29,11 +30,30 @@ impl std::error::Error for RenderError {
     }
 }
 
-/// Creates a `RenderBackend` once the window surface is available.
-/// The driver calls `create` inside its event loop, passing a type-erased
-/// window as `Box<dyn Any>`. The factory downcasts to the type it needs.
+/// A window that a renderer can create a GPU surface from.
+/// Both winit and any other window library implement `HasWindowHandle + HasDisplayHandle`.
+pub trait WindowHandle:
+    raw_window_handle::HasWindowHandle
+    + raw_window_handle::HasDisplayHandle
+    + Send
+    + Sync
+    + 'static
+{
+}
+
+impl<T> WindowHandle for T
+where
+    T: raw_window_handle::HasWindowHandle
+        + raw_window_handle::HasDisplayHandle
+        + Send
+        + Sync
+        + 'static,
+{
+}
+
+/// Creates a `RenderBackend` once the driver's window is available.
 pub trait RendererFactory {
-    fn create(&self, window: Box<dyn std::any::Any>, width: u32, height: u32) -> Box<dyn RenderBackend>;
+    fn create(&self, window: Arc<dyn WindowHandle>, width: u32, height: u32) -> Box<dyn RenderBackend>;
 }
 
 /// Active GPU render backend.

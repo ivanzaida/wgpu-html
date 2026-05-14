@@ -10,7 +10,7 @@ mod lui;
 pub use lui::Lui;
 
 mod render_api;
-pub use render_api::{RenderBackend, RendererFactory, RenderError};
+pub use render_api::{RenderBackend, RendererFactory, RenderError, WindowHandle};
 
 #[cfg(feature = "wgpu")]
 pub mod renderer_wgpu;

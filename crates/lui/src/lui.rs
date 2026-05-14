@@ -64,7 +64,7 @@ impl Lui {
 
     /// Called by the driver to create the renderer once the window exists.
     /// `window` is the driver's window object, type-erased as `Box<dyn Any>`.
-    pub fn init_renderer(&mut self, window: Box<dyn std::any::Any>, width: u32, height: u32) {
+    pub fn init_renderer(&mut self, window: std::sync::Arc<dyn crate::WindowHandle>, width: u32, height: u32) {
         self.renderer = Some(self.renderer_factory.create(window, width, height));
     }
 

@@ -20,7 +20,7 @@ impl Driver for NullDriver {
 pub(crate) struct NullRendererFactory;
 
 impl crate::RendererFactory for NullRendererFactory {
-    fn create(&self, _window: Box<dyn std::any::Any>, _w: u32, _h: u32) -> Box<dyn crate::RenderBackend> {
+    fn create(&self, _window: std::sync::Arc<dyn crate::WindowHandle>, _w: u32, _h: u32) -> Box<dyn crate::RenderBackend> {
         panic!("no renderer factory set")
     }
 }
