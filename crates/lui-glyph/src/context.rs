@@ -272,6 +272,11 @@ impl TextContext {
                 glyph_chars.push(char_idx);
             }
         }
+        if let Some(min_x) = glyphs.iter().map(|g| g.x).reduce(f32::min) {
+            if min_x != 0.0 {
+                for g in &mut glyphs { g.x -= min_x; }
+            }
+        }
         let width = glyphs.iter().map(|g| g.x + g.w).fold(0.0f32, f32::max);
         let shaped = ShapedRun {
             glyphs, glyph_chars,
