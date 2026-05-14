@@ -4,6 +4,7 @@ pub use lui_parse;
 pub use lui_cascade;
 pub use lui_layout;
 pub use lui_glyph;
+
 pub mod paint;
 
 mod lui;
@@ -25,7 +26,7 @@ pub mod renderer_wgpu;
 #[cfg(feature = "winit")]
 mod winit_driver;
 #[cfg(feature = "winit")]
-pub use winit_driver::WinitDriver;
+pub use winit_driver::{WinitDriver, WinitWindow};
 
 #[cfg(feature = "winit")]
 pub use winit;
