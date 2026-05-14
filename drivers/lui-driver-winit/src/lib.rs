@@ -1,24 +1,14 @@
 //! Winit integration for the v2 driver.
-//!
-//! ```rust,no_run
-//! use lui_driver_winit::WinitDriver;
-//! use lui_parse::parse;
-//!
-//! let event_loop = winit::event_loop::EventLoop::new().unwrap();
-//! // ... create window, parse HTML, bind driver, run event loop
-//! ```
 
 use std::sync::Arc;
 
 use lui_driver::{Driver, Runtime};
-use lui_parse::HtmlDocument;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-/// Winit-backed driver. Owns the runtime and the parsed document.
+/// Winit-backed driver. Owns the runtime.
 pub struct WinitDriver {
     pub rt: Runtime<Winit, lui_renderer_wgpu::Renderer>,
-    pub doc: HtmlDocument,
 }
 
 /// Winit platform bridge.
@@ -56,18 +46,18 @@ impl WinitDriver {
         let winit = Winit { window };
         let mut rt = Runtime::new(winit, renderer);
 
-        let doc = lui_parse::parse(html);
         let ua = lui_parse::parse_stylesheet(include_str!("../../../.data/ua_whatwg_html.css")).unwrap();
         rt.set_stylesheets(&[ua]);
+        rt.lui.set_html(html);
 
-        Self { rt, doc }
+        Self { rt }
     }
 
     /// Handle a winit window event. Returns true if a redraw was requested.
     pub fn handle_event(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::RedrawRequested => {
-                let outcome = self.rt.render_frame(&self.doc);
+                let outcome = self.rt.render_frame();
                 match outcome {
                     lui_display_list::FrameOutcome::Reconfigure => {
                         let (w, h) = self.rt.driver.inner_size();
@@ -102,19 +92,17 @@ impl WinitDriver {
 
     /// Update the HTML content and request a redraw.
     pub fn set_html(&mut self, html: &str) {
-        self.doc = lui_parse::parse(html);
+        self.rt.lui.set_html(html);
         self.rt.driver.request_redraw();
     }
 
     /// Capture the current document to a PNG file.
     pub fn screenshot_to(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), lui_driver::RenderError> {
-        let (w, h) = self.rt.driver.inner_size();
-        self.rt.screenshot_to(&self.doc, w, h, path)
+        self.rt.screenshot_to(path)
     }
 
     /// Render the current document to RGBA pixels.
     pub fn render_to_rgba(&mut self) -> Result<Vec<u8>, lui_driver::RenderError> {
-        let (w, h) = self.rt.driver.inner_size();
-        self.rt.render_to_rgba(&self.doc, w, h)
+        self.rt.render_to_rgba()
     }
 }

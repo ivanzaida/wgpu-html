@@ -4,11 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-core = { path = "../../crates/lui-core" }
-lui-parse = { path = "../../crates/lui-parse" }
-lui-cascade = { path = "../../crates/lui-cascade" }
-lui-layout = { path = "../../crates/lui-layout" }
-lui-glyph = { path = "../../crates/lui-glyph" }
-lui-paint = { path = "../../crates/lui-paint" }
+lui-v2 = { path = "../../crates/lui" }
 lui-display-list.workspace = true
 lui-render-api.workspace = true
+lui-parse.workspace = true

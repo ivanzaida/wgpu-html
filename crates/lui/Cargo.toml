@@ -5,6 +5,9 @@ edition = "2024"
 
 [dependencies]
 lui-core.workspace = true
-lui-layout.workspace = true
-lui-cascade.workspace = true
 lui-parse.workspace = true
+lui-cascade.workspace = true
+lui-layout.workspace = true
+lui-glyph.workspace = true
+lui-paint.workspace = true
+lui-display-list.workspace = true

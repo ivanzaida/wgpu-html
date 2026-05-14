@@ -1,20 +1,12 @@
-//! V2 driver runtime — owns the full pipeline from HTML to GPU.
+//! V2 driver runtime — thin wrapper around `Lui` + a render backend.
 //!
 //! ```text
-//! HTML → parse → cascade → layout → paint → DisplayList → RenderBackend
+//! Lui (cascade → layout → paint → DisplayList) → RenderBackend → GPU
 //! ```
-//!
-//! The `Runtime` struct owns all persistent state (cascade context, layout
-//! engine, text context). Platform integration crates (winit, egui, bevy)
-//! own a `Runtime` and call `render_frame()` each frame.
 
 use std::path::Path;
 
-use lui_cascade::cascade::{CascadeContext, InteractionState};
-use lui_cascade::media::MediaContext;
-use lui_glyph::TextContext;
-use lui_layout::engine::LayoutEngine;
-use lui_parse::HtmlDocument;
+use lui_v2::Lui;
 pub use lui_display_list::{DisplayList, FrameOutcome};
 pub use lui_render_api::{RenderBackend, RenderError};
 
@@ -25,14 +17,11 @@ pub trait Driver {
     fn request_redraw(&self);
 }
 
-/// Owns the full v2 pipeline. Generic over the platform driver and render backend.
+/// Owns a `Lui` engine + a render backend.
 pub struct Runtime<D: Driver, B: RenderBackend> {
     pub driver: D,
     pub renderer: B,
-    pub text_ctx: TextContext,
-    cascade_ctx: CascadeContext,
-    layout_engine: LayoutEngine,
-    dpi_scale_override: Option<f32>,
+    pub lui: Lui,
 }
 
 impl<D: Driver, B: RenderBackend> Runtime<D, B> {
@@ -40,100 +29,60 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         Self {
             driver,
             renderer,
-            text_ctx: TextContext::new(),
-            cascade_ctx: CascadeContext::new(),
-            layout_engine: LayoutEngine::new(),
-            dpi_scale_override: None,
+            lui: Lui::new(),
         }
     }
 
-    /// Set the stylesheets used for cascade. Call once at startup or when CSS changes.
+    /// Set the stylesheets used for cascade.
     pub fn set_stylesheets(&mut self, sheets: &[lui_parse::Stylesheet]) {
-        self.cascade_ctx.set_stylesheets(sheets);
+        self.lui.set_stylesheets(sheets);
     }
 
-    /// Override the DPI scale factor. `None` uses the device scale factor.
-    pub fn set_dpi_scale(&mut self, scale: Option<f32>) {
-        self.dpi_scale_override = scale;
-    }
-
-    /// Current effective DPI scale factor.
-    pub fn dpi_scale(&self) -> f32 {
-        self.dpi_scale_override.unwrap_or(self.driver.scale_factor() as f32)
-    }
-
-    /// Run the full pipeline: cascade → layout → paint → render.
-    pub fn render_frame(&mut self, doc: &HtmlDocument) -> FrameOutcome {
+    /// Sync viewport + DPI from the platform driver, then paint + render.
+    pub fn render_frame(&mut self) -> FrameOutcome {
         let (pw, ph) = self.driver.inner_size();
-        let scale = self.dpi_scale();
-        let vw = pw as f32 / scale;
-        let vh = ph as f32 / scale;
-        let mut list = self.paint_frame_scaled(doc, vw, vh, scale);
-        list.dpi_scale = scale;
+        let scale = self.driver.scale_factor() as f32;
+        self.lui.set_dpi_scale(scale);
+        self.lui.set_viewport(pw as f32 / scale, ph as f32 / scale);
 
-        self.text_ctx.flush_dirty(|rect, data| {
-            self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        let list = self.lui.paint();
+
+        self.lui.flush_atlas(|x, y, w, h, data| {
+            self.renderer.upload_atlas_region(x, y, w, h, data);
         });
 
         self.renderer.render(&list)
     }
 
-    /// Paint without rendering — useful for testing or headless use.
-    pub fn paint_frame(&mut self, doc: &HtmlDocument, vw: f32, vh: f32) -> DisplayList {
-        self.paint_frame_scaled(doc, vw, vh, 1.0)
-    }
+    /// Capture to a PNG file at the current viewport + DPI.
+    pub fn screenshot_to(&mut self, path: impl AsRef<Path>) -> Result<(), RenderError> {
+        let (pw, ph) = self.driver.inner_size();
+        let scale = self.driver.scale_factor() as f32;
+        self.lui.set_dpi_scale(scale);
+        self.lui.set_viewport(pw as f32 / scale, ph as f32 / scale);
 
-    fn paint_frame_scaled(&mut self, doc: &HtmlDocument, vw: f32, vh: f32, scale: f32) -> DisplayList {
-        let media = MediaContext {
-            viewport_width: vw,
-            viewport_height: vh,
-            dpi: 96.0 * scale,
-            ..MediaContext::default()
-        };
-        let interaction = InteractionState::default();
-        let styled = self.cascade_ctx.cascade(&doc.root, &media, &interaction);
-        let tree = self.layout_engine.layout(&styled, vw, vh, &mut self.text_ctx);
-        lui_paint::paint_scaled(&tree, &mut self.text_ctx, scale)
-    }
+        let list = self.lui.paint();
 
-    /// Capture the current frame to a PNG file.
-    pub fn screenshot_to(
-        &mut self,
-        doc: &HtmlDocument,
-        width: u32,
-        height: u32,
-        path: impl AsRef<Path>,
-    ) -> Result<(), RenderError> {
-        let scale = self.dpi_scale();
-        let vw = width as f32 / scale;
-        let vh = height as f32 / scale;
-        let mut list = self.paint_frame_scaled(doc, vw, vh, scale);
-        list.dpi_scale = scale;
-
-        self.text_ctx.flush_dirty(|rect, data| {
-            self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        self.lui.flush_atlas(|x, y, w, h, data| {
+            self.renderer.upload_atlas_region(x, y, w, h, data);
         });
 
-        self.renderer.capture_to(&list, width, height, path.as_ref())
+        self.renderer.capture_to(&list, pw, ph, path.as_ref())
     }
 
-    /// Render the current frame to RGBA pixels in memory.
-    pub fn render_to_rgba(
-        &mut self,
-        doc: &HtmlDocument,
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<u8>, RenderError> {
-        let scale = self.dpi_scale();
-        let vw = width as f32 / scale;
-        let vh = height as f32 / scale;
-        let mut list = self.paint_frame_scaled(doc, vw, vh, scale);
-        list.dpi_scale = scale;
+    /// Render to RGBA pixels at the current viewport + DPI.
+    pub fn render_to_rgba(&mut self) -> Result<Vec<u8>, RenderError> {
+        let (pw, ph) = self.driver.inner_size();
+        let scale = self.driver.scale_factor() as f32;
+        self.lui.set_dpi_scale(scale);
+        self.lui.set_viewport(pw as f32 / scale, ph as f32 / scale);
 
-        self.text_ctx.flush_dirty(|rect, data| {
-            self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        let list = self.lui.paint();
+
+        self.lui.flush_atlas(|x, y, w, h, data| {
+            self.renderer.upload_atlas_region(x, y, w, h, data);
         });
 
-        self.renderer.render_to_rgba(&list, width, height)
+        self.renderer.render_to_rgba(&list, pw, ph)
     }
 }

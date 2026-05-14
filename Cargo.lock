@@ -3743,14 +3743,10 @@ version = "0.1.0"
 name = "lui-driver"
 version = "0.1.0"
 dependencies = [
- "lui-cascade",
- "lui-core",
  "lui-display-list",
- "lui-glyph",
- "lui-layout",
- "lui-paint",
  "lui-parse",
  "lui-render-api",
+ "lui-v2",
 ]
 
 [[package]]
@@ -3966,6 +3962,19 @@ dependencies = [
  "lui-tree",
  "lui-ui",
  "winit",
+]
+
+[[package]]
+name = "lui-v2"
+version = "0.1.0"
+dependencies = [
+ "lui-cascade",
+ "lui-core",
+ "lui-display-list",
+ "lui-glyph",
+ "lui-layout",
+ "lui-paint",
+ "lui-parse",
 ]
 
 [[package]]
