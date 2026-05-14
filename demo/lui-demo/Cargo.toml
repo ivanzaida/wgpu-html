@@ -4,5 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui = { workspace = true, features = ["winit", "wgpu"] }
+lui = { workspace = true, features = ["winit", "wgpu", "ua_whatwg"] }
 atty = "0.2"
+
+[dev-dependencies]
+lui-cascade = { path = "../../crates/lui-cascade" }
+lui-layout = { path = "../../crates/lui-layout" }
+lui-parse = { path = "../../crates/lui-parse" }
+lui-glyph = { path = "../../crates/lui-glyph" }

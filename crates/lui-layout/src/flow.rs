@@ -18,6 +18,28 @@ fn css_str(v: Option<&lui_core::CssValue>) -> &str {
     }
 }
 
+/// CSS `white-space: normal` collapsing: newlines/tabs → space, runs of
+/// spaces → single space, strip leading and trailing whitespace.
+pub fn collapse_whitespace(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut prev_space = true; // treat start as "after space" to strip leading
+    for ch in text.chars() {
+        if ch == '\n' || ch == '\r' || ch == '\t' || ch == ' ' {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(ch);
+            prev_space = false;
+        }
+    }
+    if out.ends_with(' ') {
+        out.pop();
+    }
+    out
+}
+
 /// Layout inline content with line wrapping.
 pub fn layout_inline<'a>(
     b: &mut LayoutBox<'a>,
@@ -64,6 +86,18 @@ fn layout_text_node(
         _ => None,
     };
     let text = transformed.as_deref().unwrap_or(text);
+
+    let should_collapse = !matches!(white_space, "pre" | "pre-wrap" | "nowrap");
+    let collapsed: Option<String> = if should_collapse { Some(collapse_whitespace(text)) } else { None };
+    let text = collapsed.as_deref().unwrap_or(text);
+
+    if text.is_empty() {
+        b.content.x = pos.x;
+        b.content.y = pos.y;
+        b.content.width = 0.0;
+        b.content.height = 0.0;
+        return;
+    }
 
     let ls = style.letter_spacing;
     let ws = style.word_spacing;

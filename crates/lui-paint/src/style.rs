@@ -18,6 +18,16 @@ pub fn css_f32(v: Option<&CssValue>) -> f32 {
     }
 }
 
+/// CSS initial value of `font-size` is `medium` = 16px.
+pub fn css_font_size(v: Option<&CssValue>) -> f32 {
+    match v {
+        Some(CssValue::Dimension { value, unit: CssUnit::Px }) => (*value as f32).max(1.0),
+        Some(CssValue::Number(n)) => (*n as f32).max(1.0),
+        _ => 16.0,
+    }
+}
+
+
 pub fn css_color(v: Option<&CssValue>) -> Option<[f32; 4]> {
     color::resolve_color(v)
 }

@@ -80,6 +80,164 @@ fn flex_gap_adds_spacing() {
 }
 
 #[test]
+fn flex_gap_ignores_whitespace_text_nodes() {
+    // Whitespace-only text nodes between flex items must not generate
+    // flex items (CSS Flexbox §4: "not rendered").  With formatted HTML
+    // the newlines/spaces between <div> tags create text nodes that
+    // should be stripped, leaving only the real items for gap accounting.
+    let (doc, ctx) = flex_lt(r#"<div style="display:flex; width:500px; column-gap:20px">
+        <div style="width:100px">A</div>
+        <div style="width:100px">B</div>
+        <div style="width:100px">C</div>
+    </div>"#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+
+    // Find the three real items (skip anonymous whitespace wrappers)
+    let real: Vec<_> = flex.children.iter()
+        .filter(|c| c.content.width > 1.0)
+        .collect();
+    assert_eq!(real.len(), 3, "should have 3 visible flex items, got {}", real.len());
+
+    let gap_ab = real[1].content.x - (real[0].content.x + real[0].content.width);
+    let gap_bc = real[2].content.x - (real[1].content.x + real[1].content.width);
+    assert!((gap_ab - 20.0).abs() < 1.0,
+        "gap A→B should be ~20px, got {}", gap_ab);
+    assert!((gap_bc - 20.0).abs() < 1.0,
+        "gap B→C should be ~20px, got {}", gap_bc);
+}
+
+#[test]
+fn flex_gap_in_centered_column_flex() {
+    // Row flex (no explicit width) inside a column flex with
+    // align-items:center.  The row should shrink to max-content width
+    // (3×120 + 2×16 = 392) and whitespace text nodes must not inflate
+    // that width with extra gaps.
+    let (doc, ctx) = flex_lt(r#"
+        <div style="display:flex; flex-direction:column; align-items:center">
+            <div style="display:flex; gap:16px">
+                <div style="width:120px; height:40px">A</div>
+                <div style="width:120px; height:40px">B</div>
+                <div style="width:120px; height:40px">C</div>
+            </div>
+        </div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let outer = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let row_flex = &outer.children.iter()
+        .find(|c| c.content.width > 10.0)
+        .expect("should find the row flex container");
+
+    // Max-content width should be 3×120 + 2×16 = 392, not inflated
+    assert!((row_flex.content.width - 392.0).abs() < 2.0,
+        "row flex should shrink to 392px, got {}", row_flex.content.width);
+}
+
+#[test]
+fn flex_gap_demo_exact_layout() {
+    // Exact reproduction of the demo's flex row structure.
+    // The row flex has gap:16px and three 120×120 children, nested inside
+    // a column flex with align-items:center and padding:40px.
+    let (doc, ctx) = flex_lt(r#"
+        <div style="display:flex; flex-direction:column; align-items:center; padding:40px">
+            <div style="display:flex; gap:16px; margin-bottom:32px">
+                <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+                    <span style="font-size:14px">Block</span>
+                </div>
+                <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+                    <span style="font-size:14px">Flex</span>
+                </div>
+                <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+                    <span style="font-size:14px">Grid</span>
+                </div>
+            </div>
+        </div>
+    "#, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let outer = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    // The row flex is among the outer flex's children
+    let row_flex = outer.children.iter()
+        .find(|c| c.content.width > 100.0)
+        .expect("should find the row flex container");
+
+    let items: Vec<_> = row_flex.children.iter()
+        .filter(|c| c.content.width > 50.0)
+        .collect();
+    assert_eq!(items.len(), 3, "should have 3 visible items");
+
+    let gap_01 = items[1].content.x - (items[0].content.x + items[0].outer_width());
+    let gap_12 = items[2].content.x - (items[1].content.x + items[1].outer_width());
+    assert!((gap_01 - 16.0).abs() < 2.0,
+        "gap 0→1 should be ~16px, got {}. row_w={}, items: x0={} x1={} x2={}",
+        gap_01, row_flex.content.width,
+        items[0].content.x, items[1].content.x, items[2].content.x);
+    assert!((gap_12 - 16.0).abs() < 2.0,
+        "gap 1→2 should be ~16px, got {}", gap_12);
+}
+
+#[test]
+fn flex_gap_demo_with_ua_stylesheet() {
+    // Same test but using the WHATWG UA stylesheet (what the demo uses)
+    // instead of the test-only reset stylesheet.
+    let html = r#"<html>
+    <body style="margin:0; font-family:sans-serif; background:#1a1a2e">
+    <div style="display:flex; flex-direction:column; align-items:center; padding:40px">
+        <div style="display:flex; gap:16px; margin-bottom:32px">
+            <div style="width:120px; height:120px; background:#e94560; border-radius:12px; display:flex; align-items:center; justify-content:center">
+                <span style="color:white; font-size:14px">Block</span>
+            </div>
+            <div style="width:120px; height:120px; background:#0f3460; border-radius:12px; display:flex; align-items:center; justify-content:center">
+                <span style="color:white; font-size:14px">Flex</span>
+            </div>
+            <div style="width:120px; height:120px; background:#533483; border-radius:12px; display:flex; align-items:center; justify-content:center">
+                <span style="color:white; font-size:14px">Grid</span>
+            </div>
+        </div>
+    </div>
+    </body></html>"#;
+
+    let doc = lui_parse::parse(html);
+    let mut ctx = lui_cascade::cascade::CascadeContext::new();
+    let ua = lui_parse::parse_stylesheet(include_str!("../../../../crates/lui/ua/ua_whatwg.css")).unwrap();
+    ctx.set_stylesheets(&[ua]);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+
+    let body = find_by_tag(&lt.root, "body").unwrap();
+    let outer = body.children.iter()
+        .find(|c| c.content.width > 100.0)
+        .expect("should find column flex container");
+    let row_flex = outer.children.iter()
+        .find(|c| {
+            let w = c.content.width;
+            w > 100.0 && w < 600.0
+        })
+        .expect("should find the row flex container");
+
+    let items: Vec<_> = row_flex.children.iter()
+        .filter(|c| c.content.width > 50.0)
+        .collect();
+    assert_eq!(items.len(), 3, "should have 3 visible items, got {}", items.len());
+
+    let gap_01 = items[1].content.x - (items[0].content.x + items[0].outer_width());
+    let gap_12 = items[2].content.x - (items[1].content.x + items[1].outer_width());
+    assert!((gap_01 - 16.0).abs() < 2.0,
+        "gap 0→1 should be ~16px, got {}. row_w={}, items: x0={} w0={} x1={} x2={}",
+        gap_01, row_flex.content.width,
+        items[0].content.x, items[0].outer_width(),
+        items[1].content.x, items[2].content.x);
+    assert!((gap_12 - 16.0).abs() < 2.0,
+        "gap 1→2 should be ~16px, got {}", gap_12);
+}
+
+#[test]
 fn flex_wrap_wraps_items() {
     let (doc, ctx) = flex_lt(r#"<div style="display:flex; flex-wrap:wrap; width:200px"><div style="width:120px; height:30px">A</div><div style="width:120px; height:30px">B</div></div>"#, 800.0);
     let media = MediaContext::default(); let interaction = InteractionState::default();
@@ -991,4 +1149,101 @@ fn flex_align_items_center_same_y_for_same_height_children() {
 
     assert!((y0 - y1).abs() < 2.0, "Block and Flex should be at same y: {} vs {}", y0, y1);
     assert!((y1 - y2).abs() < 2.0, "Flex and Grid should be at same y: {} vs {}", y1, y2);
+}
+
+#[test]
+fn flex_column_align_items_center_shrinks_cross_axis() {
+    let html = r#"<div style="display:flex; flex-direction:column; align-items:center; width:800px">
+        <h1 style="font-size:32px">lui v2</h1>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let h1 = &flex.children[0];
+    let h1_outer_left = h1.content.x - h1.padding.left - h1.border.left - h1.margin.left;
+    let h1_outer_right = h1.content.x + h1.content.width + h1.padding.right + h1.border.right + h1.margin.right;
+    let h1_outer_width = h1_outer_right - h1_outer_left;
+    let flex_center = flex.content.x + flex.content.width / 2.0;
+    let h1_center = (h1_outer_left + h1_outer_right) / 2.0;
+    eprintln!("flex: x={} w={} center={}", flex.content.x, flex.content.width, flex_center);
+    eprintln!("h1: outer_left={} outer_right={} outer_w={} center={}", h1_outer_left, h1_outer_right, h1_outer_width, h1_center);
+    // The h1 should be narrower than the container (shrink-wrapped to text)
+    assert!(h1_outer_width < flex.content.width * 0.8,
+        "h1 should shrink-wrap to text content, not fill container. h1_outer_width={}, container_width={}",
+        h1_outer_width, flex.content.width);
+    // The h1 should be centered
+    assert!((h1_center - flex_center).abs() < 2.0,
+        "h1 should be centered in container. h1_center={}, flex_center={}", h1_center, flex_center);
+}
+
+#[test]
+fn flex_column_align_items_center_with_padding() {
+    let html = r#"<div style="display:flex; flex-direction:column; align-items:center; width:800px">
+        <div style="padding:20px; font-size:32px">Hello</div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let child = &flex.children[0];
+    let outer_left = child.content.x - child.padding.left - child.border.left - child.margin.left;
+    let outer_right = child.content.x + child.content.width + child.padding.right + child.border.right + child.margin.right;
+    let outer_width = outer_right - outer_left;
+    let child_center = (outer_left + outer_right) / 2.0;
+    let flex_center = flex.content.x + flex.content.width / 2.0;
+    eprintln!("child: content.w={} padding=({},{}) outer_w={}", child.content.width, child.padding.left, child.padding.right, outer_width);
+    // Should shrink-wrap to content + padding, not fill container
+    assert!(outer_width < flex.content.width * 0.8,
+        "child should shrink-wrap, not fill container. outer_w={}, container_w={}", outer_width, flex.content.width);
+    // Should be centered
+    assert!((child_center - flex_center).abs() < 2.0,
+        "child should be centered. child_center={}, flex_center={}", child_center, flex_center);
+    // Padding should be present
+    assert!((child.padding.left - 20.0).abs() < 1.0, "padding.left should be 20, got {}", child.padding.left);
+    assert!((child.padding.right - 20.0).abs() < 1.0, "padding.right should be 20, got {}", child.padding.right);
+}
+
+#[test]
+fn flex_column_center_preserves_explicit_child_sizes() {
+    let html = r#"<div style="display:flex; flex-direction:column; align-items:center; width:800px; padding:40px">
+        <div style="display:flex; gap:16px">
+            <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+                <span style="font-size:14px">Block</span>
+            </div>
+            <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+                <span style="font-size:14px">Flex</span>
+            </div>
+            <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+                <span style="font-size:14px">Grid</span>
+            </div>
+        </div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default();
+    let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let outer = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+    let row = &outer.children[0];
+    // The row flex container should be centered
+    let row_outer_left = row.content.x - row.padding.left - row.border.left - row.margin.left;
+    let row_outer_right = row.content.x + row.content.width + row.padding.right + row.border.right + row.margin.right;
+    let row_center = (row_outer_left + row_outer_right) / 2.0;
+    // Cards should be 120x120
+    for (i, card) in row.children.iter().enumerate() {
+        assert!((card.content.width - 120.0).abs() < 1.0,
+            "card[{}] width should be 120, got {}", i, card.content.width);
+        assert!((card.content.height - 120.0).abs() < 1.0,
+            "card[{}] height should be 120, got {}", i, card.content.height);
+    }
+    // Row should be centered within the outer container's layout area
+    // (layout_flex uses inner_width which accounts for padding)
+    let layout_center = outer.content.x + (outer.content.width - outer.padding.horizontal()) / 2.0;
+    assert!((row_center - layout_center).abs() < 2.0,
+        "row should be centered. row_center={}, layout_center={}", row_center, layout_center);
 }

@@ -363,7 +363,7 @@ pub fn layout_table<'a>(
   let col_widths = if fixed {
     compute_column_widths_fixed(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing)
   } else {
-    compute_column_widths_auto(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing)
+    compute_column_widths_auto(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing, text_ctx)
   };
 
   // Phase 4: Compute row heights — first pass (non-rowspan cells)
@@ -453,13 +453,15 @@ pub fn layout_table<'a>(
         cache,
         bump,
       );
-      cell.content.width = cw;
       cell.overflow_x = crate::box_tree::Overflow::Visible;
       cell.overflow_y = crate::box_tree::Overflow::Visible;
-      if rs > 1 {
-        let cell_h: f32 = (ri..ri + rs).map(|r| row_heights[r]).sum::<f32>() + sp_v * (rs as f32 - 1.0);
-        cell.content.height = cell_h;
-      }
+      let cell_outer_h = if rs > 1 {
+        (ri..ri + rs).map(|r| row_heights[r]).sum::<f32>() + sp_v * (rs as f32 - 1.0)
+      } else {
+        row_heights[ri]
+      };
+      let cell_frame = cell.border.vertical() + cell.padding.vertical();
+      cell.content.height = (cell_outer_h - cell_frame).max(cell.content.height);
     }
   }
 
@@ -541,34 +543,40 @@ fn is_border_box(style: &lui_cascade::ComputedStyle) -> bool {
 }
 
 fn estimate_cell_height(cell: &LayoutBox, cell_w: f32, ctx: &LayoutContext, text_ctx: &mut TextContext) -> f32 {
-  if let Some(h) = sizes::resolve_length(cell.style.height, ctx.containing_height) {
-    if is_border_box(cell.style) {
-      return h;
-    }
-    let border = sides::resolve_border(cell.style);
-    let padding = sides::resolve_padding(cell.style);
-    return h + border.vertical() + padding.vertical();
-  }
   let border = sides::resolve_border(cell.style);
   let padding = sides::resolve_padding(cell.style);
   let frame = border.vertical() + padding.vertical();
   let inner_w = (cell_w - border.horizontal() - padding.horizontal()).max(0.0);
 
-  let mut h = 0.0_f32;
+  let mut content_h = 0.0_f32;
   for child in &cell.children {
-    h += estimate_subtree_height(child, inner_w, ctx, text_ctx);
+    content_h += estimate_subtree_height(child, inner_w, ctx, text_ctx);
   }
-  h + frame
+
+  // CSS spec: height on table cells is a minimum, not a fixed size.
+  let explicit = sizes::resolve_length(cell.style.height, ctx.containing_height)
+    .map(|h| if is_border_box(cell.style) { h } else { h + frame });
+  explicit.unwrap_or(0.0_f32).max(content_h + frame)
 }
 
 fn estimate_subtree_height(b: &LayoutBox, max_w: f32, ctx: &LayoutContext, text_ctx: &mut TextContext) -> f32 {
   if let lui_core::HtmlElement::Text(ref content) = b.node.element {
     let style = crate::text::text_style_from_cascade(b.style);
-    let lines = text_ctx.break_into_lines(content, &style, max_w);
+    let ws = css_str(b.style.white_space);
+    let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
+      crate::flow::collapse_whitespace(content)
+    } else {
+      content.to_string()
+    };
+    if text.is_empty() { return 0.0; }
+    let lines = text_ctx.break_into_lines(&text, &style, max_w);
     return lines.iter().map(|l| l.height).sum::<f32>();
   }
-  if let Some(h) = sizes::resolve_length(b.style.height, ctx.containing_height) {
-    return h;
+  let is_anon = matches!(b.kind, crate::box_tree::BoxKind::AnonymousBlock | crate::box_tree::BoxKind::AnonymousInline);
+  if !is_anon {
+    if let Some(h) = sizes::resolve_length(b.style.height, ctx.containing_height) {
+      return h;
+    }
   }
   let mut h = 0.0_f32;
   for child in &b.children {
@@ -628,6 +636,17 @@ fn compute_column_widths_fixed(
   col_widths.iter().map(|w| w.unwrap_or(default_w)).collect()
 }
 
+fn measure_cell_max_content_width(cell: &LayoutBox, text_ctx: &mut crate::text::TextContext) -> f32 {
+  let border = sides::resolve_border(cell.style);
+  let padding = sides::resolve_padding(cell.style);
+  let frame = border.horizontal() + padding.horizontal();
+  let mut w = 0.0_f32;
+  for child in &cell.children {
+    w += crate::flex::measure_max_content_width_pub(child, text_ctx);
+  }
+  w + frame
+}
+
 fn compute_column_widths_auto(
   b: &LayoutBox,
   row_infos: &[RowInfo],
@@ -636,12 +655,14 @@ fn compute_column_widths_auto(
   num_cols: usize,
   table_width: f32,
   spacing: &Spacing,
+  text_ctx: &mut crate::text::TextContext,
 ) -> Vec<f32> {
   let total_spacing = spacing.h * (num_cols as f32 + 1.0);
   let available = (table_width - total_spacing).max(0.0);
 
   let mut col_widths = vec![0.0_f32; num_cols];
   let mut col_has_explicit = vec![false; num_cols];
+  let mut col_content_widths = vec![0.0_f32; num_cols];
 
   // Apply <col> width hints
   for (i, w) in col_hints.iter().enumerate() {
@@ -653,7 +674,7 @@ fn compute_column_widths_auto(
     }
   }
 
-  // Cell widths can override col hints (take the max)
+  // Measure max-content width for each column, and apply explicit cell widths
   for (ri, info) in row_infos.iter().enumerate() {
     let row = get_row(b, info.path);
     for ci in 0..info.num_cells {
@@ -667,6 +688,8 @@ fn compute_column_widths_auto(
           col_widths[col] = col_widths[col].max(w);
           col_has_explicit[col] = true;
         }
+        let content_w = measure_cell_max_content_width(&row.children[ci], text_ctx);
+        col_content_widths[col] = col_content_widths[col].max(content_w);
       }
     }
   }
@@ -675,10 +698,18 @@ fn compute_column_widths_auto(
   let auto_count = col_has_explicit.iter().filter(|e| !**e).count();
 
   if auto_count > 0 && explicit_sum < available {
-    let share = (available - explicit_sum) / auto_count as f32;
+    let remaining = available - explicit_sum;
+    let auto_content_sum: f32 = col_content_widths.iter().enumerate()
+      .filter(|(i, _)| !col_has_explicit[*i])
+      .map(|(_, w)| *w)
+      .sum();
     for (i, w) in col_widths.iter_mut().enumerate() {
       if !col_has_explicit[i] {
-        *w = share;
+        if auto_content_sum > 0.0 {
+          *w = remaining * (col_content_widths[i] / auto_content_sum);
+        } else {
+          *w = remaining / auto_count as f32;
+        }
       }
     }
   } else if auto_count == 0 && explicit_sum < available && num_cols > 0 {

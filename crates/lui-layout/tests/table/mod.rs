@@ -96,25 +96,25 @@ table_test!(caption_gets_caption_kind,
 // Equal column sizing (basic, no explicit widths)
 // ============================================================================
 
-table_test!(two_cols_equal_width,
+table_test!(two_cols_roughly_equal_width,
     r#"<table style="width:200px"><tr>
         <td style="height:30px">A</td><td style="height:30px">B</td>
     </tr></table>"#, 800.0, |t| {
     let row = &t.children[0];
-    assert!((row.children[0].content.width - 100.0).abs() < 1.0,
-        "col0 should be 100px, got {}", row.children[0].content.width);
-    assert!((row.children[1].content.width - 100.0).abs() < 1.0,
-        "col1 should be 100px, got {}", row.children[1].content.width);
+    assert!((row.children[0].content.width - 100.0).abs() < 15.0,
+        "col0 should be ~100px, got {}", row.children[0].content.width);
+    assert!((row.children[1].content.width - 100.0).abs() < 15.0,
+        "col1 should be ~100px, got {}", row.children[1].content.width);
 });
 
-table_test!(three_cols_equal_width,
+table_test!(three_cols_roughly_equal_width,
     r#"<table style="width:300px"><tr>
         <td style="height:30px">A</td><td style="height:30px">B</td><td style="height:30px">C</td>
     </tr></table>"#, 800.0, |t| {
     let row = &t.children[0];
     for (i, cell) in row.children.iter().enumerate() {
-        assert!((cell.content.width - 100.0).abs() < 1.0,
-            "col{} should be 100px, got {}", i, cell.content.width);
+        assert!((cell.content.width - 100.0).abs() < 15.0,
+            "col{} should be ~100px, got {}", i, cell.content.width);
     }
 });
 
@@ -279,7 +279,7 @@ table_test!(colspan_spans_multiple_columns,
     </table>"#, 800.0, |t| {
     let row1 = &t.children[1];
     let spanned = &row1.children[0];
-    assert!((spanned.content.width - 200.0).abs() < 2.0,
+    assert!((spanned.content.width - 200.0).abs() < 50.0,
         "colspan=2 cell should be ~200px, got {}", spanned.content.width);
 });
 
@@ -567,4 +567,293 @@ table_test!(cell_explicit_height_with_padding,
     let row1 = &t.children[1];
     assert!(row1.content.y > row0.content.y + 78.0,
         "row1 should be ~82px below row0, gap = {}", row1.content.y - row0.content.y);
+});
+
+// ============================================================================
+// Table cell text rendering
+// ============================================================================
+
+fn find_text_boxes<'a>(b: &'a LayoutBox<'a>, out: &mut Vec<&'a LayoutBox<'a>>) {
+    if b.node.element.is_text() { out.push(b); }
+    for c in &b.children { find_text_boxes(c, out); }
+}
+
+table_test!(table_cell_text_has_nonzero_dimensions,
+    r#"<table style="width:400px; border-spacing:2px">
+        <tr>
+            <td style="padding:8px">Hello</td>
+            <td style="padding:8px">World</td>
+        </tr>
+    </table>"#, 800.0, |t| {
+    let mut texts = Vec::new();
+    find_text_boxes(t, &mut texts);
+    assert!(texts.len() >= 2, "should find at least 2 text nodes, got {}", texts.len());
+    for tb in &texts {
+        assert!(tb.content.width > 1.0,
+            "text node should have non-zero width, got {}", tb.content.width);
+        assert!(tb.content.height > 1.0,
+            "text node should have non-zero height, got {}", tb.content.height);
+    }
+});
+
+table_test!(table_height_contains_all_rows,
+    r#"<table style="width:400px; border-spacing:2px">
+        <thead><tr><th style="padding:8px">H1</th><th style="padding:8px">H2</th></tr></thead>
+        <tbody>
+            <tr><td style="padding:8px">A</td><td style="padding:8px">B</td></tr>
+            <tr><td style="padding:8px">C</td><td style="padding:8px">D</td></tr>
+            <tr><td style="padding:8px">E</td><td style="padding:8px">F</td></tr>
+        </tbody>
+    </table>"#, 800.0, |t| {
+    fn find_rows<'a>(b: &'a LayoutBox<'a>, out: &mut Vec<&'a LayoutBox<'a>>) {
+        if b.kind == BoxKind::TableRow { out.push(b); }
+        for c in &b.children { find_rows(c, out); }
+    }
+    let mut rows = Vec::new();
+    find_rows(t, &mut rows);
+    assert_eq!(rows.len(), 4, "should have 4 rows");
+
+    let last_row = rows.last().unwrap();
+    let last_row_bottom = last_row.content.y + last_row.content.height;
+    let table_bottom = t.content.y + t.content.height;
+    assert!(table_bottom >= last_row_bottom - 1.0,
+        "table bottom ({}) must contain last row bottom ({}), table h={}",
+        table_bottom, last_row_bottom, t.content.height);
+});
+
+table_test!(table_in_flex_height_contains_all_rows,
+    r#"<div style="display:flex; flex-direction:column; align-items:center">
+        <table style="width:400px; border-spacing:2px">
+            <thead><tr><th style="padding:8px">H1</th></tr></thead>
+            <tbody>
+                <tr><td style="padding:8px">A</td></tr>
+                <tr><td style="padding:8px">B</td></tr>
+            </tbody>
+        </table>
+    </div>"#, 800.0, |t| {
+    fn find_rows<'a>(b: &'a LayoutBox<'a>, out: &mut Vec<&'a LayoutBox<'a>>) {
+        if b.kind == BoxKind::TableRow { out.push(b); }
+        for c in &b.children { find_rows(c, out); }
+    }
+    let mut rows = Vec::new();
+    find_rows(t, &mut rows);
+    assert_eq!(rows.len(), 3, "should have 3 rows");
+
+    let last_row = rows.last().unwrap();
+    let last_row_bottom = last_row.content.y + last_row.content.height;
+    let table_bottom = t.content.y + t.content.height;
+    assert!(table_bottom >= last_row_bottom - 1.0,
+        "flex-table bottom ({}) must contain last row bottom ({}), table h={}",
+        table_bottom, last_row_bottom, t.content.height);
+});
+
+table_test!(table_cell_text_within_cell_bounds,
+    r#"<table style="width:400px; border-spacing:2px">
+        <tr>
+            <td style="padding:8px">Feature</td>
+            <td style="padding:8px">Status</td>
+        </tr>
+    </table>"#, 800.0, |t| {
+    fn find_cells<'a>(b: &'a LayoutBox<'a>, out: &mut Vec<&'a LayoutBox<'a>>) {
+        if b.kind == BoxKind::TableCell { out.push(b); }
+        for c in &b.children { find_cells(c, out); }
+    }
+    let mut cells = Vec::new();
+    find_cells(t, &mut cells);
+    assert_eq!(cells.len(), 2, "should have 2 cells");
+
+    // Each cell's text should be positioned within the cell's content area
+    for cell in &cells {
+        let mut texts = Vec::new();
+        find_text_boxes(cell, &mut texts);
+        assert!(!texts.is_empty(), "cell should contain text");
+        let tb = texts[0];
+        assert!(tb.content.x >= cell.content.x,
+            "text x ({}) should be >= cell content x ({})", tb.content.x, cell.content.x);
+        assert!(tb.content.y >= cell.content.y,
+            "text y ({}) should be >= cell content y ({})", tb.content.y, cell.content.y);
+    }
+});
+
+table_test!(table_cell_text_has_readable_line_height,
+    r#"<table style="width:400px"><tr><td>Hello</td></tr></table>"#, 800.0, |t| {
+    // Even when font-size isn't explicitly set (None/initial), the layout
+    // should use a readable default (16px → line-height ~19.2px).
+    let mut texts = Vec::new();
+    find_text_boxes(t, &mut texts);
+    assert!(!texts.is_empty());
+    assert!(texts[0].content.height >= 14.0,
+        "table text should have readable height (default 16px font), got {}",
+        texts[0].content.height);
+});
+
+table_test!(table_in_flex_cells_have_text,
+    r#"<div style="display:flex; flex-direction:column; align-items:center">
+        <table style="width:400px; border-spacing:2px">
+            <tr>
+                <td style="padding:8px">Layout engine</td>
+                <td style="padding:8px">Done</td>
+            </tr>
+        </table>
+    </div>"#, 800.0, |t| {
+    let mut texts = Vec::new();
+    find_text_boxes(t, &mut texts);
+    assert!(texts.len() >= 2, "should find at least 2 text nodes, got {}", texts.len());
+    for tb in &texts {
+        assert!(tb.content.width > 1.0,
+            "text in flex-table should have width > 0, got {}", tb.content.width);
+        assert!(tb.content.height > 1.0,
+            "text in flex-table should have height > 0, got {}", tb.content.height);
+    }
+});
+
+// ============================================================================
+// Table cell height must contain text
+// ============================================================================
+
+fn find_cells<'a>(b: &'a LayoutBox<'a>, out: &mut Vec<&'a LayoutBox<'a>>) {
+    if b.kind == BoxKind::TableCell { out.push(b); }
+    for c in &b.children { find_cells(c, out); }
+}
+
+table_test!(cell_content_height_fits_text_with_padding_and_border,
+    r#"<table style="width:400px; box-sizing:border-box">
+        <tr><td style="padding:8px; border-width:1px; height:20px">Hello</td></tr>
+    </table>"#, 800.0, |t| {
+    // Cell has height:20px and padding:8px + border:1px each side.
+    // The content area must still be tall enough to show the text
+    // (~19.2px at 16px font).  CSS tables treat height as a minimum,
+    // so the cell should expand beyond 20px if the text doesn't fit.
+    let mut cells = Vec::new();
+    find_cells(t, &mut cells);
+    assert_eq!(cells.len(), 1);
+    let cell = cells[0];
+    let mut texts = Vec::new();
+    find_text_boxes(cell, &mut texts);
+    let text_h = texts[0].content.height;
+    assert!(cell.content.height >= text_h,
+        "cell content height ({}) must fit text ({})", cell.content.height, text_h);
+});
+
+#[test]
+fn cell_height_with_ua_stylesheet() {
+    // Reproduce demo conditions: UA stylesheet gives table box-sizing:border-box
+    // and 1px borders to all elements.  Cell height:20px should still show text.
+    let html = r#"<html><body>
+        <table style="width:400px; border-spacing:2px">
+            <tr><td style="padding:8px; height:18px">Hello</td></tr>
+        </table>
+    </body></html>"#;
+    let doc = lui_parse::parse(html);
+    let mut ctx = lui_cascade::cascade::CascadeContext::new();
+    let ua = lui_parse::parse_stylesheet(
+        include_str!("../../../../crates/lui/ua/ua_whatwg.css")
+    ).unwrap();
+    ctx.set_stylesheets(&[ua]);
+    let media = lui_cascade::media::MediaContext::default();
+    let interaction = lui_cascade::cascade::InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = lui_layout::engine::layout_tree(&styled, 800.0, 600.0);
+
+    let mut cells = Vec::new();
+    find_cells(&lt.root, &mut cells);
+    assert!(!cells.is_empty(), "should find a table cell");
+    let cell = cells[0];
+    let mut texts = Vec::new();
+    find_text_boxes(cell, &mut texts);
+    assert!(!texts.is_empty(), "cell should have text");
+
+    let text_h = texts[0].content.height;
+
+    let row = find_by_tag(&lt.root, "tr").unwrap();
+    assert!(cell.content.height >= text_h,
+        "cell content.h ({}) must fit text ({}) — cell outer={}, row.h={}, pad={}, bdr={}",
+        cell.content.height, text_h,
+        cell.outer_height(), row.content.height,
+        cell.padding.top + cell.padding.bottom,
+        cell.border.top + cell.border.bottom);
+}
+
+table_test!(cell_border_box_height_includes_padding,
+    r#"<table style="width:400px">
+        <tr><td style="padding:8px">World</td></tr>
+    </table>"#, 800.0, |t| {
+    // Cell without explicit height: content area should be at least
+    // the text height, and outer height includes padding.
+    let mut cells = Vec::new();
+    find_cells(t, &mut cells);
+    let cell = cells[0];
+    let mut texts = Vec::new();
+    find_text_boxes(cell, &mut texts);
+    let text_h = texts[0].content.height;
+    assert!(cell.content.height >= text_h,
+        "cell content ({}) >= text ({})", cell.content.height, text_h);
+    let outer = cell.content.height + cell.padding.top + cell.padding.bottom;
+    assert!(outer >= text_h + 16.0,
+        "cell outer height ({}) should include padding", outer);
+});
+
+// ============================================================================
+// th text-align: center (browser default)
+// ============================================================================
+
+#[test]
+fn th_text_centered_with_ua_stylesheet() {
+    let html = r#"<html><body>
+        <table style="width:400px; border-spacing:2px">
+            <tr>
+                <th style="padding:8px">Feature</th>
+                <th style="padding:8px">Status</th>
+            </tr>
+        </table>
+    </body></html>"#;
+    let doc = lui_parse::parse(html);
+    let mut ctx = lui_cascade::cascade::CascadeContext::new();
+    let ua = lui_parse::parse_stylesheet(
+        include_str!("../../../../crates/lui/ua/ua_whatwg.css")
+    ).unwrap();
+    ctx.set_stylesheets(&[ua]);
+    let media = lui_cascade::media::MediaContext::default();
+    let interaction = lui_cascade::cascade::InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = lui_layout::engine::layout_tree(&styled, 800.0, 600.0);
+
+    let table = find_by_tag(&lt.root, "table").unwrap();
+    let mut cells = Vec::new();
+    find_cells(table, &mut cells);
+    assert!(cells.len() >= 2, "need at least 2 header cells");
+
+    // Each th cell's text should be horizontally centered within the cell,
+    // not flush to the left edge.
+    let cell = cells[0];
+    let mut texts = Vec::new();
+    find_text_boxes(cell, &mut texts);
+    assert!(!texts.is_empty());
+    let text = texts[0];
+    let text_left = text.content.x - cell.content.x;
+    let text_right = cell.content.width - text.content.width - text_left;
+    assert!((text_left - text_right).abs() < 2.0,
+        "th text should be centered: left_margin={}, right_margin={}, cell_w={}, text_w={}",
+        text_left, text_right, cell.content.width, text.content.width);
+}
+
+// ============================================================================
+// Auto column widths proportional to content
+// ============================================================================
+
+table_test!(auto_columns_wider_for_wider_content,
+    r#"<table style="width:400px; border-spacing:2px">
+        <tr>
+            <td style="padding:8px">Layout engine</td>
+            <td style="padding:8px">Done</td>
+        </tr>
+    </table>"#, 800.0, |t| {
+    // "Layout engine" is much wider than "Done", so the first column
+    // should be wider than the second in auto table layout.
+    let mut cells = Vec::new();
+    find_cells(t, &mut cells);
+    assert_eq!(cells.len(), 2);
+    assert!(cells[0].content.width > cells[1].content.width,
+        "wider-content column ({}) should be wider than narrow-content column ({})",
+        cells[0].content.width, cells[1].content.width);
 });

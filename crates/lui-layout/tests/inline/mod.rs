@@ -1,3 +1,5 @@
+mod whitespace_collapsing;
+
 use lui_cascade::cascade::InteractionState;
 use lui_cascade::media::MediaContext;
 use lui_layout::{BoxKind, LayoutBox, engine::layout_tree};

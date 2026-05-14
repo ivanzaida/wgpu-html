@@ -295,7 +295,7 @@ table {
   text-indent: initial;
 }
 td, th { padding: 1px; }
-th { font-weight: bold; }
+th { font-weight: bold; text-align: center; }
 
 caption { text-align: center; }
 thead, tbody, tfoot, table > tr { vertical-align: middle; }
@@ -449,13 +449,13 @@ table[rules=rows i] > tbody > tr, table[rules=rows i] > tfoot > tr {
 /* --- 15.3.8 Quirks mode --- */
 
 table {
-  font-weight: initial;
-  font-style: initial;
-  font-variant: initial;
-  font-size: initial;
-  line-height: initial;
-  white-space: initial;
-  text-align: initial;
+  font-weight: 400;
+  font-style: normal;
+  font-variant: normal;
+  font-size: 16px;
+  line-height: normal;
+  white-space: normal;
+  text-align: start;
 }
 
 :is(table, thead, tbody, tfoot, tr) > form { display: none !important; }

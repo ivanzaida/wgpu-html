@@ -13,9 +13,19 @@ pub fn paint_text(
     dl: &mut DisplayList,
     dpi_scale: f32,
 ) {
-    let text = match &b.node.element {
+    let raw_text = match &b.node.element {
         lui_core::HtmlElement::Text(s) => s.as_ref(),
         _ => return,
+    };
+    if raw_text.is_empty() { return; }
+
+    let ws = style::css_str(b.style.white_space);
+    let collapsed;
+    let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
+        collapsed = lui_layout::flow::collapse_whitespace(raw_text);
+        collapsed.as_str()
+    } else {
+        raw_text
     };
     if text.is_empty() { return; }
 
@@ -23,7 +33,7 @@ pub fn paint_text(
     color[3] *= opacity;
     if color[3] <= 0.0 { return; }
 
-    let font_size = style::css_f32(b.style.font_size).max(1.0);
+    let font_size = style::css_font_size(b.style.font_size);
     let line_height = match b.style.line_height {
         Some(lui_core::CssValue::Dimension { value, unit: lui_core::CssUnit::Px }) => *value as f32,
         Some(lui_core::CssValue::Number(n)) => *n as f32 * font_size,
@@ -118,7 +128,7 @@ pub fn paint_list_marker(
     color[3] *= opacity;
     if color[3] <= 0.0 { return; }
 
-    let font_size = style::css_f32(b.style.font_size).max(1.0);
+    let font_size = style::css_font_size(b.style.font_size);
     let line_height = font_size * 1.2;
     let weight = 400;
 
