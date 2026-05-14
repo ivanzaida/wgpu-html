@@ -32,8 +32,9 @@ pub fn paint_text(
         Some(lui_core::CssValue::Number(n)) => (*n as u16).min(1000),
         _ => 400,
     };
+    let font_family = style::css_str(b.style.font_family);
 
-    let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color);
+    let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family);
 
     for glyph in &run.glyphs {
         if glyph.uv_min == [0.0; 2] && glyph.uv_max == [0.0; 2] { continue; }
@@ -113,7 +114,8 @@ pub fn paint_list_marker(
     let line_height = font_size * 1.2;
     let weight = 400;
 
-    let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color);
+    let font_family = style::css_str(b.style.font_family);
+    let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family);
     let marker_x = content_x - run.width;
 
     for glyph in &run.glyphs {

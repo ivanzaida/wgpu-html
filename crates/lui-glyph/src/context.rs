@@ -188,12 +188,14 @@ impl TextContext {
         line_height: f32,
         weight: u16,
         color: [f32; 4],
+        font_family: &str,
     ) -> ShapedRun {
         self.maybe_invalidate_text_cache();
 
+        let family = if font_family.is_empty() { "sans-serif" } else { font_family };
         let cache_key = TextCacheKey {
             text_hash: hash_str(text),
-            family_hash: hash_str("sans-serif"),
+            family_hash: hash_str(family),
             size_px_bits: font_size.to_bits(),
             line_height_bits: line_height.to_bits(),
             weight,
@@ -209,7 +211,7 @@ impl TextContext {
             self.text_cache.remove(&cache_key);
         }
 
-        let ts = TextStyle { font_family: "sans-serif", font_size, line_height, weight, ..Default::default() };
+        let ts = TextStyle { font_family: family, font_size, line_height, weight, ..Default::default() };
         let attrs = crate::shape::build_attrs(&ts);
 
         let metrics = Metrics::new(font_size, line_height);
@@ -253,16 +255,13 @@ impl TextContext {
                     }
                 };
 
-                let pos_x = (physical.x as f32 + entry.left as f32).round();
-                let pos_y = (run.line_y - entry.top as f32).round();
-
                 let uv_min = [entry.rect.x as f32 / atlas_w as f32, entry.rect.y as f32 / atlas_h as f32];
                 let uv_max = [
                     (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
                     (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
                 ];
                 glyphs.push(PositionedGlyph {
-                    glyph_id: g.glyph_id, x: pos_x, y: pos_y,
+                    glyph_id: g.glyph_id, x: g.x, y: run.line_y,
                     w: g.w, h: line_height,
                     uv_min, uv_max, color,
                 });
