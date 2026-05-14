@@ -214,7 +214,7 @@ impl TextContext {
 
         let metrics = Metrics::new(font_size, line_height);
         let mut buffer = Buffer::new(self.font_ctx.font_system_mut(), metrics);
-        buffer.set_size(Some(font_size), Some(line_height));
+        buffer.set_size(None, None);
         buffer.set_text(text, &attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(self.font_ctx.font_system_mut(), false);
 
