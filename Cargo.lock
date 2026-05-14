@@ -3645,7 +3645,6 @@ dependencies = [
  "lui-core",
  "lui-glyph",
  "lui-layout",
- "lui-models",
  "lui-parse",
  "pollster",
  "raw-window-handle",
@@ -3690,6 +3689,10 @@ version = "0.1.0"
 dependencies = [
  "atty",
  "lui",
+ "lui-cascade",
+ "lui-glyph",
+ "lui-layout",
+ "lui-parse",
 ]
 
 [[package]]

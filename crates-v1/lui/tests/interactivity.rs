@@ -1,12 +1,14 @@
 use std::sync::{
-  Arc, Mutex,
-  atomic::{AtomicUsize, Ordering},
+  atomic::{AtomicUsize, Ordering}, Arc,
+  Mutex,
 };
 
-use lui::interactivity::*;
 use lui_layout_old::LayoutBox;
 use lui_models::common::{Cursor, PointerEvents, UserSelect};
 use lui_tree::{MouseButton, Node, SelectionColors, Tree};
+use lui_v1::interactivity::{
+  edit_cursor_for_click_count, mouse_down, mouse_down_with_click_count, mouse_up, pointer_leave, pointer_move,
+};
 
 fn synthetic_text_layout() -> LayoutBox {
   let r = lui_layout_old::Rect::new(0.0, 0.0, 80.0, 20.0);

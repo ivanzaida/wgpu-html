@@ -1,4 +1,4 @@
-use lui::paint::*;
+use lui_v1::paint::*;
 
 #[test]
 fn border_emits_four_edge_quads() {

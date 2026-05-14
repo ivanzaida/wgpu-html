@@ -1,5 +1,5 @@
-use lui::{paint::*, renderer::DisplayList};
 use lui_layout_old::LayoutBox;
+use lui_v1::{paint::*, renderer::DisplayList};
 
 fn simple_body_with_glyphs() -> LayoutBox {
   let r = lui_layout_old::Rect::new(0.0, 0.0, 800.0, 24.0);
@@ -80,9 +80,9 @@ fn simple_body_with_glyphs() -> LayoutBox {
   }
 }
 
-fn assert_glyphs_fit_clips(list: &lui::renderer::DisplayList) {
+fn assert_glyphs_fit_clips(list: &lui_v1::renderer::DisplayList) {
   for cmd in &list.commands {
-    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph {
+    if cmd.kind != lui_v1::renderer::DisplayCommandKind::Glyph {
       continue;
     }
     let g = &list.glyphs[cmd.index as usize];

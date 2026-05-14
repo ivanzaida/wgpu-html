@@ -5,8 +5,9 @@ edition = "2024"
 
 [features]
 default = []
-wgpu = ["dep:wgpu", "dep:bytemuck", "dep:image", "dep:lui-models", "dep:pollster"]
+wgpu = ["dep:wgpu", "dep:bytemuck", "dep:image", "dep:pollster"]
 winit = ["dep:winit"]
+ua_whatwg = []
 
 [dependencies]
 lui-core.workspace = true
@@ -19,6 +20,5 @@ raw-window-handle = "0.6"
 wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
-lui-models = { workspace = true, optional = true }
 pollster = { workspace = true, optional = true }
 winit = { workspace = true, optional = true }

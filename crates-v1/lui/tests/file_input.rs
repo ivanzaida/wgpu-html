@@ -22,10 +22,10 @@ fn file_input_has_form_control() {
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut images = lui_layout_old::ImageCache::default();
-  let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
+  let layout = lui_v1::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
-  let lb = lui::layout_at_path(&root, &path).unwrap();
+  let lb = lui_v1::layout_at_path(&root, &path).unwrap();
   assert!(matches!(
     lb.form_control.as_ref().map(|fc| &fc.kind),
     Some(lui_layout_old::FormControlKind::File { .. })
@@ -38,10 +38,10 @@ fn file_input_has_label_text_run() {
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut images = lui_layout_old::ImageCache::default();
-  let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
+  let layout = lui_v1::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
-  let lb = lui::layout_at_path(&root, &path).unwrap();
+  let lb = lui_v1::layout_at_path(&root, &path).unwrap();
   let run = lb.text_run.as_ref().expect("file input should have label text run");
   assert!(
     run.text.contains("No file chosen") || run.text.contains("file"),
@@ -56,10 +56,10 @@ fn file_input_has_button_text_run() {
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut images = lui_layout_old::ImageCache::default();
-  let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
+  let layout = lui_v1::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
-  let lb = lui::layout_at_path(&root, &path).unwrap();
+  let lb = lui_v1::layout_at_path(&root, &path).unwrap();
   let fb = lb.file_button.as_ref().expect("file input should have FileButtonStyle");
   let btn_run = fb
     .text_run
@@ -78,10 +78,10 @@ fn button_and_label_are_separate_runs() {
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut images = lui_layout_old::ImageCache::default();
-  let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
+  let layout = lui_v1::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
-  let lb = lui::layout_at_path(&root, &path).unwrap();
+  let lb = lui_v1::layout_at_path(&root, &path).unwrap();
 
   let label_text = &lb.text_run.as_ref().unwrap().text;
   let btn_text = &lb.file_button.as_ref().unwrap().text_run.as_ref().unwrap().text;
@@ -104,14 +104,14 @@ fn file_button_width_includes_padding() {
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut images = lui_layout_old::ImageCache::default();
-  let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
+  let layout = lui_v1::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
-  let lb = lui::layout_at_path(&root, &path).unwrap();
+  let lb = lui_v1::layout_at_path(&root, &path).unwrap();
   let fb = lb.file_button.as_ref().unwrap();
   let btn_run = fb.text_run.as_ref().unwrap();
 
-  let btn_w = lui::paint::file_button_width(lb);
+  let btn_w = lui_v1::paint::file_button_width(lb);
   let expected = fb.padding[3] + btn_run.width + fb.padding[1];
   assert!(
     (btn_w - expected).abs() < 0.01,
@@ -125,12 +125,12 @@ fn label_does_not_overlap_button() {
   tree.register_system_fonts("sans-serif");
   let mut text_ctx = lui_text::TextContext::new(64);
   let mut images = lui_layout_old::ImageCache::default();
-  let layout = lui::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
+  let layout = lui_v1::compute_layout(&tree, &mut text_ctx, &mut images, 800.0, 600.0, 1.0);
   let root = layout.unwrap();
   let path = input_path(&tree);
-  let lb = lui::layout_at_path(&root, &path).unwrap();
+  let lb = lui_v1::layout_at_path(&root, &path).unwrap();
 
-  let btn_w = lui::paint::file_button_width(lb);
+  let btn_w = lui_v1::paint::file_button_width(lb);
   let label_run = lb.text_run.as_ref().unwrap();
   let first_label_glyph_x = label_run.glyphs.first().map(|g| g.x).unwrap_or(0.0);
 

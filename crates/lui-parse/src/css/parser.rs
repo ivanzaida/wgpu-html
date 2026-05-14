@@ -23,6 +23,19 @@ pub fn parse_value(input: &str) -> Result<CssValue, ParseError> {
     Ok(value)
 }
 
+/// Parse a space-separated CSS value into multiple `CssValue`s.
+pub fn parse_values(input: &str) -> Result<Vec<CssValue>, ParseError> {
+    let tokens = tokenize(input);
+    let mut values = Vec::new();
+    let mut pos = 0;
+    while pos < tokens.len() {
+        let (value, next) = parse_tokens(&tokens, pos)?;
+        values.push(value);
+        pos = next;
+    }
+    Ok(values)
+}
+
 fn parse_tokens(tokens: &[Token], pos: usize) -> Result<(CssValue, usize), ParseError> {
     if pos >= tokens.len() {
         return Err(ParseError::new("unexpected end of input", pos));

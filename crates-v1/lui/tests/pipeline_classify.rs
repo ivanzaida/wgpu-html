@@ -3,11 +3,11 @@
 //! These catch regressions where typing in an input triggers FullPipeline
 //! (expensive) instead of LayoutOnly (incremental).
 
-use lui::{PipelineAction, PipelineCache, classify_frame, paint_tree_cached};
 use lui_tree::{self, Tree};
+use lui_v1::{classify_frame, paint_tree_cached, PipelineAction, PipelineCache};
 
 fn parse_and_register_fonts(html: &str) -> Tree {
-  let mut tree = lui::parser::parse(html);
+  let mut tree = lui_v1::parser::parse(html);
   tree.register_system_fonts("sans-serif");
   tree
 }

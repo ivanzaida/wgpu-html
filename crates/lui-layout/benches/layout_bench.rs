@@ -2,15 +2,17 @@ use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use lui_cascade::{
-    cascade::{CascadeContext, InteractionState},
-    media::MediaContext,
+  cascade::{CascadeContext, InteractionState},
+  media::MediaContext,
 };
-use lui_layout::engine::{layout_tree, layout_tree_with};
-use lui_layout::incremental::{layout_tree_incremental_with};
-use lui_layout::text::TextContext;
+use lui_layout::{
+  engine::{layout_tree, layout_tree_with},
+  incremental::layout_tree_incremental_with,
+  text::TextContext,
+};
 use lui_parse::{parse, parse_stylesheet};
 
-const UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
+const UA_CSS: &str = include_str!("../../lui/ua/ua_whatwg.css");
 
 fn setup(html: &str) -> (lui_parse::HtmlDocument, CascadeContext) {
   let full = format!("<html><body>{}</body></html>", html);

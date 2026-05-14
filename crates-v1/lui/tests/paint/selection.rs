@@ -1,6 +1,6 @@
-use lui::{paint::*, renderer::DisplayList};
 use lui_layout_old::LayoutBox;
 use lui_tree::{SelectionColors, TextCursor, TextSelection};
+use lui_v1::{paint::*, renderer::DisplayList};
 
 fn synthetic_text_layout() -> LayoutBox {
   let r = lui_layout_old::Rect::new(10.0, 20.0, 100.0, 24.0);

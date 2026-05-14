@@ -1,4 +1,5 @@
-use lui_tree::{Tree, set_date_value, text_input};
+use lui_tree::{set_date_value, text_input, Tree};
+use lui_v1::paint::byte_offset_to_glyph_index;
 
 fn make_date_tree(value: &str) -> Tree {
   let html = format!(r#"<input type="date" value="{value}"/>"#);
@@ -407,27 +408,26 @@ fn byte_offset_to_glyph_hour_selection() {
   assert_eq!(run.glyph_chars[10], 11, "glyph 10 = char 11 = '1'");
 
   // byte_offset_to_glyph_index must return glyph 10 for byte 11 (start of hour).
-  let start_g = lui::paint::byte_offset_to_glyph_index(&run, 11);
+  let start_g = byte_offset_to_glyph_index(&run, 11);
   assert_eq!(
     start_g, 10,
     "hour selection start should be glyph 10 ('1'), not 11 ('4')"
   );
 
-  let end_g = lui::paint::byte_offset_to_glyph_index(&run, 13);
+  let end_g = byte_offset_to_glyph_index(&run, 13);
   assert_eq!(end_g, 12, "hour selection end should be glyph 12 (':'), not 13 ('3')");
 }
 
 #[test]
 fn byte_offset_to_glyph_minute_selection() {
   let run = synthetic_run("05/09/2025 14:30");
-
-  let start_g = lui::paint::byte_offset_to_glyph_index(&run, 14);
+  let start_g = byte_offset_to_glyph_index(&run, 14);
   assert_eq!(
     start_g, 13,
     "minute selection start should be glyph 13 ('3'), not 14 ('0')"
   );
 
-  let end_g = lui::paint::byte_offset_to_glyph_index(&run, 16);
+  let end_g = byte_offset_to_glyph_index(&run, 16);
   assert_eq!(
     end_g, 15,
     "minute selection end should be glyph 15 (past last), not glyphs.len()"

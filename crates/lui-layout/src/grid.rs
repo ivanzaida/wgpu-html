@@ -620,8 +620,7 @@ pub fn layout_grid<'a>(
             + gap_col * ((placement.col_end - placement.col_start) as f32 - 1.0).max(0.0);
 
         let child_ctx = LayoutContext { containing_width: item_w, ..*ctx };
-        let mut laid = child;
-        crate::block::layout_block(&mut laid, &child_ctx, Point::new(0.0, 0.0), text_ctx, rects, cache, bump);
+        let laid = crate::engine::layout_node(child, &child_ctx, Point::new(0.0, 0.0), text_ctx, rects, cache, bump);
 
         items.push((placement, laid));
     }

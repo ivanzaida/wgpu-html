@@ -893,7 +893,16 @@ pub fn apply_declaration_ref<'a>(
   if longhands.is_empty() {
     style.set(prop, value);
   } else {
-    let expanded = expand_shorthand(prop.clone(), &[value.clone()]);
+    let has_custom_expansion = matches!(prop,
+      CssProperty::Flex | CssProperty::GridArea | CssProperty::GridColumn
+      | CssProperty::GridRow | CssProperty::GridTemplate);
+    let values = match value {
+      CssValue::String(s) | CssValue::Unknown(s) if !has_custom_expansion => {
+        lui_parse::parse_values(s.as_ref()).unwrap_or_else(|_| vec![value.clone()])
+      }
+      _ => vec![value.clone()],
+    };
+    let expanded = expand_shorthand(prop.clone(), &values);
     for (lh_prop, lh_value) in expanded {
       let lh_ref = arena.alloc(lh_value);
       apply_declaration_ref(style, &lh_prop, lh_ref, arena);

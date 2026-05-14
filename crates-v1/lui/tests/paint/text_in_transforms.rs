@@ -1,6 +1,6 @@
-use lui::{paint::*, text::TextContext};
+use lui_v1::{paint::*, text::TextContext};
 
-fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui::renderer::DisplayList {
+fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui_v1::renderer::DisplayList {
   let mut tree = lui_parser::parse(html);
   tree.register_system_fonts("DemoSans");
   let mut ctx = TextContext::new(2048);
@@ -68,7 +68,7 @@ fn flex_row_with_svg_and_text_rotated() {
 
   // Verify no glyph is clipped to a restrictive scissor
   for cmd in &list.commands {
-    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph {
+    if cmd.kind != lui_v1::renderer::DisplayCommandKind::Glyph {
       continue;
     }
     let g = &list.glyphs[cmd.index as usize];
@@ -104,7 +104,7 @@ fn text_not_clipped_by_untransformed_scissor() {
   // With overflow:visible and no parent clips, glyphs should have
   // no restrictive clip rect (rect = None) or a viewport-sized clip.
   for cmd in &list.commands {
-    if cmd.kind != lui::renderer::DisplayCommandKind::Glyph {
+    if cmd.kind != lui_v1::renderer::DisplayCommandKind::Glyph {
       continue;
     }
     let clip = &list.clips[cmd.clip_index as usize];

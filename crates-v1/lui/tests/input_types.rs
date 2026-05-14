@@ -195,8 +195,8 @@ fn password_input_stores_cleartext_but_renders_bullets() {
 
   // Walk the layout tree to find the two inputs' text runs.
   // body → children; each input is a direct child of body.
-  let pw_box = lui::layout_at_path(&layout, &pw_path).expect("password layout box");
-  let txt_box = lui::layout_at_path(&layout, &txt_path).expect("text layout box");
+  let pw_box = lui_v1::layout_at_path(&layout, &pw_path).expect("password layout box");
+  let txt_box = lui_v1::layout_at_path(&layout, &txt_path).expect("text layout box");
 
   let pw_run = pw_box.text_run.as_ref().expect("password should have a text run");
   let txt_run = txt_box.text_run.as_ref().expect("text should have a text run");

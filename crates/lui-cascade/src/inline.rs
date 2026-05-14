@@ -35,7 +35,11 @@ pub fn parse_inline_style(css: &str) -> Vec<Declaration> {
             Ok((property, value)) => {
                 decls.push(Declaration { property, value, important });
             }
-            Err(_) => {}
+            Err(_) => {
+                let property = lui_core::CssProperty::from_name(prop);
+                let value = lui_core::CssValue::String(lui_core::ArcStr::from(val));
+                decls.push(Declaration { property, value, important });
+            }
         }
     }
     decls

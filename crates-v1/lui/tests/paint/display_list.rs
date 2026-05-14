@@ -1,5 +1,5 @@
-use lui::{paint::*, renderer::DisplayList, text::TextContext};
 use lui_layout_old::LayoutBox;
+use lui_v1::{paint::*, renderer::DisplayList, text::TextContext};
 
 #[test]
 fn paints_single_styled_box() {
@@ -136,7 +136,7 @@ fn svg_test_demo_paints_svg_images() {
     list
       .commands
       .iter()
-      .filter(|cmd| cmd.kind == lui::renderer::DisplayCommandKind::Image)
+      .filter(|cmd| cmd.kind == lui_v1::renderer::DisplayCommandKind::Image)
       .count()
       == 8,
     "every SVG image should have an ordered image command"

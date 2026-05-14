@@ -196,6 +196,15 @@ macro_rules! property_field_map {
                 }
             }
 
+            pub fn clear(&mut self, prop: &CssProperty) {
+                match prop {
+                    $(CssProperty::$prop => self.$field = None,)*
+                    _ => {
+                        if let Some(m) = &mut self.extra { m.remove(prop); }
+                    }
+                }
+            }
+
             pub fn get(&self, prop: &CssProperty) -> Option<&'a CssValue> {
                 match prop {
                     $(CssProperty::$prop => self.$field,)*

@@ -1,15 +1,13 @@
 use std::sync::Arc;
 
 use winit::{
-    application::ApplicationHandler,
-    event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoop},
-    window::{Window, WindowAttributes, WindowId},
+  application::ApplicationHandler,
+  event::WindowEvent,
+  event_loop::{ActiveEventLoop, EventLoop},
+  window::{Window, WindowAttributes, WindowId},
 };
 
 use crate::{Driver, Lui};
-
-static UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
 
 pub struct WinitDriver {
   width: u32,
@@ -36,10 +34,7 @@ impl Driver for WinitDriver {
   }
   fn request_redraw(&self) {}
 
-  fn run(self: Box<Self>, mut lui: Lui) {
-    let ua = lui_parse::parse_stylesheet(UA_CSS).unwrap();
-    lui.set_stylesheets(&[ua]);
-
+  fn run(self: Box<Self>, lui: Lui) {
     struct App {
       lui: Lui,
       title: String,

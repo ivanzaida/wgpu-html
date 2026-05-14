@@ -1,4 +1,4 @@
-use lui::paint::*;
+use lui_v1::paint::*;
 
 fn approx(a: f32, b: f32) -> bool {
   (a - b).abs() < 1.0

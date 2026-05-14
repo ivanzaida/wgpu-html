@@ -1,10 +1,10 @@
-use lui::{paint::*, text::TextContext};
+use lui_v1::{paint::*, text::TextContext};
 
 fn approx(a: f32, b: f32) -> bool {
   (a - b).abs() < 0.5
 }
 
-fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui::renderer::DisplayList {
+fn paint_with_fonts(html: &str, w: f32, h: f32) -> lui_v1::renderer::DisplayList {
   let mut tree = lui_parser::parse(html);
   tree.register_system_fonts("DemoSans");
   let mut ctx = TextContext::new(64);

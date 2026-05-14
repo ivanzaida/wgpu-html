@@ -1,7 +1,7 @@
-use lui::{layout_at_path, select_all_text, select_line_at_cursor, select_word_at_cursor, selected_text};
 use lui_layout_old::{LayoutBox, Rect as LR, UserSelect};
 use lui_models::common::PointerEvents;
 use lui_tree::{Node, TextCursor, TextSelection, Tree};
+use lui_v1::{layout_at_path, select_all_text, select_line_at_cursor, select_word_at_cursor, selected_text};
 
 fn text_box(text: &str, x: f32) -> LayoutBox {
   let r = LR::new(x, 0.0, 100.0, 20.0);
