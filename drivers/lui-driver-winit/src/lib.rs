@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use lui_driver::{Driver, Runtime};
+use lui::{Driver, Runtime};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
@@ -46,7 +46,7 @@ impl WinitDriver {
         let winit = Winit { window };
         let mut rt = Runtime::new(winit, renderer);
 
-        let ua = lui_parse::parse_stylesheet(include_str!("../../../.data/ua_whatwg_html.css")).unwrap();
+        let ua = lui::lui_parse::parse_stylesheet(include_str!("../../../.data/ua_whatwg_html.css")).unwrap();
         rt.set_stylesheets(&[ua]);
         rt.lui.set_html(html);
 
@@ -97,12 +97,12 @@ impl WinitDriver {
     }
 
     /// Capture the current document to a PNG file.
-    pub fn screenshot_to(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), lui_driver::RenderError> {
+    pub fn screenshot_to(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), lui::RenderError> {
         self.rt.screenshot_to(path)
     }
 
     /// Render the current document to RGBA pixels.
-    pub fn render_to_rgba(&mut self) -> Result<Vec<u8>, lui_driver::RenderError> {
+    pub fn render_to_rgba(&mut self) -> Result<Vec<u8>, lui::RenderError> {
         self.rt.render_to_rgba()
     }
 }

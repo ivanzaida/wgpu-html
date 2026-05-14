@@ -7,17 +7,14 @@ use lui_glyph::{FontFace, FontHandle, TextContext};
 use lui_layout::engine::LayoutEngine;
 use lui_parse::{HtmlDocument, Stylesheet};
 
-/// Renderer-agnostic HTML engine.
+/// HTML rendering engine.
 ///
-/// Owns the full pipeline from HTML to `DisplayList`:
-/// ```text
-/// HTML → parse → cascade → layout → paint → DisplayList
-/// ```
+/// Always available: the renderer-agnostic pipeline
+/// (parse → cascade → layout → paint → `DisplayList`).
 ///
-/// Platform drivers (winit, egui, bevy) own a `Lui` instance and feed
-/// the produced `DisplayList` to their renderer each frame.
+/// With the **`winit`** feature: `run()` opens a GPU-accelerated window.
 pub struct Lui {
-    doc: HtmlDocument,
+    pub doc: HtmlDocument,
     pub text_ctx: TextContext,
     cascade_ctx: CascadeContext,
     layout_engine: LayoutEngine,
@@ -98,9 +95,6 @@ impl Lui {
     // ── Pipeline ─────────────────────────────────────────────────────
 
     /// Run cascade → layout → paint and return a `DisplayList`.
-    ///
-    /// Coordinates in the list are in logical (CSS) pixels.
-    /// `list.dpi_scale` tells the renderer how to map to physical pixels.
     pub fn paint(&mut self) -> DisplayList {
         let scale = self.dpi_scale;
         let vw = self.viewport_width;
@@ -120,12 +114,113 @@ impl Lui {
         list
     }
 
-    /// Flush dirty atlas regions. Call this after `paint()` before
-    /// submitting the display list to the renderer.
+    /// Flush dirty atlas regions to a custom sink.
     pub fn flush_atlas(&mut self, mut sink: impl FnMut(u32, u32, u32, u32, &[u8])) {
         self.text_ctx.flush_dirty(|rect, data| {
             sink(rect.x, rect.y, rect.w, rect.h, data);
         });
+    }
+}
+
+// ── winit feature: windowed app ──────────────────────────────────────
+
+#[cfg(feature = "winit")]
+impl Lui {
+    /// Open a window and run the event loop. Blocks until closed.
+    pub fn run(self, width: u32, height: u32, title: &str) {
+        use crate::RenderBackend;
+        use std::sync::Arc;
+        use winit::application::ApplicationHandler;
+        use winit::event::WindowEvent;
+        use winit::event_loop::{ActiveEventLoop, EventLoop};
+        use winit::window::{WindowAttributes, WindowId};
+
+        struct App {
+            lui: Lui,
+            renderer: Option<lui_renderer_wgpu::Renderer>,
+            window: Option<Arc<winit::window::Window>>,
+            title: String,
+            initial_size: (u32, u32),
+        }
+
+        impl ApplicationHandler for App {
+            fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+                if self.window.is_some() { return; }
+                let attrs = WindowAttributes::default()
+                    .with_title(&self.title)
+                    .with_inner_size(winit::dpi::LogicalSize::new(
+                        self.initial_size.0, self.initial_size.1,
+                    ));
+                let window = Arc::new(event_loop.create_window(attrs).unwrap());
+                let (w, h) = {
+                    let s = window.inner_size();
+                    (s.width.max(1), s.height.max(1))
+                };
+                self.renderer = Some(pollster::block_on(
+                    lui_renderer_wgpu::Renderer::new(window.clone(), w, h),
+                ));
+                self.window = Some(window);
+            }
+
+            fn window_event(
+                &mut self,
+                event_loop: &ActiveEventLoop,
+                _id: WindowId,
+                event: WindowEvent,
+            ) {
+                match &event {
+                    WindowEvent::CloseRequested => {
+                        event_loop.exit();
+                    }
+                    WindowEvent::RedrawRequested => {
+                        let Some(window) = &self.window else { return };
+                        let Some(renderer) = &mut self.renderer else { return };
+                        let size = window.inner_size();
+                        let scale = window.scale_factor() as f32;
+                        self.lui.set_dpi_scale(scale);
+                        self.lui.set_viewport(
+                            size.width as f32 / scale,
+                            size.height as f32 / scale,
+                        );
+                        let list = self.lui.paint();
+                        self.lui.text_ctx.flush_dirty(|rect, data| {
+                            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+                        });
+                        let outcome = renderer.render(&list);
+                        if matches!(outcome, lui_display_list::FrameOutcome::Reconfigure) {
+                            renderer.resize(size.width, size.height);
+                            window.request_redraw();
+                        }
+                    }
+                    WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
+                        if let Some(r) = &mut self.renderer { r.resize(size.width, size.height); }
+                        if let Some(w) = &self.window { w.request_redraw(); }
+                    }
+                    WindowEvent::ScaleFactorChanged { .. } => {
+                        if let (Some(w), Some(r)) = (&self.window, &mut self.renderer) {
+                            let s = w.inner_size();
+                            r.resize(s.width, s.height);
+                            w.request_redraw();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+                if let Some(w) = &self.window { w.request_redraw(); }
+            }
+        }
+
+        let event_loop = EventLoop::new().unwrap();
+        let mut app = App {
+            lui: self,
+            renderer: None,
+            window: None,
+            title: title.to_string(),
+            initial_size: (width, height),
+        };
+        event_loop.run_app(&mut app).unwrap();
     }
 }
 

@@ -8,3 +8,12 @@ pub use lui_display_list;
 
 mod lui;
 pub use lui::Lui;
+
+mod render_api;
+pub use render_api::{RenderBackend, RenderError};
+
+mod driver;
+pub use driver::{Driver, Runtime};
+
+#[cfg(feature = "winit")]
+pub use winit;

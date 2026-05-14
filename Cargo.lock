@@ -3646,6 +3646,10 @@ dependencies = [
  "lui-layout",
  "lui-paint",
  "lui-parse",
+ "lui-render-api",
+ "lui-renderer-wgpu",
+ "pollster",
+ "winit",
 ]
 
 [[package]]
@@ -3741,9 +3745,6 @@ name = "lui-driver"
 version = "0.1.0"
 dependencies = [
  "lui",
- "lui-display-list",
- "lui-parse",
- "lui-render-api",
 ]
 
 [[package]]
@@ -3787,9 +3788,8 @@ dependencies = [
 name = "lui-driver-winit"
 version = "0.1.0"
 dependencies = [
+ "lui",
  "lui-display-list",
- "lui-driver",
- "lui-parse",
  "lui-renderer-wgpu",
  "pollster",
  "winit",

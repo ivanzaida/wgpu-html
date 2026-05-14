@@ -3,6 +3,10 @@ name = "lui"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+winit = ["dep:lui-renderer-wgpu", "dep:winit", "dep:pollster"]
+
 [dependencies]
 lui-core.workspace = true
 lui-parse.workspace = true
@@ -11,3 +15,8 @@ lui-layout.workspace = true
 lui-glyph.workspace = true
 lui-paint.workspace = true
 lui-display-list.workspace = true
+lui-render-api.workspace = true
+
+lui-renderer-wgpu = { workspace = true, optional = true }
+winit = { workspace = true, optional = true }
+pollster = { workspace = true, optional = true }
