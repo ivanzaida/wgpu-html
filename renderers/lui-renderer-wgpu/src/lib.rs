@@ -22,7 +22,7 @@ pub use lui_display_list::{
   ClipRange, Color, CornerRadii, DisplayCommand, DisplayCommandKind, DisplayList, FrameOutcome, GlyphQuad, ImageQuad,
   Pattern, Quad, Rect, StrokeWidths,
 };
-pub use lui_render_api::{RenderBackend, RenderError};
+pub use lui_display_list::{RenderBackend, RenderError};
 pub use quad_pipeline::QuadPipeline;
 pub use screenshot::ScreenshotError;
 

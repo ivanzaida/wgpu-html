@@ -20,4 +20,11 @@ pub trait Driver {
 }
 
 #[cfg(feature = "winit")]
+mod winit_driver;
+#[cfg(feature = "winit")]
+pub use winit_driver::WinitDriver;
+
+#[cfg(feature = "winit")]
 pub use winit;
+#[cfg(feature = "winit")]
+pub use lui_renderer_wgpu;

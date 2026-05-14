@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-driver-winit = { path = "../../drivers/lui-driver-winit" }
+lui = { workspace = true, features = ["winit"] }
 winit.workspace = true
 atty = "0.2"

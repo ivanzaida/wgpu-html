@@ -3646,7 +3646,6 @@ dependencies = [
  "lui-layout",
  "lui-paint",
  "lui-parse",
- "lui-render-api",
  "lui-renderer-wgpu",
  "pollster",
  "winit",
@@ -3688,7 +3687,7 @@ name = "lui-demo"
 version = "0.1.0"
 dependencies = [
  "atty",
- "lui-driver-winit",
+ "lui",
  "winit",
 ]
 
@@ -3741,13 +3740,6 @@ name = "lui-display-list"
 version = "0.1.0"
 
 [[package]]
-name = "lui-driver"
-version = "0.1.0"
-dependencies = [
- "lui",
-]
-
-[[package]]
 name = "lui-driver-bevy-v1"
 version = "0.1.0"
 dependencies = [
@@ -3778,21 +3770,10 @@ dependencies = [
 name = "lui-driver-v1"
 version = "0.1.0"
 dependencies = [
- "lui-render-api",
+ "lui-display-list",
  "lui-text",
  "lui-tree",
  "lui-v1",
-]
-
-[[package]]
-name = "lui-driver-winit"
-version = "0.1.0"
-dependencies = [
- "lui",
- "lui-display-list",
- "lui-renderer-wgpu",
- "pollster",
- "winit",
 ]
 
 [[package]]
@@ -3885,13 +3866,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lui-render-api"
-version = "0.1.0"
-dependencies = [
- "lui-display-list",
-]
-
-[[package]]
 name = "lui-renderer-wgpu"
 version = "0.1.0"
 dependencies = [
@@ -3899,7 +3873,6 @@ dependencies = [
  "image",
  "lui-display-list",
  "lui-models",
- "lui-render-api",
  "pollster",
  "wgpu 29.0.3",
 ]

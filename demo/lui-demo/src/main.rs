@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lui_driver_winit::WinitDriver;
+use lui::WinitDriver;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
