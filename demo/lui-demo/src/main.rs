@@ -1,4 +1,4 @@
-use lui::Lui;
+use lui::{Lui, WinitDriver};
 
 const DEFAULT_HTML: &str = include_str!("../html/test.html");
 
@@ -23,5 +23,6 @@ fn read_html() -> String {
 fn main() {
     let mut lui = Lui::new();
     lui.set_html(&read_html());
-    lui.run(800, 600, "lui v2 demo");
+    lui.driver = Some(Box::new(WinitDriver::new(800, 600, "lui v2 demo")));
+    lui.run();
 }

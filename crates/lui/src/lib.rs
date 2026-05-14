@@ -13,18 +13,21 @@ pub use lui::Lui;
 mod render_api;
 pub use render_api::{RenderBackend, RenderError};
 
-/// Minimal trait for platform windows.
+/// Platform driver — provides window info and runs the event loop.
 pub trait Driver {
     fn inner_size(&self) -> (u32, u32);
     fn scale_factor(&self) -> f64;
     fn request_redraw(&self);
+    fn run(self: Box<Self>, lui: Lui);
 }
 
 #[cfg(feature = "wgpu")]
 pub mod renderer_wgpu;
 
 #[cfg(feature = "winit")]
-pub mod winit_driver;
+mod winit_driver;
+#[cfg(feature = "winit")]
+pub use winit_driver::WinitDriver;
 
 #[cfg(feature = "winit")]
 pub use winit;
