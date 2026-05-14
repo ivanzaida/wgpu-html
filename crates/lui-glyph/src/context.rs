@@ -268,7 +268,7 @@ impl TextContext {
                     (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
                     (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
                 ];
-                let gx = (g.x + entry.left as f32).round() * inv;
+                let gx = (g.x + entry.left as f32) * inv;
                 let gy = (run.line_y - entry.top as f32).round() * inv;
                 glyphs.push(PositionedGlyph {
                     glyph_id: g.glyph_id, x: gx, y: gy,
