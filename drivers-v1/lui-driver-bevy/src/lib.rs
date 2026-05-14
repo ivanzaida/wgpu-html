@@ -19,10 +19,10 @@ use bevy::{
   render::render_resource::{Extent3d, TextureDimension, TextureFormat},
   window::CursorMoved,
 };
-use lui_v1::interactivity;
 use lui_renderer_wgpu::{RenderBackend, Renderer};
 use lui_text::TextContext;
 use lui_tree::{Modifier, MouseButton as HtmlMouseButton, Node as HtmlNode, Tree};
+use lui_v1::interactivity;
 
 // ── Plugin ─────────────────────────────────────────────────────────────────
 

@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use lui_core::events::{DocumentEvent, EventInit};
-use lui_core::{EventHandler, EventListenerOptions, HtmlElement, HtmlNode};
+use lui_core::{
+  EventHandler, EventListenerOptions, HtmlElement, HtmlNode,
+  events::{DocumentEvent, EventInit},
+};
 
 fn cancelable_click() -> DocumentEvent {
   DocumentEvent::Event(EventInit {
@@ -37,7 +39,10 @@ fn passive_handler_cannot_prevent_default() {
   node.add_event_listener_with_options(
     "click",
     handler,
-    EventListenerOptions { passive: true, ..Default::default() },
+    EventListenerOptions {
+      passive: true,
+      ..Default::default()
+    },
   );
 
   let mut event = cancelable_click();
@@ -77,7 +82,10 @@ fn passive_does_not_undo_earlier_prevent_default() {
   node.add_event_listener_with_options(
     "click",
     passive_noop,
-    EventListenerOptions { passive: true, ..Default::default() },
+    EventListenerOptions {
+      passive: true,
+      ..Default::default()
+    },
   );
 
   let mut event = cancelable_click();
@@ -99,7 +107,10 @@ fn passive_handler_prevent_default_ignored_but_later_non_passive_can_still_preve
   node.add_event_listener_with_options(
     "click",
     passive_preventer,
-    EventListenerOptions { passive: true, ..Default::default() },
+    EventListenerOptions {
+      passive: true,
+      ..Default::default()
+    },
   );
   node.add_event_listener("click", non_passive_preventer);
 

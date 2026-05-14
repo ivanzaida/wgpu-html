@@ -1,4 +1,11 @@
-use crate::{at_rule::AtRuleRegistry, declaration::DeclarationBlock, stylesheet::{CssRule, StyleRule, Stylesheet, UnknownAtRule}, syntax::{self, parse_raw_declarations, RawRule}, values::ArcStr, warn_once};
+use crate::{
+  at_rule::AtRuleRegistry,
+  declaration::DeclarationBlock,
+  stylesheet::{CssRule, StyleRule, Stylesheet, UnknownAtRule},
+  syntax::{self, parse_raw_declarations, RawRule},
+  values::ArcStr,
+  warn_once,
+};
 
 pub struct CssParser {
   registry: AtRuleRegistry,

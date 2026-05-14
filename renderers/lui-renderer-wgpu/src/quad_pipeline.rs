@@ -321,7 +321,10 @@ impl QuadPipeline {
     let count = list.quads.len() as u32;
     self.instance_count = count;
     let s = list.dpi_scale.max(1.0);
-    self.viewport = [(viewport[0] * s).max(0.0).round() as u32, (viewport[1] * s).max(0.0).round() as u32];
+    self.viewport = [
+      (viewport[0] * s).max(0.0).round() as u32,
+      (viewport[1] * s).max(0.0).round() as u32,
+    ];
 
     // Build the per-clip-range globals + clip runs. We allocate
     // one slot per *non-empty* clip range; a list with no clipping

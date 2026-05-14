@@ -18,7 +18,12 @@ fn is_void_element(tag: &str) -> bool {
 /// `filtered_attrs` excludes `class`, `aria-*`, and `data-*` entries.
 fn extract_node_attrs(
   attrs: Vec<(ArcStr, ArcStr)>,
-) -> (Vec<(ArcStr, ArcStr)>, Vec<ArcStr>, HashMap<ArcStr, ArcStr>, HashMap<ArcStr, ArcStr>) {
+) -> (
+  Vec<(ArcStr, ArcStr)>,
+  Vec<ArcStr>,
+  HashMap<ArcStr, ArcStr>,
+  HashMap<ArcStr, ArcStr>,
+) {
   let mut filtered = Vec::new();
   let mut class_list = Vec::new();
   let mut aria_attrs = HashMap::new();
@@ -27,10 +32,7 @@ fn extract_node_attrs(
   for (name, value) in attrs {
     match name.as_ref() {
       "class" => {
-        class_list = value
-          .split_ascii_whitespace()
-          .map(|c| ArcStr::from(c))
-          .collect();
+        class_list = value.split_ascii_whitespace().map(|c| ArcStr::from(c)).collect();
       }
       _ if name.starts_with("aria-") => {
         let suffix = ArcStr::from(&name[5..]);
@@ -161,7 +163,15 @@ impl TreeBuilder {
           } else {
             // Auto-close certain elements before opening a new one.
             self.auto_close_before(&name);
-            self.stack.push((name, element, Vec::new(), filtered_attrs, class_list, aria_attrs, data_attrs));
+            self.stack.push((
+              name,
+              element,
+              Vec::new(),
+              filtered_attrs,
+              class_list,
+              aria_attrs,
+              data_attrs,
+            ));
           }
         }
         Token::CloseTag(name) => self.close_tag(&name),
@@ -186,9 +196,7 @@ impl TreeBuilder {
   /// Pop the top element from the stack and add it as a child to its parent.
   /// If the popped element is `None` (unknown tag), the subtree is discarded.
   fn pop_element(&mut self) {
-    let Some((_tag_name, element, children, raw_attrs, class_list, aria_attrs, data_attrs)) =
-      self.stack.pop()
-    else {
+    let Some((_tag_name, element, children, raw_attrs, class_list, aria_attrs, data_attrs)) = self.stack.pop() else {
       return;
     };
     if let Some(el) = element {

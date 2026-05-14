@@ -1,10 +1,17 @@
 use std::sync::Arc;
 
-use lui_core::events::{DocumentEvent, EventInit};
-use lui_core::{EventHandler, HtmlElement, HtmlNode};
+use lui_core::{
+  EventHandler, HtmlElement, HtmlNode,
+  events::{DocumentEvent, EventInit},
+};
 
 fn click_event() -> DocumentEvent {
-  DocumentEvent::Event(EventInit { event_type: "click".into(), bubbles: true, cancelable: true, ..Default::default() })
+  DocumentEvent::Event(EventInit {
+    event_type: "click".into(),
+    bubbles: true,
+    cancelable: true,
+    ..Default::default()
+  })
 }
 
 #[test]

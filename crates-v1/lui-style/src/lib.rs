@@ -787,11 +787,7 @@ fn hash_element_signature(
       .iter()
       .filter_map(|c| {
         let s: &str = c.as_ref();
-        if relevant_class(sheets, s) {
-          Some(s)
-        } else {
-          None
-        }
+        if relevant_class(sheets, s) { Some(s) } else { None }
       })
       .collect();
     classes.sort_unstable();
@@ -1128,36 +1124,12 @@ fn re_cascade_dirty(
     if !style.var_properties.is_empty() || style.custom_properties.values().any(|v| v.contains("var(")) {
       lui_parser::resolve_var_references(&mut style);
     }
-    cached.before = compute_pseudo_element_style(
-      PseudoElement::Before,
-      node,
-      &style,
-      sheets,
-      root,
-      path,
-      interaction,
-    )
-    .map(Box::new);
-    cached.after = compute_pseudo_element_style(
-      PseudoElement::After,
-      node,
-      &style,
-      sheets,
-      root,
-      path,
-      interaction,
-    )
-    .map(Box::new);
-    cached.first_line = compute_pseudo_style_only(
-      PseudoElement::FirstLine,
-      node,
-      &style,
-      sheets,
-      root,
-      path,
-      interaction,
-    )
-    .map(Box::new);
+    cached.before =
+      compute_pseudo_element_style(PseudoElement::Before, node, &style, sheets, root, path, interaction).map(Box::new);
+    cached.after =
+      compute_pseudo_element_style(PseudoElement::After, node, &style, sheets, root, path, interaction).map(Box::new);
+    cached.first_line =
+      compute_pseudo_style_only(PseudoElement::FirstLine, node, &style, sheets, root, path, interaction).map(Box::new);
     cached.first_letter = compute_pseudo_style_only(
       PseudoElement::FirstLetter,
       node,
@@ -1178,16 +1150,8 @@ fn re_cascade_dirty(
       interaction,
     )
     .map(Box::new);
-    cached.selection = compute_pseudo_style_only(
-      PseudoElement::Selection,
-      node,
-      &style,
-      sheets,
-      root,
-      path,
-      interaction,
-    )
-    .map(Box::new);
+    cached.selection =
+      compute_pseudo_style_only(PseudoElement::Selection, node, &style, sheets, root, path, interaction).map(Box::new);
     cached.marker = compute_marker(node, &style, root, path, sheets, interaction).map(Box::new);
     cached.style = style;
   }
@@ -1951,36 +1915,12 @@ fn cascade_node(
       cn
     })
     .collect();
-  let before = compute_pseudo_element_style(
-    PseudoElement::Before,
-    node,
-    &style,
-    sheets,
-    root,
-    path,
-    interaction,
-  )
-  .map(Box::new);
-  let after = compute_pseudo_element_style(
-    PseudoElement::After,
-    node,
-    &style,
-    sheets,
-    root,
-    path,
-    interaction,
-  )
-  .map(Box::new);
-  let first_line = compute_pseudo_style_only(
-    PseudoElement::FirstLine,
-    node,
-    &style,
-    sheets,
-    root,
-    path,
-    interaction,
-  )
-  .map(Box::new);
+  let before =
+    compute_pseudo_element_style(PseudoElement::Before, node, &style, sheets, root, path, interaction).map(Box::new);
+  let after =
+    compute_pseudo_element_style(PseudoElement::After, node, &style, sheets, root, path, interaction).map(Box::new);
+  let first_line =
+    compute_pseudo_style_only(PseudoElement::FirstLine, node, &style, sheets, root, path, interaction).map(Box::new);
   let first_letter = compute_pseudo_style_only(
     PseudoElement::FirstLetter,
     node,
@@ -2001,16 +1941,8 @@ fn cascade_node(
     interaction,
   )
   .map(Box::new);
-  let selection = compute_pseudo_style_only(
-    PseudoElement::Selection,
-    node,
-    &style,
-    sheets,
-    root,
-    path,
-    interaction,
-  )
-  .map(Box::new);
+  let selection =
+    compute_pseudo_style_only(PseudoElement::Selection, node, &style, sheets, root, path, interaction).map(Box::new);
 
   let marker = compute_marker(node, &style, root, path, sheets, interaction).map(Box::new);
 
@@ -2230,14 +2162,7 @@ pub fn computed_decls_in_tree(
   ancestors: &[&Node],
 ) -> (Style, HashMap<ArcStr, CssWideKeyword>) {
   let with_default: Vec<(&Node, MatchContext)> = ancestors.iter().map(|n| (*n, MatchContext::default())).collect();
-  computed_decls_in_tree_with_context(
-    node,
-    &MatchContext::default(),
-    sheet,
-    &with_default,
-    None,
-    &[],
-  )
+  computed_decls_in_tree_with_context(node, &MatchContext::default(), sheet, &with_default, None, &[])
 }
 
 /// Stateful variant of [`computed_decls_in_tree`]. Each ancestor is

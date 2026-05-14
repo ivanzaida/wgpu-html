@@ -1029,6 +1029,7 @@ fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext
     overflow_x,
     overflow_y,
     scrollbar_color,
+    scrollbar_gutter,
     scrollbar_width,
     transform,
     transform_origin,

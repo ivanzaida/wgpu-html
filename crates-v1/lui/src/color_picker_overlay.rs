@@ -382,7 +382,8 @@ pub fn update_cached_layout(tree: &mut Tree, text_ctx: &mut TextContext) {
   let prev_gen = cp.layout_generation;
   let picker_tree = build_picker_tree(cp);
   let mut image_cache = lui_layout_old::ImageCache::default();
-  let Some(mut layout) = lui_layout_old::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
+  let Some(mut layout) =
+    lui_layout_old::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
   else {
     return;
   };

@@ -16,14 +16,10 @@ pub mod font_registry;
 pub mod shape;
 
 pub use atlas::{Atlas, AtlasEntry, AtlasRect};
-pub use context::{
-    LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan,
-    TextContext, text_style_from_cascade,
-};
+pub use context::{LeafSegment, ParagraphLayout, ParagraphLine, ParagraphSpan, TextContext, text_style_from_cascade};
 pub use font::FontContext;
 pub use font_face::{FontFace, FontHandle, FontStyleAxis};
 pub use font_registry::FontRegistry;
 pub use shape::{
-    PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle,
-    parse_line_height_multiplier, utf8_boundaries,
+  PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle, parse_line_height_multiplier, utf8_boundaries,
 };

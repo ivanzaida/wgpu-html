@@ -795,3 +795,11 @@ select {
   display: inline-block;
   block-size: calc(max(24px, 1lh) * attr(size type(<integer>), 4));
 }
+
+/* Minimal engine-compatible scrollbar defaults.
+   The Gecko/XUL scrollbar UA rules are far more complex, but this engine
+   only needs default width/color on scrollable boxes and the viewport. */
+html, body, * {
+  scrollbar-width: auto;
+  scrollbar-color: lightgray darkgray;
+}

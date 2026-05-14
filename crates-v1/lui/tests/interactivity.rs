@@ -1,6 +1,6 @@
 use std::sync::{
-  atomic::{AtomicUsize, Ordering}, Arc,
-  Mutex,
+  Arc, Mutex,
+  atomic::{AtomicUsize, Ordering},
 };
 
 use lui_layout_old::LayoutBox;

@@ -31,7 +31,10 @@ pub fn resolve_margin_against(style: &ComputedStyle, containing_width: f32) -> M
   let mut auto_mask: u8 = 0;
   let mut m = |i: usize, val: Option<&CssValue>| -> f32 {
     match val {
-      Some(CssValue::Dimension { value, unit: CssUnit::Px }) => *value as f32,
+      Some(CssValue::Dimension {
+        value,
+        unit: CssUnit::Px,
+      }) => *value as f32,
       Some(&CssValue::Number(n)) => n as f32,
       Some(&CssValue::Percentage(p)) => (p as f32 / 100.0) * containing_width,
       Some(CssValue::Unknown(s)) | Some(CssValue::String(s)) if s.as_ref() == "auto" => {
@@ -79,7 +82,10 @@ pub fn resolve_padding_against(style: &ComputedStyle, containing_width: f32) -> 
 
 fn resolve_size(val: Option<&CssValue>) -> f32 {
   match val {
-    Some(CssValue::Dimension { value, unit: CssUnit::Px }) => *value as f32,
+    Some(CssValue::Dimension {
+      value,
+      unit: CssUnit::Px,
+    }) => *value as f32,
     Some(&CssValue::Number(n)) => n as f32,
     _ => 0.0,
   }
@@ -87,7 +93,10 @@ fn resolve_size(val: Option<&CssValue>) -> f32 {
 
 fn resolve_size_pct(val: Option<&CssValue>, containing_width: f32) -> f32 {
   match val {
-    Some(CssValue::Dimension { value, unit: CssUnit::Px }) => *value as f32,
+    Some(CssValue::Dimension {
+      value,
+      unit: CssUnit::Px,
+    }) => *value as f32,
     Some(&CssValue::Number(n)) => n as f32,
     Some(&CssValue::Percentage(p)) => (p as f32 / 100.0) * containing_width,
     _ => 0.0,

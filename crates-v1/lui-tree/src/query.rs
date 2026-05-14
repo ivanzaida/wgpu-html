@@ -14,8 +14,9 @@
 //! - Namespace prefixes (`svg|circle`, `*|*`, `|tag`)
 //! - CSS escape sequences (`\XX` hex, `\.` literal)
 
-use crate::{Element, InteractionState, Node, Tree};
 use lui_models::ArcStr;
+
+use crate::{Element, InteractionState, Node, Tree};
 
 // ── Public types ────────────────────────────────────────────────────────────
 

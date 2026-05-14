@@ -108,7 +108,10 @@ fn paint_tooltip(
   let class_str = if class_list.is_empty() {
     String::new()
   } else {
-    format!(".{}", class_list.iter().map(|c| c.as_ref()).collect::<Vec<_>>().join("."))
+    format!(
+      ".{}",
+      class_list.iter().map(|c| c.as_ref()).collect::<Vec<_>>().join(".")
+    )
   };
   if !class_str.is_empty() {
     segments.push((&class_str, TOOLTIP_CLASS));

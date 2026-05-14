@@ -1,8 +1,9 @@
-use lui_core::{CssColor, CssValue};
+use lui_core::{CssColor, CssFunction, CssUnit, CssValue};
 
 pub fn resolve_color(val: Option<&CssValue>) -> Option<[f32; 4]> {
     match val {
         Some(CssValue::Color(c)) => css_color_to_rgba(c),
+        Some(CssValue::Function { function, args }) => resolve_function_color(function, args),
         Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => parse_color_string(s),
         _ => None,
     }
@@ -32,6 +33,86 @@ fn parse_color_string(s: &str) -> Option<[f32; 4]> {
     if s == "currentcolor" || s == "currentColor" { return None; }
     if s.starts_with('#') { return parse_hex(s); }
     named_color(s)
+}
+
+fn resolve_function_color(function: &CssFunction, args: &[CssValue]) -> Option<[f32; 4]> {
+    match function {
+        CssFunction::Rgb | CssFunction::Rgba => resolve_rgb_function(args),
+        CssFunction::Hsl | CssFunction::Hsla => resolve_hsl_function(args),
+        CssFunction::Hwb => resolve_hwb_function(args),
+        _ => None,
+    }
+}
+
+fn resolve_rgb_function(args: &[CssValue]) -> Option<[f32; 4]> {
+    if !(args.len() == 3 || args.len() == 4) {
+        return None;
+    }
+    let r = rgb_component(&args[0])?;
+    let g = rgb_component(&args[1])?;
+    let b = rgb_component(&args[2])?;
+    let a = args.get(3).and_then(alpha_component).unwrap_or(1.0);
+    Some(srgb_to_linear([r, g, b, a]))
+}
+
+fn resolve_hsl_function(args: &[CssValue]) -> Option<[f32; 4]> {
+    if !(args.len() == 3 || args.len() == 4) {
+        return None;
+    }
+    let h = hue_component(&args[0])?;
+    let s = unit_interval_component(&args[1])?;
+    let l = unit_interval_component(&args[2])?;
+    let a = args.get(3).and_then(alpha_component).unwrap_or(1.0);
+    Some(srgb_to_linear(hsl_to_rgba(h, s, l, a)))
+}
+
+fn resolve_hwb_function(args: &[CssValue]) -> Option<[f32; 4]> {
+    if !(args.len() == 3 || args.len() == 4) {
+        return None;
+    }
+    let h = hue_component(&args[0])?;
+    let w = unit_interval_component(&args[1])?;
+    let b = unit_interval_component(&args[2])?;
+    let a = args.get(3).and_then(alpha_component).unwrap_or(1.0);
+    Some(srgb_to_linear(hwb_to_rgba(h, w, b, a)))
+}
+
+fn rgb_component(value: &CssValue) -> Option<f32> {
+    match value {
+        CssValue::Number(n) => Some((*n as f32 / 255.0).clamp(0.0, 1.0)),
+        CssValue::Percentage(p) => Some((*p as f32 / 100.0).clamp(0.0, 1.0)),
+        _ => None,
+    }
+}
+
+fn unit_interval_component(value: &CssValue) -> Option<f32> {
+    match value {
+        CssValue::Percentage(p) => Some((*p as f32 / 100.0).clamp(0.0, 1.0)),
+        CssValue::Number(n) => Some((*n as f32 / 100.0).clamp(0.0, 1.0)),
+        _ => None,
+    }
+}
+
+fn alpha_component(value: &CssValue) -> Option<f32> {
+    match value {
+        CssValue::Number(n) => Some((*n as f32).clamp(0.0, 1.0)),
+        CssValue::Percentage(p) => Some((*p as f32 / 100.0).clamp(0.0, 1.0)),
+        _ => None,
+    }
+}
+
+fn hue_component(value: &CssValue) -> Option<f32> {
+    match value {
+        CssValue::Number(n) => Some(*n as f32),
+        CssValue::Dimension { value, unit } => Some(match unit {
+            CssUnit::Deg => *value as f32,
+            CssUnit::Rad => (*value as f32).to_degrees(),
+            CssUnit::Grad => *value as f32 * 0.9,
+            CssUnit::Turn => *value as f32 * 360.0,
+            _ => return None,
+        }),
+        _ => None,
+    }
 }
 
 fn srgb_component_to_linear(c: f32) -> f32 {

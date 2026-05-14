@@ -1,6 +1,8 @@
-use std::collections::HashSet;
-use std::fmt;
-use std::sync::{Mutex, OnceLock};
+use std::{
+  collections::HashSet,
+  fmt,
+  sync::{Mutex, OnceLock},
+};
 
 static WARNED_MESSAGES: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 

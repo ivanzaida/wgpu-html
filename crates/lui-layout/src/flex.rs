@@ -9,11 +9,11 @@ use lui_core::Rect;
 use lui_parse::HtmlNode;
 
 use crate::{
-    box_tree::{BoxKind, LayoutBox},
-    context::LayoutContext,
-    geometry::Point,
-    sides, sizes,
-    text::TextContext,
+  box_tree::{BoxKind, LayoutBox},
+  context::LayoutContext,
+  geometry::Point,
+  sides, sizes,
+  text::TextContext,
 };
 
 const EPS: f32 = 0.001;
@@ -1127,7 +1127,9 @@ fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
     if is_row {
       let mut max_h = 0.0_f32;
       for child in &box_.children {
-        if css_str(child.style.display) == "none" { continue; }
+        if css_str(child.style.display) == "none" {
+          continue;
+        }
         max_h = max_h.max(measure_min_content_height(child, text_ctx));
       }
       return max_h + frame;
@@ -1136,11 +1138,15 @@ fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
       let mut total = 0.0_f32;
       let mut count = 0u32;
       for child in &box_.children {
-        if css_str(child.style.display) == "none" { continue; }
+        if css_str(child.style.display) == "none" {
+          continue;
+        }
         total += measure_min_content_height(child, text_ctx);
         count += 1;
       }
-      if count > 1 { total += gap * (count - 1) as f32; }
+      if count > 1 {
+        total += gap * (count - 1) as f32;
+      }
       return total + frame;
     }
   }
@@ -1150,9 +1156,15 @@ fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
   for child in &box_.children {
     let child_h = measure_min_content_height(child, text_ctx);
     match child.kind {
-      BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer
-      | BoxKind::Table | BoxKind::TableRow | BoxKind::TableRowGroup
-      | BoxKind::TableCaption | BoxKind::AnonymousBlock | BoxKind::ListItem => {
+      BoxKind::Block
+      | BoxKind::FlexContainer
+      | BoxKind::GridContainer
+      | BoxKind::Table
+      | BoxKind::TableRow
+      | BoxKind::TableRowGroup
+      | BoxKind::TableCaption
+      | BoxKind::AnonymousBlock
+      | BoxKind::ListItem => {
         block_sum += child_h;
       }
       _ => {
@@ -1223,9 +1235,15 @@ fn measure_max_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
   for child in &box_.children {
     let child_h = measure_max_content_height(child, text_ctx);
     match child.kind {
-      BoxKind::Block | BoxKind::FlexContainer | BoxKind::GridContainer
-      | BoxKind::Table | BoxKind::TableRow | BoxKind::TableRowGroup
-      | BoxKind::TableCaption | BoxKind::AnonymousBlock | BoxKind::ListItem => {
+      BoxKind::Block
+      | BoxKind::FlexContainer
+      | BoxKind::GridContainer
+      | BoxKind::Table
+      | BoxKind::TableRow
+      | BoxKind::TableRowGroup
+      | BoxKind::TableCaption
+      | BoxKind::AnonymousBlock
+      | BoxKind::ListItem => {
         block_sum += child_h;
       }
       _ => {

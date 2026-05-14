@@ -346,7 +346,10 @@ impl GlyphPipeline {
     let count = list.glyphs.len() as u32;
     self.instance_count = count;
     let s = list.dpi_scale.max(1.0);
-    self.viewport = [(viewport[0] * s).max(0.0).round() as u32, (viewport[1] * s).max(0.0).round() as u32];
+    self.viewport = [
+      (viewport[0] * s).max(0.0).round() as u32,
+      (viewport[1] * s).max(0.0).round() as u32,
+    ];
 
     // Build per-clip-range globals + clip runs. Empty ranges are
     // skipped; an all-empty list still gets one default slot so

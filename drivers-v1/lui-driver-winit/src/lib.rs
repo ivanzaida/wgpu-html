@@ -19,9 +19,9 @@
 
 use std::sync::Arc;
 
-use lui_v1::{PipelineTimings, layout::Cursor};
 use lui_driver_v1::{Driver, Runtime};
 use lui_tree::{Modifier, MouseButton, Tree};
+use lui_v1::{PipelineTimings, layout::Cursor};
 use winit::{
   event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta},
   keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
@@ -191,9 +191,14 @@ fn dispatch(event: &WindowEvent, rt: &mut Runtime<Lui, lui_renderer_wgpu::Render
     WindowEvent::MouseWheel { delta, .. } => {
       let scale = tree.effective_dpi_scale(rt.driver.scale_factor() as f32);
       let prevented = match delta {
-        MouseScrollDelta::LineDelta(x, y) => {
-          rt.on_wheel_event(tree, 0.0, 0.0, *x as f64, *y as f64, lui_v1::events::WheelDeltaMode::Line)
-        }
+        MouseScrollDelta::LineDelta(x, y) => rt.on_wheel_event(
+          tree,
+          0.0,
+          0.0,
+          *x as f64,
+          *y as f64,
+          lui_v1::events::WheelDeltaMode::Line,
+        ),
         MouseScrollDelta::PixelDelta(phys_pos) => rt.on_wheel_event(
           tree,
           0.0,

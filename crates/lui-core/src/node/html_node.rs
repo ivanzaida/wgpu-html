@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection}, ArcStr, Declaration,
-  HtmlElement,
+  ArcStr, Declaration, HtmlElement,
+  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection},
 };
 
 /// A node in the parsed HTML tree.
@@ -98,7 +98,12 @@ impl HtmlNode {
       .add_listener(event_type, handler, EventListenerOptions::default())
   }
 
-  pub fn add_event_listener_with_options(&mut self, event_type: &str, handler: EventHandler, options: EventListenerOptions) {
+  pub fn add_event_listener_with_options(
+    &mut self,
+    event_type: &str,
+    handler: EventHandler,
+    options: EventListenerOptions,
+  ) {
     self.event_listeners.add_listener(event_type, handler, options)
   }
 

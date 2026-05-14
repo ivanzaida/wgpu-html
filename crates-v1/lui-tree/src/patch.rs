@@ -32,9 +32,7 @@ pub fn patch_node(old: &mut Node, new: Node) -> PatchResult {
   result.merge(patch_element(&mut old.element, new.element));
 
   let new_id = old.element.id().map(|s| s as *const str);
-  let class_changed = old_class_list != new.class_list
-    || old_aria != new.aria_attrs
-    || old_data != new.data_attrs;
+  let class_changed = old_class_list != new.class_list || old_aria != new.aria_attrs || old_data != new.data_attrs;
   old.class_list = new.class_list;
   old.aria_attrs = new.aria_attrs;
   old.data_attrs = new.data_attrs;

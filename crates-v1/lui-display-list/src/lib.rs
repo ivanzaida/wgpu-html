@@ -27,7 +27,13 @@ pub trait RenderBackend {
   fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]);
   fn render(&mut self, list: &DisplayList) -> FrameOutcome;
   fn render_to_rgba(&mut self, list: &DisplayList, width: u32, height: u32) -> Result<Vec<u8>, RenderError>;
-  fn capture_to(&mut self, list: &DisplayList, width: u32, height: u32, path: &std::path::Path) -> Result<(), RenderError>;
+  fn capture_to(
+    &mut self,
+    list: &DisplayList,
+    width: u32,
+    height: u32,
+    path: &std::path::Path,
+  ) -> Result<(), RenderError>;
   fn capture_next_frame_to(&mut self, path: std::path::PathBuf);
   fn glyph_atlas_size(&self) -> u32;
 }

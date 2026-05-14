@@ -1,4 +1,4 @@
-mod tag;
 mod class;
-mod id;
 mod compound;
+mod id;
+mod tag;

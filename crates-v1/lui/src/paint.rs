@@ -87,7 +87,8 @@ pub fn paint_tree_with_text(
   let media = lui_style::MediaContext::screen((viewport_w / scale).max(0.0), (viewport_h / scale).max(0.0), scale);
   let cascaded = lui_style::cascade_with_media(tree, &media);
   let mut list = DisplayList::new();
-  if let Some(root) = lui_layout_old::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale) {
+  if let Some(root) = lui_layout_old::layout_with_text(&cascaded, text_ctx, image_cache, viewport_w, viewport_h, scale)
+  {
     list.canvas_color = root
       .background
       .or_else(|| root.children.first().and_then(|body| body.background));
@@ -1554,7 +1555,12 @@ impl Side {
   /// adjacent corner radii. With zero radii this collapses to the
   /// regular corner-owning rectangle, so it's safe for the rounded
   /// path even when only some corners are rounded.
-  fn edge_rect_rounded(self, r: lui_layout_old::Rect, bd: lui_layout_old::Insets, radii: &lui_layout_old::CornerRadii) -> Rect {
+  fn edge_rect_rounded(
+    self,
+    r: lui_layout_old::Rect,
+    bd: lui_layout_old::Insets,
+    radii: &lui_layout_old::CornerRadii,
+  ) -> Rect {
     match self {
       Side::Top => {
         let x_start = radii.top_left.h;

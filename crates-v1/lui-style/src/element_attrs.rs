@@ -184,12 +184,7 @@ pub fn element_class(node: &Node) -> Option<ArcStr> {
     None
   } else {
     Some(ArcStr::from(
-      node
-        .class_list
-        .iter()
-        .map(|c| c.as_ref())
-        .collect::<Vec<_>>()
-        .join(" "),
+      node.class_list.iter().map(|c| c.as_ref()).collect::<Vec<_>>().join(" "),
     ))
   }
 }

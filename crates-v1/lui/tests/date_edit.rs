@@ -1,4 +1,4 @@
-use lui_tree::{set_date_value, text_input, Tree};
+use lui_tree::{Tree, set_date_value, text_input};
 use lui_v1::paint::byte_offset_to_glyph_index;
 
 fn make_date_tree(value: &str) -> Tree {

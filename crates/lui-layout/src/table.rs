@@ -363,7 +363,16 @@ pub fn layout_table<'a>(
   let col_widths = if fixed {
     compute_column_widths_fixed(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing)
   } else {
-    compute_column_widths_auto(b, &row_infos, &start_cols, &col_hints, num_cols, table_width, &spacing, text_ctx)
+    compute_column_widths_auto(
+      b,
+      &row_infos,
+      &start_cols,
+      &col_hints,
+      num_cols,
+      table_width,
+      &spacing,
+      text_ctx,
+    )
   };
 
   // Phase 4: Compute row heights — first pass (non-rowspan cells)
@@ -568,11 +577,16 @@ fn estimate_subtree_height(b: &LayoutBox, max_w: f32, ctx: &LayoutContext, text_
     } else {
       content.to_string()
     };
-    if text.is_empty() { return 0.0; }
+    if text.is_empty() {
+      return 0.0;
+    }
     let lines = text_ctx.break_into_lines(&text, &style, max_w);
     return lines.iter().map(|l| l.height).sum::<f32>();
   }
-  let is_anon = matches!(b.kind, crate::box_tree::BoxKind::AnonymousBlock | crate::box_tree::BoxKind::AnonymousInline);
+  let is_anon = matches!(
+    b.kind,
+    crate::box_tree::BoxKind::AnonymousBlock | crate::box_tree::BoxKind::AnonymousInline
+  );
   if !is_anon {
     if let Some(h) = sizes::resolve_length(b.style.height, ctx.containing_height) {
       return h;
@@ -699,7 +713,9 @@ fn compute_column_widths_auto(
 
   if auto_count > 0 && explicit_sum < available {
     let remaining = available - explicit_sum;
-    let auto_content_sum: f32 = col_content_widths.iter().enumerate()
+    let auto_content_sum: f32 = col_content_widths
+      .iter()
+      .enumerate()
       .filter(|(i, _)| !col_has_explicit[*i])
       .map(|(_, w)| *w)
       .sum();

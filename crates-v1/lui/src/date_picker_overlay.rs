@@ -359,7 +359,8 @@ pub fn paint_date_picker_overlay(list: &mut DisplayList, _root: &LayoutBox, tree
 
   let picker_tree = build_date_picker_tree(dp, tree);
   let mut image_cache = lui_layout_old::ImageCache::default();
-  let Some(mut layout) = lui_layout_old::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
+  let Some(mut layout) =
+    lui_layout_old::layout_with_text(&picker_tree, text_ctx, &mut image_cache, 4096.0, 4096.0, 1.0)
   else {
     return;
   };

@@ -346,7 +346,12 @@ fn push_attrs(node: &Node, selected: bool, parts: &mut Vec<El>, ctx: &Ctx<TreePa
     push_attr("id", id, selected, parts, ctx);
   }
   if !node.class_list().is_empty() {
-    let class = node.class_list().iter().map(|c| c.as_ref()).collect::<Vec<_>>().join(" ");
+    let class = node
+      .class_list()
+      .iter()
+      .map(|c| c.as_ref())
+      .collect::<Vec<_>>()
+      .join(" ");
     push_attr("class", &class, selected, parts, ctx);
   }
   if let Some(v) = node.element.attr("type") {

@@ -87,9 +87,8 @@ fn sample() -> Tree {
       span(None, Some("label")).with_children(vec![Node::new("hi")]),
       p(None, Some("lead")).with_children(vec![Node::new("first p")]),
       p(None, Some("lead")).with_children(vec![Node::new("second p")]),
-      div(Some("inner"), Some("box")).with_children(vec![
-        span(None, Some("label")).with_children(vec![Node::new("two")]),
-      ]),
+      div(Some("inner"), Some("box"))
+        .with_children(vec![span(None, Some("label")).with_children(vec![Node::new("two")])]),
     ]),
     span(Some("solo"), Some("label primary")),
   ]);
@@ -1502,10 +1501,8 @@ fn parse_attribute_case_flags() {
 
 #[test]
 fn attribute_op_includes_matches_class_token() {
-  let body = Node::new(m::Body::default()).with_children(vec![
-    div(None, Some("foo bar baz")),
-    div(None, Some("foobar")),
-  ]);
+  let body =
+    Node::new(m::Body::default()).with_children(vec![div(None, Some("foo bar baz")), div(None, Some("foobar"))]);
   let mut tree = Tree::new(body);
   let hits = tree.query_selector_all_paths("[class~=\"bar\"]");
   assert_eq!(hits, vec![vec![0]]);

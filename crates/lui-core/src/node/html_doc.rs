@@ -1,6 +1,6 @@
 use crate::{
-  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection}, HtmlNode,
-  Stylesheet,
+  HtmlNode, Stylesheet,
+  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection},
 };
 
 /// Parsed HTML document — always rooted at a single `<html>` node.
@@ -14,7 +14,11 @@ pub struct HtmlDocument {
 
 impl HtmlDocument {
   pub fn new(root: HtmlNode, stylesheets: Vec<Stylesheet>) -> Self {
-    Self { root, stylesheets, event_listeners: EventListenersCollection::new() }
+    Self {
+      root,
+      stylesheets,
+      event_listeners: EventListenersCollection::new(),
+    }
   }
 
   pub fn add_event_listener(&mut self, event_type: &str, handler: EventHandler) {
@@ -23,7 +27,12 @@ impl HtmlDocument {
       .add_listener(event_type, handler, EventListenerOptions::default())
   }
 
-  pub fn add_event_listener_with_options(&mut self, event_type: &str, handler: EventHandler, options: EventListenerOptions) {
+  pub fn add_event_listener_with_options(
+    &mut self,
+    event_type: &str,
+    handler: EventHandler,
+    options: EventListenerOptions,
+  ) {
     self.event_listeners.add_listener(event_type, handler, options)
   }
 

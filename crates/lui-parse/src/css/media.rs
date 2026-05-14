@@ -1,4 +1,5 @@
 use lui_core::{MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList, ParseError};
+
 use crate::css::parser::parse_value;
 
 pub fn parse_media_query_list(input: &str) -> Result<MediaQueryList, ParseError> {
@@ -8,7 +9,9 @@ pub fn parse_media_query_list(input: &str) -> Result<MediaQueryList, ParseError>
 
   loop {
     skip_ws(&chars, &mut pos);
-    if pos >= chars.len() { break; }
+    if pos >= chars.len() {
+      break;
+    }
     queries.push(parse_media_query(&chars, &mut pos)?);
     skip_ws(&chars, &mut pos);
     if pos < chars.len() && chars[pos] == ',' {
@@ -50,7 +53,11 @@ fn parse_media_query(chars: &[char], pos: &mut usize) -> Result<MediaQuery, Pars
     }
   }
 
-  Ok(MediaQuery { modifier, media_type, conditions })
+  Ok(MediaQuery {
+    modifier,
+    media_type,
+    conditions,
+  })
 }
 
 fn parse_modifier(chars: &[char], pos: &mut usize) -> Option<MediaModifier> {

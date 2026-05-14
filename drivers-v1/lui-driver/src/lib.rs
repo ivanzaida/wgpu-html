@@ -38,6 +38,9 @@
 
 use std::time::{Duration, Instant};
 
+use lui_display_list::RenderBackend;
+use lui_text::TextContext;
+use lui_tree::{MouseButton, Tree};
 use lui_v1::{
   PipelineCache, PipelineTimings, events as ev, interactivity,
   layout::{Cursor, LayoutBox},
@@ -48,9 +51,6 @@ use lui_v1::{
   },
   select_all_text, selected_text,
 };
-use lui_display_list::RenderBackend;
-use lui_text::TextContext;
-use lui_tree::{MouseButton, Tree};
 
 // ── Secondary window ───────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@
 //! (expensive) instead of LayoutOnly (incremental).
 
 use lui_tree::{self, Tree};
-use lui_v1::{classify_frame, paint_tree_cached, PipelineAction, PipelineCache};
+use lui_v1::{PipelineAction, PipelineCache, classify_frame, paint_tree_cached};
 
 fn parse_and_register_fonts(html: &str) -> Tree {
   let mut tree = lui_v1::parser::parse(html);

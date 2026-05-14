@@ -20,9 +20,8 @@ pub use glyph_pipeline::GlyphPipeline;
 pub use image_pipeline::ImagePipeline;
 pub use lui_display_list::{
   ClipRange, Color, CornerRadii, DisplayCommand, DisplayCommandKind, DisplayList, FrameOutcome, GlyphQuad, ImageQuad,
-  Pattern, Quad, Rect, StrokeWidths,
+  Pattern, Quad, Rect, RenderBackend, RenderError, StrokeWidths,
 };
-pub use lui_display_list::{RenderBackend, RenderError};
 pub use quad_pipeline::QuadPipeline;
 pub use screenshot::ScreenshotError;
 

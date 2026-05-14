@@ -249,10 +249,7 @@ impl El {
     reflect_attribute(&mut self.node.element, &name, &value);
     match name.as_ref() {
       "class" => {
-        self.node.class_list = value
-          .split_ascii_whitespace()
-          .map(|c| ArcStr::from(c))
-          .collect();
+        self.node.class_list = value.split_ascii_whitespace().map(|c| ArcStr::from(c)).collect();
       }
       _ if name.starts_with("aria-") => {
         let suffix = ArcStr::from(&name[5..]);

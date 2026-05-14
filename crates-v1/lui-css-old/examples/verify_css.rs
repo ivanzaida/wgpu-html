@@ -1,7 +1,6 @@
 use std::{env, fs, process};
 
-use lui_css_old::{CssParser, CssRule, Style};
-use lui_css_old::css_parser::apply_css_property;
+use lui_css_old::{css_parser::apply_css_property, CssParser, CssRule, Style};
 
 fn main() {
   let path = match env::args().nth(1) {
@@ -64,7 +63,8 @@ fn main() {
     println!("  unknown rules: {unknown_count}");
   }
 
-  let total = style_count + media_count + import_count + keyframes_count + font_face_count + supports_count + unknown_count;
+  let total =
+    style_count + media_count + import_count + keyframes_count + font_face_count + supports_count + unknown_count;
   if total == 0 {
     eprintln!("[warn] no rules found — file may be empty or invalid");
     process::exit(1);

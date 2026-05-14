@@ -1,7 +1,6 @@
-use rustc_hash::FxHashMap;
-
 use bumpalo::Bump;
 use lui_core::{ArcStr, CssProperty, CssValue};
+use rustc_hash::FxHashMap;
 
 /// Computed style for a single node.
 ///
@@ -11,175 +10,176 @@ use lui_core::{ArcStr, CssProperty, CssValue};
 /// (expanded shorthands, resolved var(), inherited copies).
 #[derive(Debug, Default, Clone)]
 pub struct ComputedStyle<'a> {
-    // ── Display & position ──
-    pub display: Option<&'a CssValue>,
-    pub position: Option<&'a CssValue>,
-    pub top: Option<&'a CssValue>,
-    pub right: Option<&'a CssValue>,
-    pub bottom: Option<&'a CssValue>,
-    pub left: Option<&'a CssValue>,
-    pub direction: Option<&'a CssValue>,
-    pub writing_mode: Option<&'a CssValue>,
-    pub float: Option<&'a CssValue>,
-    pub clear: Option<&'a CssValue>,
+  // ── Display & position ──
+  pub display: Option<&'a CssValue>,
+  pub position: Option<&'a CssValue>,
+  pub top: Option<&'a CssValue>,
+  pub right: Option<&'a CssValue>,
+  pub bottom: Option<&'a CssValue>,
+  pub left: Option<&'a CssValue>,
+  pub direction: Option<&'a CssValue>,
+  pub writing_mode: Option<&'a CssValue>,
+  pub float: Option<&'a CssValue>,
+  pub clear: Option<&'a CssValue>,
 
-    // ── Sizing ──
-    pub width: Option<&'a CssValue>,
-    pub height: Option<&'a CssValue>,
-    pub min_width: Option<&'a CssValue>,
-    pub min_height: Option<&'a CssValue>,
-    pub max_width: Option<&'a CssValue>,
-    pub max_height: Option<&'a CssValue>,
-    pub box_sizing: Option<&'a CssValue>,
-    pub aspect_ratio: Option<&'a CssValue>,
+  // ── Sizing ──
+  pub width: Option<&'a CssValue>,
+  pub height: Option<&'a CssValue>,
+  pub min_width: Option<&'a CssValue>,
+  pub min_height: Option<&'a CssValue>,
+  pub max_width: Option<&'a CssValue>,
+  pub max_height: Option<&'a CssValue>,
+  pub box_sizing: Option<&'a CssValue>,
+  pub aspect_ratio: Option<&'a CssValue>,
 
-    // ── Margin ──
-    pub margin_top: Option<&'a CssValue>,
-    pub margin_right: Option<&'a CssValue>,
-    pub margin_bottom: Option<&'a CssValue>,
-    pub margin_left: Option<&'a CssValue>,
+  // ── Margin ──
+  pub margin_top: Option<&'a CssValue>,
+  pub margin_right: Option<&'a CssValue>,
+  pub margin_bottom: Option<&'a CssValue>,
+  pub margin_left: Option<&'a CssValue>,
 
-    // ── Padding ──
-    pub padding_top: Option<&'a CssValue>,
-    pub padding_right: Option<&'a CssValue>,
-    pub padding_bottom: Option<&'a CssValue>,
-    pub padding_left: Option<&'a CssValue>,
+  // ── Padding ──
+  pub padding_top: Option<&'a CssValue>,
+  pub padding_right: Option<&'a CssValue>,
+  pub padding_bottom: Option<&'a CssValue>,
+  pub padding_left: Option<&'a CssValue>,
 
-    // ── Border width ──
-    pub border_top_width: Option<&'a CssValue>,
-    pub border_right_width: Option<&'a CssValue>,
-    pub border_bottom_width: Option<&'a CssValue>,
-    pub border_left_width: Option<&'a CssValue>,
+  // ── Border width ──
+  pub border_top_width: Option<&'a CssValue>,
+  pub border_right_width: Option<&'a CssValue>,
+  pub border_bottom_width: Option<&'a CssValue>,
+  pub border_left_width: Option<&'a CssValue>,
 
-    // ── Border style ──
-    pub border_top_style: Option<&'a CssValue>,
-    pub border_right_style: Option<&'a CssValue>,
-    pub border_bottom_style: Option<&'a CssValue>,
-    pub border_left_style: Option<&'a CssValue>,
+  // ── Border style ──
+  pub border_top_style: Option<&'a CssValue>,
+  pub border_right_style: Option<&'a CssValue>,
+  pub border_bottom_style: Option<&'a CssValue>,
+  pub border_left_style: Option<&'a CssValue>,
 
-    // ── Border color ──
-    pub border_top_color: Option<&'a CssValue>,
-    pub border_right_color: Option<&'a CssValue>,
-    pub border_bottom_color: Option<&'a CssValue>,
-    pub border_left_color: Option<&'a CssValue>,
+  // ── Border color ──
+  pub border_top_color: Option<&'a CssValue>,
+  pub border_right_color: Option<&'a CssValue>,
+  pub border_bottom_color: Option<&'a CssValue>,
+  pub border_left_color: Option<&'a CssValue>,
 
-    // ── Border radius ──
-    pub border_top_left_radius: Option<&'a CssValue>,
-    pub border_top_right_radius: Option<&'a CssValue>,
-    pub border_bottom_right_radius: Option<&'a CssValue>,
-    pub border_bottom_left_radius: Option<&'a CssValue>,
+  // ── Border radius ──
+  pub border_top_left_radius: Option<&'a CssValue>,
+  pub border_top_right_radius: Option<&'a CssValue>,
+  pub border_bottom_right_radius: Option<&'a CssValue>,
+  pub border_bottom_left_radius: Option<&'a CssValue>,
 
-    // ── Background ──
-    pub background_color: Option<&'a CssValue>,
-    pub background_image: Option<&'a CssValue>,
-    pub background_size: Option<&'a CssValue>,
-    pub background_position: Option<&'a CssValue>,
-    pub background_repeat: Option<&'a CssValue>,
-    pub background_clip: Option<&'a CssValue>,
+  // ── Background ──
+  pub background_color: Option<&'a CssValue>,
+  pub background_image: Option<&'a CssValue>,
+  pub background_size: Option<&'a CssValue>,
+  pub background_position: Option<&'a CssValue>,
+  pub background_repeat: Option<&'a CssValue>,
+  pub background_clip: Option<&'a CssValue>,
 
-    // ── Color ──
-    pub color: Option<&'a CssValue>,
-    pub opacity: Option<&'a CssValue>,
-    pub visibility: Option<&'a CssValue>,
+  // ── Color ──
+  pub color: Option<&'a CssValue>,
+  pub opacity: Option<&'a CssValue>,
+  pub visibility: Option<&'a CssValue>,
 
-    // ── Typography ──
-    pub font_family: Option<&'a CssValue>,
-    pub font_size: Option<&'a CssValue>,
-    pub font_weight: Option<&'a CssValue>,
-    pub font_style: Option<&'a CssValue>,
-    pub line_height: Option<&'a CssValue>,
-    pub text_indent: Option<&'a CssValue>,
-    pub letter_spacing: Option<&'a CssValue>,
-    pub word_spacing: Option<&'a CssValue>,
-    pub text_align: Option<&'a CssValue>,
-    pub text_decoration_line: Option<&'a CssValue>,
-    pub text_decoration_color: Option<&'a CssValue>,
-    pub text_decoration_style: Option<&'a CssValue>,
-    pub text_transform: Option<&'a CssValue>,
-    pub white_space: Option<&'a CssValue>,
-    pub word_break: Option<&'a CssValue>,
-    pub overflow_wrap: Option<&'a CssValue>,
-    pub text_overflow: Option<&'a CssValue>,
-    pub vertical_align: Option<&'a CssValue>,
+  // ── Typography ──
+  pub font_family: Option<&'a CssValue>,
+  pub font_size: Option<&'a CssValue>,
+  pub font_weight: Option<&'a CssValue>,
+  pub font_style: Option<&'a CssValue>,
+  pub line_height: Option<&'a CssValue>,
+  pub text_indent: Option<&'a CssValue>,
+  pub letter_spacing: Option<&'a CssValue>,
+  pub word_spacing: Option<&'a CssValue>,
+  pub text_align: Option<&'a CssValue>,
+  pub text_decoration_line: Option<&'a CssValue>,
+  pub text_decoration_color: Option<&'a CssValue>,
+  pub text_decoration_style: Option<&'a CssValue>,
+  pub text_transform: Option<&'a CssValue>,
+  pub white_space: Option<&'a CssValue>,
+  pub word_break: Option<&'a CssValue>,
+  pub overflow_wrap: Option<&'a CssValue>,
+  pub text_overflow: Option<&'a CssValue>,
+  pub vertical_align: Option<&'a CssValue>,
 
-    // ── Flexbox ──
-    pub flex_direction: Option<&'a CssValue>,
-    pub flex_wrap: Option<&'a CssValue>,
-    pub justify_content: Option<&'a CssValue>,
-    pub align_items: Option<&'a CssValue>,
-    pub align_content: Option<&'a CssValue>,
-    pub align_self: Option<&'a CssValue>,
-    pub flex_grow: Option<&'a CssValue>,
-    pub flex_shrink: Option<&'a CssValue>,
-    pub flex_basis: Option<&'a CssValue>,
-    pub order: Option<&'a CssValue>,
-    pub row_gap: Option<&'a CssValue>,
-    pub column_gap: Option<&'a CssValue>,
+  // ── Flexbox ──
+  pub flex_direction: Option<&'a CssValue>,
+  pub flex_wrap: Option<&'a CssValue>,
+  pub justify_content: Option<&'a CssValue>,
+  pub align_items: Option<&'a CssValue>,
+  pub align_content: Option<&'a CssValue>,
+  pub align_self: Option<&'a CssValue>,
+  pub flex_grow: Option<&'a CssValue>,
+  pub flex_shrink: Option<&'a CssValue>,
+  pub flex_basis: Option<&'a CssValue>,
+  pub order: Option<&'a CssValue>,
+  pub row_gap: Option<&'a CssValue>,
+  pub column_gap: Option<&'a CssValue>,
 
-    // ── Grid ──
-    pub grid_template_columns: Option<&'a CssValue>,
-    pub grid_template_rows: Option<&'a CssValue>,
-    pub grid_template_areas: Option<&'a CssValue>,
-    pub grid_auto_columns: Option<&'a CssValue>,
-    pub grid_auto_rows: Option<&'a CssValue>,
-    pub grid_auto_flow: Option<&'a CssValue>,
-    pub grid_column_start: Option<&'a CssValue>,
-    pub grid_column_end: Option<&'a CssValue>,
-    pub grid_row_start: Option<&'a CssValue>,
-    pub grid_row_end: Option<&'a CssValue>,
-    pub justify_items: Option<&'a CssValue>,
-    pub justify_self: Option<&'a CssValue>,
+  // ── Grid ──
+  pub grid_template_columns: Option<&'a CssValue>,
+  pub grid_template_rows: Option<&'a CssValue>,
+  pub grid_template_areas: Option<&'a CssValue>,
+  pub grid_auto_columns: Option<&'a CssValue>,
+  pub grid_auto_rows: Option<&'a CssValue>,
+  pub grid_auto_flow: Option<&'a CssValue>,
+  pub grid_column_start: Option<&'a CssValue>,
+  pub grid_column_end: Option<&'a CssValue>,
+  pub grid_row_start: Option<&'a CssValue>,
+  pub grid_row_end: Option<&'a CssValue>,
+  pub justify_items: Option<&'a CssValue>,
+  pub justify_self: Option<&'a CssValue>,
 
-    // ── Table ──
-    pub border_collapse: Option<&'a CssValue>,
-    pub border_spacing: Option<&'a CssValue>,
-    pub caption_side: Option<&'a CssValue>,
-    pub table_layout: Option<&'a CssValue>,
+  // ── Table ──
+  pub border_collapse: Option<&'a CssValue>,
+  pub border_spacing: Option<&'a CssValue>,
+  pub caption_side: Option<&'a CssValue>,
+  pub table_layout: Option<&'a CssValue>,
 
-    // ── Overflow & scroll ──
-    pub overflow_x: Option<&'a CssValue>,
-    pub overflow_y: Option<&'a CssValue>,
-    pub scrollbar_color: Option<&'a CssValue>,
-    pub scrollbar_width: Option<&'a CssValue>,
+  // ── Overflow & scroll ──
+  pub overflow_x: Option<&'a CssValue>,
+  pub overflow_y: Option<&'a CssValue>,
+  pub scrollbar_color: Option<&'a CssValue>,
+  pub scrollbar_gutter: Option<&'a CssValue>,
+  pub scrollbar_width: Option<&'a CssValue>,
 
-    // ── Transform & effects ──
-    pub transform: Option<&'a CssValue>,
-    pub transform_origin: Option<&'a CssValue>,
-    pub box_shadow: Option<&'a CssValue>,
-    pub z_index: Option<&'a CssValue>,
+  // ── Transform & effects ──
+  pub transform: Option<&'a CssValue>,
+  pub transform_origin: Option<&'a CssValue>,
+  pub box_shadow: Option<&'a CssValue>,
+  pub z_index: Option<&'a CssValue>,
 
-    // ── Interaction ──
-    pub cursor: Option<&'a CssValue>,
-    pub pointer_events: Option<&'a CssValue>,
-    pub user_select: Option<&'a CssValue>,
-    pub resize: Option<&'a CssValue>,
-    pub accent_color: Option<&'a CssValue>,
+  // ── Interaction ──
+  pub cursor: Option<&'a CssValue>,
+  pub pointer_events: Option<&'a CssValue>,
+  pub user_select: Option<&'a CssValue>,
+  pub resize: Option<&'a CssValue>,
+  pub accent_color: Option<&'a CssValue>,
 
-    // ── List ──
-    pub list_style_type: Option<&'a CssValue>,
-    pub list_style_position: Option<&'a CssValue>,
-    pub list_style_image: Option<&'a CssValue>,
+  // ── List ──
+  pub list_style_type: Option<&'a CssValue>,
+  pub list_style_position: Option<&'a CssValue>,
+  pub list_style_image: Option<&'a CssValue>,
 
-    // ── Content ──
-    pub content: Option<&'a CssValue>,
+  // ── Content ──
+  pub content: Option<&'a CssValue>,
 
-    // ── SVG ──
-    pub fill: Option<&'a CssValue>,
-    pub fill_opacity: Option<&'a CssValue>,
-    pub fill_rule: Option<&'a CssValue>,
-    pub stroke: Option<&'a CssValue>,
-    pub stroke_width: Option<&'a CssValue>,
-    pub stroke_opacity: Option<&'a CssValue>,
-    pub stroke_linecap: Option<&'a CssValue>,
-    pub stroke_linejoin: Option<&'a CssValue>,
-    pub stroke_dasharray: Option<&'a CssValue>,
-    pub stroke_dashoffset: Option<&'a CssValue>,
+  // ── SVG ──
+  pub fill: Option<&'a CssValue>,
+  pub fill_opacity: Option<&'a CssValue>,
+  pub fill_rule: Option<&'a CssValue>,
+  pub stroke: Option<&'a CssValue>,
+  pub stroke_width: Option<&'a CssValue>,
+  pub stroke_opacity: Option<&'a CssValue>,
+  pub stroke_linecap: Option<&'a CssValue>,
+  pub stroke_linejoin: Option<&'a CssValue>,
+  pub stroke_dasharray: Option<&'a CssValue>,
+  pub stroke_dashoffset: Option<&'a CssValue>,
 
-    // ── Cold properties (everything layout doesn't touch) ──
-    pub extra: Option<Box<FxHashMap<CssProperty, &'a CssValue>>>,
+  // ── Cold properties (everything layout doesn't touch) ──
+  pub extra: Option<Box<FxHashMap<CssProperty, &'a CssValue>>>,
 
-    // ── Custom properties (always inherited) ──
-    pub custom_properties: Option<Box<FxHashMap<ArcStr, &'a CssValue>>>,
+  // ── Custom properties (always inherited) ──
+  pub custom_properties: Option<Box<FxHashMap<ArcStr, &'a CssValue>>>,
 }
 
 macro_rules! property_field_map {
@@ -390,6 +390,7 @@ property_field_map! {
     OverflowX => overflow_x,
     OverflowY => overflow_y,
     ScrollbarColor => scrollbar_color,
+    ScrollbarGutter => scrollbar_gutter,
     ScrollbarWidth => scrollbar_width,
 
     Transform => transform,
@@ -425,5 +426,5 @@ property_field_map! {
 /// arena's lifetime. Use this for synthesized values (expanded shorthands,
 /// resolved var(), inherited copies).
 pub fn alloc_value(arena: &Bump, value: CssValue) -> &CssValue {
-    arena.alloc(value)
+  arena.alloc(value)
 }

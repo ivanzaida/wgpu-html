@@ -1,11 +1,11 @@
 use std::sync::{
-  atomic::{AtomicUsize, Ordering},
   Arc,
+  atomic::{AtomicUsize, Ordering},
 };
 
 use lui_core::{
-  events::{DocumentEvent, EventInit},
   EventHandler, EventListenerOptions, HtmlElement, HtmlNode,
+  events::{DocumentEvent, EventInit},
 };
 
 fn click_event() -> DocumentEvent {
@@ -30,7 +30,10 @@ fn once_listener_called_then_removed() {
   node.add_event_listener_with_options(
     "click",
     handler,
-    EventListenerOptions { once: true, ..Default::default() },
+    EventListenerOptions {
+      once: true,
+      ..Default::default()
+    },
   );
 
   node.dispatch_event(&mut click_event());
@@ -96,7 +99,10 @@ fn once_listener_removed_while_regular_persists() {
   node.add_event_listener_with_options(
     "click",
     once_handler,
-    EventListenerOptions { once: true, ..Default::default() },
+    EventListenerOptions {
+      once: true,
+      ..Default::default()
+    },
   );
   node.add_event_listener("click", regular_handler);
 

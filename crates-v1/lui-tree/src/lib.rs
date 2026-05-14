@@ -1526,8 +1526,6 @@ impl Element {
     all_element_variants!(arms)
   }
 
-
-
   fn specific_attr(&self, name: &str) -> Option<ArcStr> {
     // Boolean attribute helper: `Some(true)` becomes the empty
     // string (`[attr]` presence test), anything else `None`.

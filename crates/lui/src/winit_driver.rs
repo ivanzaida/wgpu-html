@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use winit::{
   application::ApplicationHandler,
-  event::WindowEvent,
+  event::{MouseScrollDelta, WindowEvent},
   event_loop::{ActiveEventLoop, EventLoop},
+  keyboard::ModifiersState,
   window::{Window, WindowAttributes, WindowId},
 };
 
@@ -13,6 +14,20 @@ pub struct WinitDriver {
   width: u32,
   height: u32,
   title: String,
+}
+
+pub fn wheel_delta_to_css(delta: &MouseScrollDelta, scale: f32, modifiers: ModifiersState) -> (f32, f32) {
+  let (mut dx, mut dy) = match delta {
+    // Winit uses positive Y for wheel-up; CSS scroll deltas are positive when content
+    // should move down, so invert here at the platform boundary.
+    MouseScrollDelta::LineDelta(x, y) => (-*x * 40.0, -*y * 40.0),
+    MouseScrollDelta::PixelDelta(pos) => (-(pos.x as f32) / scale, -(pos.y as f32) / scale),
+  };
+  if modifiers.shift_key() && dx.abs() < 0.001 && dy.abs() > 0.0 {
+    dx = dy;
+    dy = 0.0;
+  }
+  (dx, dy)
 }
 
 impl WinitDriver {
@@ -40,6 +55,7 @@ impl Driver for WinitDriver {
       title: String,
       initial_size: (u32, u32),
       window: Option<Arc<Window>>,
+      modifiers: ModifiersState,
     }
 
     impl ApplicationHandler for App {
@@ -63,6 +79,26 @@ impl Driver for WinitDriver {
         let Some(window) = &self.window else { return };
         match &event {
           WindowEvent::CloseRequested => event_loop.exit(),
+          WindowEvent::CursorMoved { position, .. } => {
+            let scale = window.scale_factor() as f32;
+            self
+              .lui
+              .set_cursor_position(position.x as f32 / scale, position.y as f32 / scale);
+          }
+          WindowEvent::CursorLeft { .. } => {
+            self.lui.clear_cursor_position();
+          }
+          WindowEvent::ModifiersChanged(modifiers) => {
+            self.modifiers = modifiers.state();
+          }
+          WindowEvent::MouseWheel { delta, .. } => {
+            let scale = window.scale_factor() as f32;
+            let (dx, dy) = wheel_delta_to_css(delta, scale, self.modifiers);
+            let size = window.inner_size();
+            if self.lui.handle_wheel(size.width, size.height, scale, dx, dy) {
+              window.request_redraw();
+            }
+          }
           WindowEvent::RedrawRequested => {
             let size = window.inner_size();
             let scale = window.scale_factor() as f32;
@@ -98,6 +134,7 @@ impl Driver for WinitDriver {
       title: self.title,
       initial_size: (self.width, self.height),
       window: None,
+      modifiers: ModifiersState::default(),
     };
     event_loop.run_app(&mut app).unwrap();
   }

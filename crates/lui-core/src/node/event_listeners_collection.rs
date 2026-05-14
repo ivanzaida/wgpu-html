@@ -4,7 +4,7 @@ use std::{
   sync::Arc,
 };
 
-use crate::{ArcStr, events::DocumentEvent, HtmlNode};
+use crate::{ArcStr, HtmlNode, events::DocumentEvent};
 
 #[derive(Default, Debug, Clone)]
 pub struct EventListenerOptions {
@@ -70,7 +70,8 @@ impl EventListenersCollection {
   }
 
   pub fn remove_listener(&mut self, event_type: &str, handler: &EventHandler) {
-    self.listeners
+    self
+      .listeners
       .retain(|l| !(&*l.event_type == event_type && Arc::ptr_eq(&l.handler, handler)));
   }
 
