@@ -957,3 +957,38 @@ fn debug_shrink_issue() {
         eprintln!("  child[{}]: kind={:?} w={} h={} x={}", i, c.kind, c.content.width, c.content.height, c.content.x);
     }
 }
+
+#[test]
+fn flex_align_items_center_same_y_for_same_height_children() {
+    let html = r#"<div style="display:flex; gap:16px">
+        <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+            <span style="font-size:14px">Block</span>
+        </div>
+        <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+            <span style="font-size:14px">Flex</span>
+        </div>
+        <div style="width:120px; height:120px; display:flex; align-items:center; justify-content:center">
+            <span style="font-size:14px">Grid</span>
+        </div>
+    </div>"#;
+    let (doc, ctx) = flex_lt(html, 800.0);
+    let media = MediaContext::default(); let interaction = InteractionState::default();
+    let styled = ctx.cascade(&doc.root, &media, &interaction);
+    let lt = layout_tree(&styled, 800.0, 600.0);
+    let outer = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+
+    let spans: Vec<_> = outer.children.iter().map(|card| {
+        let span = &card.children[0];
+        eprintln!("span tag={} y={:.1} h={:.1} content_y={:.1}",
+            span.node.element.tag_name(), span.content.y, span.content.height, span.content.y);
+        span
+    }).collect();
+
+    let y0 = spans[0].content.y;
+    let y1 = spans[1].content.y;
+    let y2 = spans[2].content.y;
+    eprintln!("y positions: {:.1} {:.1} {:.1}", y0, y1, y2);
+
+    assert!((y0 - y1).abs() < 2.0, "Block and Flex should be at same y: {} vs {}", y0, y1);
+    assert!((y1 - y2).abs() < 2.0, "Flex and Grid should be at same y: {} vs {}", y1, y2);
+}
