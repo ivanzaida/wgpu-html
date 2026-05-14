@@ -333,6 +333,10 @@ pub fn is_pseudo_element(pseudo: &CssPseudo) -> bool {
       | CssPseudo::FieldSeparator
       | CssPseudo::FieldText
       | CssPseudo::DetailsContent
+      | CssPseudo::LuiScrollbar
+      | CssPseudo::LuiScrollbarThumb
+      | CssPseudo::LuiScrollbarTrack
+      | CssPseudo::LuiScrollbarCorner
   )
 }
 

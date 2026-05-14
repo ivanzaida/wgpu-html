@@ -27,12 +27,12 @@ fn applies_default_scrollbar_style_from_ua() {
     .expect("expected viewport scrollbar thumb from UA defaults");
 
   assert!(
-    approx_eq(track.color, expected("darkgray")),
+    approx_eq(track.color, expected("#222")),
     "UA viewport scrollbar track color should come from UA stylesheet: got={:?}",
     track.color
   );
   assert!(
-    approx_eq(thumb.color, expected("lightgray")),
+    approx_eq(thumb.color, expected("#888")),
     "UA viewport scrollbar thumb color should come from UA stylesheet: got={:?}",
     thumb.color
   );

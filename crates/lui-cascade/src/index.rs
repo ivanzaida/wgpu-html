@@ -307,5 +307,9 @@ fn is_pseudo_element(pseudo: &CssPseudo) -> bool {
       | CssPseudo::Marker
       | CssPseudo::Backdrop
       | CssPseudo::FileSelectorButton
+      | CssPseudo::LuiScrollbar
+      | CssPseudo::LuiScrollbarThumb
+      | CssPseudo::LuiScrollbarTrack
+      | CssPseudo::LuiScrollbarCorner
   )
 }

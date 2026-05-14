@@ -2,8 +2,8 @@ use bumpalo::Bump;
 use lui_core::{ArcStr, CssPseudo, CssValue};
 
 use crate::{
-  PseudoElementStyle,
-  cascade::apply_declaration_ref,
+  PseudoElementStyle, ScrollbarPseudoStyles,
+  cascade::{ScrollbarPart, apply_declaration_ref},
   index::PreparedStylesheet,
   matching::{AncestorEntry, MatchContext, matches_selector},
   media::MediaContext,
@@ -144,4 +144,68 @@ fn matching_rules_for_pseudo<'a>(
     }
   }
   decls
+}
+
+pub fn collect_scrollbar_pseudo_styles<'a>(
+  node: &'a lui_parse::HtmlNode,
+  parent_style: &ComputedStyle<'a>,
+  sheets: &[&'a PreparedStylesheet],
+  ancestors: &[AncestorEntry<'_>],
+  ctx: &MatchContext<'_>,
+  _media: &MediaContext,
+  arena: &'a Bump,
+  hover_part: Option<ScrollbarPart>,
+) -> Option<Box<ScrollbarPseudoStyles<'a>>> {
+  const PARTS: [ScrollbarPart; 4] = [
+    ScrollbarPart::Scrollbar,
+    ScrollbarPart::Thumb,
+    ScrollbarPart::Track,
+    ScrollbarPart::Corner,
+  ];
+  let pseudos = [
+    CssPseudo::LuiScrollbar,
+    CssPseudo::LuiScrollbarThumb,
+    CssPseudo::LuiScrollbarTrack,
+    CssPseudo::LuiScrollbarCorner,
+  ];
+  let mut styles: [ComputedStyle<'a>; 4] = Default::default();
+  let mut any_match = false;
+
+  let parent = ancestors.first().map(|a| a.node);
+
+  for (i, pseudo) in pseudos.iter().enumerate() {
+    let part_hovered = hover_part == Some(PARTS[i]);
+    let part_ctx = if part_hovered != ctx.is_hover {
+      let mut c = ctx.clone();
+      c.is_hover = part_hovered;
+      c
+    } else {
+      ctx.clone()
+    };
+
+    for sheet in sheets {
+      let matched_rules = matching_rules_for_pseudo(sheet, pseudo, node, &part_ctx, ancestors, parent, arena, false);
+      for decl in &matched_rules {
+        any_match = true;
+        apply_declaration_ref(&mut styles[i], &decl.property, &decl.value, arena);
+      }
+      let matched_rules = matching_rules_for_pseudo(sheet, pseudo, node, &part_ctx, ancestors, parent, arena, true);
+      for decl in &matched_rules {
+        apply_declaration_ref(&mut styles[i], &decl.property, &decl.value, arena);
+      }
+    }
+    styles[i].inherit_from(parent_style);
+  }
+
+  if !any_match {
+    return None;
+  }
+
+  let [scrollbar, thumb, track, corner] = styles;
+  Some(Box::new(ScrollbarPseudoStyles {
+    scrollbar,
+    thumb,
+    track,
+    corner,
+  }))
 }

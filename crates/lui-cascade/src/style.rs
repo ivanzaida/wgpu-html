@@ -140,6 +140,9 @@ pub struct ComputedStyle<'a> {
   pub overflow_y: Option<&'a CssValue>,
   pub scrollbar_color: Option<&'a CssValue>,
   pub scrollbar_gutter: Option<&'a CssValue>,
+  pub scrollbar_inset: Option<&'a CssValue>,
+  pub scrollbar_min_thumb_size: Option<&'a CssValue>,
+  pub scrollbar_mode: Option<&'a CssValue>,
   pub scrollbar_width: Option<&'a CssValue>,
 
   // ── Transform & effects ──
@@ -391,6 +394,9 @@ property_field_map! {
     OverflowY => overflow_y,
     ScrollbarColor => scrollbar_color,
     ScrollbarGutter => scrollbar_gutter,
+    ScrollbarInset => scrollbar_inset,
+    ScrollbarMinThumbSize => scrollbar_min_thumb_size,
+    ScrollbarMode => scrollbar_mode,
     ScrollbarWidth => scrollbar_width,
 
     Transform => transform,

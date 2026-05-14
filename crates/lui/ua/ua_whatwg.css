@@ -217,7 +217,17 @@ article, aside, :heading, hgroup, nav, section {
 :heading(3) { margin-block: 1.00em; font-size: 1.17em; }
 :heading(4) { margin-block: 1.33em; font-size: 1.00em; }
 :heading(5) { margin-block: 1.67em; font-size: 0.83em; }
-:heading(6, 7, 8, 9) {
+:heading(6) {
+  font-size: 0.67em;
+  margin-block: 2.33em;
+}:heading(7) {
+  font-size: 0.67em;
+  margin-block: 2.33em;
+}:heading(8) {
+  font-size: 0.67em;
+  margin-block: 2.33em;
+}
+:heading(9) {
   font-size: 0.67em;
   margin-block: 2.33em;
 }
@@ -254,9 +264,13 @@ dir, menu, ul {
 /* --- 15.3.7 Presentational hints --- */
 
 ol[type="1"], li[type="1"] { list-style-type: decimal; }
+/*noinspection ALL*/
 ol[type=a s], li[type=a s] { list-style-type: lower-alpha; }
+/*noinspection ALL*/
 ol[type=A s], li[type=A s] { list-style-type: upper-alpha; }
+/*noinspection ALL*/
 ol[type=i s], li[type=i s] { list-style-type: lower-roman; }
+/*noinspection ALL*/
 ol[type=I s], li[type=I s] { list-style-type: upper-roman; }
 ul[type=none i], li[type=none i] { list-style-type: none; }
 ul[type=disc i], li[type=disc i] { list-style-type: disc; }
@@ -763,6 +777,7 @@ select:disabled {
   color: color-mix(currentColor 50%, transparent);
 }
 
+/*noinspection ALL*/
 ::picker(select) {
   box-sizing: border-box;
   border: 1px solid;
@@ -790,16 +805,40 @@ select::picker-icon {
 
 /* --- 15.5.16 Select list-box base appearance --- */
 
+/*noinspection ALL*/
 select {
   overflow: auto;
   display: inline-block;
   block-size: calc(max(24px, 1lh) * attr(size type(<integer>), 4));
 }
 
-/* Minimal engine-compatible scrollbar defaults.
-   The Gecko/XUL scrollbar UA rules are far more complex, but this engine
-   only needs default width/color on scrollable boxes and the viewport. */
+/* Minimal engine-compatible scrollbar defaults. */
 html, body, * {
   scrollbar-width: auto;
-  scrollbar-color: lightgray darkgray;
+  scrollbar-color: #888 #222;
+}
+
+*::lui-scrollbar {
+  scrollbar-mode: auto;
+  scrollbar-width: auto;
+  scrollbar-inset: 0px;
+  scrollbar-min-thumb-size: 20px;
+
+}
+
+*::lui-scrollbar-track {
+  background-color: #222;
+  border-radius: 0px;
+  opacity: 1;
+}
+
+*::lui-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 4px;
+  opacity: 1;
+}
+
+*::lui-scrollbar-corner {
+  background-color: #222;
+  opacity: 1;
 }

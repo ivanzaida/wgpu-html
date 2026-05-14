@@ -3,6 +3,15 @@ mod support;
 #[path = "scrolling/element/wheel_scroll_persists_between_frames.rs"]
 mod wheel_scroll_persists_between_frames;
 
+#[path = "scrolling/element/nested_scroll_chains_to_parent.rs"]
+mod nested_scroll_chains_to_parent;
+
+#[path = "scrolling/element/nested_scroll_chains_to_viewport.rs"]
+mod nested_scroll_chains_to_viewport;
+
+#[path = "scrolling/element/partial_delta_chains_remainder.rs"]
+mod partial_delta_chains_remainder;
+
 #[path = "scrolling/paint/uses_scrollbar_color_thumb_and_track.rs"]
 mod uses_scrollbar_color_thumb_and_track;
 
@@ -14,6 +23,13 @@ mod uses_scrollbar_color_function_pair;
 
 #[path = "scrolling/paint/uses_scrollbar_width_for_track_thickness.rs"]
 mod uses_scrollbar_width_for_track_thickness;
+
+#[path = "scrolling/paint/pseudo_thumb_hover_changes_color.rs"]
+mod pseudo_thumb_hover_changes_color;
+
+#[cfg(feature = "ua_whatwg")]
+#[path = "scrolling/paint/pseudo_element_styles_apply_from_ua.rs"]
+mod pseudo_element_styles_apply_from_ua;
 
 #[path = "scrolling/viewport/wheel_scroll_falls_back_to_viewport_translation.rs"]
 mod wheel_scroll_falls_back_to_viewport_translation;

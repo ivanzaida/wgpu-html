@@ -25,6 +25,7 @@ pub fn build_box<'a>(styled: &'a StyledNode<'a>, bump: &'a Bump) -> LayoutBox<'a
 
   let mut b = LayoutBox::new(kind, styled.node, &styled.style, bump);
   b.children = child_boxes;
+  b.scrollbar_pseudo = styled.scrollbar_pseudo.as_deref();
   fixup_anonymous_table_wrappers(&mut b, styled, bump);
   b
 }
@@ -240,6 +241,7 @@ pub fn build_box_incremental<'a>(
 
   let mut b = LayoutBox::new(kind, styled.node, &styled.style, bump);
   b.children = child_boxes;
+  b.scrollbar_pseudo = styled.scrollbar_pseudo.as_deref();
   fixup_anonymous_table_wrappers(&mut b, styled, bump);
   b
 }

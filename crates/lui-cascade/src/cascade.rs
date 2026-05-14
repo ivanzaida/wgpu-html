@@ -24,12 +24,21 @@ use crate::{
 
 pub type ElementPath = Vec<usize>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollbarPart {
+  Scrollbar,
+  Thumb,
+  Track,
+  Corner,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct InteractionState {
   pub hover_path: Option<ElementPath>,
   pub active_path: Option<ElementPath>,
   pub focus_path: Option<ElementPath>,
   pub target_path: Option<ElementPath>,
+  pub scrollbar_hover: Option<(ElementPath, ScrollbarPart)>,
 }
 
 /// Persistent context for the cascade engine. Caches prepared stylesheets
@@ -401,6 +410,7 @@ fn cascade_node_with_prev<'a>(
     placeholder: None,
     selection: None,
     marker: None,
+    scrollbar_pseudo: None,
     _arenas: Vec::new(),
   }
 }
@@ -437,6 +447,7 @@ fn clone_subtree<'a>(
           placeholder: None,
           selection: None,
           marker: None,
+          scrollbar_pseudo: None,
           _arenas: Vec::new(),
         }
       }
@@ -454,6 +465,7 @@ fn clone_subtree<'a>(
     placeholder: None,
     selection: None,
     marker: None,
+    scrollbar_pseudo: None,
     _arenas: Vec::new(),
   }
 }
@@ -597,6 +609,13 @@ fn cascade_node<'a>(
   let marker =
     crate::pseudo::collect_pseudo_element(CssPseudo::Marker, node, &style, sheets, ancestors, &ctx, media, arena);
 
+  let scrollbar_hover_part = interaction.scrollbar_hover.as_ref().and_then(|(hp, part)| {
+    if hp == path { Some(*part) } else { None }
+  });
+  let scrollbar_pseudo = crate::pseudo::collect_scrollbar_pseudo_styles(
+    node, &style, sheets, ancestors, &ctx, media, arena, scrollbar_hover_part,
+  );
+
   StyledNode {
     node,
     style,
@@ -608,6 +627,7 @@ fn cascade_node<'a>(
     placeholder,
     selection,
     marker,
+    scrollbar_pseudo,
     _arenas: par_arenas,
   }
 }

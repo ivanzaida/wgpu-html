@@ -45,6 +45,12 @@ pub fn paint_viewport_scrollbars(
   scrollbar::paint_viewport_scrollbars(tree, viewport_width, viewport_height, scroll_x, scroll_y, dl);
 }
 
+pub fn viewport_scrollbar_width(tree: &LayoutTree<'_>) -> f32 {
+  scrollbar::resolve_scrollbar_width(
+    scrollbar::viewport_scrollbar_style_box(tree).style.scrollbar_width,
+  )
+}
+
 fn extract_canvas_color(tree: &LayoutTree) -> Option<[f32; 4]> {
   let root = &tree.root;
   if let Some(c) = style::css_color(root.style.background_color) {

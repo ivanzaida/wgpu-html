@@ -36,6 +36,7 @@ pub struct StyledNode<'a> {
   pub placeholder: Option<Box<ComputedStyle<'a>>>,
   pub selection: Option<Box<ComputedStyle<'a>>>,
   pub marker: Option<Box<PseudoElementStyle<'a>>>,
+  pub scrollbar_pseudo: Option<Box<ScrollbarPseudoStyles<'a>>>,
   /// Thread-local bump arenas from parallel child cascades.
   /// Kept alive so `CssValue` references remain valid.
   #[doc(hidden)]
@@ -59,6 +60,7 @@ impl<'a> Default for StyledNode<'a> {
       placeholder: None,
       selection: None,
       marker: None,
+      scrollbar_pseudo: None,
       _arenas: Vec::new(),
     }
   }
@@ -68,4 +70,12 @@ impl<'a> Default for StyledNode<'a> {
 pub struct PseudoElementStyle<'a> {
   pub style: ComputedStyle<'a>,
   pub content_text: ArcStr,
+}
+
+#[derive(Debug, Default)]
+pub struct ScrollbarPseudoStyles<'a> {
+  pub scrollbar: ComputedStyle<'a>,
+  pub thumb: ComputedStyle<'a>,
+  pub track: ComputedStyle<'a>,
+  pub corner: ComputedStyle<'a>,
 }

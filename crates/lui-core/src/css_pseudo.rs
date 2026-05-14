@@ -117,6 +117,18 @@ pub enum CssPseudo {
   /// href: https://drafts.csswg.org/css-pseudo-4/#selectordef-highlight-custom-ident
   /// syntax: ::highlight(<custom-ident>)
   Highlight,
+  /// Engine-specific scrollbar container pseudo-element.
+  /// syntax: ::lui-scrollbar
+  LuiScrollbar,
+  /// Engine-specific scrollbar corner pseudo-element.
+  /// syntax: ::lui-scrollbar-corner
+  LuiScrollbarCorner,
+  /// Engine-specific scrollbar thumb pseudo-element.
+  /// syntax: ::lui-scrollbar-thumb
+  LuiScrollbarThumb,
+  /// Engine-specific scrollbar track pseudo-element.
+  /// syntax: ::lui-scrollbar-track
+  LuiScrollbarTrack,
   ///
   /// href: https://drafts.csswg.org/css-pseudo-4/#selectordef-marker
   /// syntax: ::marker
@@ -973,6 +985,10 @@ impl CssPseudo {
       CssPseudo::FirstLine => "::first-line",
       CssPseudo::GrammarError => "::grammar-error",
       CssPseudo::Highlight => "::highlight()",
+      CssPseudo::LuiScrollbar => "::lui-scrollbar",
+      CssPseudo::LuiScrollbarCorner => "::lui-scrollbar-corner",
+      CssPseudo::LuiScrollbarThumb => "::lui-scrollbar-thumb",
+      CssPseudo::LuiScrollbarTrack => "::lui-scrollbar-track",
       CssPseudo::Marker => "::marker",
       CssPseudo::NthFragment => "::nth-fragment()",
       CssPseudo::Part => "::part()",
@@ -1132,6 +1148,10 @@ impl CssPseudo {
       ("::first-line", CssPseudo::FirstLine),
       ("::grammar-error", CssPseudo::GrammarError),
       ("::highlight()", CssPseudo::Highlight),
+      ("::lui-scrollbar", CssPseudo::LuiScrollbar),
+      ("::lui-scrollbar-corner", CssPseudo::LuiScrollbarCorner),
+      ("::lui-scrollbar-thumb", CssPseudo::LuiScrollbarThumb),
+      ("::lui-scrollbar-track", CssPseudo::LuiScrollbarTrack),
       ("::marker", CssPseudo::Marker),
       ("::nth-fragment()", CssPseudo::NthFragment),
       ("::part()", CssPseudo::Part),

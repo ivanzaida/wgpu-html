@@ -3605,6 +3605,18 @@ pub enum CssProperty {
   /// syntax: auto | stable && both-edges?
   /// initial: auto
   ScrollbarGutter,
+  /// Engine-specific: inset from scrollbar container edges.
+  /// syntax: <length>{1,4}
+  /// initial: 0px
+  ScrollbarInset,
+  /// Engine-specific: minimum visual thumb length.
+  /// syntax: <length>
+  /// initial: 20px
+  ScrollbarMinThumbSize,
+  /// Engine-specific: scrollbar display mode.
+  /// syntax: auto | classic | overlay | none
+  /// initial: auto
+  ScrollbarMode,
   ///
   /// href: https://drafts.csswg.org/css-scrollbars-1/#propdef-scrollbar-width
   /// syntax: auto | thin | none
@@ -5089,6 +5101,9 @@ impl CssProperty {
       CssProperty::ScrollTimelineName => "scroll-timeline-name",
       CssProperty::ScrollbarColor => "scrollbar-color",
       CssProperty::ScrollbarGutter => "scrollbar-gutter",
+      CssProperty::ScrollbarInset => "scrollbar-inset",
+      CssProperty::ScrollbarMinThumbSize => "scrollbar-min-thumb-size",
+      CssProperty::ScrollbarMode => "scrollbar-mode",
       CssProperty::ScrollbarWidth => "scrollbar-width",
       CssProperty::ShapeImageThreshold => "shape-image-threshold",
       CssProperty::ShapeInside => "shape-inside",
@@ -5944,6 +5959,9 @@ impl CssProperty {
       ("scroll-timeline-name", CssProperty::ScrollTimelineName),
       ("scrollbar-color", CssProperty::ScrollbarColor),
       ("scrollbar-gutter", CssProperty::ScrollbarGutter),
+      ("scrollbar-inset", CssProperty::ScrollbarInset),
+      ("scrollbar-min-thumb-size", CssProperty::ScrollbarMinThumbSize),
+      ("scrollbar-mode", CssProperty::ScrollbarMode),
       ("scrollbar-width", CssProperty::ScrollbarWidth),
       ("shape-image-threshold", CssProperty::ShapeImageThreshold),
       ("shape-inside", CssProperty::ShapeInside),
@@ -6876,6 +6894,9 @@ impl CssProperty {
       CssProperty::ScrollTimelineName => "[ none | <dashed-ident> ]#",
       CssProperty::ScrollbarColor => "auto | <color>{2}",
       CssProperty::ScrollbarGutter => "auto | stable && both-edges?",
+      CssProperty::ScrollbarInset => "<length>{1,4}",
+      CssProperty::ScrollbarMinThumbSize => "<length>",
+      CssProperty::ScrollbarMode => "auto | classic | overlay | none",
       CssProperty::ScrollbarWidth => "auto | thin | none",
       CssProperty::ShapeImageThreshold => "<opacity-value>",
       CssProperty::ShapeInside => "auto | outside-shape | [ <basic-shape> || shape-box ] | <image> | display",
@@ -7733,6 +7754,9 @@ impl CssProperty {
       CssProperty::ScrollTimelineName => "none",
       CssProperty::ScrollbarColor => "auto",
       CssProperty::ScrollbarGutter => "auto",
+      CssProperty::ScrollbarInset => "0px",
+      CssProperty::ScrollbarMinThumbSize => "20px",
+      CssProperty::ScrollbarMode => "auto",
       CssProperty::ScrollbarWidth => "auto",
       CssProperty::ShapeImageThreshold => "0",
       CssProperty::ShapeInside => "auto",
@@ -8552,6 +8576,9 @@ impl CssProperty {
       CssProperty::ScrollTimelineName => false,
       CssProperty::ScrollbarColor => true,
       CssProperty::ScrollbarGutter => false,
+      CssProperty::ScrollbarInset => false,
+      CssProperty::ScrollbarMinThumbSize => false,
+      CssProperty::ScrollbarMode => false,
       CssProperty::ScrollbarWidth => false,
       CssProperty::ShapeImageThreshold => false,
       CssProperty::ShapeInside => false,
