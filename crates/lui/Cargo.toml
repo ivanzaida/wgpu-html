@@ -14,7 +14,6 @@ lui-parse.workspace = true
 lui-cascade.workspace = true
 lui-layout.workspace = true
 lui-glyph.workspace = true
-lui-paint.workspace = true
 
 wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }

@@ -5,7 +5,6 @@ members = [
     "crates/lui-core",
     "crates/lui-glyph",
     "crates/lui-layout",
-    "crates/lui-paint",
     "crates/lui-parse",
     "crates/lui-resolve",
     "crates-v1/lui",
@@ -41,7 +40,6 @@ lui-devtools = { path = "crates-v1/lui-devtools" }
 lui-events = { path = "crates-v1/lui-events-old" }
 lui-layout = { path = "crates/lui-layout" }
 lui-layout-old = { path = "crates-v1/lui-layout-old" }
-lui-paint = { path = "crates/lui-paint" }
 lui-models = { path = "crates-v1/lui-models" }
 lui-parser = { path = "crates-v1/lui-parser" }
 lui-display-list = { path = "crates-v1/lui-display-list" }

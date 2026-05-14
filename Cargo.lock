@@ -3646,7 +3646,6 @@ dependencies = [
  "lui-glyph",
  "lui-layout",
  "lui-models",
- "lui-paint",
  "lui-parse",
  "pollster",
  "wgpu 29.0.3",
@@ -3841,16 +3840,6 @@ name = "lui-models"
 version = "0.1.0"
 dependencies = [
  "lui-css-old",
-]
-
-[[package]]
-name = "lui-paint"
-version = "0.1.0"
-dependencies = [
- "lui-cascade",
- "lui-core",
- "lui-glyph",
- "lui-layout",
 ]
 
 [[package]]

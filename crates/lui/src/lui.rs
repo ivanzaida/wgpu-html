@@ -114,7 +114,7 @@ impl Lui {
         let interaction = InteractionState::default();
         let styled = self.cascade_ctx.cascade(&self.doc.root, &media, &interaction);
         let tree = self.layout_engine.layout(&styled, vw, vh, &mut self.text_ctx);
-        let mut list = lui_paint::paint_scaled(&tree, &mut self.text_ctx, scale);
+        let mut list = crate::paint::paint_scaled(&tree, &mut self.text_ctx, scale);
         list.dpi_scale = scale;
         list
     }
