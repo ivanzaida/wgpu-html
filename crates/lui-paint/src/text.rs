@@ -11,6 +11,7 @@ pub fn paint_text(
     opacity: f32,
     text_ctx: &mut TextContext,
     dl: &mut DisplayList,
+    dpi_scale: f32,
 ) {
     let text = match &b.node.element {
         lui_core::HtmlElement::Text(s) => s.as_ref(),
@@ -34,13 +35,19 @@ pub fn paint_text(
     };
     let font_family = style::css_str(b.style.font_family);
 
-    let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family);
+    let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale);
+
+    let snap_y = if dpi_scale > 1.0 {
+        (content_y * dpi_scale).round() / dpi_scale
+    } else {
+        content_y
+    };
 
     for glyph in &run.glyphs {
         if glyph.uv_min == [0.0; 2] && glyph.uv_max == [0.0; 2] { continue; }
         let rect = DlRect::new(
-            (content_x + glyph.x).round(),
-            (content_y + glyph.y).round(),
+            content_x + glyph.x,
+            snap_y + glyph.y,
             glyph.w,
             glyph.h,
         );
@@ -100,6 +107,7 @@ pub fn paint_list_marker(
     opacity: f32,
     text_ctx: &mut TextContext,
     dl: &mut DisplayList,
+    dpi_scale: f32,
 ) {
     let marker = match &b.list_marker {
         Some(m) => m.as_str(),
@@ -115,7 +123,7 @@ pub fn paint_list_marker(
     let weight = 400;
 
     let font_family = style::css_str(b.style.font_family);
-    let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family);
+    let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family, dpi_scale);
     let marker_x = content_x - run.width;
 
     for glyph in &run.glyphs {

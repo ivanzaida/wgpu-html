@@ -32,6 +32,7 @@ pub struct Runtime<D: Driver, B: RenderBackend> {
     pub text_ctx: TextContext,
     cascade_ctx: CascadeContext,
     layout_engine: LayoutEngine,
+    dpi_scale_override: Option<f32>,
 }
 
 impl<D: Driver, B: RenderBackend> Runtime<D, B> {
@@ -42,6 +43,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
             text_ctx: TextContext::new(),
             cascade_ctx: CascadeContext::new(),
             layout_engine: LayoutEngine::new(),
+            dpi_scale_override: None,
         }
     }
 
@@ -50,13 +52,24 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         self.cascade_ctx.set_stylesheets(sheets);
     }
 
+    /// Override the DPI scale factor. `None` uses the device scale factor.
+    pub fn set_dpi_scale(&mut self, scale: Option<f32>) {
+        self.dpi_scale_override = scale;
+    }
+
+    /// Current effective DPI scale factor.
+    pub fn dpi_scale(&self) -> f32 {
+        self.dpi_scale_override.unwrap_or(self.driver.scale_factor() as f32)
+    }
+
     /// Run the full pipeline: cascade → layout → paint → render.
     pub fn render_frame(&mut self, doc: &HtmlDocument) -> FrameOutcome {
         let (pw, ph) = self.driver.inner_size();
-        let scale = self.driver.scale_factor() as f32;
-        let vw = pw as f32;
-        let vh = ph as f32;
-        let list = self.paint_frame_scaled(doc, vw, vh, scale);
+        let scale = self.dpi_scale();
+        let vw = pw as f32 / scale;
+        let vh = ph as f32 / scale;
+        let mut list = self.paint_frame_scaled(doc, vw, vh, scale);
+        list.dpi_scale = scale;
 
         self.text_ctx.flush_dirty(|rect, data| {
             self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
@@ -80,7 +93,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         let interaction = InteractionState::default();
         let styled = self.cascade_ctx.cascade(&doc.root, &media, &interaction);
         let tree = self.layout_engine.layout(&styled, vw, vh, &mut self.text_ctx);
-        lui_paint::paint(&tree, &mut self.text_ctx)
+        lui_paint::paint_scaled(&tree, &mut self.text_ctx, scale)
     }
 
     /// Capture the current frame to a PNG file.
@@ -91,7 +104,11 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         height: u32,
         path: impl AsRef<Path>,
     ) -> Result<(), RenderError> {
-        let list = self.paint_frame(doc, width as f32, height as f32);
+        let scale = self.dpi_scale();
+        let vw = width as f32 / scale;
+        let vh = height as f32 / scale;
+        let mut list = self.paint_frame_scaled(doc, vw, vh, scale);
+        list.dpi_scale = scale;
 
         self.text_ctx.flush_dirty(|rect, data| {
             self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
@@ -107,7 +124,11 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         width: u32,
         height: u32,
     ) -> Result<Vec<u8>, RenderError> {
-        let list = self.paint_frame(doc, width as f32, height as f32);
+        let scale = self.dpi_scale();
+        let vw = width as f32 / scale;
+        let vh = height as f32 / scale;
+        let mut list = self.paint_frame_scaled(doc, vw, vh, scale);
+        list.dpi_scale = scale;
 
         self.text_ctx.flush_dirty(|rect, data| {
             self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);

@@ -522,3 +522,49 @@ fn orphaned_tr_gets_anonymous_table_wrapper() {
     assert_eq!(anon_table.kind, BoxKind::Table,
         "orphaned tr should be wrapped in anonymous table, got {:?}", anon_table.kind);
 }
+
+// ============================================================================
+// Cell height from text content (no explicit height)
+// ============================================================================
+
+table_test!(cell_height_from_text_content,
+    r#"<table style="width:400px"><tr>
+        <td style="padding:8px">Hello World</td>
+        <td style="padding:8px">Done</td>
+    </tr></table>"#, 800.0, |t| {
+    let row = &t.children[0];
+    // Cells with text + 8px padding should have meaningful height (not near-zero)
+    // Text at default size (~16px) + padding (16px) ≈ 35px
+    assert!(row.content.height > 20.0,
+        "row height should reflect text content, got {}", row.content.height);
+    let cell = &row.children[0];
+    assert!(cell.content.height > 10.0,
+        "cell content height should reflect text, got {}", cell.content.height);
+});
+
+table_test!(cell_explicit_height_with_padding,
+    r#"<table style="width:400px; border-spacing:2px">
+        <tr>
+            <td style="padding:20px; height:40px">Cell A</td>
+            <td style="padding:20px; height:40px">Cell B</td>
+        </tr>
+        <tr>
+            <td style="padding:20px">Cell C auto</td>
+            <td style="padding:20px">Cell D auto</td>
+        </tr>
+    </table>"#, 800.0, |t| {
+    let row0 = &t.children[0];
+    let cell0 = &row0.children[0];
+    let br = cell0.border_rect();
+    // height:40px + padding:20px*2 = 80px (content-box, no UA border-box in tests)
+    assert!((row0.content.height - 80.0).abs() < 2.0,
+        "row0 height should be ~80px (40+20+20), got {}", row0.content.height);
+    assert!((cell0.content.height - 40.0).abs() < 2.0,
+        "cell content height should be 40px, got {}", cell0.content.height);
+    assert!((br.height - 80.0).abs() < 2.0,
+        "cell border_rect height should be 80px, got {}", br.height);
+
+    let row1 = &t.children[1];
+    assert!(row1.content.y > row0.content.y + 78.0,
+        "row1 should be ~82px below row0, gap = {}", row1.content.y - row0.content.y);
+});

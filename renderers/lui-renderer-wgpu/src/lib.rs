@@ -266,7 +266,8 @@ impl Renderer {
       ..Default::default()
     });
 
-    let viewport = [width as f32, height as f32];
+    let s = list.dpi_scale.max(1.0);
+    let viewport = [width as f32 / s, height as f32 / s];
     self.quads.prepare(&self.device, &self.queue, viewport, list);
     self.images.prepare(&self.device, &self.queue, viewport, list);
     self.glyphs.prepare(&self.device, &self.queue, viewport, list);
@@ -360,7 +361,8 @@ impl Renderer {
       ..Default::default()
     });
 
-    let viewport = [width as f32, height as f32];
+    let s = list.dpi_scale.max(1.0);
+    let viewport = [width as f32 / s, height as f32 / s];
     self.quads.prepare(&self.device, &self.queue, viewport, list);
     self.images.prepare(&self.device, &self.queue, viewport, list);
     self.glyphs.prepare(&self.device, &self.queue, viewport, list);
@@ -446,7 +448,8 @@ impl Renderer {
     }
 
     let config = self.surface_config.as_ref().unwrap();
-    let viewport = [config.width as f32, config.height as f32];
+    let scale = list.dpi_scale.max(1.0);
+    let viewport = [config.width as f32 / scale, config.height as f32 / scale];
     self.quads.prepare(&self.device, &self.queue, viewport, list);
     self.images.prepare(&self.device, &self.queue, viewport, list);
     self.glyphs.prepare(&self.device, &self.queue, viewport, list);

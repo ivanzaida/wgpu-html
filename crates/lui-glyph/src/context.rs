@@ -181,6 +181,10 @@ impl TextContext {
 
     /// Shape text, raster glyphs into the atlas, and emit
     /// `PositionedGlyph`s with UV coords and color.
+    ///
+    /// `dpi_scale` controls rasterization resolution: glyphs are shaped at
+    /// `font_size * dpi_scale` for sharp physical pixels, then positions and
+    /// sizes are divided back to logical pixels for the display list.
     pub fn shape_and_pack(
         &mut self,
         text: &str,
@@ -189,15 +193,18 @@ impl TextContext {
         weight: u16,
         color: [f32; 4],
         font_family: &str,
+        dpi_scale: f32,
     ) -> ShapedRun {
         self.maybe_invalidate_text_cache();
 
         let family = if font_family.is_empty() { "sans-serif" } else { font_family };
+        let phys_size = font_size * dpi_scale;
+        let phys_lh = line_height * dpi_scale;
         let cache_key = TextCacheKey {
             text_hash: hash_str(text),
             family_hash: hash_str(family),
-            size_px_bits: font_size.to_bits(),
-            line_height_bits: line_height.to_bits(),
+            size_px_bits: phys_size.to_bits(),
+            line_height_bits: phys_lh.to_bits(),
             weight,
             style: FontStyleAxis::Normal,
         };
@@ -211,15 +218,16 @@ impl TextContext {
             self.text_cache.remove(&cache_key);
         }
 
-        let ts = TextStyle { font_family: family, font_size, line_height, weight, ..Default::default() };
+        let ts = TextStyle { font_family: family, font_size: phys_size, line_height: phys_lh, weight, ..Default::default() };
         let attrs = crate::shape::build_attrs(&ts);
 
-        let metrics = Metrics::new(font_size, line_height);
+        let metrics = Metrics::new(phys_size, phys_lh);
         let mut buffer = Buffer::new(self.font_ctx.font_system_mut(), metrics);
         buffer.set_size(None, None);
         buffer.set_text(text, &attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(self.font_ctx.font_system_mut(), false);
 
+        let inv = 1.0 / dpi_scale;
         let bb = utf8_boundaries(text);
         let mut glyphs = Vec::new();
         let mut glyph_chars = Vec::new();
@@ -228,7 +236,7 @@ impl TextContext {
         let (atlas_w, atlas_h) = self.atlas.dimensions();
 
         for run in buffer.layout_runs() {
-            if line_count == 0 { ascent = run.line_y; }
+            if line_count == 0 { ascent = run.line_y * inv; }
             line_count += 1;
             for g in run.glyphs {
                 let physical = g.physical((0.0, 0.0), 1.0);
@@ -260,11 +268,11 @@ impl TextContext {
                     (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
                     (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
                 ];
-                let gx = (g.x + entry.left as f32).round();
-                let gy = (run.line_y - entry.top as f32).round();
+                let gx = (g.x + entry.left as f32).round() * inv;
+                let gy = (run.line_y - entry.top as f32).round() * inv;
                 glyphs.push(PositionedGlyph {
                     glyph_id: g.glyph_id, x: gx, y: gy,
-                    w: entry.rect.w as f32, h: entry.rect.h as f32,
+                    w: entry.rect.w as f32 * inv, h: entry.rect.h as f32 * inv,
                     uv_min, uv_max, color,
                 });
                 let char_idx = bb.partition_point(|&b| b < g.start)
@@ -393,7 +401,7 @@ impl TextContext {
                     .map(|c| [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0, c.a() as f32 / 255.0])
                     .unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
-                let pos_x = (physical.x as f32 + entry.left as f32).round();
+                let pos_x = physical.x as f32 + entry.left as f32;
                 let pos_y = (run.line_y - entry.top as f32).round();
 
                 if entry.rect.w > 0 && entry.rect.h > 0 {

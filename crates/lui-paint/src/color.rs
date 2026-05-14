@@ -9,16 +9,17 @@ pub fn resolve_color(val: Option<&CssValue>) -> Option<[f32; 4]> {
 }
 
 pub fn css_color_to_rgba(c: &CssColor) -> Option<[f32; 4]> {
-    match c {
-        CssColor::Rgb(r, g, b) => Some([*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, 1.0]),
-        CssColor::Rgba(r, g, b, a) => Some([*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, *a as f32 / 255.0]),
-        CssColor::Hsl(h, s, l) => Some(hsl_to_rgba(*h as f32, *s as f32 / 100.0, *l as f32 / 100.0, 1.0)),
-        CssColor::Hsla(h, s, l, a) => Some(hsl_to_rgba(*h as f32, *s as f32 / 100.0, *l as f32 / 100.0, *a as f32 / 255.0)),
-        CssColor::Hwb(h, w, b) => Some(hwb_to_rgba(*h as f32, *w as f32 / 100.0, *b as f32 / 100.0, 1.0)),
-        CssColor::Hwba(h, w, b, a) => Some(hwb_to_rgba(*h as f32, *w as f32 / 100.0, *b as f32 / 100.0, *a as f32 / 255.0)),
-        CssColor::Hex(s) => parse_hex(s),
-        CssColor::Named(s) => named_color(s),
-    }
+    let srgb = match c {
+        CssColor::Rgb(r, g, b) => [*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, 1.0],
+        CssColor::Rgba(r, g, b, a) => [*r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0, *a as f32 / 255.0],
+        CssColor::Hsl(h, s, l) => hsl_to_rgba(*h as f32, *s as f32 / 100.0, *l as f32 / 100.0, 1.0),
+        CssColor::Hsla(h, s, l, a) => hsl_to_rgba(*h as f32, *s as f32 / 100.0, *l as f32 / 100.0, *a as f32 / 255.0),
+        CssColor::Hwb(h, w, b) => hwb_to_rgba(*h as f32, *w as f32 / 100.0, *b as f32 / 100.0, 1.0),
+        CssColor::Hwba(h, w, b, a) => hwb_to_rgba(*h as f32, *w as f32 / 100.0, *b as f32 / 100.0, *a as f32 / 255.0),
+        CssColor::Hex(s) => return parse_hex(s),
+        CssColor::Named(s) => return named_color(s),
+    };
+    Some(srgb_to_linear(srgb))
 }
 
 pub(crate) fn parse_color_string_pub(s: &str) -> Option<[f32; 4]> {
@@ -33,34 +34,54 @@ fn parse_color_string(s: &str) -> Option<[f32; 4]> {
     named_color(s)
 }
 
+fn srgb_component_to_linear(c: f32) -> f32 {
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn srgb_to_linear(c: [f32; 4]) -> [f32; 4] {
+    [
+        srgb_component_to_linear(c[0]),
+        srgb_component_to_linear(c[1]),
+        srgb_component_to_linear(c[2]),
+        c[3],
+    ]
+}
+
 fn parse_hex(s: &str) -> Option<[f32; 4]> {
     let hex = s.strip_prefix('#').unwrap_or(s);
-    let bytes: Vec<u8> = match hex.len() {
-        3 => hex.chars().map(|c| { let v = hex_digit(c)?; Some(v * 17) }).collect::<Option<Vec<_>>>()?,
+    let srgb = match hex.len() {
+        3 => {
+            let bytes: Vec<u8> = hex.chars().map(|c| { let v = hex_digit(c)?; Some(v * 17) }).collect::<Option<Vec<_>>>()?;
+            [bytes[0] as f32 / 255.0, bytes[1] as f32 / 255.0, bytes[2] as f32 / 255.0, 1.0]
+        }
         4 => {
             let cs: Vec<char> = hex.chars().collect();
             let r = hex_digit(cs[0])? * 17;
             let g = hex_digit(cs[1])? * 17;
             let b = hex_digit(cs[2])? * 17;
             let a = hex_digit(cs[3])? * 17;
-            return Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0]);
+            [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0]
         }
         6 => {
             let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
             let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
             let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            return Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]);
+            [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
         }
         8 => {
             let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
             let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
             let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
             let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
-            return Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0]);
+            [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0]
         }
         _ => return None,
     };
-    Some([bytes[0] as f32 / 255.0, bytes[1] as f32 / 255.0, bytes[2] as f32 / 255.0, 1.0])
+    Some(srgb_to_linear(srgb))
 }
 
 fn hex_digit(c: char) -> Option<u8> {
@@ -144,5 +165,5 @@ pub fn named_color(name: &str) -> Option<[f32; 4]> {
         "transparent" => return Some([0.0; 4]),
         _ => return None,
     };
-    Some([rgb[0] as f32 / 255.0, rgb[1] as f32 / 255.0, rgb[2] as f32 / 255.0, 1.0])
+    Some(srgb_to_linear([rgb[0] as f32 / 255.0, rgb[1] as f32 / 255.0, rgb[2] as f32 / 255.0, 1.0]))
 }

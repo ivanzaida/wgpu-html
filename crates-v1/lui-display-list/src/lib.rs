@@ -202,6 +202,9 @@ pub struct DisplayList {
   /// per CSS 2.2 section 14.2. The renderer uses this as the clear color so the
   /// body background fills the entire viewport.
   pub canvas_color: Option<[f32; 4]>,
+  /// DPI scale factor. Display list coordinates are in logical (CSS) pixels;
+  /// the renderer multiplies by this factor for physical pixel output.
+  pub dpi_scale: f32,
 }
 
 impl Default for DisplayList {
@@ -220,6 +223,7 @@ impl Default for DisplayList {
       }],
       commands: Vec::new(),
       canvas_color: None,
+      dpi_scale: 1.0,
     }
   }
 }

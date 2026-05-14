@@ -12,6 +12,7 @@ pub fn paint_box(
     scroll_offset_x: f32,
     scroll_offset_y: f32,
     parent_opacity: f32,
+    dpi_scale: f32,
 ) {
     if !style::is_visible(b.style) { return; }
 
@@ -39,6 +40,7 @@ pub fn paint_box(
             opacity,
             text_ctx,
             dl,
+            dpi_scale,
         );
     }
 
@@ -61,6 +63,7 @@ pub fn paint_box(
         opacity,
         text_ctx,
         dl,
+        dpi_scale,
     );
 
     let clipped = clip::should_clip(b);
@@ -78,7 +81,7 @@ pub fn paint_box(
     child_order.sort_by_key(|&i| z_index_sort_key(&b.children[i]));
 
     for &i in &child_order {
-        paint_box(&b.children[i], dl, clip_stack, text_ctx, child_dx, child_dy, opacity);
+        paint_box(&b.children[i], dl, clip_stack, text_ctx, child_dx, child_dy, opacity, dpi_scale);
     }
 
     if let Some(ref parent) = parent_clip {

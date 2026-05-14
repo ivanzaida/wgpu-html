@@ -266,7 +266,8 @@ impl ImagePipeline {
   pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, viewport: [f32; 2], list: &DisplayList) {
     self.draws.clear();
     self.draws_by_instance.clear();
-    self.viewport = [viewport[0] as u32, viewport[1] as u32];
+    let s = list.dpi_scale.max(1.0);
+    self.viewport = [(viewport[0] * s) as u32, (viewport[1] * s) as u32];
 
     if list.images.is_empty() {
       return;
@@ -390,7 +391,7 @@ impl ImagePipeline {
         slot_idx as u64 * CLIP_SLOT_STRIDE,
         bytemuck::bytes_of(&g),
       );
-      let scissor = clamp_scissor_rect(clip.rect, self.viewport);
+      let scissor = clamp_scissor_rect(clip.rect, self.viewport, s);
       for i in start..end {
         let draw = ImageDraw {
           image_id: list.images[i as usize].image_id,
@@ -510,15 +511,15 @@ fn globals_for(viewport: [f32; 2], clip: &crate::paint::ClipRange) -> Globals {
   }
 }
 
-fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2]) -> [u32; 4] {
+fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2], scale: f32) -> [u32; 4] {
   let vw = viewport[0];
   let vh = viewport[1];
   let Some(r) = rect else {
     return [0, 0, vw, vh];
   };
-  let x0 = r.x.max(0.0).round().min(vw as f32) as u32;
-  let y0 = r.y.max(0.0).round().min(vh as f32) as u32;
-  let x1 = (r.x + r.w).max(0.0).round().min(vw as f32) as u32;
-  let y1 = (r.y + r.h).max(0.0).round().min(vh as f32) as u32;
+  let x0 = (r.x * scale).max(0.0).round().min(vw as f32) as u32;
+  let y0 = (r.y * scale).max(0.0).round().min(vh as f32) as u32;
+  let x1 = ((r.x + r.w) * scale).max(0.0).round().min(vw as f32) as u32;
+  let y1 = ((r.y + r.h) * scale).max(0.0).round().min(vh as f32) as u32;
   [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
 }

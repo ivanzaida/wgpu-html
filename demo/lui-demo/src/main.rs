@@ -18,12 +18,14 @@ fn read_html() -> String {
             return std::fs::read_to_string(path).expect("failed to read HTML file");
         }
     }
-    if atty::is(atty::Stream::Stdin) {
-        return DEFAULT_HTML.to_string();
+    if !atty::is(atty::Stream::Stdin) {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf).expect("failed to read stdin");
+        if !buf.trim().is_empty() {
+            return buf;
+        }
     }
-    let mut buf = String::new();
-    std::io::stdin().read_to_string(&mut buf).expect("failed to read stdin");
-    buf
+    DEFAULT_HTML.to_string()
 }
 
 fn screenshot_arg() -> Option<String> {

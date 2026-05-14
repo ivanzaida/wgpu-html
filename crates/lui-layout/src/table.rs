@@ -536,8 +536,15 @@ fn layout_bottom_captions<'a>(
   }
 }
 
+fn is_border_box(style: &lui_cascade::ComputedStyle) -> bool {
+  css_str(style.box_sizing) == "border-box"
+}
+
 fn estimate_cell_height(cell: &LayoutBox, cell_w: f32, ctx: &LayoutContext, text_ctx: &mut TextContext) -> f32 {
   if let Some(h) = sizes::resolve_length(cell.style.height, ctx.containing_height) {
+    if is_border_box(cell.style) {
+      return h;
+    }
     let border = sides::resolve_border(cell.style);
     let padding = sides::resolve_padding(cell.style);
     return h + border.vertical() + padding.vertical();
@@ -549,15 +556,25 @@ fn estimate_cell_height(cell: &LayoutBox, cell_w: f32, ctx: &LayoutContext, text
 
   let mut h = 0.0_f32;
   for child in &cell.children {
-    if let lui_core::HtmlElement::Text(ref content) = child.node.element {
-      let style = crate::text::text_style_from_cascade(child.style);
-      let lines = text_ctx.break_into_lines(content, &style, inner_w);
-      h += lines.iter().map(|l| l.height).sum::<f32>();
-    } else if let Some(ch) = sizes::resolve_length(child.style.height, ctx.containing_height) {
-      h += ch;
-    }
+    h += estimate_subtree_height(child, inner_w, ctx, text_ctx);
   }
   h + frame
+}
+
+fn estimate_subtree_height(b: &LayoutBox, max_w: f32, ctx: &LayoutContext, text_ctx: &mut TextContext) -> f32 {
+  if let lui_core::HtmlElement::Text(ref content) = b.node.element {
+    let style = crate::text::text_style_from_cascade(b.style);
+    let lines = text_ctx.break_into_lines(content, &style, max_w);
+    return lines.iter().map(|l| l.height).sum::<f32>();
+  }
+  if let Some(h) = sizes::resolve_length(b.style.height, ctx.containing_height) {
+    return h;
+  }
+  let mut h = 0.0_f32;
+  for child in &b.children {
+    h += estimate_subtree_height(child, max_w, ctx, text_ctx);
+  }
+  h
 }
 
 fn compute_column_widths_fixed(

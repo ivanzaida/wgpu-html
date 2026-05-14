@@ -320,7 +320,8 @@ impl QuadPipeline {
   pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, viewport: [f32; 2], list: &DisplayList) {
     let count = list.quads.len() as u32;
     self.instance_count = count;
-    self.viewport = [viewport[0].max(0.0).round() as u32, viewport[1].max(0.0).round() as u32];
+    let s = list.dpi_scale.max(1.0);
+    self.viewport = [(viewport[0] * s).max(0.0).round() as u32, (viewport[1] * s).max(0.0).round() as u32];
 
     // Build the per-clip-range globals + clip runs. We allocate
     // one slot per *non-empty* clip range; a list with no clipping
@@ -333,7 +334,7 @@ impl QuadPipeline {
       if clip.quad_range.0 == clip.quad_range.1 {
         continue;
       }
-      let rect = clamp_scissor_rect(clip.rect, self.viewport);
+      let rect = clamp_scissor_rect(clip.rect, self.viewport, s);
       let slot = globals_blocks.len() as u32;
       globals_blocks.push(globals_for(viewport, clip));
       let run = ClipRun {
@@ -467,16 +468,16 @@ impl QuadPipeline {
 /// Convert a paint-side `Option<Rect>` into integer scissor
 /// coordinates clamped to the viewport. `None` (no scissor) becomes
 /// the full viewport rect, the wgpu equivalent of "no clip".
-fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2]) -> [u32; 4] {
+fn clamp_scissor_rect(rect: Option<crate::paint::Rect>, viewport: [u32; 2], scale: f32) -> [u32; 4] {
   let vw = viewport[0];
   let vh = viewport[1];
   let Some(r) = rect else {
     return [0, 0, vw, vh];
   };
-  let x0 = r.x.max(0.0).round().min(vw as f32) as u32;
-  let y0 = r.y.max(0.0).round().min(vh as f32) as u32;
-  let x1 = (r.x + r.w).max(0.0).round().min(vw as f32) as u32;
-  let y1 = (r.y + r.h).max(0.0).round().min(vh as f32) as u32;
+  let x0 = (r.x * scale).max(0.0).round().min(vw as f32) as u32;
+  let y0 = (r.y * scale).max(0.0).round().min(vh as f32) as u32;
+  let x1 = ((r.x + r.w) * scale).max(0.0).round().min(vw as f32) as u32;
+  let y1 = ((r.y + r.h) * scale).max(0.0).round().min(vh as f32) as u32;
   [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
 }
 
