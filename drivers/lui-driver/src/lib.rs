@@ -32,7 +32,6 @@ pub struct Runtime<D: Driver, B: RenderBackend> {
     pub text_ctx: TextContext,
     cascade_ctx: CascadeContext,
     layout_engine: LayoutEngine,
-    debug_frame: bool,
 }
 
 impl<D: Driver, B: RenderBackend> Runtime<D, B> {
@@ -43,7 +42,6 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
             text_ctx: TextContext::new(),
             cascade_ctx: CascadeContext::new(),
             layout_engine: LayoutEngine::new(),
-            debug_frame: true,
         }
     }
 
@@ -63,18 +61,6 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         self.text_ctx.flush_dirty(|rect, data| {
             self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
         });
-
-        if self.debug_frame {
-            eprintln!("[lui-driver] {} quads, {} glyphs, {} clips",
-                list.quads.len(), list.glyphs.len(), list.clips.len());
-            for (i, g) in list.glyphs.iter().enumerate().take(5) {
-                eprintln!("  glyph[{}]: x={:.1} y={:.1} w={:.1} h={:.1} uv=[{:.3},{:.3}]-[{:.3},{:.3}] color=[{:.2},{:.2},{:.2},{:.2}]",
-                    i, g.rect.x, g.rect.y, g.rect.w, g.rect.h,
-                    g.uv_min[0], g.uv_min[1], g.uv_max[0], g.uv_max[1],
-                    g.color[0], g.color[1], g.color[2], g.color[3]);
-            }
-            self.debug_frame = false;
-        }
 
         self.renderer.render(&list)
     }

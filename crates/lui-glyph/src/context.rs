@@ -200,9 +200,13 @@ impl TextContext {
             style: FontStyleAxis::Normal,
         };
         if let Some(cached) = self.text_cache.get(&cache_key) {
-            let mut run = cached.clone();
-            for g in &mut run.glyphs { g.color = color; }
-            return run;
+            let has_uvs = cached.glyphs.first().is_some_and(|g| g.uv_min != [0.0; 2] || g.uv_max != [0.0; 2]);
+            if has_uvs {
+                let mut run = cached.clone();
+                for g in &mut run.glyphs { g.color = color; }
+                return run;
+            }
+            self.text_cache.remove(&cache_key);
         }
 
         let ts = TextStyle { font_family: "sans-serif", font_size, line_height, weight, ..Default::default() };
