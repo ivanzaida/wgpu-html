@@ -25,7 +25,7 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, Event, FontId, PointerButton, Pos2, Rect as EguiRect, Response, Sense, Ui, Vec2};
-use lui::{
+use lui_v1::{
   PipelineTimings, interactivity,
   layout::LayoutBox,
   renderer::{DisplayList, Rect},
@@ -58,7 +58,7 @@ impl<W> Driver for EguiHtml<W> {
 
   fn request_redraw(&self) {}
 
-  fn set_cursor(&self, _cursor: lui::layout::Cursor) {}
+  fn set_cursor(&self, _cursor: lui_v1::layout::Cursor) {}
 }
 
 impl<W> EguiHtml<W> {

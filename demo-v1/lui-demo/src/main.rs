@@ -97,7 +97,7 @@ fn run_example(name: &str, profiling: bool, renderer: RendererKind) -> ExitCode 
 fn run_file(path: PathBuf, profiling: bool, renderer: RendererKind) -> ExitCode {
   match std::fs::read_to_string(&path) {
     Ok(html) => launch(
-      lui::parser::parse(&html),
+      lui_v1::parser::parse(&html),
       path.display().to_string(),
       profiling,
       renderer,

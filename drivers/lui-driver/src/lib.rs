@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use lui_v2::Lui;
+use lui::Lui;
 pub use lui_display_list::{DisplayList, FrameOutcome};
 pub use lui_render_api::{RenderBackend, RenderError};
 

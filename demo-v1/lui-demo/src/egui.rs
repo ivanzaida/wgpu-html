@@ -152,7 +152,7 @@ impl Profiler {
     }
   }
 
-  fn add_frame(&mut self, timings: lui::PipelineTimings) {
+  fn add_frame(&mut self, timings: lui_v1::PipelineTimings) {
     self.frames += 1;
     self.cascade.add(timings.cascade_ms);
     self.layout.add(timings.layout_ms);

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui.workspace         = true
+lui-v1.workspace         = true
 lui-models.workspace   = true
 lui-style.workspace    = true
 lui-text.workspace     = true

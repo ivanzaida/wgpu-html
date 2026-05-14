@@ -35,7 +35,8 @@ members = [
 ]
 
 [workspace.dependencies]
-lui = { path = "crates-v1/lui" }
+lui = { path = "crates/lui" }
+lui-v1 = { path = "crates-v1/lui" }
 lui-cascade = { path = "crates/lui-cascade" }
 lui-core = { path = "crates/lui-core" }
 lui-css-old = { path = "crates-v1/lui-css-old" }

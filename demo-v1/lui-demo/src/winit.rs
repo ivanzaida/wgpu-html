@@ -372,7 +372,7 @@ impl DemoApp {
         };
         let size = self.driver.window().inner_size();
         let out_path: PathBuf = format!("screenshot-{}-{}.png", sanitise_for_filename(&sel), timestamp()).into();
-        let result = lui::screenshot_node_to(
+        let result = lui_v1::screenshot_node_to(
           &self.driver.tree,
           &mut self.driver.rt.text_ctx,
           &mut self.driver.rt.image_cache,
@@ -540,7 +540,7 @@ impl ApplicationHandler for DemoApp {
               let pos = (position.x as f32, position.y as f32);
               if let Some(layout) = self.driver.rt.layout() {
                 let doc_pos =
-                  lui::scroll::viewport_to_document(pos, self.driver.rt.scroll_x(), self.driver.rt.scroll_y());
+                  lui_v1::scroll::viewport_to_document(pos, self.driver.rt.scroll_x(), self.driver.rt.scroll_y());
                 let path = layout.hit_path_scrolled(doc_pos, &self.driver.tree.interaction.scroll_offsets);
                 if let Some(devtools) = &mut self.devtools {
                   devtools.set_hover_path(path);

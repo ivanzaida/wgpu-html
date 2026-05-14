@@ -30,7 +30,7 @@ pub fn setup(
     IsDefaultUiCamera,
   ));
 
-  let parsed = lui::parser::parse(
+  let parsed = lui_v1::parser::parse(
     r#"
 <style>
   .hud {

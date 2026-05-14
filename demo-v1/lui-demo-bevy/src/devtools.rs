@@ -17,8 +17,8 @@ pub struct DevtoolsUi;
 
 pub struct DevtoolsState {
   devtools: Devtools,
-  image_cache: lui::layout::ImageCache,
-  pipeline_cache: lui::PipelineCache,
+  image_cache: lui_v1::layout::ImageCache,
+  pipeline_cache: lui_v1::PipelineCache,
   window_entity: Option<Entity>,
   image_handle: Option<Handle<Image>>,
 }
@@ -37,8 +37,8 @@ pub fn setup(world: &mut World) {
 
   world.insert_non_send_resource(DevtoolsState {
     devtools,
-    image_cache: lui::layout::ImageCache::default(),
-    pipeline_cache: lui::PipelineCache::new(),
+    image_cache: lui_v1::layout::ImageCache::default(),
+    pipeline_cache: lui_v1::PipelineCache::new(),
     window_entity: None,
     image_handle: None,
   });
@@ -57,7 +57,7 @@ pub fn input_system(
       continue;
     }
     if let Some(layout) = d.pipeline_cache.layout() {
-      lui::interactivity::pointer_move(d.devtools.tree_mut(), layout, (event.position.x, event.position.y));
+      lui_v1::interactivity::pointer_move(d.devtools.tree_mut(), layout, (event.position.x, event.position.y));
     }
   }
 
@@ -182,7 +182,7 @@ fn render_devtools(d: &mut DevtoolsState, images: &mut Assets<Image>, phys_w: u3
 
     text_ctx.sync_fonts(&d.devtools.tree().fonts);
 
-    let (mut list, _layout, _timings) = lui::paint_tree_cached(
+    let (mut list, _layout, _timings) = lui_v1::paint_tree_cached(
       d.devtools.tree_mut(),
       text_ctx,
       &mut d.image_cache,

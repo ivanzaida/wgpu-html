@@ -38,7 +38,7 @@
 
 use std::time::{Duration, Instant};
 
-use lui::{
+use lui_v1::{
   PipelineCache, PipelineTimings, events as ev, interactivity,
   layout::{Cursor, LayoutBox},
   renderer::{DisplayList, FrameOutcome, Rect},
@@ -113,7 +113,7 @@ pub struct Runtime<D: Driver, B: RenderBackend> {
   pub driver: D,
   pub renderer: B,
   pub text_ctx: TextContext,
-  pub image_cache: lui::layout::ImageCache,
+  pub image_cache: lui_v1::layout::ImageCache,
   pipeline_cache: PipelineCache,
   scroll_x: f32,
   scroll_y: f32,
@@ -142,7 +142,7 @@ struct ClickTracker {
 enum ScrollbarDrag {
   Viewport {
     grab_offset: f32,
-    axis: lui::scroll::ScrollbarAxis,
+    axis: lui_v1::scroll::ScrollbarAxis,
   },
   Element(ElementScrollbarDrag),
 }
@@ -308,7 +308,7 @@ impl ProfilingOverlay {
       "><span>{label}</span></div>"#
     );
 
-    let overlay_tree = lui::parser::parse(&html);
+    let overlay_tree = lui_v1::parser::parse(&html);
     let Some(overlay_root) = overlay_tree.root else { return };
 
     let Some(root) = &mut tree.root else { return };
@@ -366,7 +366,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       driver,
       renderer,
       text_ctx: TextContext::new(atlas_size),
-      image_cache: lui::layout::ImageCache::default(),
+      image_cache: lui_v1::layout::ImageCache::default(),
       pipeline_cache: PipelineCache::new(),
       scroll_x: 0.0,
       scroll_y: 0.0,
@@ -439,7 +439,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
     // Reserve space for the viewport scrollbar so content doesn't
     // overlap. Uses previous frame's state; if it changes we
     // invalidate the cache and re-layout next frame.
-    let scrollbar_w = lui::scroll::VIEWPORT_SCROLLBAR_WIDTH + 4.0;
+    let scrollbar_w = lui_v1::scroll::VIEWPORT_SCROLLBAR_WIDTH + 4.0;
     let content_w = if self.needs_viewport_scrollbar_y {
       paint_w - scrollbar_w
     } else {
@@ -447,9 +447,9 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
     };
 
     // Pre-shape overlay text so the atlas includes all glyphs before the main paint.
-    lui::color_picker_overlay::update_cached_layout(tree, &mut self.text_ctx);
+    lui_v1::color_picker_overlay::update_cached_layout(tree, &mut self.text_ctx);
 
-    let (mut list, layout, timings) = lui::paint_tree_cached(
+    let (mut list, layout, timings) = lui_v1::paint_tree_cached(
       tree,
       &mut self.text_ctx,
       &mut self.image_cache,
@@ -462,7 +462,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
     tree.dirty_paths.clear();
 
     if let Some(layout) = layout {
-      lui::update_edit_scroll(tree, layout);
+      lui_v1::update_edit_scroll(tree, layout);
       self.scroll_y = clamp_scroll_y(self.scroll_y, layout, h as f32);
       if let Some(bg) = layout.background {
         self.renderer.set_clear_color(bg);
@@ -490,18 +490,18 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       .last_layout
       .as_ref()
       .map(|l| {
-        let driver_max = lui::scroll::max_scroll_y(l, h as f32);
+        let driver_max = lui_v1::scroll::max_scroll_y(l, h as f32);
         if driver_max > 0.5 {
           driver_max
         } else {
-          lui::scroll::body_max_scroll(l, h as f32)
+          lui_v1::scroll::body_max_scroll(l, h as f32)
         }
       })
       .unwrap_or(0.0);
     let max_scroll_x = self
       .last_layout
       .as_ref()
-      .map(|l| lui::scroll::max_scroll_x(l, w as f32))
+      .map(|l| lui_v1::scroll::max_scroll_x(l, w as f32))
       .unwrap_or(0.0);
 
     let needs_y = max_scroll_y > 0.5;
@@ -516,7 +516,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
 
     if let Some(path) = &self.inspect_overlay_path {
       if let Some(ref layout) = self.last_layout {
-        lui::inspect_overlay::paint_inspect_overlay(
+        lui_v1::inspect_overlay::paint_inspect_overlay(
           &mut list,
           layout,
           tree,
@@ -531,8 +531,8 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
     }
 
     if let Some(ref layout) = self.last_layout {
-      lui::color_picker_overlay::paint_color_picker_overlay(&mut list, layout, tree, 0.0, scale, content_w, paint_h);
-      lui::date_picker_overlay::paint_date_picker_overlay(&mut list, layout, tree, &mut self.text_ctx);
+      lui_v1::color_picker_overlay::paint_color_picker_overlay(&mut list, layout, tree, 0.0, scale, content_w, paint_h);
+      lui_v1::date_picker_overlay::paint_date_picker_overlay(&mut list, layout, tree, &mut self.text_ctx);
     }
 
     translate_display_list_x(&mut list, -self.scroll_x);
@@ -543,10 +543,10 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       .last_layout
       .as_ref()
       .and_then(|l| l.overflow.scrollbar_thumb)
-      .unwrap_or(lui::scroll::DEFAULT_THUMB);
+      .unwrap_or(lui_v1::scroll::DEFAULT_THUMB);
     let vw = w as f32;
     let vh = h as f32;
-    let track_w = lui::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+    let track_w = lui_v1::scroll::VIEWPORT_SCROLLBAR_WIDTH;
     let margin = 2.0;
     let inset = 1.0;
 
@@ -645,7 +645,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
       (w as f32, h as f32)
     };
 
-    let (list, layout, timings) = lui::paint_tree_cached(
+    let (list, layout, timings) = lui_v1::paint_tree_cached(
       tree,
       &mut self.text_ctx,
       &mut self.image_cache,
@@ -709,15 +709,15 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
         let (w, h) = self.driver.inner_size();
         match &drag {
           ScrollbarDrag::Viewport { grab_offset, axis } => {
-            use lui::scroll::ScrollbarAxis;
+            use lui_v1::scroll::ScrollbarAxis;
             let vw = w as f32;
             let vh = h as f32;
-            let track_w = lui::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+            let track_w = lui_v1::scroll::VIEWPORT_SCROLLBAR_WIDTH;
             let margin = 2.0;
             match axis {
               ScrollbarAxis::Vertical => {
-                let max_sy = lui::scroll::max_scroll_y(layout, vh);
-                let max_sx = lui::scroll::max_scroll_x(layout, vw);
+                let max_sy = lui_v1::scroll::max_scroll_y(layout, vh);
+                let max_sx = lui_v1::scroll::max_scroll_x(layout, vw);
                 let bar_h = if max_sx > 0.5 { vh - track_w } else { vh };
                 let track_h = bar_h - margin * 2.0;
                 let thumb_h = (track_h * vh / (max_sy + vh)).clamp(24.0, track_h);
@@ -726,8 +726,8 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
                 self.scroll_y = t * max_sy;
               }
               ScrollbarAxis::Horizontal => {
-                let max_sx = lui::scroll::max_scroll_x(layout, vw);
-                let max_sy = lui::scroll::max_scroll_y(layout, vh);
+                let max_sx = lui_v1::scroll::max_scroll_x(layout, vw);
+                let max_sy = lui_v1::scroll::max_scroll_y(layout, vh);
                 let bar_w = if max_sy > 0.5 { vw - track_w } else { vw };
                 let track_w_px = bar_w - margin * 2.0;
                 let thumb_w = (track_w_px * vw / (max_sx + vw)).clamp(24.0, track_w_px);
@@ -882,15 +882,15 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
               if let Some(cp) = &mut tree.interaction.color_picker {
                 match code {
                   "KeyA" => {
-                    lui::color_picker_overlay::field_key_down(cp, key, code, ctrl, shift);
+                    lui_v1::color_picker_overlay::field_key_down(cp, key, code, ctrl, shift);
                   }
                   "KeyC" => {
-                    if let Some(sel) = lui::color_picker_overlay::field_selected_text(cp) {
+                    if let Some(sel) = lui_v1::color_picker_overlay::field_selected_text(cp) {
                       self.driver.set_clipboard_text(&sel);
                     }
                   }
                   "KeyX" => {
-                    if let Some(sel) = lui::color_picker_overlay::field_selected_text(cp) {
+                    if let Some(sel) = lui_v1::color_picker_overlay::field_selected_text(cp) {
                       self.driver.set_clipboard_text(&sel);
                       let (v, c) = lui_tree::text_edit::delete_selection(&cp.field_text, &cp.field_cursor);
                       cp.field_text = v;
@@ -900,7 +900,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
                   "KeyV" => {
                     if let Some(clip) = self.driver.get_clipboard_text() {
                       if !clip.is_empty() {
-                        lui::color_picker_overlay::field_text_input(cp, &clip);
+                        lui_v1::color_picker_overlay::field_text_input(cp, &clip);
                       }
                     }
                   }
@@ -914,10 +914,10 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
           }
         }
         if let Some(cp) = &mut tree.interaction.color_picker {
-          if lui::color_picker_overlay::field_key_down(cp, key, code, ctrl, shift) {
+          if lui_v1::color_picker_overlay::field_key_down(cp, key, code, ctrl, shift) {
             if cp.active_field.is_none() {
               let path = cp.path.clone();
-              let (r, g, b) = lui::color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
+              let (r, g, b) = lui_v1::color_picker_overlay::hsv_to_srgb_u8(cp.hue, cp.saturation, cp.value);
               let a = cp.alpha;
               lui_tree::set_color_value(tree, &path, r, g, b, a);
             }
@@ -929,7 +929,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
           if let Some(s) = text {
             if !s.is_empty() && s.chars().all(|c| !c.is_control()) {
               if let Some(cp) = &mut tree.interaction.color_picker {
-                lui::color_picker_overlay::field_text_input(cp, s);
+                lui_v1::color_picker_overlay::field_text_input(cp, s);
               }
               self.driver.request_redraw();
               return;
@@ -1037,7 +1037,7 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
   // ── Scrollbar helpers ───────────────────────────────────────────────────
 
   fn start_scrollbar_drag(&mut self, tree: &mut Tree, pos: (f32, f32)) -> bool {
-    use lui::scroll::ScrollbarAxis;
+    use lui_v1::scroll::ScrollbarAxis;
     let Some(layout) = self.last_layout.as_ref() else {
       return false;
     };
@@ -1051,11 +1051,11 @@ impl<D: Driver, B: RenderBackend> Runtime<D, B> {
 
     let vw = w as f32;
     let vh = h as f32;
-    let track_w = lui::scroll::VIEWPORT_SCROLLBAR_WIDTH;
+    let track_w = lui_v1::scroll::VIEWPORT_SCROLLBAR_WIDTH;
     let margin = 2.0;
     let inset = 1.0;
-    let max_sy = lui::scroll::max_scroll_y(layout, vh);
-    let max_sx = lui::scroll::max_scroll_x(layout, vw);
+    let max_sy = lui_v1::scroll::max_scroll_y(layout, vh);
+    let max_sx = lui_v1::scroll::max_scroll_x(layout, vw);
 
     if max_sy > 0.5 {
       let bar_h = if max_sx > 0.5 { vh - track_w } else { vh };

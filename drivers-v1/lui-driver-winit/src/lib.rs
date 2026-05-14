@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use lui::{PipelineTimings, layout::Cursor};
+use lui_v1::{PipelineTimings, layout::Cursor};
 use lui_driver_v1::{Driver, Runtime};
 use lui_tree::{Modifier, MouseButton, Tree};
 use winit::{
@@ -192,7 +192,7 @@ fn dispatch(event: &WindowEvent, rt: &mut Runtime<Lui, lui_renderer_wgpu::Render
       let scale = tree.effective_dpi_scale(rt.driver.scale_factor() as f32);
       let prevented = match delta {
         MouseScrollDelta::LineDelta(x, y) => {
-          rt.on_wheel_event(tree, 0.0, 0.0, *x as f64, *y as f64, lui::events::WheelDeltaMode::Line)
+          rt.on_wheel_event(tree, 0.0, 0.0, *x as f64, *y as f64, lui_v1::events::WheelDeltaMode::Line)
         }
         MouseScrollDelta::PixelDelta(phys_pos) => rt.on_wheel_event(
           tree,
@@ -200,7 +200,7 @@ fn dispatch(event: &WindowEvent, rt: &mut Runtime<Lui, lui_renderer_wgpu::Render
           0.0,
           phys_pos.x as f64,
           phys_pos.y as f64,
-          lui::events::WheelDeltaMode::Pixel,
+          lui_v1::events::WheelDeltaMode::Pixel,
         ),
       };
       if prevented {

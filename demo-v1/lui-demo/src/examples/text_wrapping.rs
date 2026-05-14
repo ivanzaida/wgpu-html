@@ -1,5 +1,5 @@
 pub fn build() -> lui_tree::Tree {
   const HTML: &str = include_str!("../../html/text-wrapping.html");
-  let tree = lui::parser::parse(HTML);
+  let tree = lui_v1::parser::parse(HTML);
   tree
 }

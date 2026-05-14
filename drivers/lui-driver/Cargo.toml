@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui-v2 = { path = "../../crates/lui" }
+lui.workspace = true
 lui-display-list.workspace = true
 lui-render-api.workspace = true
 lui-parse.workspace = true

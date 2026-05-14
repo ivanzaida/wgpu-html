@@ -3639,16 +3639,13 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 name = "lui"
 version = "0.1.0"
 dependencies = [
- "lui-assets",
- "lui-events",
- "lui-layout-old",
- "lui-models",
- "lui-parser",
- "lui-renderer-wgpu",
- "lui-style",
- "lui-text",
- "lui-tree",
- "rfd",
+ "lui-cascade",
+ "lui-core",
+ "lui-display-list",
+ "lui-glyph",
+ "lui-layout",
+ "lui-paint",
+ "lui-parse",
 ]
 
 [[package]]
@@ -3696,11 +3693,11 @@ name = "lui-demo-bevy"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "lui",
  "lui-devtools",
  "lui-driver-bevy-v1",
  "lui-renderer-wgpu",
  "lui-text",
+ "lui-v1",
  "pollster",
 ]
 
@@ -3711,7 +3708,6 @@ dependencies = [
  "arboard",
  "eframe",
  "egui",
- "lui",
  "lui-devtools",
  "lui-driver-egui-v1",
  "lui-driver-winit-v1",
@@ -3719,6 +3715,7 @@ dependencies = [
  "lui-style",
  "lui-text",
  "lui-tree",
+ "lui-v1",
  "winit",
 ]
 
@@ -3743,10 +3740,10 @@ version = "0.1.0"
 name = "lui-driver"
 version = "0.1.0"
 dependencies = [
+ "lui",
  "lui-display-list",
  "lui-parse",
  "lui-render-api",
- "lui-v2",
 ]
 
 [[package]]
@@ -3754,12 +3751,12 @@ name = "lui-driver-bevy-v1"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "lui",
  "lui-driver-v1",
  "lui-parser",
  "lui-renderer-wgpu",
  "lui-text",
  "lui-tree",
+ "lui-v1",
  "pollster",
 ]
 
@@ -3768,10 +3765,10 @@ name = "lui-driver-egui-v1"
 version = "0.1.0"
 dependencies = [
  "egui",
- "lui",
  "lui-driver-v1",
  "lui-renderer-wgpu",
  "lui-tree",
+ "lui-v1",
  "pollster",
  "wgpu 29.0.3",
 ]
@@ -3780,10 +3777,10 @@ dependencies = [
 name = "lui-driver-v1"
 version = "0.1.0"
 dependencies = [
- "lui",
  "lui-render-api",
  "lui-text",
  "lui-tree",
+ "lui-v1",
 ]
 
 [[package]]
@@ -3803,10 +3800,10 @@ name = "lui-driver-winit-v1"
 version = "0.1.0"
 dependencies = [
  "arboard",
- "lui",
  "lui-driver-v1",
  "lui-renderer-wgpu",
  "lui-tree",
+ "lui-v1",
  "pollster",
  "winit",
 ]
@@ -3965,16 +3962,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "lui-v2"
+name = "lui-v1"
 version = "0.1.0"
 dependencies = [
- "lui-cascade",
- "lui-core",
- "lui-display-list",
- "lui-glyph",
- "lui-layout",
- "lui-paint",
- "lui-parse",
+ "lui-assets",
+ "lui-events",
+ "lui-layout-old",
+ "lui-models",
+ "lui-parser",
+ "lui-renderer-wgpu",
+ "lui-style",
+ "lui-text",
+ "lui-tree",
+ "rfd",
 ]
 
 [[package]]

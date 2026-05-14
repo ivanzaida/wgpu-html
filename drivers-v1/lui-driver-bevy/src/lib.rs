@@ -19,7 +19,7 @@ use bevy::{
   render::render_resource::{Extent3d, TextureDimension, TextureFormat},
   window::CursorMoved,
 };
-use lui::interactivity;
+use lui_v1::interactivity;
 use lui_renderer_wgpu::{RenderBackend, Renderer};
 use lui_text::TextContext;
 use lui_tree::{Modifier, MouseButton as HtmlMouseButton, Node as HtmlNode, Tree};
@@ -51,8 +51,8 @@ impl Plugin for LuiPlugin {
       tree: Tree::new(lui_tree::Node::new(lui_tree::Element::Body(Default::default()))),
       renderer,
       text_ctx,
-      image_cache: lui::layout::ImageCache::default(),
-      pipeline_cache: lui::PipelineCache::new(),
+      image_cache: lui_v1::layout::ImageCache::default(),
+      pipeline_cache: lui_v1::PipelineCache::new(),
       image_handle: image_handle.clone(),
       captures_input: true,
       last_cursor: None,
@@ -77,8 +77,8 @@ pub struct HtmlOverlay {
   pub tree: Tree,
   renderer: Renderer,
   text_ctx: TextContext,
-  image_cache: lui::layout::ImageCache,
-  pipeline_cache: lui::PipelineCache,
+  image_cache: lui_v1::layout::ImageCache,
+  pipeline_cache: lui_v1::PipelineCache,
   image_handle: Handle<Image>,
   captures_input: bool,
   last_cursor: Option<(f32, f32)>,
@@ -267,7 +267,7 @@ fn render_overlay_system(
 
   o.text_ctx.sync_fonts(&o.tree.fonts);
 
-  let (mut list, _layout, _timings) = lui::paint_tree_cached(
+  let (mut list, _layout, _timings) = lui_v1::paint_tree_cached(
     &mut o.tree,
     &mut o.text_ctx,
     &mut o.image_cache,

@@ -3,7 +3,7 @@ use lui_tree::{Element, Node};
 
 pub fn build() -> lui_tree::Tree {
   const HTML: &str = include_str!("../../html/custom-elements.html");
-  let mut tree = lui::parser::parse(HTML);
+  let mut tree = lui_v1::parser::parse(HTML);
 
   tree.register_custom_element("app-card", |node| {
     let title = node.element.attr("title").unwrap_or(ArcStr::from("Untitled"));
