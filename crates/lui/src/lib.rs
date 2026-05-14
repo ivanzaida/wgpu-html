@@ -1,10 +1,10 @@
 pub use lui_core;
+pub use lui_core::display_list;
 pub use lui_parse;
 pub use lui_cascade;
 pub use lui_layout;
 pub use lui_glyph;
 pub use lui_paint;
-pub use lui_display_list;
 
 mod lui;
 pub use lui::Lui;
@@ -19,6 +19,9 @@ pub trait Driver {
     fn request_redraw(&self);
 }
 
+#[cfg(feature = "wgpu")]
+pub mod renderer_wgpu;
+
 #[cfg(feature = "winit")]
 mod winit_driver;
 #[cfg(feature = "winit")]
@@ -26,5 +29,3 @@ pub use winit_driver::WinitDriver;
 
 #[cfg(feature = "winit")]
 pub use winit;
-#[cfg(feature = "winit")]
-pub use lui_renderer_wgpu;

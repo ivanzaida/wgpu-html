@@ -10,7 +10,7 @@ static UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
 /// Winit + wgpu driver. Owns `Lui` + a wgpu renderer + the window.
 pub struct WinitDriver {
     pub lui: Lui,
-    pub renderer: lui_renderer_wgpu::Renderer,
+    pub renderer: crate::renderer_wgpu::Renderer,
     pub window: Arc<Window>,
 }
 
@@ -23,7 +23,7 @@ impl WinitDriver {
         };
 
         let renderer = pollster::block_on(
-            lui_renderer_wgpu::Renderer::new(window.clone(), w, h),
+            crate::renderer_wgpu::Renderer::new(window.clone(), w, h),
         );
 
         let mut lui = Lui::new();
@@ -46,7 +46,7 @@ impl WinitDriver {
                     size.height as f32 / scale,
                 );
                 let outcome = self.lui.render_with(&mut self.renderer);
-                if matches!(outcome, lui_display_list::FrameOutcome::Reconfigure) {
+                if matches!(outcome, crate::display_list::FrameOutcome::Reconfigure) {
                     self.renderer.resize(size.width, size.height);
                     self.window.request_redraw();
                 }

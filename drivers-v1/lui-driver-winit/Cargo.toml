@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 lui-v1.workspace      = true
 lui-driver-v1      = { path = "../lui-driver" }
-lui-renderer-wgpu.workspace = true
+lui-renderer-wgpu = { path = "../../renderers/lui-renderer-wgpu" }
 lui-tree.workspace = true
 winit.workspace          = true
 pollster.workspace       = true

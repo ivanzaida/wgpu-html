@@ -9,7 +9,7 @@ pub mod style;
 mod text;
 mod walk;
 
-use lui_display_list::DisplayList;
+use lui_core::display_list::DisplayList;
 use lui_glyph::TextContext;
 use lui_layout::LayoutTree;
 

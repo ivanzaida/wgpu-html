@@ -20,7 +20,6 @@ members = [
     "crates-v1/lui-text",
     "crates-v1/lui-tree",
     "crates-v1/lui-ui",
-    "renderers/lui-renderer-wgpu",
     "drivers-v1/lui-driver",
     "drivers-v1/lui-driver-bevy",
     "drivers-v1/lui-driver-egui",
@@ -46,7 +45,6 @@ lui-paint = { path = "crates/lui-paint" }
 lui-models = { path = "crates-v1/lui-models" }
 lui-parser = { path = "crates-v1/lui-parser" }
 lui-display-list = { path = "crates-v1/lui-display-list" }
-lui-renderer-wgpu = { path = "renderers/lui-renderer-wgpu" }
 lui-style = { path = "crates-v1/lui-style" }
 lui-text = { path = "crates-v1/lui-text" }
 lui-tree = { path = "crates-v1/lui-tree" }

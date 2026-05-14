@@ -2,7 +2,7 @@ use std::path::Path;
 
 use lui_cascade::cascade::{CascadeContext, InteractionState};
 use lui_cascade::media::MediaContext;
-use lui_display_list::DisplayList;
+use crate::display_list::DisplayList;
 use lui_glyph::{FontFace, FontHandle, TextContext};
 use lui_layout::engine::LayoutEngine;
 use lui_parse::{HtmlDocument, Stylesheet};
@@ -129,7 +129,7 @@ impl Lui {
     // ── Render to an external backend ────────────────────────────────
 
     /// Paint and submit to any `RenderBackend`.
-    pub fn render_with<B: RenderBackend>(&mut self, renderer: &mut B) -> lui_display_list::FrameOutcome {
+    pub fn render_with<B: RenderBackend>(&mut self, renderer: &mut B) -> crate::display_list::FrameOutcome {
         let list = self.paint();
         self.text_ctx.flush_dirty(|rect, data| {
             renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
@@ -181,7 +181,7 @@ impl Lui {
 
         struct App {
             lui: Lui,
-            renderer: Option<lui_renderer_wgpu::Renderer>,
+            renderer: Option<crate::renderer_wgpu::Renderer>,
             window: Option<Arc<winit::window::Window>>,
             title: String,
             initial_size: (u32, u32),
@@ -201,7 +201,7 @@ impl Lui {
                     (s.width.max(1), s.height.max(1))
                 };
                 self.renderer = Some(pollster::block_on(
-                    lui_renderer_wgpu::Renderer::new(window.clone(), w, h),
+                    crate::renderer_wgpu::Renderer::new(window.clone(), w, h),
                 ));
                 self.window = Some(window);
             }
@@ -225,7 +225,7 @@ impl Lui {
                             size.height as f32 / scale,
                         );
                         let outcome = self.lui.render_with(renderer);
-                        if matches!(outcome, lui_display_list::FrameOutcome::Reconfigure) {
+                        if matches!(outcome, crate::display_list::FrameOutcome::Reconfigure) {
                             renderer.resize(size.width, size.height);
                             window.request_redraw();
                         }

@@ -18,6 +18,11 @@ impl Rect {
     }
 }
 
+// ── Display list IR ──────────────────────────────────────────────────
+
+pub mod display_list;
+pub use display_list::*;
+
 // ── CSS types ─────────────────────────────────────────────────────────
 
 pub mod events;

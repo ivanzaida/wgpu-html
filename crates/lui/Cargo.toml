@@ -5,7 +5,8 @@ edition = "2024"
 
 [features]
 default = []
-winit = ["dep:lui-renderer-wgpu", "dep:winit", "dep:pollster"]
+wgpu = ["dep:wgpu", "dep:bytemuck", "dep:image", "dep:lui-models", "dep:pollster"]
+winit = ["wgpu", "dep:winit"]
 
 [dependencies]
 lui-core.workspace = true
@@ -14,8 +15,10 @@ lui-cascade.workspace = true
 lui-layout.workspace = true
 lui-glyph.workspace = true
 lui-paint.workspace = true
-lui-display-list.workspace = true
 
-lui-renderer-wgpu = { workspace = true, optional = true }
-winit = { workspace = true, optional = true }
+wgpu = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+lui-models = { workspace = true, optional = true }
 pollster = { workspace = true, optional = true }
+winit = { workspace = true, optional = true }

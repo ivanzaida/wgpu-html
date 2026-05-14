@@ -1,4 +1,4 @@
-use lui_display_list::{DisplayList, Quad, Rect as DlRect, DisplayCommand, DisplayCommandKind};
+use lui_core::display_list::{DisplayList, Quad, Rect as DlRect, DisplayCommand, DisplayCommandKind};
 use lui_core::CssValue;
 
 use crate::style;

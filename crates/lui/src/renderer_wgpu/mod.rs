@@ -1,0 +1,729 @@
+//! M2: wgpu skeleton + solid quad pipeline.
+//!
+//! Owns the GPU device/queue, a window-bound surface, and a single
+//! pipeline that renders a `DisplayList` of colored rectangles.
+//! Also exposes a screenshot API: schedule a capture, the next rendered
+//! frame is copied into a staging buffer and saved as a PNG.
+
+use std::{path::PathBuf, sync::Arc};
+
+pub use wgpu;
+use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
+
+mod glyph_pipeline;
+mod image_pipeline;
+mod paint;
+mod quad_pipeline;
+mod screenshot;
+
+pub use glyph_pipeline::GlyphPipeline;
+pub use image_pipeline::ImagePipeline;
+pub use quad_pipeline::QuadPipeline;
+pub use screenshot::ScreenshotError;
+
+use crate::display_list::*;
+use crate::{RenderBackend, RenderError};
+
+/// Glyph atlas dimensions (square). The CPU-side atlas in
+/// `lui-text` must be created with the same size so its uploads
+/// land in the renderer's GPU texture without scaling.
+pub const GLYPH_ATLAS_SIZE: u32 = 2048;
+
+pub struct Renderer {
+  pub instance: wgpu::Instance,
+  pub adapter: wgpu::Adapter,
+  pub device: wgpu::Device,
+  pub queue: wgpu::Queue,
+  surface: Option<wgpu::Surface<'static>>,
+  surface_config: Option<wgpu::SurfaceConfiguration>,
+  pub clear_color: wgpu::Color,
+  format: wgpu::TextureFormat,
+  glyph_view_format: wgpu::TextureFormat,
+  quads: QuadPipeline,
+  images: ImagePipeline,
+  glyphs: GlyphPipeline,
+  pending_capture: Option<PathBuf>,
+}
+
+impl Renderer {
+  /// Create a renderer bound to the given window-like surface target.
+  /// The window is held via `Arc`; the renderer keeps it alive for the
+  /// lifetime of the surface.
+  pub async fn new<W>(window: Arc<W>, width: u32, height: u32) -> Self
+  where
+    W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
+  {
+    let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
+    idesc.backends = wgpu::Backends::PRIMARY;
+    let instance = wgpu::Instance::new(idesc);
+
+    let surface = instance.create_surface(window).expect("failed to create surface");
+
+    let adapter = instance
+      .request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: Some(&surface),
+        force_fallback_adapter: false,
+      })
+      .await
+      .expect("no suitable GPU adapter");
+
+    let (device, queue) = adapter
+      .request_device(&wgpu::DeviceDescriptor {
+        label: Some("lui device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+        experimental_features: wgpu::ExperimentalFeatures::default(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+      })
+      .await
+      .expect("failed to acquire device");
+
+    let caps = surface.get_capabilities(&adapter);
+    let format = caps
+      .formats
+      .iter()
+      .copied()
+      .find(|f| f.is_srgb())
+      .unwrap_or(caps.formats[0]);
+
+    // `glyph_view_format` is the same texture interpreted without
+    // sRGB encoding; if `format` is already non-sRGB the call
+    // returns it unchanged. We always add it to `view_formats` so
+    // the surface texture is created allowing both views.
+    let glyph_view_format = format.remove_srgb_suffix();
+    let mut extra_view_formats: Vec<wgpu::TextureFormat> = Vec::new();
+    if glyph_view_format != format {
+      extra_view_formats.push(glyph_view_format);
+    }
+
+    let surface_config = wgpu::SurfaceConfiguration {
+      // COPY_SRC is required so we can read the surface texture back
+      // for screenshots.
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+      format,
+      width: width.max(1),
+      height: height.max(1),
+      present_mode: wgpu::PresentMode::Fifo,
+      alpha_mode: wgpu::CompositeAlphaMode::Opaque,
+      view_formats: extra_view_formats,
+      desired_maximum_frame_latency: 2,
+    };
+    surface.configure(&device, &surface_config);
+
+    let quads = QuadPipeline::new(&device, format);
+    quads.upload_static(&queue);
+    // Glyph pipeline targets the *non-sRGB* view of the surface,
+    // so its blend equation runs on already-encoded byte values.
+    let images = ImagePipeline::new(&device, format);
+    images.upload_static(&queue);
+    let glyphs = GlyphPipeline::new(&device, glyph_view_format, GLYPH_ATLAS_SIZE);
+    glyphs.upload_static(&queue);
+
+    Self {
+      instance,
+      adapter,
+      device,
+      queue,
+      surface: Some(surface),
+      surface_config: Some(surface_config),
+      clear_color: wgpu::Color::WHITE,
+      format,
+      glyph_view_format,
+      quads,
+      images,
+      glyphs,
+      pending_capture: None,
+    }
+  }
+
+  /// Create a headless renderer (no window surface). Suitable for
+  /// offscreen rendering via [`Self::render_to_rgba`].
+  pub async fn headless() -> Self {
+    let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
+    idesc.backends = wgpu::Backends::PRIMARY;
+    let instance = wgpu::Instance::new(idesc);
+
+    let adapter = instance
+      .request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: None,
+        force_fallback_adapter: false,
+      })
+      .await
+      .expect("no suitable GPU adapter");
+
+    let (device, queue) = adapter
+      .request_device(&wgpu::DeviceDescriptor {
+        label: Some("lui headless device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+        experimental_features: wgpu::ExperimentalFeatures::default(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+      })
+      .await
+      .expect("failed to acquire device");
+
+    let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+    let glyph_view_format = format.remove_srgb_suffix();
+
+    let quads = QuadPipeline::new(&device, format);
+    quads.upload_static(&queue);
+    let images = ImagePipeline::new(&device, format);
+    images.upload_static(&queue);
+    let glyphs = GlyphPipeline::new(&device, glyph_view_format, GLYPH_ATLAS_SIZE);
+    glyphs.upload_static(&queue);
+
+    Self {
+      instance,
+      adapter,
+      device,
+      queue,
+      surface: None,
+      surface_config: None,
+      clear_color: wgpu::Color::WHITE,
+      format,
+      glyph_view_format,
+      quads,
+      images,
+      glyphs,
+      pending_capture: None,
+    }
+  }
+
+  /// Borrow the glyph atlas's GPU texture so the host's CPU-side
+  /// atlas can upload pending glyph rasters into it via
+  /// `lui-text::Atlas::upload`.
+  pub fn glyph_atlas_texture(&self) -> &wgpu::Texture {
+    self.glyphs.atlas_texture()
+  }
+
+  /// Schedule the next rendered frame to be saved to `path` as a PNG.
+  /// Capture happens on the next call to [`Renderer::render`].
+  pub fn capture_next_frame_to(&mut self, path: impl Into<PathBuf>) {
+    self.pending_capture = Some(path.into());
+  }
+
+  /// Render `list` into a freshly-allocated off-screen texture
+  /// sized `width × height` and write it to `path` as a PNG.
+  ///
+  /// This is independent of the on-screen surface — coordinates in
+  /// `list` are taken at face value (so to capture a particular
+  /// document region, translate the list with
+  /// [`paint::DisplayList::translated`] first and pass the
+  /// region's pixel size). Because the off-screen target is
+  /// allocated at the requested size and not constrained by the
+  /// surface, regions partially or fully outside the visible
+  /// viewport are captured at full fidelity.
+  ///
+  /// Reuses the renderer's pipelines, so per-frame buffers
+  /// (instances, globals, scissors) are re-prepared for `list`
+  /// here and `render`'s next call will re-prepare with its own
+  /// list — calling `capture_to` between frames is safe.
+  ///
+  /// Errors propagate from the staging-buffer mapping or PNG
+  /// encoder; the off-screen texture is always submitted and
+  /// dropped before this returns.
+  pub fn capture_to(
+    &mut self,
+    list: &DisplayList,
+    width: u32,
+    height: u32,
+    path: impl AsRef<std::path::Path>,
+  ) -> Result<(), ScreenshotError> {
+    let width = width.max(1);
+    let height = height.max(1);
+    let format = self.format;
+    let glyph_view_format = self.glyph_view_format;
+
+    let mut view_formats = Vec::new();
+    if glyph_view_format != format {
+      view_formats.push(glyph_view_format);
+    }
+    let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("offscreen capture target"),
+      size: wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+      },
+      mip_level_count: 1,
+      sample_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+      view_formats: &view_formats,
+    });
+
+    let srgb_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let glyph_view = texture.create_view(&wgpu::TextureViewDescriptor {
+      label: Some("offscreen glyph view"),
+      format: Some(glyph_view_format),
+      ..Default::default()
+    });
+
+    let s = list.dpi_scale.max(1.0);
+    let viewport = [width as f32 / s, height as f32 / s];
+    self.quads.prepare(&self.device, &self.queue, viewport, list);
+    self.images.prepare(&self.device, &self.queue, viewport, list);
+    self.glyphs.prepare(&self.device, &self.queue, viewport, list);
+
+    let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+      label: Some("offscreen capture encoder"),
+    });
+
+    // Initial clear matches the on-screen `render` path so the
+    // captured image has the same background fill.
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("offscreen clear"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: &srgb_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Clear(self.clear_color),
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      let _ = &mut pass;
+    }
+
+    self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
+
+    let staging = screenshot::begin_capture(&self.device, &mut encoder, &texture, width, height);
+    self.queue.submit(Some(encoder.finish()));
+
+    screenshot::finish_capture(&self.device, staging, width, height, format, path.as_ref())
+  }
+
+  /// Capture a rectangular region of the document described by
+  /// `list` and write it to `path`. The output image is exactly
+  /// `region.w × region.h` (rounded up to integer pixels). Equivalent
+  /// to `capture_to(&list.translated(-region.x, -region.y), w, h, path)`.
+  ///
+  /// Works for regions outside the on-screen viewport because the
+  /// off-screen render target is sized to the region — the
+  /// renderer's pipelines paint every command in `list` against it
+  /// regardless of where it falls relative to the visible window.
+  pub fn capture_rect_to(
+    &mut self,
+    list: &DisplayList,
+    region: Rect,
+    path: impl AsRef<std::path::Path>,
+  ) -> Result<(), ScreenshotError> {
+    let width = region.w.max(1.0).ceil() as u32;
+    let height = region.h.max(1.0).ceil() as u32;
+    let translated = list.translated(-region.x, -region.y);
+    self.capture_to(&translated, width, height, path)
+  }
+
+  /// Render `list` into an offscreen texture and return the pixels as
+  /// RGBA8 bytes. Does not touch the window surface.
+  pub fn render_to_rgba(&mut self, list: &DisplayList, width: u32, height: u32) -> Result<Vec<u8>, ScreenshotError> {
+    let width = width.max(1);
+    let height = height.max(1);
+    let format = self.format;
+    let glyph_view_format = self.glyph_view_format;
+
+    let mut view_formats = Vec::new();
+    if glyph_view_format != format {
+      view_formats.push(glyph_view_format);
+    }
+    let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("offscreen render target"),
+      size: wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+      },
+      mip_level_count: 1,
+      sample_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+      view_formats: &view_formats,
+    });
+
+    let srgb_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let glyph_view = texture.create_view(&wgpu::TextureViewDescriptor {
+      label: Some("offscreen glyph view"),
+      format: Some(glyph_view_format),
+      ..Default::default()
+    });
+
+    let s = list.dpi_scale.max(1.0);
+    let viewport = [width as f32 / s, height as f32 / s];
+    self.quads.prepare(&self.device, &self.queue, viewport, list);
+    self.images.prepare(&self.device, &self.queue, viewport, list);
+    self.glyphs.prepare(&self.device, &self.queue, viewport, list);
+
+    let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+      label: Some("offscreen render encoder"),
+    });
+
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("offscreen clear"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: &srgb_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Clear(self.clear_color),
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      let _ = &mut pass;
+    }
+
+    self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
+
+    let staging = screenshot::begin_capture(&self.device, &mut encoder, &texture, width, height);
+    self.queue.submit(Some(encoder.finish()));
+
+    screenshot::readback_rgba(&self.device, staging, width, height, format)
+  }
+
+  pub fn resize(&mut self, width: u32, height: u32) {
+    if width == 0 || height == 0 {
+      return;
+    }
+    if let (Some(surface), Some(config)) = (&self.surface, &mut self.surface_config) {
+      config.width = width;
+      config.height = height;
+      surface.configure(&self.device, config);
+    }
+  }
+
+  /// Render one frame from a display list.
+  pub fn render(&mut self, list: &DisplayList) -> FrameOutcome {
+    let Some(ref surface) = self.surface else {
+      return FrameOutcome::Skipped;
+    };
+    let frame = match surface.get_current_texture() {
+      wgpu::CurrentSurfaceTexture::Success(t) => t,
+      wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+      wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+        return FrameOutcome::Reconfigure;
+      }
+      wgpu::CurrentSurfaceTexture::Timeout
+      | wgpu::CurrentSurfaceTexture::Occluded
+      | wgpu::CurrentSurfaceTexture::Validation => return FrameOutcome::Skipped,
+    };
+
+    // Two views over the same surface texture: the default sRGB
+    // view (matching the surface format) for the quad pass, and a
+    // non-sRGB unorm view for the glyph pass. Same memory; the
+    // glyph pass treats the bytes as raw so the alpha blend runs
+    // in display space.
+    let srgb_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let glyph_view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+      label: Some("glyph non-srgb view"),
+      format: Some(self.glyph_view_format),
+      ..Default::default()
+    });
+
+    if let Some([r, g, b, a]) = list.canvas_color {
+      self.clear_color = wgpu::Color {
+        r: r as f64,
+        g: g as f64,
+        b: b as f64,
+        a: a as f64,
+      };
+    }
+
+    let config = self.surface_config.as_ref().unwrap();
+    let scale = list.dpi_scale.max(1.0);
+    let viewport = [config.width as f32 / scale, config.height as f32 / scale];
+    self.quads.prepare(&self.device, &self.queue, viewport, list);
+    self.images.prepare(&self.device, &self.queue, viewport, list);
+    self.glyphs.prepare(&self.device, &self.queue, viewport, list);
+
+    let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+      label: Some("lui frame encoder"),
+    });
+
+    // Initial clear. Actual drawing below follows DisplayList
+    // command order, switching render passes only when the command
+    // type needs a different pipeline/view.
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("clear pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: &srgb_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Clear(self.clear_color),
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      let _ = &mut pass;
+    }
+
+    self.record_ordered_commands(list, &mut encoder, &srgb_view, &glyph_view);
+
+    // If a capture was requested, append a texture-to-buffer copy to
+    // the same encoder so it sees the just-rendered surface texture.
+    let capture_target = self.pending_capture.take();
+    let staging = capture_target
+      .as_ref()
+      .map(|_| screenshot::begin_capture(&self.device, &mut encoder, &frame.texture, config.width, config.height));
+
+    self.queue.submit(Some(encoder.finish()));
+
+    if let (Some(stg), Some(path)) = (staging, capture_target) {
+      if let Err(e) = screenshot::finish_capture(&self.device, stg, config.width, config.height, config.format, &path) {
+        eprintln!("screenshot failed: {e}");
+      } else {
+        eprintln!("saved screenshot to {}", path.display());
+      }
+    }
+
+    frame.present();
+    FrameOutcome::Presented
+  }
+
+  fn record_ordered_commands(
+    &self,
+    list: &DisplayList,
+    encoder: &mut wgpu::CommandEncoder,
+    srgb_view: &wgpu::TextureView,
+    glyph_view: &wgpu::TextureView,
+  ) {
+    if list.commands.is_empty() {
+      self.record_legacy_batches(encoder, srgb_view, glyph_view);
+      return;
+    }
+
+    let mut cursor = 0usize;
+    while cursor < list.commands.len() {
+      let first = list.commands[cursor];
+      let mut end = cursor + 1;
+      while end < list.commands.len() {
+        let prev = list.commands[end - 1];
+        let next = list.commands[end];
+        if next.kind != first.kind || next.clip_index != first.clip_index || next.index != prev.index + 1 {
+          break;
+        }
+        end += 1;
+      }
+
+      let instances = first.index..list.commands[end - 1].index + 1;
+      match first.kind {
+        DisplayCommandKind::Quad => {
+          let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("ordered quad pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+              view: srgb_view,
+              resolve_target: None,
+              depth_slice: None,
+              ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+              },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+          });
+          self.quads.record_range(&mut pass, first.clip_index, instances);
+        }
+        DisplayCommandKind::Image => {
+          let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("ordered image pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+              view: srgb_view,
+              resolve_target: None,
+              depth_slice: None,
+              ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+              },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+          });
+          self.images.record_range(&mut pass, first.clip_index, instances);
+        }
+        DisplayCommandKind::Glyph => {
+          // Glyphs use the non-sRGB view so alpha blending
+          // happens in display space, matching the previous
+          // dedicated glyph pass.
+          let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("ordered glyph pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+              view: glyph_view,
+              resolve_target: None,
+              depth_slice: None,
+              ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+              },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+          });
+          self.glyphs.record_range(&mut pass, first.clip_index, instances);
+        }
+      }
+
+      cursor = end;
+    }
+  }
+
+  fn record_legacy_batches(
+    &self,
+    encoder: &mut wgpu::CommandEncoder,
+    srgb_view: &wgpu::TextureView,
+    glyph_view: &wgpu::TextureView,
+  ) {
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("legacy quad pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: srgb_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Load,
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      self.quads.record(&mut pass);
+    }
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("legacy image pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: srgb_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Load,
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      self.images.record(&mut pass);
+    }
+    {
+      let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("legacy glyph pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+          view: glyph_view,
+          resolve_target: None,
+          depth_slice: None,
+          ops: wgpu::Operations {
+            load: wgpu::LoadOp::Load,
+            store: wgpu::StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+      });
+      self.glyphs.record(&mut pass);
+    }
+  }
+}
+
+impl RenderBackend for Renderer {
+  fn resize(&mut self, width: u32, height: u32) {
+    self.resize(width, height);
+  }
+
+  fn set_clear_color(&mut self, color: [f32; 4]) {
+    self.clear_color = wgpu::Color {
+      r: color[0] as f64,
+      g: color[1] as f64,
+      b: color[2] as f64,
+      a: color[3] as f64,
+    };
+  }
+
+  fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]) {
+    self.queue.write_texture(
+      wgpu::TexelCopyTextureInfo {
+        texture: self.glyphs.atlas_texture(),
+        mip_level: 0,
+        origin: wgpu::Origin3d { x, y, z: 0 },
+        aspect: wgpu::TextureAspect::All,
+      },
+      data,
+      wgpu::TexelCopyBufferLayout {
+        offset: 0,
+        bytes_per_row: Some(w),
+        rows_per_image: Some(h),
+      },
+      wgpu::Extent3d {
+        width: w,
+        height: h,
+        depth_or_array_layers: 1,
+      },
+    );
+  }
+
+  fn render(&mut self, list: &DisplayList) -> FrameOutcome {
+    self.render(list)
+  }
+
+  fn render_to_rgba(&mut self, list: &DisplayList, width: u32, height: u32) -> Result<Vec<u8>, RenderError> {
+    self
+      .render_to_rgba(list, width, height)
+      .map_err(|e| RenderError::Backend(Box::new(e)))
+  }
+
+  fn capture_to(
+    &mut self,
+    list: &DisplayList,
+    width: u32,
+    height: u32,
+    path: &std::path::Path,
+  ) -> Result<(), RenderError> {
+    self
+      .capture_to(list, width, height, path)
+      .map_err(|e| RenderError::Backend(Box::new(e)))
+  }
+
+  fn capture_next_frame_to(&mut self, path: PathBuf) {
+    self.pending_capture = Some(path);
+  }
+
+  fn glyph_atlas_size(&self) -> u32 {
+    self.glyphs.atlas_size()
+  }
+}

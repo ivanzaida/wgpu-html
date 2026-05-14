@@ -8,4 +8,3 @@ lui-core = { path = "../lui-core" }
 lui-cascade = { path = "../lui-cascade" }
 lui-layout = { path = "../lui-layout" }
 lui-glyph = { path = "../lui-glyph" }
-lui-display-list.workspace = true

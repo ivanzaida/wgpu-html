@@ -9,7 +9,7 @@ lui-events.workspace   = true
 lui-layout-old.workspace   = true
 lui-models.workspace   = true
 lui-parser.workspace   = true
-lui-renderer-wgpu.workspace = true
+lui-renderer-wgpu = { path = "../../renderers/lui-renderer-wgpu" }
 lui-style.workspace    = true
 lui-text.workspace     = true
 lui-tree.workspace     = true

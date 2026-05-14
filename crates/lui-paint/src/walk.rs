@@ -1,4 +1,4 @@
-use lui_display_list::{DisplayList, Rect as DlRect};
+use lui_core::display_list::{DisplayList, Rect as DlRect};
 use lui_glyph::TextContext;
 use lui_layout::LayoutBox;
 
