@@ -5,7 +5,7 @@ use winit::{
   event::{MouseScrollDelta, WindowEvent},
   event_loop::{ActiveEventLoop, EventLoop},
   keyboard::ModifiersState,
-  window::{Window, WindowAttributes, WindowId},
+  window::{CursorIcon, Window, WindowAttributes, WindowId},
 };
 
 use crate::{Driver, Lui};
@@ -91,6 +91,25 @@ impl Driver for WinitDriver {
           WindowEvent::ModifiersChanged(modifiers) => {
             self.modifiers = modifiers.state();
           }
+          WindowEvent::MouseInput { state, button, .. } => {
+            let scale = window.scale_factor() as f32;
+            let size = window.inner_size();
+            let btn = match button {
+              winit::event::MouseButton::Left => 0,
+              winit::event::MouseButton::Middle => 1,
+              winit::event::MouseButton::Right => 2,
+              _ => 0,
+            };
+            match state {
+              winit::event::ElementState::Pressed => {
+                self.lui.handle_mouse_down(size.width, size.height, scale, btn);
+              }
+              winit::event::ElementState::Released => {
+                self.lui.handle_mouse_release(size.width, size.height, scale, btn);
+              }
+            }
+            window.request_redraw();
+          }
           WindowEvent::MouseWheel { delta, .. } => {
             let scale = window.scale_factor() as f32;
             let (dx, dy) = wheel_delta_to_css(delta, scale, self.modifiers);
@@ -107,6 +126,7 @@ impl Driver for WinitDriver {
               self.lui.renderer.resize(size.width, size.height);
               window.request_redraw();
             }
+            window.set_cursor(css_cursor_to_winit(self.lui.current_cursor()));
           }
           WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
             self.lui.renderer.resize(size.width, size.height);
@@ -137,5 +157,44 @@ impl Driver for WinitDriver {
       modifiers: ModifiersState::default(),
     };
     event_loop.run_app(&mut app).unwrap();
+  }
+}
+
+fn css_cursor_to_winit(css: &str) -> CursorIcon {
+  match css {
+    "pointer" => CursorIcon::Pointer,
+    "text" => CursorIcon::Text,
+    "move" => CursorIcon::Move,
+    "not-allowed" => CursorIcon::NotAllowed,
+    "no-drop" => CursorIcon::NoDrop,
+    "crosshair" => CursorIcon::Crosshair,
+    "grab" => CursorIcon::Grab,
+    "grabbing" => CursorIcon::Grabbing,
+    "help" => CursorIcon::Help,
+    "wait" => CursorIcon::Wait,
+    "progress" => CursorIcon::Progress,
+    "cell" => CursorIcon::Cell,
+    "vertical-text" => CursorIcon::VerticalText,
+    "alias" => CursorIcon::Alias,
+    "copy" => CursorIcon::Copy,
+    "col-resize" => CursorIcon::ColResize,
+    "row-resize" => CursorIcon::RowResize,
+    "e-resize" => CursorIcon::EResize,
+    "n-resize" => CursorIcon::NResize,
+    "ne-resize" => CursorIcon::NeResize,
+    "nw-resize" => CursorIcon::NwResize,
+    "s-resize" => CursorIcon::SResize,
+    "se-resize" => CursorIcon::SeResize,
+    "sw-resize" => CursorIcon::SwResize,
+    "w-resize" => CursorIcon::WResize,
+    "ew-resize" => CursorIcon::EwResize,
+    "ns-resize" => CursorIcon::NsResize,
+    "nesw-resize" => CursorIcon::NeswResize,
+    "nwse-resize" => CursorIcon::NwseResize,
+    "all-scroll" => CursorIcon::AllScroll,
+    "zoom-in" => CursorIcon::ZoomIn,
+    "zoom-out" => CursorIcon::ZoomOut,
+    "none" => CursorIcon::Default,
+    _ => CursorIcon::Default,
   }
 }

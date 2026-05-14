@@ -6,6 +6,8 @@ pub struct EventInit {
   pub bubbles: bool,
   pub cancelable: bool,
   pub default_prevented: bool,
+  pub propagation_stopped: bool,
+  pub immediate_propagation_stopped: bool,
 }
 
 impl Default for EventInit {
@@ -15,6 +17,8 @@ impl Default for EventInit {
       bubbles: false,
       cancelable: false,
       default_prevented: false,
+      propagation_stopped: false,
+      immediate_propagation_stopped: false,
     }
   }
 }

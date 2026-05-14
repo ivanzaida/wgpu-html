@@ -4,6 +4,7 @@ pub use lui_glyph;
 pub use lui_layout;
 pub use lui_parse;
 
+pub mod dispatch;
 pub mod paint;
 
 mod lui;

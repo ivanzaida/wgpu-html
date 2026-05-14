@@ -6,6 +6,13 @@ use std::{
 
 use crate::{ArcStr, HtmlNode, events::DocumentEvent};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventPhase {
+  Capture,
+  Target,
+  Bubble,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct EventListenerOptions {
   pub capture: bool,
@@ -76,11 +83,31 @@ impl EventListenersCollection {
   }
 
   pub fn dispatch(&mut self, node: &mut HtmlNode, event: &mut DocumentEvent) {
+    self.dispatch_phase(node, event, EventPhase::Target);
+  }
+
+  pub fn dispatch_phase(&mut self, node: &mut HtmlNode, event: &mut DocumentEvent, phase: EventPhase) {
     let event_type: ArcStr = event.base().event_type.clone();
     let mut index = 0;
 
     while index < self.listeners.len() {
-      if self.listeners[index].event_type != event_type {
+      if event.base().immediate_propagation_stopped {
+        break;
+      }
+
+      let listener = &self.listeners[index];
+      if listener.event_type != event_type {
+        index += 1;
+        continue;
+      }
+
+      let should_fire = match phase {
+        EventPhase::Capture => listener.options.capture,
+        EventPhase::Target => true,
+        EventPhase::Bubble => !listener.options.capture,
+      };
+
+      if !should_fire {
         index += 1;
         continue;
       }

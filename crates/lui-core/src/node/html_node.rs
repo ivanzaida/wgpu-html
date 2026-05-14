@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
   ArcStr, Declaration, HtmlElement,
-  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection},
+  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection, EventPhase},
 };
 
 /// A node in the parsed HTML tree.
@@ -113,9 +113,13 @@ impl HtmlNode {
 
   pub fn dispatch_event(&mut self, event: &mut crate::events::DocumentEvent) {
     let mut listeners = std::mem::take(&mut self.event_listeners);
-
     listeners.dispatch(self, event);
+    self.event_listeners = listeners;
+  }
 
+  pub fn dispatch_event_phase(&mut self, event: &mut crate::events::DocumentEvent, phase: EventPhase) {
+    let mut listeners = std::mem::take(&mut self.event_listeners);
+    listeners.dispatch_phase(self, event, phase);
     self.event_listeners = listeners;
   }
 }

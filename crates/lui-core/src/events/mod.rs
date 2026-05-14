@@ -289,6 +289,20 @@ impl DocumentEvent {
     self.base().default_prevented
   }
 
+  pub fn stop_propagation(&mut self) {
+    self.base_mut().propagation_stopped = true;
+  }
+
+  pub fn stop_immediate_propagation(&mut self) {
+    let base = self.base_mut();
+    base.propagation_stopped = true;
+    base.immediate_propagation_stopped = true;
+  }
+
+  pub fn is_propagation_stopped(&self) -> bool {
+    self.base().propagation_stopped
+  }
+
   pub fn from_interface(name: &str) -> Self {
     use DocumentEvent::*;
     match name {
