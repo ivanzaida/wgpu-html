@@ -19,7 +19,7 @@ pub use renderer_wgpu::WgpuRenderer;
 
 mod driver_api;
 pub(crate) use driver_api::NullDriver;
-pub use driver_api::{Driver, WindowSurface};
+pub use driver_api::Driver;
 
 #[cfg(feature = "winit")]
 mod winit_driver;

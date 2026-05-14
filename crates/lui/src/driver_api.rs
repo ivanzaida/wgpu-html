@@ -1,16 +1,5 @@
 use crate::Lui;
 
-/// A window surface handle that renderers can use to create GPU surfaces.
-pub trait WindowSurface:
-    raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Send + Sync + 'static
-{
-}
-
-impl<T: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Send + Sync + 'static>
-    WindowSurface for T
-{
-}
-
 /// Platform driver — provides window info and runs the event loop.
 pub trait Driver {
     fn inner_size(&self) -> (u32, u32);

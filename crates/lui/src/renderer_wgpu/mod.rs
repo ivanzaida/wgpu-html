@@ -49,7 +49,9 @@ impl Renderer {
   /// Create a renderer bound to the given window-like surface target.
   /// The window is held via `Arc`; the renderer keeps it alive for the
   /// lifetime of the surface.
-  pub async fn new(window: Arc<dyn crate::WindowSurface>, width: u32, height: u32) -> Self
+  pub async fn new<W>(window: Arc<W>, width: u32, height: u32) -> Self
+  where
+    W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
   {
     let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
     idesc.backends = wgpu::Backends::PRIMARY;
@@ -660,7 +662,7 @@ impl Renderer {
 }
 
 impl RenderBackend for Renderer {
-  fn init_surface(&mut self, _window: Arc<dyn crate::WindowSurface>, _width: u32, _height: u32) {
+  fn init_surface(&mut self, _window: Arc<dyn std::any::Any + Send + Sync>, _width: u32, _height: u32) {
   }
 
   fn resize(&mut self, width: u32, height: u32) {
@@ -745,8 +747,15 @@ impl WgpuRenderer {
 }
 
 impl RenderBackend for WgpuRenderer {
-    fn init_surface(&mut self, window: Arc<dyn crate::WindowSurface>, width: u32, height: u32) {
-        self.inner = Some(pollster::block_on(Renderer::new(window, width, height)));
+    fn init_surface(&mut self, window: Arc<dyn std::any::Any + Send + Sync>, width: u32, height: u32) {
+        #[cfg(feature = "winit")]
+        {
+            if let Ok(win) = window.downcast::<winit::window::Window>() {
+                self.inner = Some(pollster::block_on(Renderer::new(win, width, height)));
+                return;
+            }
+        }
+        panic!("WgpuRenderer: unsupported window type for init_surface");
     }
 
     fn resize(&mut self, w: u32, h: u32) { self.r_mut().resize(w, h); }
