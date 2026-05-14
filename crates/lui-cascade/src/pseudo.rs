@@ -1,5 +1,5 @@
 use bumpalo::Bump;
-use lui_core::{ArcStr, CssPseudo, CssValue, StyleRule};
+use lui_core::{ArcStr, CssPseudo, CssValue};
 
 use crate::PseudoElementStyle;
 use crate::index::PreparedStylesheet;
@@ -115,7 +115,7 @@ fn matching_rules_for_pseudo<'a>(
     ctx: &MatchContext<'_>,
     ancestors: &[AncestorEntry<'_>],
     parent: Option<&lui_parse::HtmlNode>,
-    arena: &'a Bump,
+    _arena: &'a Bump,
     important: bool,
 ) -> Vec<&'a lui_core::Declaration> {
     let mut decls = Vec::new();

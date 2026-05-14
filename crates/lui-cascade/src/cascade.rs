@@ -44,7 +44,7 @@ pub struct CascadeContext {
   use_a: Cell<bool>,
   prepared: Vec<PreparedStylesheet>,
   stats: Cell<CacheStats>,
-  res: ResolutionContext,
+  _res: ResolutionContext,
 }
 
 impl CascadeContext {
@@ -55,7 +55,7 @@ impl CascadeContext {
       use_a: Cell::new(true),
       prepared: Vec::new(),
       stats: Cell::new(CacheStats::default()),
-      res: ResolutionContext::new(lui_resolve::ResolverContext::default()),
+      _res: ResolutionContext::new(lui_resolve::ResolverContext::default()),
     }
   }
 

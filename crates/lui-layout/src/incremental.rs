@@ -42,7 +42,7 @@ pub struct LayoutCache {
 }
 
 /// Per-frame dirty set, built from dirty paths.
-pub(crate) struct DirtySet {
+pub struct DirtySet {
     pub(crate) dirty: FxHashSet<*const HtmlNode>,
 }
 
@@ -93,7 +93,7 @@ impl LayoutCache {
 }
 
 impl DirtySet {
-    fn new() -> Self {
+    fn _new() -> Self {
         Self { dirty: FxHashSet::default() }
     }
 
@@ -103,17 +103,17 @@ impl DirtySet {
         Self { dirty }
     }
 
-    fn all_dirty() -> Self {
+    fn _all_dirty() -> Self {
         Self { dirty: FxHashSet::default() }
     }
 
-    fn is_all_dirty(&self) -> bool {
+    fn _is_all_dirty(&self) -> bool {
         false
     }
 }
 
 // For full layout: everything is dirty, cache lookups always miss.
-pub(crate) struct FullDirtyMarker;
+pub(crate) struct _FullDirtyMarker;
 
 /// Combined view passed through layout — either (snapshot + dirty set) or empty.
 pub enum CacheView<'a> {

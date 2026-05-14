@@ -96,7 +96,7 @@ fn resolve_box_kind_with_node(style: &ComputedStyle, node: &lui_parse::HtmlNode)
     }
 }
 
-fn resolve_box_kind(style: &ComputedStyle) -> BoxKind {
+fn _resolve_box_kind(style: &ComputedStyle) -> BoxKind {
     resolve_display_property(style).unwrap_or(BoxKind::Block)
 }
 

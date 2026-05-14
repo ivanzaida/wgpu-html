@@ -97,7 +97,7 @@ impl PartialOrd for ResolvedNumber {
   }
 }
 
-pub(crate) fn to_math_value(v: &CssValue) -> MathValue {
+pub(crate) fn _to_math_value(v: &CssValue) -> MathValue {
   match v {
     CssValue::Number(n) => MathValue::Number(*n),
     CssValue::Percentage(n) => MathValue::Percentage(*n),

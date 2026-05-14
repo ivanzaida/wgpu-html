@@ -8,7 +8,7 @@ use bumpalo::Bump;
 use lui_core::{CssUnit, CssValue, Rect};
 use lui_parse::HtmlNode;
 
-use crate::box_tree::{BoxKind, LayoutBox};
+use crate::box_tree::LayoutBox;
 use crate::context::LayoutContext;
 use crate::geometry::Point;
 use crate::positioned;

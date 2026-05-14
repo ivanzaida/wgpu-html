@@ -255,7 +255,6 @@ fn layout_inline_container<'a>(
             apply_vertical_align(&mut b.children[line_start_idx..idx], line_height);
             max_line_width = max_line_width.max(cursor_x);
             cursor_y += line_height;
-            cursor_x = 0.0;
             line_height = css_line_height;
             line_start_idx = idx;
             let child = &mut b.children[idx];
