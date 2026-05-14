@@ -5,21 +5,21 @@ use std::{
 
 use bumpalo::Bump;
 use lui_core::{ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
-use lui_parse::{expand_shorthand, longhands_of, HtmlNode};
+use lui_parse::{HtmlNode, expand_shorthand, longhands_of};
 use lui_resolve::ResolutionContext;
+use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
-use rayon::prelude::*;
 
 use crate::{
-  bloom::{bloom_might_match, AncestorBloom},
-  index::{candidate_rules, PreparedStylesheet, RuleCondition},
+  StyledNode,
+  bloom::{AncestorBloom, bloom_might_match},
+  index::{PreparedStylesheet, RuleCondition, candidate_rules},
   inline::node_inline_style,
-  matching::{matches_selector, AncestorEntry, MatchContext},
-  media::{evaluate_media, evaluate_supports, MediaContext},
+  matching::{AncestorEntry, MatchContext, is_pseudo_element, matches_selector},
+  media::{MediaContext, evaluate_media, evaluate_supports},
   style::ComputedStyle,
   var_resolution::resolve_vars,
-  StyledNode,
 };
 
 pub type ElementPath = Vec<usize>;
@@ -114,7 +114,10 @@ impl CascadeContext {
     let mut bloom = AncestorBloom::new();
 
     let root_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
-      media.viewport_width, media.viewport_height, 16.0, 16.0,
+      media.viewport_width,
+      media.viewport_height,
+      16.0,
+      16.0,
     ));
 
     let result = cascade_node(
@@ -157,7 +160,10 @@ impl CascadeContext {
     let mut bloom = AncestorBloom::new();
 
     let root_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
-      media.viewport_width, media.viewport_height, 16.0, 16.0,
+      media.viewport_width,
+      media.viewport_height,
+      16.0,
+      16.0,
     ));
 
     let result = cascade_node_incremental(
@@ -315,8 +321,10 @@ fn cascade_node_with_prev<'a>(
 
   let self_font_size = extract_font_size_px(&style, res.env.parent_font_size);
   let child_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
-    res.env.viewport_width, res.env.viewport_height,
-    res.env.root_font_size, self_font_size,
+    res.env.viewport_width,
+    res.env.viewport_height,
+    res.env.root_font_size,
+    self_font_size,
   ));
 
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
@@ -343,14 +351,36 @@ fn cascade_node_with_prev<'a>(
           clone_subtree(child, pc, Some(&style))
         } else {
           cascade_node_with_prev(
-            root, child, sheets, Some(&style), &child_ancestors, path,
-            media, interaction, arena, &child_res, Some(pc), dirty_paths, cache, bloom,
+            root,
+            child,
+            sheets,
+            Some(&style),
+            &child_ancestors,
+            path,
+            media,
+            interaction,
+            arena,
+            &child_res,
+            Some(pc),
+            dirty_paths,
+            cache,
+            bloom,
           )
         }
       } else {
         cascade_node(
-          root, child, sheets, Some(&style), &child_ancestors, path,
-          media, interaction, arena, &child_res, cache, bloom,
+          root,
+          child,
+          sheets,
+          Some(&style),
+          &child_ancestors,
+          path,
+          media,
+          interaction,
+          arena,
+          &child_res,
+          cache,
+          bloom,
         )
       };
       path.pop();
@@ -455,8 +485,10 @@ fn cascade_node<'a>(
 
   let self_font_size = extract_font_size_px(&style, res.env.parent_font_size);
   let child_res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
-    res.env.viewport_width, res.env.viewport_height,
-    res.env.root_font_size, self_font_size,
+    res.env.viewport_width,
+    res.env.viewport_height,
+    res.env.root_font_size,
+    self_font_size,
   ));
 
   let mut child_ancestors: SmallVec<[AncestorEntry<'a>; 16]> = SmallVec::with_capacity(ancestors.len() + 1);
@@ -476,25 +508,44 @@ fn cascade_node<'a>(
 
   let (children, par_arenas) = if node.children.len() >= PAR_CHILDREN {
     cascade_children_parallel(
-      root, node, sheets, Some(&style), &child_ancestors,
-      path, media, interaction, bloom,
+      root,
+      node,
+      sheets,
+      Some(&style),
+      &child_ancestors,
+      path,
+      media,
+      interaction,
+      bloom,
     )
   } else {
-    (node
-      .children
-      .iter()
-      .enumerate()
-      .map(|(i, child)| {
-        path.push(i);
-        let child_node = cascade_node(
-          root, child, sheets, Some(&style), &child_ancestors,
-          path, media, interaction, arena, &child_res, cache, bloom,
-        );
-        path.pop();
-        child_node
-      })
-      .collect(),
-     Vec::new())
+    (
+      node
+        .children
+        .iter()
+        .enumerate()
+        .map(|(i, child)| {
+          path.push(i);
+          let child_node = cascade_node(
+            root,
+            child,
+            sheets,
+            Some(&style),
+            &child_ancestors,
+            path,
+            media,
+            interaction,
+            arena,
+            &child_res,
+            cache,
+            bloom,
+          );
+          path.pop();
+          child_node
+        })
+        .collect(),
+      Vec::new(),
+    )
   };
 
   bloom.pop(tag, id, &node.class_list);
@@ -503,17 +554,48 @@ fn cascade_node<'a>(
     crate::pseudo::collect_pseudo_element(CssPseudo::Before, node, &style, sheets, ancestors, &ctx, media, arena);
   let after =
     crate::pseudo::collect_pseudo_element(CssPseudo::After, node, &style, sheets, ancestors, &ctx, media, arena);
-  let first_line =
-    crate::pseudo::collect_pseudo_style(CssPseudo::FirstLine, node, &style, sheets, ancestors, &ctx, media, arena);
-  let first_letter =
-    crate::pseudo::collect_pseudo_style(CssPseudo::FirstLetter, node, &style, sheets, ancestors, &ctx, media, arena);
-  let placeholder =
-    crate::pseudo::collect_pseudo_style(CssPseudo::Placeholder, node, &style, sheets, ancestors, &ctx, media, arena);
-  let selection =
-    crate::pseudo::collect_pseudo_style(CssPseudo::Selection, node, &style, sheets, ancestors, &ctx, media, arena);
-  let marker = crate::pseudo::collect_pseudo_element(
-    CssPseudo::Marker, node, &style, sheets, ancestors, &ctx, media, arena,
+  let first_line = crate::pseudo::collect_pseudo_style(
+    CssPseudo::FirstLine,
+    node,
+    &style,
+    sheets,
+    ancestors,
+    &ctx,
+    media,
+    arena,
   );
+  let first_letter = crate::pseudo::collect_pseudo_style(
+    CssPseudo::FirstLetter,
+    node,
+    &style,
+    sheets,
+    ancestors,
+    &ctx,
+    media,
+    arena,
+  );
+  let placeholder = crate::pseudo::collect_pseudo_style(
+    CssPseudo::Placeholder,
+    node,
+    &style,
+    sheets,
+    ancestors,
+    &ctx,
+    media,
+    arena,
+  );
+  let selection = crate::pseudo::collect_pseudo_style(
+    CssPseudo::Selection,
+    node,
+    &style,
+    sheets,
+    ancestors,
+    &ctx,
+    media,
+    arena,
+  );
+  let marker =
+    crate::pseudo::collect_pseudo_element(CssPseudo::Marker, node, &style, sheets, ancestors, &ctx, media, arena);
 
   StyledNode {
     node,
@@ -696,6 +778,13 @@ fn matched_specificity_bloom(
 ) -> Option<(u32, u32, u32)> {
   let parent = ancestors.first().map(|a| a.node);
   for sel in &rule.selector.0 {
+    if sel
+      .compounds
+      .last()
+      .is_some_and(|compound| compound.pseudos.iter().any(|pseudo| is_pseudo_element(&pseudo.pseudo)))
+    {
+      continue;
+    }
     if sel.compounds.len() > 1 && !bloom_might_match(sel, bloom) {
       continue;
     }
@@ -740,13 +829,25 @@ fn cascade_children_parallel<'a>(
       let mut child_bloom = *bloom;
       let parent_fs = style.map(|s| extract_font_size_px(s, 16.0)).unwrap_or(16.0);
       let res = ResolutionContext::new(lui_resolve::ResolverContext::from_cascade(
-        media.viewport_width, media.viewport_height, 16.0, parent_fs,
+        media.viewport_width,
+        media.viewport_height,
+        16.0,
+        parent_fs,
       ));
 
       let child_node = cascade_node(
-        root, child, sheets, style, ancestors,
-        &mut child_path, media, interaction,
-        &arena, &res, &mut cache, &mut child_bloom,
+        root,
+        child,
+        sheets,
+        style,
+        ancestors,
+        &mut child_path,
+        media,
+        interaction,
+        &arena,
+        &res,
+        &mut cache,
+        &mut child_bloom,
       );
 
       // Allocate the result inside the arena so it lives as long as arena.
@@ -754,7 +855,13 @@ fn cascade_children_parallel<'a>(
       let ptr = node_ref as *const StyledNode;
       // node_ref overwritten below, drop is implicit
       let node_ptr = unsafe { std::mem::transmute::<*const StyledNode<'_>, *const StyledNode<'static>>(ptr) };
-      (i, ParResult { _arena: arena, node_ptr })
+      (
+        i,
+        ParResult {
+          _arena: arena,
+          node_ptr,
+        },
+      )
     })
     .collect();
 
@@ -779,41 +886,46 @@ fn cascade_children_parallel<'a>(
 
 /// Resolve math functions and var() in all style properties.
 fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext, arena: &'a Bump) {
-    use lui_core::CssValue;
-    fn needs_resolve(v: &CssValue) -> bool {
-        matches!(v, CssValue::Function { .. } | CssValue::Var { .. })
-            || matches!(v, CssValue::Dimension { unit, .. } if !matches!(unit, lui_core::CssUnit::Px))
+  use lui_core::CssValue;
+  fn needs_resolve(v: &CssValue) -> bool {
+    matches!(v, CssValue::Function { .. } | CssValue::Var { .. })
+      || matches!(v, CssValue::Dimension { unit, .. } if !matches!(unit, lui_core::CssUnit::Px))
+  }
+
+  // Resolve font-size first (em in font-size resolves against parent's font-size)
+  if let Some(val) = &style.font_size {
+    if needs_resolve(val) {
+      let new_val = res.resolve_value(val, arena);
+      if !std::ptr::eq(*val, new_val) {
+        style.font_size = Some(new_val);
+      }
     }
+  }
 
-    // Resolve font-size first (em in font-size resolves against parent's font-size)
-    if let Some(val) = &style.font_size {
-        if needs_resolve(val) {
-            let new_val = res.resolve_value(val, arena);
-            if !std::ptr::eq(*val, new_val) {
-                style.font_size = Some(new_val);
-            }
-        }
-    }
+  // Extract the element's own resolved font-size for em resolution of other properties
+  let self_font_size = match style.font_size {
+    Some(CssValue::Dimension {
+      value,
+      unit: lui_core::CssUnit::Px,
+    }) => *value as f32,
+    Some(CssValue::Number(n)) => *n as f32,
+    _ => res.env.parent_font_size,
+  };
 
-    // Extract the element's own resolved font-size for em resolution of other properties
-    let self_font_size = match style.font_size {
-        Some(CssValue::Dimension { value, unit: lui_core::CssUnit::Px }) => *value as f32,
-        Some(CssValue::Number(n)) => *n as f32,
-        _ => res.env.parent_font_size,
-    };
+  let self_res = if (self_font_size - res.env.parent_font_size).abs() > 0.001 {
+    let env = lui_resolve::ResolverContext::from_cascade(
+      res.env.viewport_width,
+      res.env.viewport_height,
+      res.env.root_font_size,
+      self_font_size,
+    );
+    Some(ResolutionContext::new(env))
+  } else {
+    None
+  };
+  let res = self_res.as_ref().unwrap_or(res);
 
-    let self_res = if (self_font_size - res.env.parent_font_size).abs() > 0.001 {
-        let env = lui_resolve::ResolverContext::from_cascade(
-            res.env.viewport_width, res.env.viewport_height,
-            res.env.root_font_size, self_font_size,
-        );
-        Some(ResolutionContext::new(env))
-    } else {
-        None
-    };
-    let res = self_res.as_ref().unwrap_or(res);
-
-    macro_rules! r {
+  macro_rules! r {
         ($($field:ident),* $(,)?) => {
             $( if let Some(val) = &style.$field {
                 if needs_resolve(val) {
@@ -825,62 +937,148 @@ fn resolve_math_style<'a>(style: &mut ComputedStyle<'a>, res: &ResolutionContext
             } )*
         };
     }
-    r!(
-        display, position, top, right, bottom, left, float, clear,
-        width, height, min_width, min_height, max_width, max_height,
-        box_sizing, aspect_ratio,
-        margin_top, margin_right, margin_bottom, margin_left,
-        padding_top, padding_right, padding_bottom, padding_left,
-        border_top_width, border_right_width, border_bottom_width, border_left_width,
-        border_top_style, border_right_style, border_bottom_style, border_left_style,
-        border_top_color, border_right_color, border_bottom_color, border_left_color,
-        border_top_left_radius, border_top_right_radius,
-        border_bottom_right_radius, border_bottom_left_radius,
-        background_color, background_image, background_size,
-        background_position, background_repeat, background_clip,
-        color, opacity, visibility,
-        font_family, font_size, font_weight, font_style,
-        line_height, letter_spacing, word_spacing,
-        text_align, text_decoration_line, text_decoration_color,
-        text_decoration_style, text_transform, white_space,
-        word_break, text_overflow, vertical_align,
-        flex_direction, flex_wrap, justify_content, align_items,
-        align_content, align_self, flex_grow, flex_shrink, flex_basis,
-        order, row_gap, column_gap,
-        grid_template_columns, grid_template_rows,
-        grid_auto_columns, grid_auto_rows, grid_auto_flow,
-        grid_column_start, grid_column_end, grid_row_start, grid_row_end,
-        justify_items, justify_self,
-        overflow_x, overflow_y, scrollbar_color, scrollbar_width,
-        transform, transform_origin, box_shadow, z_index,
-        cursor, pointer_events, user_select, resize, accent_color,
-        list_style_type, list_style_position, list_style_image,
-        content, fill, fill_opacity, fill_rule,
-        stroke, stroke_width, stroke_opacity,
-        stroke_linecap, stroke_linejoin, stroke_dasharray, stroke_dashoffset,
-    );
-    if let Some(ref mut extra) = style.extra {
-        let mut to_update = Vec::new();
-        for (prop, val) in extra.iter() {
-            if needs_resolve(val) {
-                let new_val = res.resolve_value(val, arena);
-                if !std::ptr::eq(*val, new_val) {
-                    to_update.push((prop.clone(), new_val));
-                }
-            }
+  r!(
+    display,
+    position,
+    top,
+    right,
+    bottom,
+    left,
+    float,
+    clear,
+    width,
+    height,
+    min_width,
+    min_height,
+    max_width,
+    max_height,
+    box_sizing,
+    aspect_ratio,
+    margin_top,
+    margin_right,
+    margin_bottom,
+    margin_left,
+    padding_top,
+    padding_right,
+    padding_bottom,
+    padding_left,
+    border_top_width,
+    border_right_width,
+    border_bottom_width,
+    border_left_width,
+    border_top_style,
+    border_right_style,
+    border_bottom_style,
+    border_left_style,
+    border_top_color,
+    border_right_color,
+    border_bottom_color,
+    border_left_color,
+    border_top_left_radius,
+    border_top_right_radius,
+    border_bottom_right_radius,
+    border_bottom_left_radius,
+    background_color,
+    background_image,
+    background_size,
+    background_position,
+    background_repeat,
+    background_clip,
+    color,
+    opacity,
+    visibility,
+    font_family,
+    font_size,
+    font_weight,
+    font_style,
+    line_height,
+    letter_spacing,
+    word_spacing,
+    text_align,
+    text_decoration_line,
+    text_decoration_color,
+    text_decoration_style,
+    text_transform,
+    white_space,
+    word_break,
+    text_overflow,
+    vertical_align,
+    flex_direction,
+    flex_wrap,
+    justify_content,
+    align_items,
+    align_content,
+    align_self,
+    flex_grow,
+    flex_shrink,
+    flex_basis,
+    order,
+    row_gap,
+    column_gap,
+    grid_template_columns,
+    grid_template_rows,
+    grid_auto_columns,
+    grid_auto_rows,
+    grid_auto_flow,
+    grid_column_start,
+    grid_column_end,
+    grid_row_start,
+    grid_row_end,
+    justify_items,
+    justify_self,
+    overflow_x,
+    overflow_y,
+    scrollbar_color,
+    scrollbar_width,
+    transform,
+    transform_origin,
+    box_shadow,
+    z_index,
+    cursor,
+    pointer_events,
+    user_select,
+    resize,
+    accent_color,
+    list_style_type,
+    list_style_position,
+    list_style_image,
+    content,
+    fill,
+    fill_opacity,
+    fill_rule,
+    stroke,
+    stroke_width,
+    stroke_opacity,
+    stroke_linecap,
+    stroke_linejoin,
+    stroke_dasharray,
+    stroke_dashoffset,
+  );
+  if let Some(ref mut extra) = style.extra {
+    let mut to_update = Vec::new();
+    for (prop, val) in extra.iter() {
+      if needs_resolve(val) {
+        let new_val = res.resolve_value(val, arena);
+        if !std::ptr::eq(*val, new_val) {
+          to_update.push((prop.clone(), new_val));
         }
-        for (prop, new_val) in to_update {
-            extra.insert(prop, new_val);
-        }
+      }
     }
+    for (prop, new_val) in to_update {
+      extra.insert(prop, new_val);
+    }
+  }
 }
 
 fn extract_font_size_px(style: &ComputedStyle, fallback: f32) -> f32 {
-    match style.font_size {
-        Some(lui_core::CssValue::Dimension { value, unit: lui_core::CssUnit::Px }) => *value as f32,
-        Some(lui_core::CssValue::Number(n)) => *n as f32,
-        _ => fallback,
-    }
+  match style.font_size {
+    Some(lui_core::CssValue::Dimension {
+      value,
+      unit: lui_core::CssUnit::Px,
+    }) => *value as f32,
+    Some(lui_core::CssValue::Number(n)) => *n as f32,
+    _ => fallback,
+  }
 }
 
 pub fn apply_declaration_ref<'a>(
@@ -893,9 +1091,14 @@ pub fn apply_declaration_ref<'a>(
   if longhands.is_empty() {
     style.set(prop, value);
   } else {
-    let has_custom_expansion = matches!(prop,
-      CssProperty::Flex | CssProperty::GridArea | CssProperty::GridColumn
-      | CssProperty::GridRow | CssProperty::GridTemplate);
+    let has_custom_expansion = matches!(
+      prop,
+      CssProperty::Flex
+        | CssProperty::GridArea
+        | CssProperty::GridColumn
+        | CssProperty::GridRow
+        | CssProperty::GridTemplate
+    );
     let values = match value {
       CssValue::String(s) | CssValue::Unknown(s) if !has_custom_expansion => {
         lui_parse::parse_values(s.as_ref()).unwrap_or_else(|_| vec![value.clone()])

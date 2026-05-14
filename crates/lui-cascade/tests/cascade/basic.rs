@@ -1,8 +1,8 @@
 use lui_cascade::{
-    cascade::{CascadeContext, InteractionState},
-    media::MediaContext,
+  cascade::{CascadeContext, InteractionState},
+  media::MediaContext,
 };
-use lui_parse::{parse_stylesheet, parse};
+use lui_parse::{parse, parse_stylesheet};
 
 #[test]
 fn single_rule_applies_to_matching_element() {
@@ -26,6 +26,46 @@ fn non_matching_rule_does_not_apply() {
   let interaction = InteractionState::default();
   let styled = ctx.cascade(&doc.root, &media, &interaction);
   assert!(styled.children[0].style.color.is_none());
+}
+
+#[test]
+fn non_matching_hr_rule_does_not_apply_border_width() {
+  let doc = parse("<div></div>");
+  let sheet = parse_stylesheet("hr { border-width: 1px; }").unwrap();
+  let mut ctx = CascadeContext::new();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  assert!(styled.children[0].style.border_top_width.is_none());
+}
+
+#[test]
+fn ua_stylesheet_does_not_apply_border_width_to_plain_div() {
+  let doc = parse("<div></div>");
+  let sheet = parse_stylesheet(include_str!("../../../lui/ua/ua_whatwg.css")).unwrap();
+  let mut ctx = CascadeContext::new();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  assert!(
+    styled.children[0].style.border_top_width.is_none(),
+    "plain div picked up border-top-width={:?}",
+    styled.children[0].style.border_top_width
+  );
+}
+
+#[test]
+fn pseudo_element_rule_does_not_apply_to_normal_elements() {
+  let doc = parse("<div></div>");
+  let sheet = parse_stylesheet("::picker(select) { border: 1px solid; }").unwrap();
+  let mut ctx = CascadeContext::new();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  assert!(styled.children[0].style.border_top_width.is_none());
 }
 
 #[test]
