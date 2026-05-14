@@ -262,7 +262,7 @@ impl TextContext {
                 ];
                 glyphs.push(PositionedGlyph {
                     glyph_id: g.glyph_id, x: g.x, y: run.line_y,
-                    w: g.w, h: line_height,
+                    w: entry.rect.w as f32, h: entry.rect.h as f32,
                     uv_min, uv_max, color,
                 });
                 let char_idx = bb.partition_point(|&b| b < g.start)
