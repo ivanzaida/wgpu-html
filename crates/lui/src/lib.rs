@@ -12,8 +12,12 @@ pub use lui::Lui;
 mod render_api;
 pub use render_api::{RenderBackend, RenderError};
 
-mod driver;
-pub use driver::{Driver, Runtime};
+/// Minimal trait for platform windows.
+pub trait Driver {
+    fn inner_size(&self) -> (u32, u32);
+    fn scale_factor(&self) -> f64;
+    fn request_redraw(&self);
+}
 
 #[cfg(feature = "winit")]
 pub use winit;

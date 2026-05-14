@@ -7,12 +7,27 @@ use lui_glyph::{FontFace, FontHandle, TextContext};
 use lui_layout::engine::LayoutEngine;
 use lui_parse::{HtmlDocument, Stylesheet};
 
+use crate::RenderBackend;
+
 /// HTML rendering engine.
 ///
-/// Always available: the renderer-agnostic pipeline
-/// (parse → cascade → layout → paint → `DisplayList`).
+/// Owns the full pipeline and optionally a GPU renderer.
 ///
-/// With the **`winit`** feature: `run()` opens a GPU-accelerated window.
+/// ```text
+/// HTML → parse → cascade → layout → paint → DisplayList → [Renderer] → GPU
+/// ```
+///
+/// # Without features (pipeline only)
+/// ```ignore
+/// let mut lui = Lui::from_html("<h1>hello</h1>");
+/// lui.set_viewport(800.0, 600.0);
+/// let list = lui.paint(); // DisplayList — feed to your own renderer
+/// ```
+///
+/// # With `winit` feature
+/// ```ignore
+/// Lui::from_html("<h1>hello</h1>").run(800, 600, "demo");
+/// ```
 pub struct Lui {
     pub doc: HtmlDocument,
     pub text_ctx: TextContext,
@@ -53,13 +68,8 @@ impl Lui {
         self.doc = lui_parse::parse(html);
     }
 
-    pub fn doc(&self) -> &HtmlDocument {
-        &self.doc
-    }
-
-    pub fn doc_mut(&mut self) -> &mut HtmlDocument {
-        &mut self.doc
-    }
+    pub fn doc(&self) -> &HtmlDocument { &self.doc }
+    pub fn doc_mut(&mut self) -> &mut HtmlDocument { &mut self.doc }
 
     // ── Stylesheets ──────────────────────────────────────────────────
 
@@ -84,13 +94,8 @@ impl Lui {
         self.dpi_scale = scale.max(0.25);
     }
 
-    pub fn dpi_scale(&self) -> f32 {
-        self.dpi_scale
-    }
-
-    pub fn viewport(&self) -> (f32, f32) {
-        (self.viewport_width, self.viewport_height)
-    }
+    pub fn dpi_scale(&self) -> f32 { self.dpi_scale }
+    pub fn viewport(&self) -> (f32, f32) { (self.viewport_width, self.viewport_height) }
 
     // ── Pipeline ─────────────────────────────────────────────────────
 
@@ -120,15 +125,54 @@ impl Lui {
             sink(rect.x, rect.y, rect.w, rect.h, data);
         });
     }
+
+    // ── Render to an external backend ────────────────────────────────
+
+    /// Paint and submit to any `RenderBackend`.
+    pub fn render_with<B: RenderBackend>(&mut self, renderer: &mut B) -> lui_display_list::FrameOutcome {
+        let list = self.paint();
+        self.text_ctx.flush_dirty(|rect, data| {
+            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        });
+        renderer.render(&list)
+    }
+
+    /// Paint and capture to PNG via any `RenderBackend`.
+    pub fn screenshot_with<B: RenderBackend>(
+        &mut self,
+        renderer: &mut B,
+        width: u32,
+        height: u32,
+        path: impl AsRef<Path>,
+    ) -> Result<(), crate::RenderError> {
+        let list = self.paint();
+        self.text_ctx.flush_dirty(|rect, data| {
+            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        });
+        renderer.capture_to(&list, width, height, path.as_ref())
+    }
+
+    /// Paint and return RGBA pixels via any `RenderBackend`.
+    pub fn render_to_rgba_with<B: RenderBackend>(
+        &mut self,
+        renderer: &mut B,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>, crate::RenderError> {
+        let list = self.paint();
+        self.text_ctx.flush_dirty(|rect, data| {
+            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+        });
+        renderer.render_to_rgba(&list, width, height)
+    }
 }
 
-// ── winit feature: windowed app ──────────────────────────────────────
+// ── winit + wgpu: windowed app ───────────────────────────────────────
 
 #[cfg(feature = "winit")]
 impl Lui {
-    /// Open a window and run the event loop. Blocks until closed.
+    /// Open a wgpu-accelerated window and run the event loop. Blocks until closed.
     pub fn run(self, width: u32, height: u32, title: &str) {
-        use crate::RenderBackend;
         use std::sync::Arc;
         use winit::application::ApplicationHandler;
         use winit::event::WindowEvent;
@@ -169,9 +213,7 @@ impl Lui {
                 event: WindowEvent,
             ) {
                 match &event {
-                    WindowEvent::CloseRequested => {
-                        event_loop.exit();
-                    }
+                    WindowEvent::CloseRequested => event_loop.exit(),
                     WindowEvent::RedrawRequested => {
                         let Some(window) = &self.window else { return };
                         let Some(renderer) = &mut self.renderer else { return };
@@ -182,11 +224,7 @@ impl Lui {
                             size.width as f32 / scale,
                             size.height as f32 / scale,
                         );
-                        let list = self.lui.paint();
-                        self.lui.text_ctx.flush_dirty(|rect, data| {
-                            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
-                        });
-                        let outcome = renderer.render(&list);
+                        let outcome = self.lui.render_with(renderer);
                         if matches!(outcome, lui_display_list::FrameOutcome::Reconfigure) {
                             renderer.resize(size.width, size.height);
                             window.request_redraw();
@@ -225,7 +263,5 @@ impl Lui {
 }
 
 impl Default for Lui {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

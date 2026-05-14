@@ -1,34 +1,19 @@
-//! Winit integration for the v2 driver.
+//! Winit integration for the v2 engine.
+//!
+//! Provides `WinitDriver` — a convenience wrapper that binds a `Lui`
+//! engine to a winit window with a wgpu renderer.
 
 use std::sync::Arc;
 
-use lui::{Driver, Runtime};
+use lui::{Lui, RenderBackend, RenderError};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-/// Winit-backed driver. Owns the runtime.
+/// Winit-backed driver. Owns `Lui` + a wgpu renderer + the window.
 pub struct WinitDriver {
-    pub rt: Runtime<Winit, lui_renderer_wgpu::Renderer>,
-}
-
-/// Winit platform bridge.
-pub struct Winit {
-    window: Arc<Window>,
-}
-
-impl Driver for Winit {
-    fn inner_size(&self) -> (u32, u32) {
-        let size = self.window.inner_size();
-        (size.width.max(1), size.height.max(1))
-    }
-
-    fn scale_factor(&self) -> f64 {
-        self.window.scale_factor()
-    }
-
-    fn request_redraw(&self) {
-        self.window.request_redraw();
-    }
+    pub lui: Lui,
+    pub renderer: lui_renderer_wgpu::Renderer,
+    pub window: Arc<Window>,
 }
 
 impl WinitDriver {
@@ -43,66 +28,69 @@ impl WinitDriver {
             lui_renderer_wgpu::Renderer::new(window.clone(), w, h),
         );
 
-        let winit = Winit { window };
-        let mut rt = Runtime::new(winit, renderer);
-
+        let mut lui = Lui::new();
         let ua = lui::lui_parse::parse_stylesheet(include_str!("../../../.data/ua_whatwg_html.css")).unwrap();
-        rt.set_stylesheets(&[ua]);
-        rt.lui.set_html(html);
+        lui.set_stylesheets(&[ua]);
+        lui.set_html(html);
 
-        Self { rt }
+        Self { lui, renderer, window }
     }
 
     /// Handle a winit window event. Returns true if a redraw was requested.
     pub fn handle_event(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::RedrawRequested => {
-                let outcome = self.rt.render_frame();
-                match outcome {
-                    lui_display_list::FrameOutcome::Reconfigure => {
-                        let (w, h) = self.rt.driver.inner_size();
-                        self.rt.renderer.resize(w, h);
-                        self.rt.driver.request_redraw();
-                    }
-                    _ => {}
+                let size = self.window.inner_size();
+                let scale = self.window.scale_factor() as f32;
+                self.lui.set_dpi_scale(scale);
+                self.lui.set_viewport(
+                    size.width as f32 / scale,
+                    size.height as f32 / scale,
+                );
+                let outcome = self.lui.render_with(&mut self.renderer);
+                if matches!(outcome, lui_display_list::FrameOutcome::Reconfigure) {
+                    self.renderer.resize(size.width, size.height);
+                    self.window.request_redraw();
                 }
                 true
             }
-            WindowEvent::Resized(size) => {
-                if size.width > 0 && size.height > 0 {
-                    self.rt.renderer.resize(size.width, size.height);
-                    self.rt.driver.request_redraw();
-                }
+            WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
+                self.renderer.resize(size.width, size.height);
+                self.window.request_redraw();
                 true
             }
             WindowEvent::ScaleFactorChanged { .. } => {
-                let (w, h) = self.rt.driver.inner_size();
-                self.rt.renderer.resize(w, h);
-                self.rt.driver.request_redraw();
+                let s = self.window.inner_size();
+                self.renderer.resize(s.width, s.height);
+                self.window.request_redraw();
                 true
             }
             _ => false,
         }
     }
 
-    /// Request a redraw from the window.
     pub fn request_redraw(&self) {
-        self.rt.driver.request_redraw();
+        self.window.request_redraw();
     }
 
-    /// Update the HTML content and request a redraw.
     pub fn set_html(&mut self, html: &str) {
-        self.rt.lui.set_html(html);
-        self.rt.driver.request_redraw();
+        self.lui.set_html(html);
+        self.window.request_redraw();
     }
 
-    /// Capture the current document to a PNG file.
-    pub fn screenshot_to(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), lui::RenderError> {
-        self.rt.screenshot_to(path)
+    pub fn screenshot_to(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), RenderError> {
+        let size = self.window.inner_size();
+        let scale = self.window.scale_factor() as f32;
+        self.lui.set_dpi_scale(scale);
+        self.lui.set_viewport(size.width as f32 / scale, size.height as f32 / scale);
+        self.lui.screenshot_with(&mut self.renderer, size.width, size.height, path)
     }
 
-    /// Render the current document to RGBA pixels.
-    pub fn render_to_rgba(&mut self) -> Result<Vec<u8>, lui::RenderError> {
-        self.rt.render_to_rgba()
+    pub fn render_to_rgba(&mut self) -> Result<Vec<u8>, RenderError> {
+        let size = self.window.inner_size();
+        let scale = self.window.scale_factor() as f32;
+        self.lui.set_dpi_scale(scale);
+        self.lui.set_viewport(size.width as f32 / scale, size.height as f32 / scale);
+        self.lui.render_to_rgba_with(&mut self.renderer, size.width, size.height)
     }
 }
