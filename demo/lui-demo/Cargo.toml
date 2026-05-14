@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lui = { workspace = true, features = ["winit"] }
+lui = { workspace = true, features = ["winit", "wgpu"] }
 atty = "0.2"

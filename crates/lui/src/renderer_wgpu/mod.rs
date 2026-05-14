@@ -49,9 +49,7 @@ impl Renderer {
   /// Create a renderer bound to the given window-like surface target.
   /// The window is held via `Arc`; the renderer keeps it alive for the
   /// lifetime of the surface.
-  pub async fn new<W>(window: Arc<W>, width: u32, height: u32) -> Self
-  where
-    W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
+  pub async fn new(window: Arc<dyn crate::WindowSurface>, width: u32, height: u32) -> Self
   {
     let mut idesc = wgpu::InstanceDescriptor::new_without_display_handle();
     idesc.backends = wgpu::Backends::PRIMARY;
@@ -662,6 +660,9 @@ impl Renderer {
 }
 
 impl RenderBackend for Renderer {
+  fn init_surface(&mut self, _window: Arc<dyn crate::WindowSurface>, _width: u32, _height: u32) {
+  }
+
   fn resize(&mut self, width: u32, height: u32) {
     self.resize(width, height);
   }
@@ -726,4 +727,40 @@ impl RenderBackend for Renderer {
   fn glyph_atlas_size(&self) -> u32 {
     self.glyphs.atlas_size()
   }
+}
+
+/// Deferred wgpu renderer — created without a window, initialized
+/// when the driver calls `init_surface()`.
+pub struct WgpuRenderer {
+    inner: Option<Renderer>,
+}
+
+impl WgpuRenderer {
+    pub fn new() -> Self {
+        Self { inner: None }
+    }
+
+    fn r(&self) -> &Renderer { self.inner.as_ref().expect("renderer not initialized — driver must call init_surface first") }
+    fn r_mut(&mut self) -> &mut Renderer { self.inner.as_mut().expect("renderer not initialized — driver must call init_surface first") }
+}
+
+impl RenderBackend for WgpuRenderer {
+    fn init_surface(&mut self, window: Arc<dyn crate::WindowSurface>, width: u32, height: u32) {
+        self.inner = Some(pollster::block_on(Renderer::new(window, width, height)));
+    }
+
+    fn resize(&mut self, w: u32, h: u32) { self.r_mut().resize(w, h); }
+    fn set_clear_color(&mut self, c: [f32; 4]) { self.r_mut().set_clear_color(c); }
+    fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]) {
+        self.r_mut().upload_atlas_region(x, y, w, h, data);
+    }
+    fn render(&mut self, list: &DisplayList) -> FrameOutcome { self.r_mut().render(list) }
+    fn render_to_rgba(&mut self, list: &DisplayList, w: u32, h: u32) -> Result<Vec<u8>, RenderError> {
+        self.r_mut().render_to_rgba(list, w, h).map_err(|e| RenderError::Backend(Box::new(e)))
+    }
+    fn capture_to(&mut self, list: &DisplayList, w: u32, h: u32, path: &std::path::Path) -> Result<(), RenderError> {
+        self.r_mut().capture_to(list, w, h, path).map_err(|e| RenderError::Backend(Box::new(e)))
+    }
+    fn capture_next_frame_to(&mut self, path: PathBuf) { self.r_mut().capture_next_frame_to(path); }
+    fn glyph_atlas_size(&self) -> u32 { self.r().glyph_atlas_size() }
 }

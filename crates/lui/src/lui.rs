@@ -19,20 +19,20 @@ pub struct Lui {
     cascade_ctx: CascadeContext,
     layout_engine: LayoutEngine,
     dpi_scale_override: Option<f32>,
-    pub driver: Option<Box<dyn Driver>>,
-    pub renderer: Option<Box<dyn RenderBackend>>,
+    pub driver: Box<dyn Driver>,
+    pub renderer: Box<dyn RenderBackend>,
 }
 
 impl Lui {
-    pub fn new() -> Self {
+    pub fn new(driver: Box<dyn Driver>, renderer: Box<dyn RenderBackend>) -> Self {
         Self {
             doc: lui_parse::parse("<html><body></body></html>"),
             text_ctx: TextContext::new(),
             cascade_ctx: CascadeContext::new(),
             layout_engine: LayoutEngine::new(),
             dpi_scale_override: None,
-            driver: None,
-            renderer: None,
+            driver,
+            renderer,
         }
     }
 
@@ -55,19 +55,12 @@ impl Lui {
         self.dpi_scale_override = scale;
     }
 
-    // ── Run ──────────────────────────────────────────────────────────
-
-    /// Hand control to the driver's event loop. Blocks until done.
-    /// The driver must be set before calling this.
     pub fn run(mut self) {
-        let driver = self.driver.take().expect("no driver set — call set driver before run()");
+        // Take driver out so it can own the event loop while Lui keeps the pipeline + renderer.
+        let driver = std::mem::replace(&mut self.driver, Box::new(crate::NullDriver));
         driver.run(self);
     }
 
-    // ── Render (called by drivers) ───────────────────────────────────
-
-    /// Full pipeline: cascade → layout → paint → GPU.
-    /// The driver passes its own size/scale since it owns the window.
     pub fn render_frame(
         &mut self,
         physical_width: u32,
@@ -76,7 +69,7 @@ impl Lui {
     ) -> FrameOutcome {
         let list = self.paint(physical_width, physical_height, scale);
         self.flush_atlas();
-        self.renderer.as_mut().expect("no renderer").render(&list)
+        self.renderer.render(&list)
     }
 
     pub fn screenshot_to(
@@ -88,8 +81,7 @@ impl Lui {
     ) -> Result<(), RenderError> {
         let list = self.paint(physical_width, physical_height, scale);
         self.flush_atlas();
-        self.renderer.as_mut().expect("no renderer")
-            .capture_to(&list, physical_width, physical_height, path.as_ref())
+        self.renderer.capture_to(&list, physical_width, physical_height, path.as_ref())
     }
 
     pub fn render_to_rgba(
@@ -100,11 +92,8 @@ impl Lui {
     ) -> Result<Vec<u8>, RenderError> {
         let list = self.paint(physical_width, physical_height, scale);
         self.flush_atlas();
-        self.renderer.as_mut().expect("no renderer")
-            .render_to_rgba(&list, physical_width, physical_height)
+        self.renderer.render_to_rgba(&list, physical_width, physical_height)
     }
-
-    // ── Internal ─────────────────────────────────────────────────────
 
     fn paint(&mut self, pw: u32, ph: u32, scale: f32) -> DisplayList {
         let scale = self.dpi_scale_override.unwrap_or(scale);
@@ -126,13 +115,8 @@ impl Lui {
     }
 
     fn flush_atlas(&mut self) {
-        let renderer = self.renderer.as_mut().expect("no renderer");
         self.text_ctx.flush_dirty(|rect, data| {
-            renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+            self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
         });
     }
-}
-
-impl Default for Lui {
-    fn default() -> Self { Self::new() }
 }
