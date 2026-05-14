@@ -38,8 +38,8 @@ pub fn paint_text(
     for glyph in &run.glyphs {
         if glyph.uv_min == [0.0; 2] && glyph.uv_max == [0.0; 2] { continue; }
         let rect = DlRect::new(
-            content_x + glyph.x,
-            content_y + glyph.y,
+            (content_x + glyph.x).round(),
+            (content_y + glyph.y).round(),
             glyph.w,
             glyph.h,
         );

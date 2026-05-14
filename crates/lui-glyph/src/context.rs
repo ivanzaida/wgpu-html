@@ -253,8 +253,9 @@ impl TextContext {
                     }
                 };
 
-                let pos_x = (g.x + entry.left as f32).round();
+                let pos_x = (physical.x as f32 + entry.left as f32).round();
                 let pos_y = (run.line_y - entry.top as f32).round();
+
                 let uv_min = [entry.rect.x as f32 / atlas_w as f32, entry.rect.y as f32 / atlas_h as f32];
                 let uv_max = [
                     (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
