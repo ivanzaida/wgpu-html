@@ -662,7 +662,7 @@ impl Renderer {
 }
 
 impl RenderBackend for Renderer {
-  fn init_surface(&mut self, _window: Arc<dyn std::any::Any + Send + Sync>, _width: u32, _height: u32) {
+  fn init_surface(&mut self, _surface: Arc<dyn lui_core::SurfaceHandle>, _width: u32, _height: u32) {
   }
 
   fn resize(&mut self, width: u32, height: u32) {
@@ -747,15 +747,16 @@ impl WgpuRenderer {
 }
 
 impl RenderBackend for WgpuRenderer {
-    fn init_surface(&mut self, window: Arc<dyn std::any::Any + Send + Sync>, width: u32, height: u32) {
+    fn init_surface(&mut self, surface: Arc<dyn lui_core::SurfaceHandle>, width: u32, height: u32) {
+        let any = surface.as_any();
+
         #[cfg(feature = "winit")]
-        {
-            if let Ok(win) = window.downcast::<winit::window::Window>() {
-                self.inner = Some(pollster::block_on(Renderer::new(win, width, height)));
-                return;
-            }
+        if let Some(ws) = any.downcast_ref::<crate::winit_driver::WinitSurface>() {
+            self.inner = Some(pollster::block_on(Renderer::new(ws.window.clone(), width, height)));
+            return;
         }
-        panic!("WgpuRenderer: unsupported window type for init_surface");
+
+        panic!("WgpuRenderer: unsupported surface type");
     }
 
     fn resize(&mut self, w: u32, h: u32) { self.r_mut().resize(w, h); }

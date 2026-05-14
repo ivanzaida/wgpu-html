@@ -65,3 +65,6 @@ pub use supports::{SupportsCondition, SupportsFeature};
 pub use unit::CssUnit;
 pub use validate::{Validation, validate_value};
 pub use value::CssValue;
+
+mod surface;
+pub use surface::SurfaceHandle;

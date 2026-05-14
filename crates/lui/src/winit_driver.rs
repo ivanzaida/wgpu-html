@@ -8,6 +8,16 @@ use winit::{
 };
 
 use crate::{Driver, Lui};
+use lui_core::SurfaceHandle;
+
+/// Winit window wrapped as a `SurfaceHandle`.
+pub(crate) struct WinitSurface {
+    pub(crate) window: Arc<Window>,
+}
+
+impl SurfaceHandle for WinitSurface {
+    fn as_any(&self) -> &dyn std::any::Any { self }
+}
 
 static UA_CSS: &str = include_str!("../../../.data/ua_whatwg_html.css");
 
@@ -60,7 +70,8 @@ impl Driver for WinitDriver {
           let s = window.inner_size();
           (s.width.max(1), s.height.max(1))
         };
-        self.lui.renderer.init_surface(window.clone(), w, h);
+        let surface: Arc<dyn SurfaceHandle> = Arc::new(WinitSurface { window: window.clone() });
+        self.lui.renderer.init_surface(surface, w, h);
         self.window = Some(window);
       }
 

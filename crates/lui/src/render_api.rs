@@ -32,8 +32,8 @@ impl std::error::Error for RenderError {
 /// Trait that every render backend must implement.
 pub trait RenderBackend {
     /// Initialize the renderer with a window surface. Called by the driver
-    /// once the window is available. The renderer downcasts to its expected type.
-    fn init_surface(&mut self, window: std::sync::Arc<dyn std::any::Any + Send + Sync>, width: u32, height: u32);
+    /// once the window is available.
+    fn init_surface(&mut self, surface: std::sync::Arc<dyn lui_core::SurfaceHandle>, width: u32, height: u32);
     fn resize(&mut self, width: u32, height: u32);
     fn set_clear_color(&mut self, color: [f32; 4]);
     fn upload_atlas_region(&mut self, x: u32, y: u32, w: u32, h: u32, data: &[u8]);
