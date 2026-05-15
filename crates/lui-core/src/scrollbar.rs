@@ -109,13 +109,7 @@ pub fn resolve_scrollbar_inset(v: Option<&CssValue>) -> [f32; 4] {
 fn parse_inset_string(s: &str) -> [f32; 4] {
   let parts: Vec<f32> = s
     .split_ascii_whitespace()
-    .filter_map(|tok| {
-      tok
-        .strip_suffix("px")
-        .unwrap_or(tok)
-        .parse::<f32>()
-        .ok()
-    })
+    .filter_map(|tok| tok.strip_suffix("px").unwrap_or(tok).parse::<f32>().ok())
     .collect();
   match parts.len() {
     1 => [parts[0]; 4],
@@ -130,13 +124,12 @@ pub fn resolve_scrollbar_min_thumb_size(v: Option<&CssValue>) -> f32 {
   match v {
     Some(CssValue::Dimension { value, .. }) => *value as f32,
     Some(CssValue::Number(n)) => *n as f32,
-    Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => {
-      s.as_ref()
-        .strip_suffix("px")
-        .unwrap_or(s.as_ref())
-        .parse::<f32>()
-        .unwrap_or(20.0)
-    }
+    Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => s
+      .as_ref()
+      .strip_suffix("px")
+      .unwrap_or(s.as_ref())
+      .parse::<f32>()
+      .unwrap_or(20.0),
     _ => 20.0,
   }
 }

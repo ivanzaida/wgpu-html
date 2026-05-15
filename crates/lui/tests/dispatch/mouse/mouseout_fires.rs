@@ -16,16 +16,22 @@ fn mouseout_fires_when_leaving_element() {
   {
     let l = log.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "a").unwrap();
-    node.add_event_listener("mouseout", Arc::new(move |_, _| {
-      l.lock().unwrap().push("out-a".into());
-    }));
+    node.add_event_listener(
+      "mouseout",
+      Arc::new(move |_, _| {
+        l.lock().unwrap().push("out-a".into());
+      }),
+    );
   }
   {
     let l = log.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "b").unwrap();
-    node.add_event_listener("mouseover", Arc::new(move |_, _| {
-      l.lock().unwrap().push("over-b".into());
-    }));
+    node.add_event_listener(
+      "mouseover",
+      Arc::new(move |_, _| {
+        l.lock().unwrap().push("over-b".into());
+      }),
+    );
   }
 
   // Enter A

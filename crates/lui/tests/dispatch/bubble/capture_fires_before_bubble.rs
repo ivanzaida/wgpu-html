@@ -23,23 +23,34 @@ fn capture_listener_fires_before_bubble_listener() {
     let outer = find_node_by_id_mut(&mut lui.doc_mut().root, "outer").unwrap();
     outer.add_event_listener_with_options(
       "click",
-      Arc::new(move |_, _| { log.lock().unwrap().push("capture-outer"); }),
-      EventListenerOptions { capture: true, ..Default::default() },
+      Arc::new(move |_, _| {
+        log.lock().unwrap().push("capture-outer");
+      }),
+      EventListenerOptions {
+        capture: true,
+        ..Default::default()
+      },
     );
   }
   {
     let log = order.clone();
     let outer = find_node_by_id_mut(&mut lui.doc_mut().root, "outer").unwrap();
-    outer.add_event_listener("click", Arc::new(move |_, _| {
-      log.lock().unwrap().push("bubble-outer");
-    }));
+    outer.add_event_listener(
+      "click",
+      Arc::new(move |_, _| {
+        log.lock().unwrap().push("bubble-outer");
+      }),
+    );
   }
   {
     let log = order.clone();
     let inner = find_node_by_id_mut(&mut lui.doc_mut().root, "inner").unwrap();
-    inner.add_event_listener("click", Arc::new(move |_, _| {
-      log.lock().unwrap().push("target-inner");
-    }));
+    inner.add_event_listener(
+      "click",
+      Arc::new(move |_, _| {
+        log.lock().unwrap().push("target-inner");
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);

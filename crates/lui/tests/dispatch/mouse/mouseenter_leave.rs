@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicU32, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -16,16 +19,22 @@ fn mouseenter_fires_on_entry_and_mouseleave_on_exit() {
   {
     let e = enters.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "box").unwrap();
-    node.add_event_listener("mouseenter", Arc::new(move |_, _| {
-      e.fetch_add(1, Ordering::Relaxed);
-    }));
+    node.add_event_listener(
+      "mouseenter",
+      Arc::new(move |_, _| {
+        e.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
   {
     let l = leaves.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "box").unwrap();
-    node.add_event_listener("mouseleave", Arc::new(move |_, _| {
-      l.fetch_add(1, Ordering::Relaxed);
-    }));
+    node.add_event_listener(
+      "mouseleave",
+      Arc::new(move |_, _| {
+        l.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   // Enter element

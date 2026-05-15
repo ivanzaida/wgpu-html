@@ -16,7 +16,11 @@ fn cursor_resolves_from_hovered_element() {
 
   lui.set_cursor_position(150.0, 150.0);
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
-  assert_eq!(lui.current_cursor(), "auto", "cursor should revert to auto outside element");
+  assert_eq!(
+    lui.current_cursor(),
+    "auto",
+    "cursor should revert to auto outside element"
+  );
 }
 
 #[test]

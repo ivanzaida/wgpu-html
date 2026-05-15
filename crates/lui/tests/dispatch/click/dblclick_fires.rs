@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicU32, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -16,16 +19,22 @@ fn dblclick_fires_on_rapid_double_click() {
   {
     let c = clicks.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("click", Arc::new(move |_, _| {
-      c.fetch_add(1, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "click",
+      Arc::new(move |_, _| {
+        c.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
   {
     let d = dblclicks.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("dblclick", Arc::new(move |_, _| {
-      d.fetch_add(1, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "dblclick",
+      Arc::new(move |_, _| {
+        d.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
@@ -55,9 +64,12 @@ fn single_click_does_not_fire_dblclick() {
   {
     let d = dblclicks.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("dblclick", Arc::new(move |_, _| {
-      d.fetch_add(1, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "dblclick",
+      Arc::new(move |_, _| {
+        d.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
@@ -66,7 +78,11 @@ fn single_click_does_not_fire_dblclick() {
   lui.handle_mouse_down(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
   lui.handle_mouse_release(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
 
-  assert_eq!(dblclicks.load(Ordering::Relaxed), 0, "single click should not fire dblclick");
+  assert_eq!(
+    dblclicks.load(Ordering::Relaxed),
+    0,
+    "single click should not fire dblclick"
+  );
 }
 
 #[test]
@@ -81,9 +97,12 @@ fn triple_click_fires_only_one_dblclick() {
   {
     let d = dblclicks.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("dblclick", Arc::new(move |_, _| {
-      d.fetch_add(1, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "dblclick",
+      Arc::new(move |_, _| {
+        d.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
@@ -94,5 +113,9 @@ fn triple_click_fires_only_one_dblclick() {
     lui.handle_mouse_release(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
   }
 
-  assert_eq!(dblclicks.load(Ordering::Relaxed), 1, "triple click should fire exactly one dblclick");
+  assert_eq!(
+    dblclicks.load(Ordering::Relaxed),
+    1,
+    "triple click should fire exactly one dblclick"
+  );
 }

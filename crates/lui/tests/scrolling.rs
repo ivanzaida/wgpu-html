@@ -37,6 +37,9 @@ mod wheel_scroll_falls_back_to_viewport_translation;
 #[path = "scrolling/viewport/paints_vertical_scrollbar_when_document_overflows_height.rs"]
 mod paints_vertical_scrollbar_when_document_overflows_height;
 
+#[path = "scrolling/viewport/viewport_pseudo_thumb_hover_changes_color.rs"]
+mod viewport_pseudo_thumb_hover_changes_color;
+
 #[path = "scrolling/viewport/paints_horizontal_scrollbar_when_document_overflows_width.rs"]
 mod paints_horizontal_scrollbar_when_document_overflows_width;
 

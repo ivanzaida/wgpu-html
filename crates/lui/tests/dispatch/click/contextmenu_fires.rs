@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicU32, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -14,9 +17,12 @@ fn contextmenu_fires_on_right_click() {
   {
     let c = ctx_count.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("contextmenu", Arc::new(move |_, _| {
-      c.fetch_add(1, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "contextmenu",
+      Arc::new(move |_, _| {
+        c.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
@@ -25,7 +31,11 @@ fn contextmenu_fires_on_right_click() {
   lui.handle_mouse_down(TEST_WIDTH, TEST_HEIGHT, 1.0, 2);
   lui.handle_mouse_release(TEST_WIDTH, TEST_HEIGHT, 1.0, 2);
 
-  assert_eq!(ctx_count.load(Ordering::Relaxed), 1, "contextmenu should fire on right-click");
+  assert_eq!(
+    ctx_count.load(Ordering::Relaxed),
+    1,
+    "contextmenu should fire on right-click"
+  );
 }
 
 #[test]
@@ -40,9 +50,12 @@ fn right_click_does_not_fire_click_event() {
   {
     let c = clicks.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("click", Arc::new(move |_, _| {
-      c.fetch_add(1, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "click",
+      Arc::new(move |_, _| {
+        c.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
@@ -51,5 +64,9 @@ fn right_click_does_not_fire_click_event() {
   lui.handle_mouse_down(TEST_WIDTH, TEST_HEIGHT, 1.0, 2);
   lui.handle_mouse_release(TEST_WIDTH, TEST_HEIGHT, 1.0, 2);
 
-  assert_eq!(clicks.load(Ordering::Relaxed), 0, "right-click should not fire click event");
+  assert_eq!(
+    clicks.load(Ordering::Relaxed),
+    0,
+    "right-click should not fire click event"
+  );
 }

@@ -1,15 +1,24 @@
-use crate::{
-  HtmlNode, Stylesheet,
-  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection},
-};
+use crate::{node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection}, HtmlElement, HtmlNode, Stylesheet};
 
 /// Parsed HTML document — always rooted at a single `<html>` node.
 #[derive(Debug, Clone)]
 pub struct HtmlDocument {
   pub root: HtmlNode,
   pub stylesheets: Vec<Stylesheet>,
+  pub focus_path: Option<Vec<usize>>,
 
   event_listeners: EventListenersCollection,
+}
+
+impl Default for HtmlDocument {
+  fn default() -> Self {
+    Self {
+      root: HtmlNode::new(HtmlElement::Html),
+      stylesheets: Vec::new(),
+      focus_path: None,
+      event_listeners: EventListenersCollection::new(),
+    }
+  }
 }
 
 impl HtmlDocument {
@@ -17,6 +26,7 @@ impl HtmlDocument {
     Self {
       root,
       stylesheets,
+      focus_path: None,
       event_listeners: EventListenersCollection::new(),
     }
   }
@@ -44,5 +54,15 @@ impl HtmlDocument {
     let mut listeners = std::mem::take(&mut self.event_listeners);
     listeners.dispatch(&mut self.root, event);
     self.event_listeners = listeners;
+  }
+
+  pub fn active_element(&self) -> Option<&HtmlNode> {
+    let path = self.focus_path.as_deref()?;
+    self.root.at_path(path)
+  }
+
+  pub fn active_element_mut(&mut self) -> Option<&mut HtmlNode> {
+    let path = self.focus_path.as_deref()?;
+    self.root.at_path_mut(&path)
   }
 }

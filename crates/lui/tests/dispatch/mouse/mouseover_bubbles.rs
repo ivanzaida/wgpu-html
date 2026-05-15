@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicU32, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -16,9 +19,12 @@ fn mouseover_bubbles_to_parent() {
   {
     let c = parent_over.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "parent").unwrap();
-    node.add_event_listener("mouseover", Arc::new(move |_, _| {
-      c.fetch_add(1, Ordering::Relaxed);
-    }));
+    node.add_event_listener(
+      "mouseover",
+      Arc::new(move |_, _| {
+        c.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.set_cursor_position(50.0, 50.0);
@@ -49,16 +55,20 @@ fn mouseenter_does_not_bubble() {
   {
     let c = parent_enters.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "parent").unwrap();
-    node.add_event_listener("mouseenter", Arc::new(move |_, _| {
-      c.fetch_add(1, Ordering::Relaxed);
-    }));
+    node.add_event_listener(
+      "mouseenter",
+      Arc::new(move |_, _| {
+        c.fetch_add(1, Ordering::Relaxed);
+      }),
+    );
   }
 
   // Move from child A to child B — parent stays hovered, shouldn't get mouseenter
   lui.set_cursor_position(50.0, 150.0);
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
   assert_eq!(
-    parent_enters.load(Ordering::Relaxed), 0,
+    parent_enters.load(Ordering::Relaxed),
+    0,
     "parent should not get mouseenter when moving between its children"
   );
 }

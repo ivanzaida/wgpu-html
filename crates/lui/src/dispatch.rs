@@ -1,5 +1,4 @@
-use lui_core::EventPhase;
-use lui_core::events::DocumentEvent;
+use lui_core::{EventPhase, events::DocumentEvent};
 use lui_parse::HtmlNode;
 
 /// Find the path (child indices) from `root` to the node at `target` pointer.

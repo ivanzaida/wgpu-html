@@ -398,12 +398,7 @@ impl<'a> LayoutTree<'a> {
   /// Try to scroll at `start_path`, then chain unconsumed delta up through
   /// ancestor scroll containers. Returns which containers changed and any
   /// remaining delta that no container could absorb.
-  pub fn scroll_chain(
-    &mut self,
-    start_path: &[usize],
-    dx: f32,
-    dy: f32,
-  ) -> ScrollChainResult {
+  pub fn scroll_chain(&mut self, start_path: &[usize], dx: f32, dy: f32) -> ScrollChainResult {
     let mut remaining = (dx, dy);
     let mut changed = Vec::new();
 
@@ -520,13 +515,7 @@ fn hit_test_box<'a>(
   Some(b.node)
 }
 
-fn cursor_at_box<'a>(
-  b: &LayoutBox<'a>,
-  x: f32,
-  y: f32,
-  scroll_offset_x: f32,
-  scroll_offset_y: f32,
-) -> Option<&'a str> {
+fn cursor_at_box<'a>(b: &LayoutBox<'a>, x: f32, y: f32, scroll_offset_x: f32, scroll_offset_y: f32) -> Option<&'a str> {
   let adjusted_x = x + scroll_offset_x;
   let adjusted_y = y + scroll_offset_y;
 
@@ -708,7 +697,9 @@ fn test_scrollbar_area(
   path: &[usize],
 ) -> Option<ScrollbarHit> {
   let bar_w = scroll.scrollbar_width;
-  if bar_w <= 0.0 { return None; }
+  if bar_w <= 0.0 {
+    return None;
+  }
 
   let (inset, min_thumb) = if let Some(ps) = &b.scrollbar_pseudo {
     (

@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicBool, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -16,16 +19,22 @@ fn stop_immediate_propagation_halts_remaining_listeners_on_same_node() {
 
   {
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("click", Arc::new(|_node, event| {
-      event.stop_immediate_propagation();
-    }));
+    target.add_event_listener(
+      "click",
+      Arc::new(|_node, event| {
+        event.stop_immediate_propagation();
+      }),
+    );
   }
   {
     let flag = second_fired.clone();
     let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-    target.add_event_listener("click", Arc::new(move |_node, _event| {
-      flag.store(true, Ordering::Relaxed);
-    }));
+    target.add_event_listener(
+      "click",
+      Arc::new(move |_node, _event| {
+        flag.store(true, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);

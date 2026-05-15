@@ -84,9 +84,11 @@ impl Driver for WinitDriver {
             self
               .lui
               .set_cursor_position(position.x as f32 / scale, position.y as f32 / scale);
+            window.request_redraw();
           }
           WindowEvent::CursorLeft { .. } => {
             self.lui.clear_cursor_position();
+            window.request_redraw();
           }
           WindowEvent::ModifiersChanged(modifiers) => {
             self.modifiers = modifiers.state();
@@ -122,8 +124,11 @@ impl Driver for WinitDriver {
             let size = window.inner_size();
             let scale = window.scale_factor() as f32;
             let outcome = self.lui.render_frame(size.width, size.height, scale);
+            let needs_redraw = self.lui.take_needs_redraw();
             if matches!(outcome, crate::display_list::FrameOutcome::Reconfigure) {
               self.lui.renderer.resize(size.width, size.height);
+              window.request_redraw();
+            } else if needs_redraw {
               window.request_redraw();
             }
             window.set_cursor(css_cursor_to_winit(self.lui.current_cursor()));

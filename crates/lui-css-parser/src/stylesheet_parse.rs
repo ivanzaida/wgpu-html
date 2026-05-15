@@ -102,7 +102,7 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
         }
 
         match parse_style_rule(&chars, &mut pos) {
-            Ok(rule) => rules.push(rule),
+            Ok(parsed_rules) => rules.extend(parsed_rules),
             Err(_) => {
                 while pos < chars.len() && chars[pos] != '}' { pos += 1; }
                 if pos < chars.len() { pos += 1; }
@@ -113,7 +113,7 @@ fn parse_rule_list(input: &str, inside_at_rule: bool, at_rule_name: Option<&str>
     Ok((Stylesheet { rules, at_rules, comments }, pos))
 }
 
-fn parse_style_rule(chars: &[char], pos: &mut usize) -> Result<StyleRule, ParseError> {
+fn parse_style_rule(chars: &[char], pos: &mut usize) -> Result<Vec<StyleRule>, ParseError> {
     let sel_start = *pos;
     let mut brace_depth = 0;
     loop {
@@ -146,11 +146,26 @@ fn parse_style_rule(chars: &[char], pos: &mut usize) -> Result<StyleRule, ParseE
     }
     let decl_str: String = chars[decl_start..*pos - 1].iter().collect();
 
-    let selector = parse_selector_list(sel_str.trim())?;
-    let declarations = parse_declaration_block(&decl_str)?;
-    let specificity = compute_specificity(&selector);
+    parse_style_rule_from_parts(sel_str.trim(), &decl_str)
+}
 
-    Ok(StyleRule { selector, declarations, specificity })
+fn parse_style_rule_from_parts(selector_src: &str, block_src: &str) -> Result<Vec<StyleRule>, ParseError> {
+    let (declaration_src, nested_blocks) = split_declarations_and_nested_rules(block_src)?;
+    let selector = parse_selector_list(selector_src)?;
+    let declarations = parse_declaration_block(&declaration_src)?;
+    let specificity = compute_specificity(&selector);
+    let mut rules = Vec::new();
+
+    if !declarations.is_empty() {
+        rules.push(StyleRule { selector, declarations, specificity });
+    }
+
+    for nested in nested_blocks {
+        let nested_selector = expand_nested_selector_list(selector_src, &nested.selector)?;
+        rules.extend(parse_style_rule_from_parts(&nested_selector, &nested.block)?);
+    }
+
+    Ok(rules)
 }
 
 fn parse_keyframe_rule(chars: &[char], pos: &mut usize) -> Result<Option<StyleRule>, ParseError> {
@@ -183,6 +198,130 @@ fn parse_keyframe_rule(chars: &[char], pos: &mut usize) -> Result<Option<StyleRu
     let specificity = (0, 0, 0);
 
     Ok(Some(StyleRule { selector, declarations, specificity }))
+}
+
+struct NestedRuleBlock {
+    selector: String,
+    block: String,
+}
+
+fn split_declarations_and_nested_rules(input: &str) -> Result<(String, Vec<NestedRuleBlock>), ParseError> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut declarations = String::new();
+    let mut nested = Vec::new();
+    let mut segment_start = 0;
+    let mut pos = 0;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    while pos < chars.len() {
+        match chars[pos] {
+            '(' => paren_depth += 1,
+            ')' if paren_depth > 0 => paren_depth -= 1,
+            '[' => bracket_depth += 1,
+            ']' if bracket_depth > 0 => bracket_depth -= 1,
+            '{' if paren_depth == 0 && bracket_depth == 0 => {
+                let segment: String = chars[segment_start..pos].iter().collect();
+                let (declaration_prefix, nested_selector) = split_before_nested_selector(&segment);
+                declarations.push_str(declaration_prefix);
+                if !declaration_prefix.trim().is_empty() && !declaration_prefix.trim_end().ends_with(';') {
+                    declarations.push(';');
+                }
+
+                let block_start = pos + 1;
+                let mut depth = 1usize;
+                pos += 1;
+                while pos < chars.len() && depth > 0 {
+                    match chars[pos] {
+                        '{' => depth += 1,
+                        '}' => depth -= 1,
+                        _ => {}
+                    }
+                    pos += 1;
+                }
+                if depth != 0 {
+                    return Err(ParseError::new("unclosed nested rule block", block_start));
+                }
+                let block: String = chars[block_start..pos - 1].iter().collect();
+                let nested_selector = nested_selector.trim();
+                if !nested_selector.is_empty() {
+                    nested.push(NestedRuleBlock {
+                        selector: nested_selector.to_string(),
+                        block,
+                    });
+                }
+                segment_start = pos;
+                continue;
+            }
+            _ => {}
+        }
+        pos += 1;
+    }
+
+    declarations.push_str(&chars[segment_start..].iter().collect::<String>());
+    Ok((declarations, nested))
+}
+
+fn split_before_nested_selector(segment: &str) -> (&str, &str) {
+    if let Some(idx) = segment.rfind(';') {
+        segment.split_at(idx + 1)
+    } else {
+        ("", segment)
+    }
+}
+
+fn expand_nested_selector_list(parent_src: &str, nested_src: &str) -> Result<String, ParseError> {
+    let parents = split_selector_list_src(parent_src);
+    let nested = split_selector_list_src(nested_src);
+    let mut expanded = Vec::new();
+
+    for parent in &parents {
+        for child in &nested {
+            let child = child.trim();
+            if child.is_empty() {
+                continue;
+            }
+            if child.contains('&') {
+                expanded.push(child.replace('&', parent.trim()));
+            } else if starts_with_combinator(child) {
+                expanded.push(format!("{} {}", parent.trim(), child));
+            } else {
+                expanded.push(format!("{} {}", parent.trim(), child));
+            }
+        }
+    }
+
+    let expanded = expanded.join(", ");
+    parse_selector_list(&expanded)?;
+    Ok(expanded)
+}
+
+fn starts_with_combinator(selector: &str) -> bool {
+    selector.starts_with('>') || selector.starts_with('+') || selector.starts_with('~') || selector.starts_with("||")
+}
+
+fn split_selector_list_src(input: &str) -> Vec<String> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    for (i, ch) in chars.iter().enumerate() {
+        match *ch {
+            '(' => paren_depth += 1,
+            ')' if paren_depth > 0 => paren_depth -= 1,
+            '[' => bracket_depth += 1,
+            ']' if bracket_depth > 0 => bracket_depth -= 1,
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                parts.push(chars[start..i].iter().collect::<String>());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(chars[start..].iter().collect::<String>());
+    parts
 }
 
 pub fn parse_declaration_block(input: &str) -> Result<Vec<Declaration>, ParseError> {

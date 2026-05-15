@@ -609,11 +609,19 @@ fn cascade_node<'a>(
   let marker =
     crate::pseudo::collect_pseudo_element(CssPseudo::Marker, node, &style, sheets, ancestors, &ctx, media, arena);
 
-  let scrollbar_hover_part = interaction.scrollbar_hover.as_ref().and_then(|(hp, part)| {
-    if hp == path { Some(*part) } else { None }
-  });
+  let scrollbar_hover_part = interaction
+    .scrollbar_hover
+    .as_ref()
+    .and_then(|(hp, part)| if hp == path { Some(*part) } else { None });
   let scrollbar_pseudo = crate::pseudo::collect_scrollbar_pseudo_styles(
-    node, &style, sheets, ancestors, &ctx, media, arena, scrollbar_hover_part,
+    node,
+    &style,
+    sheets,
+    ancestors,
+    &ctx,
+    media,
+    arena,
+    scrollbar_hover_part,
   );
 
   StyledNode {

@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicBool, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -16,14 +19,20 @@ fn pointer_events_none_children_with_auto_still_receive_clicks() {
   {
     let f = child_clicked.clone();
     let node = find_node_by_id_mut(&mut lui.doc_mut().root, "child").unwrap();
-    node.add_event_listener("click", Arc::new(move |_, _| {
-      f.store(true, Ordering::Relaxed);
-    }));
+    node.add_event_listener(
+      "click",
+      Arc::new(move |_, _| {
+        f.store(true, Ordering::Relaxed);
+      }),
+    );
   }
 
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
   lui.handle_click(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
 
-  assert!(child_clicked.load(Ordering::Relaxed), "child with pointer-events:auto inside none parent should be clickable");
+  assert!(
+    child_clicked.load(Ordering::Relaxed),
+    "child with pointer-events:auto inside none parent should be clickable"
+  );
 }

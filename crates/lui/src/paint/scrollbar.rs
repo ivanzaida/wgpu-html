@@ -1,5 +1,8 @@
-use lui_core::display_list::{DisplayList, Rect as DlRect};
-use lui_core::{CssUnit, CssValue, resolve_scrollbar_inset, resolve_scrollbar_min_thumb_size};
+use lui_core::{
+  CssUnit, CssValue,
+  display_list::{DisplayList, Rect as DlRect},
+  resolve_scrollbar_inset, resolve_scrollbar_min_thumb_size,
+};
 use lui_layout::{LayoutBox, LayoutTree, Overflow};
 
 use super::style;
@@ -13,10 +16,7 @@ struct ResolvedPart {
   opacity: f32,
 }
 
-fn resolve_part(
-  ps_style: &lui_cascade::ComputedStyle,
-  default_bg: [f32; 4],
-) -> ResolvedPart {
+fn resolve_part(ps_style: &lui_cascade::ComputedStyle, default_bg: [f32; 4]) -> ResolvedPart {
   let bg = style::css_color(ps_style.background_color).unwrap_or(default_bg);
   let opacity = match ps_style.opacity {
     Some(CssValue::Number(n)) => (*n as f32).clamp(0.0, 1.0),
@@ -24,11 +24,17 @@ fn resolve_part(
   };
   let resolve_radius = |v: Option<&CssValue>| -> f32 {
     match v {
-      Some(CssValue::Dimension { value, unit: CssUnit::Px }) => *value as f32,
+      Some(CssValue::Dimension {
+        value,
+        unit: CssUnit::Px,
+      }) => *value as f32,
       Some(CssValue::Number(n)) => *n as f32,
-      Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => {
-        s.as_ref().strip_suffix("px").unwrap_or(s.as_ref()).parse::<f32>().unwrap_or(0.0)
-      }
+      Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => s
+        .as_ref()
+        .strip_suffix("px")
+        .unwrap_or(s.as_ref())
+        .parse::<f32>()
+        .unwrap_or(0.0),
       _ => 0.0,
     }
   };
@@ -98,7 +104,11 @@ fn paint_scrollbars_styled(
     if track.radii == [0.0; 4] {
       dl.push_quad(DlRect::new(track_x, track_y, track_w, track_h), track_color);
     } else {
-      dl.push_quad_rounded(DlRect::new(track_x, track_y, track_w, track_h), track_color, track.radii);
+      dl.push_quad_rounded(
+        DlRect::new(track_x, track_y, track_w, track_h),
+        track_color,
+        track.radii,
+      );
     }
 
     let ratio = b.content.height / scroll.scroll_height;
@@ -115,7 +125,11 @@ fn paint_scrollbars_styled(
     } else {
       thumb.radii
     };
-    dl.push_quad_rounded(DlRect::new(track_x, thumb_y, track_w, thumb_h), thumb_color, thumb_radii);
+    dl.push_quad_rounded(
+      DlRect::new(track_x, thumb_y, track_w, thumb_h),
+      thumb_color,
+      thumb_radii,
+    );
   }
 
   if has_h {
@@ -128,7 +142,11 @@ fn paint_scrollbars_styled(
     if track.radii == [0.0; 4] {
       dl.push_quad(DlRect::new(track_x, track_y, track_w, track_h), track_color);
     } else {
-      dl.push_quad_rounded(DlRect::new(track_x, track_y, track_w, track_h), track_color, track.radii);
+      dl.push_quad_rounded(
+        DlRect::new(track_x, track_y, track_w, track_h),
+        track_color,
+        track.radii,
+      );
     }
 
     let ratio = b.content.width / scroll.scroll_width;
@@ -145,7 +163,11 @@ fn paint_scrollbars_styled(
     } else {
       thumb.radii
     };
-    dl.push_quad_rounded(DlRect::new(thumb_x, track_y, thumb_w, track_h), thumb_color, thumb_radii);
+    dl.push_quad_rounded(
+      DlRect::new(thumb_x, track_y, thumb_w, track_h),
+      thumb_color,
+      thumb_radii,
+    );
   }
 
   if has_v && has_h {
@@ -230,9 +252,26 @@ pub fn paint_viewport_scrollbars(
     return;
   }
 
-  let (track_color, thumb_color) = resolve_scrollbar_colors(style_box.style.scrollbar_color, 1.0);
   let show_y = max_y > 0.5;
   let show_x = max_x > 0.5;
+  if let Some(ps) = &style_box.scrollbar_pseudo {
+    paint_viewport_scrollbars_styled(
+      ps,
+      viewport_width,
+      viewport_height,
+      scroll_x,
+      scroll_y,
+      max_x,
+      max_y,
+      bar_w,
+      show_x,
+      show_y,
+      dl,
+    );
+    return;
+  }
+
+  let (track_color, thumb_color) = resolve_scrollbar_colors(style_box.style.scrollbar_color, 1.0);
 
   if show_y {
     let track_h = viewport_height - VIEWPORT_SCROLLBAR_MARGIN * 2.0 - if show_x { bar_w } else { 0.0 };
@@ -287,6 +326,115 @@ pub fn paint_viewport_scrollbars(
   }
 }
 
+fn paint_viewport_scrollbars_styled(
+  ps: &lui_cascade::ScrollbarPseudoStyles,
+  viewport_width: f32,
+  viewport_height: f32,
+  scroll_x: f32,
+  scroll_y: f32,
+  max_x: f32,
+  max_y: f32,
+  bar_w: f32,
+  show_x: bool,
+  show_y: bool,
+  dl: &mut DisplayList,
+) {
+  let default_track_bg = [0.95, 0.95, 0.95, 1.0];
+  let default_thumb_bg = [0.7, 0.7, 0.7, 0.6];
+  let default_corner_bg = default_track_bg;
+
+  let inset = resolve_scrollbar_inset(ps.scrollbar.scrollbar_inset);
+  let min_thumb = resolve_scrollbar_min_thumb_size(ps.scrollbar.scrollbar_min_thumb_size);
+  let track_part = resolve_part(&ps.track, default_track_bg);
+  let thumb_part = resolve_part(&ps.thumb, default_thumb_bg);
+  let corner_part = resolve_part(&ps.corner, default_corner_bg);
+
+  if show_y {
+    let track_x = viewport_width - bar_w - VIEWPORT_SCROLLBAR_MARGIN + inset[1];
+    let track_y = VIEWPORT_SCROLLBAR_MARGIN + inset[0];
+    let track_w = (bar_w - inset[1] - inset[3]).max(1.0);
+    let track_h =
+      viewport_height - VIEWPORT_SCROLLBAR_MARGIN * 2.0 - inset[0] - inset[2] - if show_x { bar_w } else { 0.0 };
+    if track_h > 0.0 {
+      let track_color = apply_opacity(track_part.bg, track_part.opacity);
+      if track_part.radii == [0.0; 4] {
+        dl.push_quad(DlRect::new(track_x, track_y, track_w, track_h), track_color);
+      } else {
+        dl.push_quad_rounded(
+          DlRect::new(track_x, track_y, track_w, track_h),
+          track_color,
+          track_part.radii,
+        );
+      }
+
+      let doc_h = viewport_height + max_y;
+      let thumb_h = (track_h * viewport_height / doc_h).max(min_thumb).min(track_h);
+      let travel = (track_h - thumb_h).max(0.0);
+      let thumb_y = track_y + travel * (scroll_y / max_y.max(1.0));
+      let thumb_color = apply_opacity(thumb_part.bg, thumb_part.opacity);
+      let thumb_radii = if thumb_part.radii == [0.0; 4] {
+        [(track_w * 0.5).min(4.0); 4]
+      } else {
+        thumb_part.radii
+      };
+      dl.push_quad_rounded(
+        DlRect::new(track_x, thumb_y, track_w, thumb_h),
+        thumb_color,
+        thumb_radii,
+      );
+    }
+  }
+
+  if show_x {
+    let track_x = VIEWPORT_SCROLLBAR_MARGIN + inset[3];
+    let track_y = viewport_height - bar_w - VIEWPORT_SCROLLBAR_MARGIN + inset[2];
+    let track_w =
+      viewport_width - VIEWPORT_SCROLLBAR_MARGIN * 2.0 - inset[1] - inset[3] - if show_y { bar_w } else { 0.0 };
+    let track_h = (bar_w - inset[0] - inset[2]).max(1.0);
+    if track_w > 0.0 {
+      let track_color = apply_opacity(track_part.bg, track_part.opacity);
+      if track_part.radii == [0.0; 4] {
+        dl.push_quad(DlRect::new(track_x, track_y, track_w, track_h), track_color);
+      } else {
+        dl.push_quad_rounded(
+          DlRect::new(track_x, track_y, track_w, track_h),
+          track_color,
+          track_part.radii,
+        );
+      }
+
+      let doc_w = viewport_width + max_x;
+      let thumb_w = (track_w * viewport_width / doc_w).max(min_thumb).min(track_w);
+      let travel = (track_w - thumb_w).max(0.0);
+      let thumb_x = track_x + travel * (scroll_x / max_x.max(1.0));
+      let thumb_color = apply_opacity(thumb_part.bg, thumb_part.opacity);
+      let thumb_radii = if thumb_part.radii == [0.0; 4] {
+        [(track_h * 0.5).min(4.0); 4]
+      } else {
+        thumb_part.radii
+      };
+      dl.push_quad_rounded(
+        DlRect::new(thumb_x, track_y, thumb_w, track_h),
+        thumb_color,
+        thumb_radii,
+      );
+    }
+  }
+
+  if show_x && show_y {
+    let corner_color = apply_opacity(corner_part.bg, corner_part.opacity);
+    dl.push_quad(
+      DlRect::new(
+        viewport_width - bar_w - VIEWPORT_SCROLLBAR_MARGIN + inset[1],
+        viewport_height - bar_w - VIEWPORT_SCROLLBAR_MARGIN + inset[2],
+        (bar_w - inset[1] - inset[3]).max(1.0),
+        (bar_w - inset[0] - inset[2]).max(1.0),
+      ),
+      corner_color,
+    );
+  }
+}
+
 pub(crate) fn resolve_scrollbar_colors(v: Option<&lui_core::CssValue>, opacity: f32) -> ([f32; 4], [f32; 4]) {
   let default_track = [0.95, 0.95, 0.95, opacity];
   let default_thumb = [0.7, 0.7, 0.7, 0.6 * opacity];
@@ -333,9 +481,19 @@ pub(crate) fn resolve_scrollbar_width(v: Option<&lui_core::CssValue>) -> f32 {
 pub(crate) fn viewport_scrollbar_style_box<'a>(tree: &'a LayoutTree<'a>) -> &'a LayoutBox<'a> {
   let root = &tree.root;
   if let Some(body) = root.children.first() {
-    if body.style.scrollbar_color.is_some() || body.style.scrollbar_width.is_some() {
+    if body.style.scrollbar_color.is_some() || body.style.scrollbar_width.is_some() || body.scrollbar_pseudo.is_some() {
       return body;
     }
   }
   root
+}
+
+pub(crate) fn viewport_scrollbar_style_path(tree: &LayoutTree<'_>) -> Vec<usize> {
+  let root = &tree.root;
+  if let Some(body) = root.children.first() {
+    if body.style.scrollbar_color.is_some() || body.style.scrollbar_width.is_some() || body.scrollbar_pseudo.is_some() {
+      return vec![0];
+    }
+  }
+  Vec::new()
 }

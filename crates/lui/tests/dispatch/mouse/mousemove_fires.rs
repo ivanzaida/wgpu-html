@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicU32, Ordering},
+};
 
 use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
@@ -13,20 +16,35 @@ fn mousemove_fires_when_cursor_moves_over_element() {
   let count = Arc::new(AtomicU32::new(0));
   let c = count.clone();
   let target = find_node_by_id_mut(&mut lui.doc_mut().root, "target").unwrap();
-  target.add_event_listener("mousemove", Arc::new(move |_, _| {
-    c.fetch_add(1, Ordering::Relaxed);
-  }));
+  target.add_event_listener(
+    "mousemove",
+    Arc::new(move |_, _| {
+      c.fetch_add(1, Ordering::Relaxed);
+    }),
+  );
 
   lui.set_cursor_position(50.0, 50.0);
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
-  assert_eq!(count.load(Ordering::Relaxed), 1, "mousemove should fire on first cursor entry");
+  assert_eq!(
+    count.load(Ordering::Relaxed),
+    1,
+    "mousemove should fire on first cursor entry"
+  );
 
   // Same position — no event
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
-  assert_eq!(count.load(Ordering::Relaxed), 1, "no mousemove when cursor hasn't moved");
+  assert_eq!(
+    count.load(Ordering::Relaxed),
+    1,
+    "no mousemove when cursor hasn't moved"
+  );
 
   // Move within same element
   lui.set_cursor_position(60.0, 60.0);
   lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
-  assert_eq!(count.load(Ordering::Relaxed), 2, "mousemove on cursor move within element");
+  assert_eq!(
+    count.load(Ordering::Relaxed),
+    2,
+    "mousemove on cursor move within element"
+  );
 }

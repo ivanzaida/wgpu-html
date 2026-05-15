@@ -123,21 +123,38 @@ fn matching_rules_for_pseudo<'a>(
   _arena: &'a Bump,
   important: bool,
 ) -> Vec<&'a lui_core::Declaration> {
+  struct MatchedPseudoRule<'a> {
+    rule: &'a lui_core::StyleRule,
+    specificity: (u32, u32, u32),
+    rule_idx: usize,
+  }
+
   let mut decls = Vec::new();
   let Some(rule_indices) = sheet.pseudo_index.get(pseudo) else {
     return decls;
   };
+  let mut matched = Vec::new();
   for &rule_idx in rule_indices {
     let rule = &sheet.rules[rule_idx];
-    if !rule
+    let specificity = rule
       .selector
       .0
       .iter()
-      .any(|sel| matches_selector(sel, node, ctx, ancestors, parent))
-    {
-      continue;
+      .filter(|sel| matches_selector(sel, node, ctx, ancestors, parent))
+      .map(lui_parse::complex_specificity)
+      .max();
+    if let Some(specificity) = specificity {
+      matched.push(MatchedPseudoRule {
+        rule,
+        specificity,
+        rule_idx,
+      });
     }
-    for decl in &rule.declarations {
+  }
+  matched.sort_by_key(|m| (m.specificity, m.rule_idx));
+
+  for matched_rule in matched {
+    for decl in &matched_rule.rule.declarations {
       if decl.important == important {
         decls.push(decl);
       }

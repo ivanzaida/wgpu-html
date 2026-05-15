@@ -14,7 +14,9 @@ pub mod sizes;
 pub mod table;
 pub mod text;
 
-pub use box_tree::{BoxKind, LayoutBox, LayoutTree, Overflow, ScrollChainResult, ScrollInfo, ScrollbarAxis, ScrollbarHit, StickyInsets};
+pub use box_tree::{
+  BoxKind, LayoutBox, LayoutTree, Overflow, ScrollChainResult, ScrollInfo, ScrollbarAxis, ScrollbarHit, StickyInsets,
+};
 pub use context::LayoutContext;
 pub use engine::{LayoutEngine, layout_tree, layout_tree_with};
 pub use geometry::{Point, Rect, RectEdges, Size};

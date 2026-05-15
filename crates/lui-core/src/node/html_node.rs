@@ -117,6 +117,22 @@ impl HtmlNode {
     self.event_listeners = listeners;
   }
 
+  pub fn at_path(&self, path: &[usize]) -> Option<&HtmlNode> {
+    let mut node = self;
+    for &idx in path {
+      node = node.children.get(idx)?;
+    }
+    Some(node)
+  }
+
+  pub fn at_path_mut(&mut self, path: &[usize]) -> Option<&mut HtmlNode> {
+    let mut node = self;
+    for &idx in path {
+      node = node.children.get_mut(idx)?;
+    }
+    Some(node)
+  }
+
   pub fn dispatch_event_phase(&mut self, event: &mut crate::events::DocumentEvent, phase: EventPhase) {
     let mut listeners = std::mem::take(&mut self.event_listeners);
     listeners.dispatch_phase(self, event, phase);

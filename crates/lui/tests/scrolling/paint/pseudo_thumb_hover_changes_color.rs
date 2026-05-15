@@ -34,8 +34,10 @@ fn scroller_lui(css: &str) -> (lui::Lui, RenderSpy) {
 fn thumb_hover_pseudo_changes_background_color() {
   let (mut lui, spy) = scroller_lui(
     r#"
-      #scroller::lui-scrollbar-thumb { background-color: green; }
-      #scroller::lui-scrollbar-thumb:hover { background-color: red; }
+      #scroller::lui-scrollbar-thumb {
+        background-color: green;
+        &:hover { background-color: red; }
+      }
       #scroller::lui-scrollbar-track { background-color: blue; }
     "#,
   );
@@ -79,8 +81,10 @@ fn thumb_hover_pseudo_changes_background_color() {
 fn track_hover_does_not_affect_thumb_color() {
   let (mut lui, spy) = scroller_lui(
     r#"
-      #scroller::lui-scrollbar-thumb { background-color: green; }
-      #scroller::lui-scrollbar-thumb:hover { background-color: red; }
+      #scroller::lui-scrollbar-thumb {
+        background-color: green;
+        &:hover { background-color: red; }
+      }
       #scroller::lui-scrollbar-track { background-color: blue; }
     "#,
   );
@@ -114,8 +118,5 @@ fn track_hover_does_not_affect_thumb_color() {
     !green_quads.is_empty(),
     "thumb should remain green when hovering track, not thumb"
   );
-  assert!(
-    red_quads.is_empty(),
-    "thumb should NOT be red when hovering track"
-  );
+  assert!(red_quads.is_empty(), "thumb should NOT be red when hovering track");
 }
