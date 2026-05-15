@@ -11,6 +11,14 @@ pub fn resolve_scrollbar_width(v: Option<&CssValue>) -> f32 {
   }
 }
 
+pub fn resolve_pseudo_scrollbar_width(v: Option<&CssValue>) -> Option<f32> {
+  match v {
+    Some(CssValue::Dimension { value, unit }) if *unit == crate::CssUnit::Px => Some((*value as f32).max(0.0)),
+    Some(CssValue::Number(n)) => Some((*n as f32).max(0.0)),
+    _ => None,
+  }
+}
+
 fn css_str(v: Option<&CssValue>) -> &str {
   match v {
     Some(CssValue::String(s)) | Some(CssValue::Unknown(s)) => s.as_ref(),

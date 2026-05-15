@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 lui = { workspace = true, features = ["winit", "wgpu", "ua_whatwg"] }
+lui-core.workspace = true
+lui-parse.workspace = true
 atty = "0.2"
 
 [dev-dependencies]

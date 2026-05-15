@@ -3,16 +3,26 @@ use crate::support::{RenderSpy, TEST_HEIGHT, TEST_WIDTH};
 fn shell_lui() -> (lui::Lui, RenderSpy) {
   let spy = RenderSpy::default();
   let mut lui = lui::Lui::new();
-  let css = "* { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }";
-  lui.set_stylesheets(&[lui_parse::parse_stylesheet(css).unwrap()]);
+  // The demo uses UA stylesheet — test with it
+  #[cfg(feature = "ua_whatwg")]
+  {
+    // UA is auto-loaded in Lui::new()
+  }
   lui.set_html(r#"
-    <html style="width:100%;height:100%"><body style="width:100%;height:100%">
-      <div style="display:flex; width:100%; height:100%; overflow:hidden">
-        <div style="width:80px; height:100%; overflow-y:scroll; flex-shrink:0">
-          <div style="height:800px; background:#ccc"></div>
+    <html><body>
+      <style>
+        * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; }
+        .shell { display: flex; width: 100%; height: 100%; overflow: hidden; }
+        .sidebar { width: 80px; height: 100%; overflow-y: auto; flex-shrink: 0; }
+        .main { flex: 1; height: 100%; overflow-y: auto; }
+      </style>
+      <div class="shell">
+        <div class="sidebar">
+          <div style="height: 800px; background: #ccc"></div>
         </div>
-        <div style="flex:1; height:100%; overflow-y:scroll">
-          <div style="height:1200px; background:#eee"></div>
+        <div class="main">
+          <div style="height: 1200px; background: #eee"></div>
         </div>
       </div>
     </body></html>

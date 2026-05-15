@@ -3694,6 +3694,7 @@ dependencies = [
  "atty",
  "lui",
  "lui-cascade",
+ "lui-core",
  "lui-glyph",
  "lui-layout",
  "lui-parse",

@@ -1,8 +1,8 @@
-use lui_core::{ArcStr, HtmlDocument, HtmlElement, HtmlNode, Stylesheet, should_auto_close};
+use lui_core::{should_auto_close, ArcStr, HtmlDocument, HtmlElement, HtmlNode, Stylesheet};
 
 use crate::{
   css::stylesheet::{parse_declaration_block, parse_stylesheet},
-  html::tokenizer::{Token, tokenize},
+  html::tokenizer::{tokenize, Token},
 };
 
 /// Build an `HtmlNode` from raw attribute pairs, parsing inline styles.
@@ -35,6 +35,20 @@ pub fn parse(html_str: &str) -> HtmlDocument {
   let mut builder = TreeBuilder::new(tokens);
   builder.run();
   builder.finish()
+}
+
+pub fn parse_nodes(html_str: &str) -> (Vec<HtmlNode>, Vec<Stylesheet>) {
+  let tokens = tokenize(html_str);
+  let mut builder = TreeBuilder::new(tokens);
+  builder.run();
+  (
+    builder
+      .document
+      .into_iter()
+      .filter(|x| x.element() != &HtmlElement::Style)
+      .collect(),
+    builder.stylesheets,
+  )
 }
 
 struct TreeBuilder {

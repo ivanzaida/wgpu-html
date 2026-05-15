@@ -1,8 +1,10 @@
 use crate::{
-  ArcStr, HtmlNode,
-  selector_match::{AncestorEntry, MatchContext, matches_selector},
-  selector_parse::parse_selector_list,
+  selector_match::{matches_selector, AncestorEntry, MatchContext}, selector_parse::parse_selector_list,
+  ArcStr,
+  HtmlNode,
 };
+
+pub type ElementPath = Vec<usize>;
 
 impl HtmlNode {
   pub fn get_element_by_id(&self, id: ArcStr) -> Option<&HtmlNode> {
@@ -90,7 +92,10 @@ impl HtmlNode {
       Err(_) => return false,
     };
     let ctx = MatchContext::default();
-    sel.0.iter().any(|complex| matches_selector(complex, self, &ctx, &[], None))
+    sel
+      .0
+      .iter()
+      .any(|complex| matches_selector(complex, self, &ctx, &[], None))
   }
 }
 
@@ -155,10 +160,16 @@ fn walk_first<'a>(
   let count = node.children.len();
   for (i, child) in node.children.iter().enumerate() {
     let ctx = child_ctx(i, count);
-    let mut child_ancestors = vec![AncestorEntry { node, ctx: child_ctx(i, count) }];
+    let mut child_ancestors = vec![AncestorEntry {
+      node,
+      ctx: child_ctx(i, count),
+    }];
     child_ancestors.extend(ancestors.iter().cloned());
 
-    if selectors.iter().any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node))) {
+    if selectors
+      .iter()
+      .any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node)))
+    {
       return Some(child);
     }
     if let Some(found) = walk_first(child, selectors, &child_ancestors) {
@@ -176,10 +187,16 @@ fn walk_first_path(
   let count = node.children.len();
   for (i, child) in node.children.iter().enumerate() {
     let ctx = child_ctx(i, count);
-    let mut child_ancestors = vec![AncestorEntry { node, ctx: child_ctx(i, count) }];
+    let mut child_ancestors = vec![AncestorEntry {
+      node,
+      ctx: child_ctx(i, count),
+    }];
     child_ancestors.extend(ancestors.iter().cloned());
 
-    if selectors.iter().any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node))) {
+    if selectors
+      .iter()
+      .any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node)))
+    {
       return Some(vec![i]);
     }
     if let Some(mut path) = walk_first_path(child, selectors, &child_ancestors) {
@@ -199,10 +216,16 @@ fn walk_collect<'a>(
   let count = node.children.len();
   for (i, child) in node.children.iter().enumerate() {
     let ctx = child_ctx(i, count);
-    let mut child_ancestors = vec![AncestorEntry { node, ctx: child_ctx(i, count) }];
+    let mut child_ancestors = vec![AncestorEntry {
+      node,
+      ctx: child_ctx(i, count),
+    }];
     child_ancestors.extend(ancestors.iter().cloned());
 
-    if selectors.iter().any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node))) {
+    if selectors
+      .iter()
+      .any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node)))
+    {
       results.push(child);
     }
     walk_collect(child, selectors, &child_ancestors, results);
@@ -219,15 +242,20 @@ fn walk_collect_paths(
   let count = node.children.len();
   for (i, child) in node.children.iter().enumerate() {
     let ctx = child_ctx(i, count);
-    let mut child_ancestors = vec![AncestorEntry { node, ctx: child_ctx(i, count) }];
+    let mut child_ancestors = vec![AncestorEntry {
+      node,
+      ctx: child_ctx(i, count),
+    }];
     child_ancestors.extend(ancestors.iter().cloned());
 
     current_path.push(i);
-    if selectors.iter().any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node))) {
+    if selectors
+      .iter()
+      .any(|sel| matches_selector(sel, child, &ctx, &child_ancestors, Some(node)))
+    {
       paths.push(current_path.clone());
     }
     walk_collect_paths(child, selectors, &child_ancestors, current_path, paths);
     current_path.pop();
   }
 }
-

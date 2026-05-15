@@ -37,8 +37,13 @@ pub fn parse_overflow_value(v: Option<&lui_core::CssValue>) -> Overflow {
   }
 }
 
-fn resolve_scrollbar_width(style: &lui_cascade::ComputedStyle) -> f32 {
-  lui_core::resolve_scrollbar_width(style.scrollbar_width)
+pub(crate) fn resolve_scrollbar_width(b: &LayoutBox) -> f32 {
+  if let Some(ps) = &b.scrollbar_pseudo {
+    if let Some(w) = lui_core::resolve_pseudo_scrollbar_width(ps.scrollbar.width) {
+      return w;
+    }
+  }
+  lui_core::resolve_scrollbar_width(b.style.scrollbar_width)
 }
 
 #[derive(Clone, Copy, Default)]
@@ -215,7 +220,7 @@ pub fn layout_block<'a>(
   b.overflow_x = ov_x;
   b.overflow_y = ov_y;
 
-  let scrollbar_w = resolve_scrollbar_width(b.style);
+  let scrollbar_w = resolve_scrollbar_width(b);
   let scrollbar_gutter = parse_scrollbar_gutter(b.style.scrollbar_gutter);
   let has_y_scrollbar = ov_y == Overflow::Scroll;
   let has_x_scrollbar = ov_x == Overflow::Scroll;

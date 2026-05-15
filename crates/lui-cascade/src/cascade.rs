@@ -5,24 +5,24 @@ use std::{
 
 use bumpalo::Bump;
 use lui_core::{ArcStr, CssProperty, CssPseudo, CssValue, StyleRule, Stylesheet};
-use lui_parse::{HtmlNode, expand_shorthand, longhands_of};
+use lui_parse::{expand_shorthand, longhands_of, HtmlNode};
 use lui_resolve::ResolutionContext;
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
 
 use crate::{
-  StyledNode,
-  bloom::{AncestorBloom, bloom_might_match},
-  index::{PreparedStylesheet, RuleCondition, candidate_rules},
+  bloom::{bloom_might_match, AncestorBloom},
+  index::{candidate_rules, PreparedStylesheet, RuleCondition},
   inline::node_inline_style,
-  matching::{AncestorEntry, MatchContext, is_pseudo_element, matches_selector},
-  media::{MediaContext, evaluate_media, evaluate_supports},
+  matching::{is_pseudo_element, matches_selector, AncestorEntry, MatchContext},
+  media::{evaluate_media, evaluate_supports, MediaContext},
   style::ComputedStyle,
   var_resolution::resolve_vars,
+  StyledNode,
 };
 
-pub type ElementPath = Vec<usize>;
+pub type ElementPath = lui_core::node::ElementPath;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollbarPart {
@@ -39,6 +39,7 @@ pub struct InteractionState {
   pub focus_path: Option<ElementPath>,
   pub target_path: Option<ElementPath>,
   pub scrollbar_hover: Option<(ElementPath, ScrollbarPart)>,
+  pub scrollbar_active: Option<(ElementPath, ScrollbarPart)>,
 }
 
 /// Persistent context for the cascade engine. Caches prepared stylesheets
@@ -613,6 +614,10 @@ fn cascade_node<'a>(
     .scrollbar_hover
     .as_ref()
     .and_then(|(hp, part)| if hp == path { Some(*part) } else { None });
+  let scrollbar_active_part = interaction
+    .scrollbar_active
+    .as_ref()
+    .and_then(|(ap, part)| if ap == path { Some(*part) } else { None });
   let scrollbar_pseudo = crate::pseudo::collect_scrollbar_pseudo_styles(
     node,
     &style,
@@ -622,6 +627,7 @@ fn cascade_node<'a>(
     media,
     arena,
     scrollbar_hover_part,
+    scrollbar_active_part,
   );
 
   StyledNode {

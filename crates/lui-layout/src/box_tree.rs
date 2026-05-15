@@ -447,6 +447,12 @@ fn try_scroll_at(
   if !b.is_scroll_container() {
     return;
   }
+  if matches!(b.overflow_x, Overflow::Hidden | Overflow::Clip)
+    && matches!(b.overflow_y, Overflow::Hidden | Overflow::Clip)
+  {
+    *remaining = (0.0, 0.0);
+    return;
+  }
   let old_x = b.scroll.map(|s| s.scroll_x).unwrap_or(0.0);
   let old_y = b.scroll.map(|s| s.scroll_y).unwrap_or(0.0);
   let rem = b.scroll_by_consuming(remaining.0, remaining.1);
@@ -595,7 +601,7 @@ fn document_extent_right(b: &LayoutBox<'_>, depth: usize) -> f32 {
   b.children
     .iter()
     .map(|child| {
-      if child.is_scroll_container() && depth > 1 {
+      if child.is_scroll_container() && depth >= 1 {
         let child_mr = child.margin_rect();
         child_mr.x + child_mr.width
       } else {
@@ -610,7 +616,7 @@ fn document_extent_bottom(b: &LayoutBox<'_>, depth: usize) -> f32 {
   b.children
     .iter()
     .map(|child| {
-      if child.is_scroll_container() && depth > 1 {
+      if child.is_scroll_container() && depth >= 1 {
         let child_mr = child.margin_rect();
         child_mr.y + child_mr.height
       } else {
@@ -629,6 +635,7 @@ pub enum ScrollbarAxis {
 #[derive(Debug, Clone)]
 pub struct ScrollbarHit {
   pub path: Vec<usize>,
+  pub node_ptr: *const lui_core::HtmlNode,
   pub axis: ScrollbarAxis,
   pub on_thumb: bool,
   pub grab_offset: f32,
@@ -732,6 +739,7 @@ fn test_scrollbar_area(
       let on_thumb = doc_y >= thumb_y && doc_y <= thumb_y + thumb_h;
       return Some(ScrollbarHit {
         path: path.to_vec(),
+        node_ptr: b.node as *const _,
         axis: ScrollbarAxis::Vertical,
         on_thumb,
         grab_offset: if on_thumb { doc_y - thumb_y } else { thumb_h * 0.5 },
@@ -761,6 +769,7 @@ fn test_scrollbar_area(
       let on_thumb = doc_x >= thumb_x && doc_x <= thumb_x + thumb_w;
       return Some(ScrollbarHit {
         path: path.to_vec(),
+        node_ptr: b.node as *const _,
         axis: ScrollbarAxis::Horizontal,
         on_thumb,
         grab_offset: if on_thumb { doc_x - thumb_x } else { thumb_w * 0.5 },

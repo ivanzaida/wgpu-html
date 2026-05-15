@@ -58,6 +58,8 @@ pub use webxr::*;
 pub use wheel::WheelEventInit;
 pub use worker::*;
 
+use crate::node::ElementPath;
+
 #[derive(Debug, Clone)]
 pub enum DocumentEvent {
   Event(EventInit),
@@ -301,6 +303,10 @@ impl DocumentEvent {
 
   pub fn is_propagation_stopped(&self) -> bool {
     self.base().propagation_stopped
+  }
+
+  pub fn target_path(&self) -> &ElementPath {
+    &self.base().target_path
   }
 
   pub fn from_interface(name: &str) -> Self {

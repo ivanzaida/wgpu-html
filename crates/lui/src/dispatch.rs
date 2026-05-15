@@ -28,6 +28,7 @@ fn find_path_inner(node: &HtmlNode, target: *const HtmlNode, path: &mut Vec<usiz
 /// Dispatch `event` along the DOM path with W3C capture → target → bubble phases,
 /// then fire document-level listeners at the end of the bubble chain.
 pub fn dispatch_event(doc: &mut HtmlDocument, path: &[usize], event: &mut DocumentEvent) {
+  event.base_mut().target_path = path.to_vec();
   dispatch_on_nodes(&mut doc.root, path, event);
 
   if event.base().bubbles && !event.is_propagation_stopped() {

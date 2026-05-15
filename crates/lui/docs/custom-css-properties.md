@@ -12,15 +12,17 @@ Represents the scrollbar container. Controls layout behavior and high-level scro
 
 | Property | Values | Default | Inherited |
 |---|---|---|---|
+| `width` | `<length>` | — (falls back to element's `scrollbar-width`) | no |
 | `scrollbar-mode` | `auto` \| `classic` \| `overlay` \| `none` | `auto` | no |
-| `scrollbar-width` | `auto` \| `thin` \| `none` | `auto` | no |
 | `scrollbar-inset` | `<length>{1,4}` | `0px` | no |
 | `scrollbar-min-thumb-size` | `<length>` | `20px` | no |
 
+The `width` property on `::lui-scrollbar` sets the scrollbar size in pixels, overriding the element-level `scrollbar-width` keyword. When not set, the element's `scrollbar-width` is used (`auto`→15px, `thin`→8px, `none`→0px).
+
 ```css
 .panel::lui-scrollbar {
+  width: 10px;
   scrollbar-mode: overlay;
-  scrollbar-width: 10px;
   scrollbar-inset: 4px;
   scrollbar-min-thumb-size: 24px;
 }
@@ -32,12 +34,16 @@ Represents the draggable thumb.
 
 | Property | Values | Default |
 |---|---|---|
+| `width` | `<length>` | gutter width (matches track) |
 | `background-color` | `<color>` | `#888` |
 | `border-radius` | `<length>{1,4}` | `4px` |
 | `opacity` | `<number>` | `1` |
 
+When `width` is smaller than the gutter, the thumb is centered within it. This allows macOS-style thin thumbs inside a wider hit area.
+
 ```css
 .panel::lui-scrollbar-thumb {
+  width: 4px;
   background-color: rgba(255, 255, 255, 0.35);
   border-radius: 999px;
 }
@@ -49,12 +55,16 @@ Represents the track behind the thumb.
 
 | Property | Values | Default |
 |---|---|---|
+| `width` | `<length>` | gutter width |
 | `background-color` | `<color>` | `#222` |
 | `border-radius` | `<length>{1,4}` | `0px` |
 | `opacity` | `<number>` | `1` |
 
+When `width` is smaller than the gutter, the track is centered within it.
+
 ```css
 .panel::lui-scrollbar-track {
+  width: 6px;
   background-color: rgba(0, 0, 0, 0.1);
   border-radius: 999px;
 }
@@ -159,7 +169,6 @@ html, body, * {
 
 *::lui-scrollbar {
   scrollbar-mode: auto;
-  scrollbar-width: auto;
   scrollbar-inset: 0px;
   scrollbar-min-thumb-size: 20px;
 }

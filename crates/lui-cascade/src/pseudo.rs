@@ -172,6 +172,7 @@ pub fn collect_scrollbar_pseudo_styles<'a>(
   _media: &MediaContext,
   arena: &'a Bump,
   hover_part: Option<ScrollbarPart>,
+  active_part: Option<ScrollbarPart>,
 ) -> Option<Box<ScrollbarPseudoStyles<'a>>> {
   const PARTS: [ScrollbarPart; 4] = [
     ScrollbarPart::Scrollbar,
@@ -192,9 +193,12 @@ pub fn collect_scrollbar_pseudo_styles<'a>(
 
   for (i, pseudo) in pseudos.iter().enumerate() {
     let part_hovered = hover_part == Some(PARTS[i]);
-    let part_ctx = if part_hovered != ctx.is_hover {
+    let part_active = active_part == Some(PARTS[i]);
+    let needs_override = part_hovered != ctx.is_hover || part_active != ctx.is_active;
+    let part_ctx = if needs_override {
       let mut c = ctx.clone();
       c.is_hover = part_hovered;
+      c.is_active = part_active;
       c
     } else {
       ctx.clone()

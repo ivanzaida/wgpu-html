@@ -62,24 +62,24 @@ pub use css_function::CssFunction;
 pub use css_property::CssProperty;
 pub use css_pseudo::CssPseudo;
 pub use css_type::CssType;
-pub use element::{HtmlElement, SVG_ELEMENTS, should_auto_close};
+pub use element::{should_auto_close, HtmlElement, SVG_ELEMENTS};
 pub use error::ParseError;
 pub use media::{MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList};
 pub use node::{
-  ClassList, DIRTY_ALL, DIRTY_ATTRS, DIRTY_CHILDREN, DIRTY_TEXT, EventHandler, EventListenerOptions, EventPhase,
-  HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag,
+  compute_node_hash, hash_kv, hash_tag, ClassList, EventHandler, EventListenerOptions, EventPhase, HtmlDocument,
+  HtmlNode, DIRTY_ALL, DIRTY_ATTRS, DIRTY_CHILDREN, DIRTY_TEXT,
 };
 pub use scrollbar::{
-  DEFAULT_SCROLLBAR_WIDTH, ScrollbarMode, ScrollbarPartStyle, ScrollbarStyles, THIN_SCROLLBAR_WIDTH,
-  resolve_scrollbar_inset, resolve_scrollbar_min_thumb_size, resolve_scrollbar_width,
+  resolve_pseudo_scrollbar_width, resolve_scrollbar_inset, resolve_scrollbar_min_thumb_size, resolve_scrollbar_width, ScrollbarMode,
+  ScrollbarPartStyle, ScrollbarStyles, DEFAULT_SCROLLBAR_WIDTH, THIN_SCROLLBAR_WIDTH,
 };
 pub use selector::{AttrOp, AttributeSelector, ComplexSelector, CompoundSelector, PseudoSelector, SelectorList};
-pub use selector_match::{AncestorEntry, Dir, MatchContext, is_pseudo_element, matches_compound, matches_selector};
+pub use selector_match::{is_pseudo_element, matches_compound, matches_selector, AncestorEntry, Dir, MatchContext};
 pub use selector_parse::{complex_specificity, parse_selector_list};
 pub use shorthand::{distribute_values, expand as expand_shorthand, longhands_of};
 pub use stylesheet::{AtRule, Declaration, StyleRule, Stylesheet};
 pub use supports::{SupportsCondition, SupportsFeature};
-pub use text_selection::{SelectionColors, TextCursor, TextSelection, cursor_less};
+pub use text_selection::{cursor_less, SelectionColors, TextCursor, TextSelection};
 pub use unit::CssUnit;
-pub use validate::{Validation, validate_value};
+pub use validate::{validate_value, Validation};
 pub use value::CssValue;

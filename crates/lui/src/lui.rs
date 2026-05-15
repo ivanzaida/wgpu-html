@@ -20,6 +20,8 @@ pub struct Lui {
   layout_engine: LayoutEngine,
   dpi_scale_override: Option<f32>,
   base_sheets: Vec<Stylesheet>,
+  dynamic_sheets: BTreeMap<u64, Stylesheet>,
+  next_sheet_id: u64,
   element_scroll: BTreeMap<Vec<usize>, (f32, f32)>,
   viewport_scroll: (f32, f32),
   cursor_pos: Option<(f32, f32)>,
@@ -44,6 +46,9 @@ pub struct Lui {
 type LuiHandlerFn = Box<dyn FnMut(&mut Lui, &lui_core::events::DocumentEvent) + Send>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StylesheetHandle(u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EventHandlerHandle(u64);
 
 struct LuiEventHandler {
@@ -60,6 +65,7 @@ struct PendingEvent {
 #[derive(Debug, Clone)]
 struct ScrollbarDrag {
   path: Vec<usize>,
+  html_path: Option<Vec<usize>>,
   axis: lui_layout::ScrollbarAxis,
   grab_offset: f32,
   track_start: f32,
@@ -79,6 +85,8 @@ impl Lui {
       layout_engine: LayoutEngine::new(),
       dpi_scale_override: None,
       base_sheets: Vec::new(),
+      dynamic_sheets: BTreeMap::new(),
+      next_sheet_id: 1,
       element_scroll: BTreeMap::new(),
       viewport_scroll: (0.0, 0.0),
       cursor_pos: None,
@@ -128,8 +136,49 @@ impl Lui {
     self.rebuild_stylesheets();
   }
 
+  pub fn add_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetHandle {
+    let id = self.next_sheet_id;
+    self.next_sheet_id += 1;
+    self.dynamic_sheets.insert(id, sheet);
+    self.rebuild_stylesheets();
+    StylesheetHandle(id)
+  }
+
+  pub fn add_stylesheets(&mut self, sheets: Vec<Stylesheet>) -> Vec<StylesheetHandle> {
+    let mut handles = vec![];
+    for sheet in sheets {
+      let id = self.next_sheet_id;
+      self.next_sheet_id += 1;
+      self.dynamic_sheets.insert(id, sheet);
+      handles.push(StylesheetHandle(id));
+    }
+    self.rebuild_stylesheets();
+    handles
+  }
+
+  pub fn remove_stylesheet(&mut self, handle: StylesheetHandle) {
+    if self.dynamic_sheets.remove(&handle.0).is_some() {
+      self.rebuild_stylesheets();
+    }
+  }
+
+  pub fn remove_stylesheets(&mut self, handles: Vec<StylesheetHandle>) {
+    let mut removed_any = false;
+
+    for handle in handles {
+      if self.dynamic_sheets.remove(&handle.0).is_some() {
+        removed_any = true;
+      }
+    }
+
+    if removed_any {
+      self.rebuild_stylesheets();
+    }
+  }
+
   fn rebuild_stylesheets(&mut self) {
     let mut all = self.base_sheets.clone();
+    all.extend(self.dynamic_sheets.values().cloned());
     all.extend(self.doc.stylesheets.iter().cloned());
     self.cascade_ctx.set_stylesheets(&all);
   }
@@ -174,10 +223,7 @@ impl Lui {
     self.timers.set_interval(interval, callback)
   }
 
-  pub fn set_immediate(
-    &mut self,
-    callback: impl FnMut(&mut Lui) + Send + 'static,
-  ) -> crate::timer::TimerHandle {
+  pub fn set_immediate(&mut self, callback: impl FnMut(&mut Lui) + Send + 'static) -> crate::timer::TimerHandle {
     self.timers.set_immediate(callback)
   }
 
@@ -281,8 +327,14 @@ impl Lui {
       form_state: self.form_state.clone(),
     };
     self.with_layout(pw, ph, scale, |tree, text_ctx, effective_scale, vw, vh| {
-      let mut list =
-        crate::paint::paint_scaled_with_form(tree, text_ctx, effective_scale, selection.as_ref(), &sel_colors, &form_ctx);
+      let mut list = crate::paint::paint_scaled_with_form(
+        tree,
+        text_ctx,
+        effective_scale,
+        selection.as_ref(),
+        &sel_colors,
+        &form_ctx,
+      );
       translate_display_list(&mut list, -viewport_scroll.0, -viewport_scroll.1);
       crate::paint::paint_viewport_scrollbars(&mut list, tree, vw, vh, viewport_scroll.0, viewport_scroll.1);
       list.finalize();
@@ -1075,8 +1127,14 @@ impl Lui {
     })?;
 
     let (hit, is_viewport) = hit;
+    let html_path = if !hit.node_ptr.is_null() {
+      crate::dispatch::find_node_path(&self.doc.root, hit.node_ptr)
+    } else {
+      None
+    };
     let mut drag = ScrollbarDrag {
       path: hit.path,
+      html_path,
       axis: hit.axis,
       grab_offset: hit.grab_offset,
       track_start: hit.track_start,
@@ -1165,11 +1223,16 @@ impl Lui {
       dpi: 96.0 * effective_scale,
       ..MediaContext::default()
     };
+    let scrollbar_active = self.scrollbar_drag.as_ref().and_then(|drag| {
+      let path = drag.html_path.clone()?;
+      Some((path, lui_cascade::cascade::ScrollbarPart::Thumb))
+    });
     let interaction = InteractionState {
       hover_path: self.hover_path.clone(),
       active_path: self.active_path.clone(),
       focus_path: self.doc.focus_path.clone(),
       scrollbar_hover: self.scrollbar_hover.clone(),
+      scrollbar_active,
       ..Default::default()
     };
     let styled = self.cascade_ctx.cascade(&self.doc.root, &media, &interaction);
@@ -1192,14 +1255,15 @@ impl Lui {
           .and_then(|n| crate::dispatch::find_node_path(&self.doc.root, n as *const _));
         self.current_cursor = tree.cursor_at(doc_x, doc_y).to_string();
 
-        self.scrollbar_hover = tree.scrollbar_hit_test(doc_x, doc_y).map(|hit| {
+        self.scrollbar_hover = tree.scrollbar_hit_test(doc_x, doc_y).and_then(|hit| {
           use lui_cascade::cascade::ScrollbarPart;
           let part = if hit.on_thumb {
             ScrollbarPart::Thumb
           } else {
             ScrollbarPart::Track
           };
-          (hit.path, part)
+          let path = crate::dispatch::find_node_path(&self.doc.root, hit.node_ptr)?;
+          Some((path, part))
         });
         if self.scrollbar_hover.is_none() {
           let bar_w = crate::paint::viewport_scrollbar_width(&tree);
@@ -1356,6 +1420,7 @@ fn viewport_scrollbar_hit(
       let on_thumb = cy >= thumb_y && cy <= thumb_y + thumb_h;
       return Some(lui_layout::ScrollbarHit {
         path: Vec::new(),
+        node_ptr: std::ptr::null(),
         axis: lui_layout::ScrollbarAxis::Vertical,
         on_thumb,
         grab_offset: if on_thumb { cy - thumb_y } else { thumb_h * 0.5 },
@@ -1380,6 +1445,7 @@ fn viewport_scrollbar_hit(
       let on_thumb = cx >= thumb_x && cx <= thumb_x + thumb_w;
       return Some(lui_layout::ScrollbarHit {
         path: Vec::new(),
+        node_ptr: std::ptr::null(),
         axis: lui_layout::ScrollbarAxis::Horizontal,
         on_thumb,
         grab_offset: if on_thumb { cx - thumb_x } else { thumb_w * 0.5 },

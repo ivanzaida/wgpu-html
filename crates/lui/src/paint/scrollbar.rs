@@ -53,7 +53,11 @@ pub fn paint_scrollbars(b: &LayoutBox, dx: f32, dy: f32, opacity: f32, dl: &mut 
     None => return,
   };
 
-  let bar_w = scroll.scrollbar_width;
+  let bar_w = if let Some(ps) = &b.scrollbar_pseudo {
+    lui_core::resolve_pseudo_scrollbar_width(ps.scrollbar.width).unwrap_or(scroll.scrollbar_width)
+  } else {
+    scroll.scrollbar_width
+  };
   if bar_w <= 0.0 {
     return;
   }
@@ -64,6 +68,10 @@ pub fn paint_scrollbars(b: &LayoutBox, dx: f32, dy: f32, opacity: f32, dl: &mut 
     let (track_color, thumb_color) = resolve_scrollbar_colors(b.style.scrollbar_color, opacity);
     paint_scrollbars_legacy(b, scroll, dx, dy, bar_w, track_color, thumb_color, dl);
   }
+}
+
+fn resolve_pseudo_width(style: &lui_cascade::ComputedStyle, fallback: f32) -> f32 {
+  lui_core::resolve_pseudo_scrollbar_width(style.width).unwrap_or(fallback)
 }
 
 fn paint_scrollbars_styled(
@@ -95,76 +103,84 @@ fn paint_scrollbars_styled(
   let has_h = matches!(b.overflow_x, Overflow::Scroll | Overflow::Auto) && scroll.scroll_width > b.content.width;
 
   if has_v {
-    let track_x = px + pw - bar_w + inset[1];
-    let track_y = py + inset[0];
-    let track_w = bar_w - inset[1] - inset[3];
-    let track_h = ph - inset[0] - inset[2] - if has_h { bar_w } else { 0.0 };
+    let gutter_x = px + pw - bar_w + inset[1];
+    let gutter_y = py + inset[0];
+    let gutter_w = bar_w - inset[1] - inset[3];
+    let gutter_h = ph - inset[0] - inset[2] - if has_h { bar_w } else { 0.0 };
 
+    let track_vis_w = resolve_pseudo_width(&ps.track, gutter_w).min(gutter_w);
+    let track_x = gutter_x + (gutter_w - track_vis_w) * 0.5;
     let track_color = apply_opacity(track.bg, track.opacity * opacity);
     if track.radii == [0.0; 4] {
-      dl.push_quad(DlRect::new(track_x, track_y, track_w, track_h), track_color);
+      dl.push_quad(DlRect::new(track_x, gutter_y, track_vis_w, gutter_h), track_color);
     } else {
       dl.push_quad_rounded(
-        DlRect::new(track_x, track_y, track_w, track_h),
+        DlRect::new(track_x, gutter_y, track_vis_w, gutter_h),
         track_color,
         track.radii,
       );
     }
 
     let ratio = b.content.height / scroll.scroll_height;
-    let thumb_h = (track_h * ratio).max(min_thumb).min(track_h);
+    let thumb_h = (gutter_h * ratio).max(min_thumb).min(gutter_h);
     let max_scroll = scroll.scroll_height - b.content.height;
     let thumb_y = if max_scroll > 0.0 {
-      track_y + (track_h - thumb_h) * (scroll.scroll_y / max_scroll)
+      gutter_y + (gutter_h - thumb_h) * (scroll.scroll_y / max_scroll)
     } else {
-      track_y
+      gutter_y
     };
+    let thumb_vis_w = resolve_pseudo_width(&ps.thumb, gutter_w).min(gutter_w);
+    let thumb_x = gutter_x + (gutter_w - thumb_vis_w) * 0.5;
     let thumb_color = apply_opacity(thumb.bg, thumb.opacity * opacity);
     let thumb_radii = if thumb.radii == [0.0; 4] {
-      [(track_w * 0.5).min(4.0); 4]
+      [(thumb_vis_w * 0.5).min(4.0); 4]
     } else {
       thumb.radii
     };
     dl.push_quad_rounded(
-      DlRect::new(track_x, thumb_y, track_w, thumb_h),
+      DlRect::new(thumb_x, thumb_y, thumb_vis_w, thumb_h),
       thumb_color,
       thumb_radii,
     );
   }
 
   if has_h {
-    let track_x = px + inset[3];
-    let track_y = py + ph - bar_w + inset[2];
-    let track_w = pw - inset[1] - inset[3] - if has_v { bar_w } else { 0.0 };
-    let track_h = bar_w - inset[0] - inset[2];
+    let gutter_x = px + inset[3];
+    let gutter_y = py + ph - bar_w + inset[2];
+    let gutter_w = pw - inset[1] - inset[3] - if has_v { bar_w } else { 0.0 };
+    let gutter_h = bar_w - inset[0] - inset[2];
 
+    let track_vis_h = resolve_pseudo_width(&ps.track, gutter_h).min(gutter_h);
+    let track_y = gutter_y + (gutter_h - track_vis_h) * 0.5;
     let track_color = apply_opacity(track.bg, track.opacity * opacity);
     if track.radii == [0.0; 4] {
-      dl.push_quad(DlRect::new(track_x, track_y, track_w, track_h), track_color);
+      dl.push_quad(DlRect::new(gutter_x, track_y, gutter_w, track_vis_h), track_color);
     } else {
       dl.push_quad_rounded(
-        DlRect::new(track_x, track_y, track_w, track_h),
+        DlRect::new(gutter_x, track_y, gutter_w, track_vis_h),
         track_color,
         track.radii,
       );
     }
 
     let ratio = b.content.width / scroll.scroll_width;
-    let thumb_w = (track_w * ratio).max(min_thumb).min(track_w);
+    let thumb_w = (gutter_w * ratio).max(min_thumb).min(gutter_w);
     let max_scroll = scroll.scroll_width - b.content.width;
     let thumb_x = if max_scroll > 0.0 {
-      track_x + (track_w - thumb_w) * (scroll.scroll_x / max_scroll)
+      gutter_x + (gutter_w - thumb_w) * (scroll.scroll_x / max_scroll)
     } else {
-      track_x
+      gutter_x
     };
+    let thumb_vis_h = resolve_pseudo_width(&ps.thumb, gutter_h).min(gutter_h);
+    let thumb_y = gutter_y + (gutter_h - thumb_vis_h) * 0.5;
     let thumb_color = apply_opacity(thumb.bg, thumb.opacity * opacity);
     let thumb_radii = if thumb.radii == [0.0; 4] {
-      [(track_h * 0.5).min(4.0); 4]
+      [(thumb_vis_h * 0.5).min(4.0); 4]
     } else {
       thumb.radii
     };
     dl.push_quad_rounded(
-      DlRect::new(thumb_x, track_y, thumb_w, track_h),
+      DlRect::new(thumb_x, thumb_y, thumb_w, thumb_vis_h),
       thumb_color,
       thumb_radii,
     );
