@@ -809,7 +809,7 @@ fn finalize_flex_item_scroll(b: &mut LayoutBox) {
   let show_y = matches!(ov_y, Overflow::Scroll) || (ov_y == Overflow::Auto && overflows_y);
   let show_x = matches!(ov_x, Overflow::Scroll) || (ov_x == Overflow::Auto && overflows_x);
 
-  let scrollbar_w = crate::block::resolve_scrollbar_width(b);
+  let scrollbar_w = lui_core::resolve_scrollbar_width(b.style.scrollbar_width);
   let sb_w = if show_y || show_x { scrollbar_w } else { 0.0 };
 
   b.scroll = Some(ScrollInfo {
