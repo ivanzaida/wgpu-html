@@ -5,12 +5,14 @@
         color: #eee;
         font-size: 14px;
     }
+
     .fx-label {
         color: #8888cc;
         margin-bottom: 8px;
         font-size: 12px;
         box-sizing: border-box;
     }
+
     .fx-box {
         background: #16213e;
         border: 1px solid #0f3460;
@@ -18,24 +20,29 @@
         min-width: 0;
         box-sizing: border-box;
     }
+
     .fx-a {
         background: #e94560;
         padding: 8px 12px;
         color: white;
         box-sizing: border-box;
     }
+
     .fx-b {
         background: #0f3460;
         padding: 8px 12px;
         color: white;
         box-sizing: border-box;
     }
+
     .fx-c {
+        font-family: monospace;
         background: #533483;
         padding: 8px 12px;
         color: white;
         box-sizing: border-box;
     }
+
     .fx-d {
         background: #e98020;
         padding: 8px 12px;
@@ -48,14 +55,17 @@
         display: flex;
         flex-direction: row;
     }
+
     .fx-dir-row-reverse {
         display: flex;
         flex-direction: row-reverse;
     }
+
     .fx-dir-column {
         display: flex;
         flex-direction: column;
     }
+
     .fx-dir-column-reverse {
         display: flex;
         flex-direction: column-reverse;
@@ -67,22 +77,27 @@
         display: flex;
         justify-content: flex-start;
     }
+
     .fx-jc-end {
         display: flex;
         justify-content: flex-end;
     }
+
     .fx-jc-center {
         display: flex;
         justify-content: center;
     }
+
     .fx-jc-between {
         display: flex;
         justify-content: space-between;
     }
+
     .fx-jc-around {
         display: flex;
         justify-content: space-around;
     }
+
     .fx-jc-evenly {
         display: flex;
         justify-content: space-evenly;
@@ -94,21 +109,25 @@
         align-items: stretch;
         height: 80px;
     }
+
     .fx-ai-start {
         display: flex;
         align-items: flex-start;
         height: 80px;
     }
+
     .fx-ai-end {
         display: flex;
         align-items: flex-end;
         height: 80px;
     }
+
     .fx-ai-center {
         display: flex;
         align-items: center;
         height: 80px;
     }
+
     .fx-ai-baseline {
         display: flex;
         align-items: baseline;
@@ -121,12 +140,15 @@
         align-items: flex-start;
         height: 100px;
     }
+
     .fx-as-center {
         align-self: center;
     }
+
     .fx-as-end {
         align-self: flex-end;
     }
+
     .fx-as-stretch {
         align-self: stretch;
     }
@@ -137,11 +159,13 @@
         flex-wrap: nowrap;
         width: 300px;
     }
+
     .fx-wrap-wrap {
         display: flex;
         flex-wrap: wrap;
         width: 300px;
     }
+
     .fx-wrap-reverse {
         display: flex;
         flex-wrap: wrap-reverse;
@@ -157,6 +181,7 @@
         width: 250px;
         height: 180px;
     }
+
     .fx-ac-end {
         display: flex;
         flex-wrap: wrap;
@@ -164,6 +189,7 @@
         width: 250px;
         height: 180px;
     }
+
     .fx-ac-center {
         display: flex;
         flex-wrap: wrap;
@@ -171,6 +197,7 @@
         width: 250px;
         height: 180px;
     }
+
     .fx-ac-between {
         display: flex;
         flex-wrap: wrap;
@@ -178,6 +205,7 @@
         width: 250px;
         height: 180px;
     }
+
     .fx-ac-around {
         display: flex;
         flex-wrap: wrap;
@@ -185,6 +213,7 @@
         width: 250px;
         height: 180px;
     }
+
     .fx-ac-stretch {
         display: flex;
         flex-wrap: wrap;
@@ -198,46 +227,99 @@
         display: flex;
         width: 400px;
     }
-    .fx-grow-0 { flex-grow: 0; }
-    .fx-grow-1 { flex-grow: 1; }
-    .fx-grow-2 { flex-grow: 2; }
-    .fx-grow-3 { flex-grow: 3; }
+
+    .fx-grow-0 {
+        flex-grow: 0;
+    }
+
+    .fx-grow-1 {
+        flex-grow: 1;
+    }
+
+    .fx-grow-2 {
+        flex-grow: 2;
+    }
+
+    .fx-grow-3 {
+        flex-grow: 3;
+    }
 
     /* 8. FLEX-SHRINK */
     .fx-shrink-container {
         display: flex;
         width: 200px;
     }
-    .fx-shrink-0 { flex-shrink: 0; width: 150px; }
-    .fx-shrink-1 { flex-shrink: 1; width: 150px; }
-    .fx-shrink-3 { flex-shrink: 3; width: 150px; }
+
+    .fx-shrink-0 {
+        flex-shrink: 0;
+        width: 150px;
+    }
+
+    .fx-shrink-1 {
+        flex-shrink: 1;
+        width: 150px;
+    }
+
+    .fx-shrink-3 {
+        flex-shrink: 3;
+        width: 150px;
+    }
 
     /* 9. FLEX-BASIS */
     .fx-basis-container {
         display: flex;
         width: 400px;
     }
-    .fx-basis-auto { flex-basis: auto; }
-    .fx-basis-0 { flex-basis: 0; flex-grow: 1; }
-    .fx-basis-100 { flex-basis: 100px; }
-    .fx-basis-50pct { flex-basis: 50%; }
+
+    .fx-basis-auto {
+        flex-basis: auto;
+    }
+
+    .fx-basis-0 {
+        flex-basis: 0;
+        flex-grow: 1;
+    }
+
+    .fx-basis-100 {
+        flex-basis: 100px;
+    }
+
+    .fx-basis-50pct {
+        flex-basis: 50%;
+    }
 
     /* 10. FLEX SHORTHAND */
     .fx-short-container {
         display: flex;
         width: 400px;
     }
-    .fx-flex-none { flex: none; }
-    .fx-flex-1 { flex: 1; }
-    .fx-flex-auto { flex: auto; }
-    .fx-flex-initial { flex: initial; }
-    .fx-flex-2-1-100 { flex: 2 1 100px; }
+
+    .fx-flex-none {
+        flex: none;
+    }
+
+    .fx-flex-1 {
+        flex: 1;
+    }
+
+    .fx-flex-auto {
+        flex: auto;
+    }
+
+    .fx-flex-initial {
+        flex: initial;
+    }
+
+    .fx-flex-2-1-100 {
+        flex: 2 1 100px;
+    }
 
     /* 11. GAP */
     .fx-gap-uniform {
         display: flex;
         gap: 12px;
     }
+
     .fx-gap-row-col {
         display: flex;
         flex-wrap: wrap;
@@ -250,10 +332,22 @@
     .fx-order-container {
         display: flex;
     }
-    .fx-order-3 { order: 3; }
-    .fx-order-1 { order: 1; }
-    .fx-order-2 { order: 2; }
-    .fx-order-n1 { order: -1; }
+
+    .fx-order-3 {
+        order: 3;
+    }
+
+    .fx-order-1 {
+        order: 1;
+    }
+
+    .fx-order-2 {
+        order: 2;
+    }
+
+    .fx-order-n1 {
+        order: -1;
+    }
 
     /* 13. NESTED FLEX */
     .fx-nested-outer {
@@ -261,12 +355,14 @@
         gap: 8px;
         height: 120px;
     }
+
     .fx-nested-inner-col {
         display: flex;
         flex-direction: column;
         flex: 1;
         gap: 4px;
     }
+
     .fx-nested-inner-row {
         display: flex;
         flex: 2;
@@ -279,8 +375,16 @@
         display: flex;
         width: 500px;
     }
-    .fx-min-w { flex: 1; min-width: 150px; }
-    .fx-max-w { flex: 1; max-width: 100px; }
+
+    .fx-min-w {
+        flex: 1;
+        min-width: 150px;
+    }
+
+    .fx-max-w {
+        flex: 1;
+        max-width: 100px;
+    }
 
     /* 15. MARGIN AUTO */
     .fx-margin-auto-container {
@@ -288,16 +392,28 @@
         width: 400px;
         height: 60px;
     }
-    .fx-ml-auto { margin-left: auto; }
-    .fx-m-auto { margin: auto; }
+
+    .fx-ml-auto {
+        margin-left: auto;
+    }
+
+    .fx-m-auto {
+        margin: auto;
+    }
 
     /* 16. PERCENTAGE SIZING */
     .fx-pct-container {
         display: flex;
         width: 400px;
     }
-    .fx-pct-25 { width: 25%; }
-    .fx-pct-50 { width: 50%; }
+
+    .fx-pct-25 {
+        width: 25%;
+    }
+
+    .fx-pct-50 {
+        width: 50%;
+    }
 
     /* 17. OVERFLOW */
     .fx-overflow-container {
@@ -305,10 +421,12 @@
         width: 200px;
         height: 60px;
     }
+
     .fx-overflow-hidden {
         overflow: hidden;
         flex: 1;
     }
+
     .fx-overflow-scroll {
         overflow: auto;
         flex: 1;
@@ -321,6 +439,7 @@
         height: 80px;
         width: 300px;
     }
+
     .fx-pos-abs {
         position: absolute;
         right: 0;
@@ -338,6 +457,7 @@
         height: 150px;
         width: 200px;
     }
+
     .fx-col-between {
         display: flex;
         flex-direction: column;
@@ -350,9 +470,11 @@
     .fx-intrinsic-container {
         display: flex;
     }
+
     .fx-intrinsic-wide {
         padding: 8px 60px;
     }
+
     .fx-intrinsic-narrow {
         padding: 8px 10px;
     }
@@ -366,6 +488,7 @@
         gap: 8px;
         box-sizing: border-box;
     }
+
     .fx-bp-item {
         flex: 1;
         padding: 12px;
@@ -379,6 +502,7 @@
         display: flex;
         width: 300px;
     }
+
     .fx-zero-basis {
         flex: 1 1 0;
     }
@@ -400,6 +524,7 @@
         width: 280px;
         justify-content: center;
     }
+
     .fx-wrap-gap-item {
         width: 80px;
         height: 40px;
@@ -415,6 +540,7 @@
         width: 300px;
         gap: 4px;
     }
+
     .fx-col-wrap-item {
         width: 80px;
         height: 35px;

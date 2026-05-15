@@ -29,6 +29,12 @@ fn read_html() -> String {
   DEFAULT_HTML.to_string()
 }
 
+fn read_example_arg() -> Option<String> {
+  let args: Vec<String> = std::env::args().collect();
+  args.iter().position(|a| a == "--example")
+    .and_then(|pos| args.get(pos + 1).cloned())
+}
+
 fn main() {
   let mut lui = Lui::new();
   let html_text = read_html();
@@ -46,6 +52,14 @@ fn main() {
       node.set_attribute("data-example", name);
       node.set_text_content(&name.to_uppercase());
       nav_bar.append_child(node);
+    }
+  }
+
+  if let Some(example_name) = read_example_arg() {
+    if let Some(res) = registry.lock().unwrap().run(&example_name, &mut lui) {
+      if let Some(wrapper) = lui.doc_mut().root.get_element_by_id_mut("content-wrapper".into()) {
+        wrapper.set_children(res);
+      }
     }
   }
 
