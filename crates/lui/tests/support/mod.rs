@@ -70,15 +70,7 @@ pub fn ua_lui(html: &str) -> (Lui, RenderSpy) {
 }
 
 pub fn find_node_by_id_mut<'a>(node: &'a mut lui_core::HtmlNode, id: &str) -> Option<&'a mut lui_core::HtmlNode> {
-  if node.id.as_deref() == Some(id) {
-    return Some(node);
-  }
-  for child in &mut node.children {
-    if let Some(found) = find_node_by_id_mut(child, id) {
-      return Some(found);
-    }
-  }
-  None
+  node.get_element_by_id_mut(lui_core::ArcStr::from(id))
 }
 
 pub fn red_quad_y(list: &DisplayList) -> f32 {

@@ -6,8 +6,8 @@ use crate::helpers::child_ctx;
 #[test]
 fn matches_direct_child_as_descendant() {
   let doc = parse(r#"<div class="outer"><span></span></div>"#);
-  let outer = &doc.root.children[0];
-  let span = &outer.children[0];
+  let outer = &doc.root.children()[0];
+  let span = &outer.children()[0];
 
   let sel = parse_selector_list(".outer span").unwrap();
   let ancestors = [AncestorEntry {
@@ -26,9 +26,9 @@ fn matches_direct_child_as_descendant() {
 #[test]
 fn matches_grandchild_as_descendant() {
   let doc = parse(r#"<div class="outer"><p><span></span></p></div>"#);
-  let outer = &doc.root.children[0];
-  let p = &outer.children[0];
-  let span = &p.children[0];
+  let outer = &doc.root.children()[0];
+  let p = &outer.children()[0];
+  let span = &p.children()[0];
 
   let sel = parse_selector_list(".outer span").unwrap();
   let ancestors = [
@@ -47,8 +47,8 @@ fn matches_grandchild_as_descendant() {
 #[test]
 fn rejects_when_ancestor_absent() {
   let doc = parse(r#"<div><span></span></div>"#);
-  let div = &doc.root.children[0];
-  let span = &div.children[0];
+  let div = &doc.root.children()[0];
+  let span = &div.children()[0];
 
   let sel = parse_selector_list(".missing span").unwrap();
   let ancestors = [AncestorEntry {
@@ -67,10 +67,10 @@ fn rejects_when_ancestor_absent() {
 #[test]
 fn multi_level_descendant() {
   let doc = parse(r#"<section class="s"><div class="d"><p><span></span></p></div></section>"#);
-  let section = &doc.root.children[0];
-  let div = &section.children[0];
-  let p = &div.children[0];
-  let span = &p.children[0];
+  let section = &doc.root.children()[0];
+  let div = &section.children()[0];
+  let p = &div.children()[0];
+  let span = &p.children()[0];
 
   let sel = parse_selector_list(".s .d span").unwrap();
   let ancestors = [

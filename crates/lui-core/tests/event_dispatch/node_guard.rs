@@ -15,109 +15,115 @@ fn click_event() -> DocumentEvent {
 }
 
 #[test]
-fn hash_recomputed_when_handler_adds_class() {
+fn handler_add_class_marks_dirty() {
   let mut node = HtmlNode::new(HtmlElement::Div);
-  node.recompute_hash();
-  let before = node.node_hash;
+  node.clear_dirty();
 
   let handler: EventHandler = Arc::new(|node, _| {
-    node.class_list.push("active".into());
+    node.class_list_mut().add("active");
   });
   node.add_event_listener("click", handler);
 
   node.dispatch_event(&mut click_event());
 
-  assert_ne!(node.node_hash, before);
+  assert!(node.class_list().contains("active"));
+  assert!(node.is_dirty());
 }
 
 #[test]
 fn hash_recomputed_when_handler_sets_attribute() {
   let mut node = HtmlNode::new(HtmlElement::Button);
+  node.clear_dirty();
   node.recompute_hash();
-  let before = node.node_hash;
+  let before = node.node_hash();
 
   let handler: EventHandler = Arc::new(|node, _| {
-    node.attrs.insert("disabled".into(), "true".into());
+    node.set_attribute("disabled", "true");
   });
   node.add_event_listener("click", handler);
 
   node.dispatch_event(&mut click_event());
 
-  assert_ne!(node.node_hash, before);
+  assert_ne!(node.node_hash(), before);
+  assert!(node.is_dirty());
 }
 
 #[test]
 fn hash_stable_when_handler_only_reads() {
   let mut node = HtmlNode::new(HtmlElement::Div);
-  node.class_list.push("existing".into());
+  node.class_list_mut().add("existing");
+  node.clear_dirty();
   node.recompute_hash();
-  let before = node.node_hash;
+  let before = node.node_hash();
 
   let handler: EventHandler = Arc::new(|node, _| {
-    let _ = node.element.tag_name();
-    let _ = &node.class_list;
+    let _ = node.element().tag_name();
+    let _ = node.class_list();
   });
   node.add_event_listener("click", handler);
 
   node.dispatch_event(&mut click_event());
 
-  assert_eq!(node.node_hash, before);
+  assert_eq!(node.node_hash(), before);
+  assert!(!node.is_dirty());
 }
 
 #[test]
 fn hash_stable_across_repeated_noop_dispatches() {
   let mut node = HtmlNode::new(HtmlElement::Span);
+  node.clear_dirty();
   node.recompute_hash();
 
   let handler: EventHandler = Arc::new(|_, _| {});
   node.add_event_listener("click", handler);
 
   node.dispatch_event(&mut click_event());
-  let first = node.node_hash;
+  let first = node.node_hash();
 
   node.dispatch_event(&mut click_event());
-  let second = node.node_hash;
+  let second = node.node_hash();
 
   node.dispatch_event(&mut click_event());
-  let third = node.node_hash;
+  let third = node.node_hash();
 
   assert_eq!(first, second);
   assert_eq!(second, third);
 }
 
 #[test]
-fn hash_changes_per_successive_mutation() {
+fn successive_class_mutations_accumulate() {
   let mut node = HtmlNode::new(HtmlElement::Div);
-  node.recompute_hash();
+  node.clear_dirty();
 
   let handler: EventHandler = Arc::new(|node, _| {
-    let count = node.class_list.len();
-    node.class_list.push(format!("cls-{count}").into());
+    let count = node.class_list().len();
+    node.class_list_mut().add(&format!("cls-{count}"));
   });
   node.add_event_listener("click", handler);
 
   node.dispatch_event(&mut click_event());
-  let after_first = node.node_hash;
+  assert!(node.class_list().contains("cls-0"));
 
   node.dispatch_event(&mut click_event());
-  let after_second = node.node_hash;
-
-  assert_ne!(after_first, after_second);
+  assert!(node.class_list().contains("cls-1"));
+  assert!(node.is_dirty());
 }
 
 #[test]
 fn listener_not_called_for_wrong_event_type() {
   let mut node = HtmlNode::new(HtmlElement::Div);
+  node.clear_dirty();
   node.recompute_hash();
-  let before = node.node_hash;
+  let before = node.node_hash();
 
   let handler: EventHandler = Arc::new(|node, _| {
-    node.class_list.push("should-not-run".into());
+    node.class_list_mut().add("should-not-run");
   });
   node.add_event_listener("keydown", handler);
 
   node.dispatch_event(&mut click_event());
 
-  assert_eq!(node.node_hash, before);
-  assert!(node.class_list.is_empty());
+  assert_eq!(node.node_hash(), before);
+  assert!(node.class_list().is_empty());
+  assert!(!node.is_dirty());
 }

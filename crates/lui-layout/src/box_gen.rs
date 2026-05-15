@@ -10,7 +10,7 @@ use crate::box_tree::{BoxKind, LayoutBox};
 /// Build a `LayoutBox` tree from a `StyledNode` tree. Text nodes become
 /// `AnonymousInline` boxes; elements are classified by `display`.
 pub fn build_box<'a>(styled: &'a StyledNode<'a>, bump: &'a Bump) -> LayoutBox<'a> {
-  if styled.node.element.is_text() {
+  if styled.node.element().is_text() {
     return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style, bump);
   }
 
@@ -47,7 +47,7 @@ fn collect_child<'a>(
     }
     return;
   }
-  if child.node.element.is_text() {
+  if child.node.element().is_text() {
     pending_inlines.push(child);
     return;
   }
@@ -98,7 +98,7 @@ fn resolve_box_kind_with_node(style: &ComputedStyle, node: &lui_parse::HtmlNode)
   if let Some(kind) = resolve_display_property(style) {
     return kind;
   }
-  match node.element.tag_name() {
+  match node.element().tag_name() {
     "table" => BoxKind::Table,
     "tr" => BoxKind::TableRow,
     "td" | "th" => BoxKind::TableCell,
@@ -220,7 +220,7 @@ pub fn build_box_incremental<'a>(
   dirty: &rustc_hash::FxHashSet<*const lui_parse::HtmlNode>,
   bump: &'a Bump,
 ) -> LayoutBox<'a> {
-  if styled.node.element.is_text() {
+  if styled.node.element().is_text() {
     return LayoutBox::new(BoxKind::AnonymousInline, styled.node, &styled.style, bump);
   }
 
@@ -263,7 +263,7 @@ fn collect_child_incremental<'a>(
     }
     return;
   }
-  if child.node.element.is_text() {
+  if child.node.element().is_text() {
     pending_inlines.push(child);
     return;
   }

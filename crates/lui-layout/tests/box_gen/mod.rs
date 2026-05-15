@@ -23,8 +23,8 @@ fn build_box_single_text_node_is_anonymous_inline() {
 
   // Parser produces: html > "hello" (no head/body auto-insertion)
   // styled.children are html's direct children
-  let text_child = styled.children.iter().find(|c| c.node.element.is_text()).unwrap();
-  assert!(text_child.node.element.is_text(), "child should be text node");
+  let text_child = styled.children.iter().find(|c| c.node.element().is_text()).unwrap();
+  assert!(text_child.node.element().is_text(), "child should be text node");
   let bump = Bump::new();
   let lb = build_box(text_child, &bump);
   assert_eq!(

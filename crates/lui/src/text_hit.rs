@@ -39,7 +39,7 @@ fn hit_text_cursor_box(
     }
   }
 
-  if b.node.element.is_text() {
+  if b.node.element().is_text() {
     if let Some(cursor) = resolve_text_cursor(b, ax, ay, path, text_ctx) {
       return Some(cursor);
     }
@@ -66,7 +66,7 @@ fn resolve_text_cursor(
   path: &[usize],
   text_ctx: &mut TextContext,
 ) -> Option<TextCursor> {
-  let raw_text = match &b.node.element {
+  let raw_text = match b.node.element() {
     lui_core::HtmlElement::Text(s) => s.as_ref(),
     _ => return None,
   };

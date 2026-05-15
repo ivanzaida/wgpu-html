@@ -11,6 +11,6 @@ pub use css::{
   supports::parse_supports_condition,
 };
 // HTML parsing entry points.
-pub use html::parser::{html_node_with_attrs, parse};
+pub use html::parser::{html_node_with_attrs, parse, set_inner_html};
 pub use html::tokenizer::{Token as HtmlToken, tokenize as tokenize_html};
 pub use lui_core::*;

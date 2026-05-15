@@ -31,22 +31,22 @@ and which CSS interactive pseudo-classes are fed into the cascade.
 
 | Event | Status | Notes |
 |-------|--------|-------|
-| `pointerdown` | todo | spec says fire before `mousedown` |
-| `pointerup` | todo | spec says fire before `mouseup` |
-| `pointermove` | todo | spec says fire before `mousemove` |
-| `pointerenter` | todo | |
-| `pointerleave` | todo | |
-| `pointerover` | todo | |
-| `pointerout` | todo | |
-| `pointercancel` | todo | |
-| `gotpointercapture` | todo | |
-| `lostpointercapture` | todo | |
+| `pointerdown` | done | fires before `mousedown`; pointer_type="mouse", pointer_id=1, is_primary=true |
+| `pointerup` | done | fires before `mouseup` |
+| `pointermove` | done | fires before `mousemove` in hover transitions |
+| `pointerenter` | done | fires before `mouseenter`; no bubble |
+| `pointerleave` | done | fires before `mouseleave`; no bubble |
+| `pointerover` | done | fires before `mouseover`; bubbles |
+| `pointerout` | done | fires before `mouseout`; bubbles |
+| `pointercancel` | todo | needs touch/pen cancel handling |
+| `gotpointercapture` | todo | needs pointer capture API |
+| `lostpointercapture` | todo | needs pointer capture API |
 
 ## Wheel / scroll
 
 | Event | Status | Notes |
 |-------|--------|-------|
-| `wheel` | partial | scroll mechanics work (`handle_wheel`, scroll chaining, viewport fallback) but no `WheelEvent` dispatched to DOM listeners |
+| `wheel` | done | dispatched before scroll mechanics; `preventDefault()` cancels scrolling |
 | `scroll` | todo | should fire on elements whose scroll position changed |
 | `scrollend` | todo | |
 
@@ -54,18 +54,18 @@ and which CSS interactive pseudo-classes are fed into the cascade.
 
 | Event | Status | Notes |
 |-------|--------|-------|
-| `keydown` | todo | winit provides `KeyboardInput` — not handled yet |
-| `keyup` | todo | |
+| `keydown` | done | dispatched to focused element; bubbles; wired from winit `KeyboardInput` |
+| `keyup` | done | dispatched to focused element; bubbles; wired from winit |
 | `keypress` | todo | deprecated but still widely used |
 
 ## Focus events
 
 | Event | Status | Notes |
 |-------|--------|-------|
-| `focus` | todo | no focus tracking; `InteractionState.focus_path` exists but never set |
-| `blur` | todo | |
-| `focusin` | todo | like focus but bubbles |
-| `focusout` | todo | like blur but bubbles |
+| `focus` | done | fires on click; `set_focus` walks up to nearest focusable element |
+| `blur` | done | fires when focus moves away |
+| `focusin` | done | like focus but bubbles |
+| `focusout` | done | like blur but bubbles |
 
 ## Input / form events
 
@@ -105,9 +105,9 @@ and which CSS interactive pseudo-classes are fed into the cascade.
 |--------|--------|-------|
 | `:hover` | done | `hover_path` set via hit-test after each layout pass; one-frame lag |
 | `:active` | done | `active_path` set on mousedown, cleared on mouseup; exact-match only (spec says ancestors should match too) |
-| `:focus` | todo | `InteractionState.focus_path` exists, cascade matching works, never populated |
-| `:focus-within` | todo | cascade matching works, needs `focus_path` |
-| `:focus-visible` | todo | cascade matching works, needs focus + input-modality heuristic |
+| `:focus` | done | `focus_path` fed into `InteractionState`; set on click via `set_focus` |
+| `:focus-within` | done | cascade matches when `focus_path` is inside element's subtree |
+| `:focus-visible` | todo | cascade matching works, needs input-modality heuristic |
 | `:target` | todo | `InteractionState.target_path` exists, needs URL fragment tracking |
 
 ## Clipboard events

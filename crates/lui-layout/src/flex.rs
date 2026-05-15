@@ -1003,7 +1003,7 @@ pub fn measure_max_content_width_pub(box_: &LayoutBox, text_ctx: &mut TextContex
 }
 
 fn measure_max_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
-  if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+  if let lui_core::HtmlElement::Text(ref content) = *box_.node.element() {
     let style = crate::text::text_style_from_cascade(box_.style);
     let ws = css_str(box_.style.white_space);
     let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
@@ -1065,7 +1065,7 @@ fn measure_max_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f3
 }
 
 fn measure_min_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
-  if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+  if let lui_core::HtmlElement::Text(ref content) = *box_.node.element() {
     let style = crate::text::text_style_from_cascade(box_.style);
     let ws = css_str(box_.style.white_space);
     let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
@@ -1093,7 +1093,7 @@ fn measure_min_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f3
 }
 
 fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
-  if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+  if let lui_core::HtmlElement::Text(ref content) = *box_.node.element() {
     let style = crate::text::text_style_from_cascade(box_.style);
     let ws = css_str(box_.style.white_space);
     let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
@@ -1176,7 +1176,7 @@ fn measure_min_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
 }
 
 fn measure_max_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f32 {
-  if let lui_core::HtmlElement::Text(ref content) = box_.node.element {
+  if let lui_core::HtmlElement::Text(ref content) = *box_.node.element() {
     let style = crate::text::text_style_from_cascade(box_.style);
     let ws = css_str(box_.style.white_space);
     let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {

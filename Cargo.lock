@@ -3678,6 +3678,9 @@ dependencies = [
 [[package]]
 name = "lui-core"
 version = "0.1.0"
+dependencies = [
+ "lui-parse",
+]
 
 [[package]]
 name = "lui-css-old"

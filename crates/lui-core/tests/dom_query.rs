@@ -11,7 +11,7 @@ fn get_element_by_id_finds_direct_child() {
   let root = parse_root(r#"<html><body><div id="target">hello</div></body></html>"#);
   let node = root.get_element_by_id(ArcStr::from("target"));
   assert!(node.is_some(), "should find element with id=target");
-  assert_eq!(node.unwrap().element.tag_name(), "div");
+  assert_eq!(node.unwrap().tag_name(), "div");
 }
 
 #[test]
@@ -21,7 +21,7 @@ fn get_element_by_id_finds_nested() {
   );
   let node = root.get_element_by_id(ArcStr::from("deep"));
   assert!(node.is_some());
-  assert_eq!(node.unwrap().element.tag_name(), "p");
+  assert_eq!(node.unwrap().tag_name(), "p");
 }
 
 #[test]
@@ -34,7 +34,7 @@ fn get_element_by_id_returns_none_when_missing() {
 fn get_element_by_id_mut_can_mutate() {
   let mut root = parse_root(r#"<html><body><div id="box"></div></body></html>"#);
   let node = root.get_element_by_id_mut(ArcStr::from("box")).unwrap();
-  node.id = Some(ArcStr::from("changed"));
+  node.set_attribute("id", "changed");
   assert!(root.get_element_by_id(ArcStr::from("changed")).is_some());
 }
 
@@ -99,7 +99,7 @@ fn query_selector_by_tag() {
   );
   let node = root.query_selector("span");
   assert!(node.is_some());
-  assert_eq!(node.unwrap().element.tag_name(), "span");
+  assert_eq!(node.unwrap().tag_name(), "span");
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn query_selector_by_id() {
   );
   let node = root.query_selector("#main");
   assert!(node.is_some());
-  assert_eq!(node.unwrap().id.as_deref(), Some("main"));
+  assert_eq!(node.unwrap().id(), Some("main"));
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn query_selector_returns_first_match() {
     </body></html>"#,
   );
   let node = root.query_selector("p").unwrap();
-  assert_eq!(node.id.as_deref(), Some("first"));
+  assert_eq!(node.id(), Some("first"));
 }
 
 #[test]
@@ -184,7 +184,7 @@ fn query_selector_compound_tag_and_class() {
     </body></html>"#,
   );
   let node = root.query_selector("div.a").unwrap();
-  assert_eq!(node.element.tag_name(), "div");
+  assert_eq!(node.tag_name(), "div");
 }
 
 #[test]
@@ -196,7 +196,7 @@ fn query_selector_compound_tag_id_class() {
     </body></html>"#,
   );
   let node = root.query_selector("div#x.y").unwrap();
-  assert_eq!(node.id.as_deref(), Some("x"));
+  assert_eq!(node.id(), Some("x"));
 }
 
 // ── combinators ──
@@ -221,7 +221,7 @@ fn query_selector_descendant_combinator() {
     </body></html>"#,
   );
   let node = root.query_selector("div p").unwrap();
-  assert_eq!(node.id.as_deref(), Some("deep"));
+  assert_eq!(node.id(), Some("deep"));
 }
 
 // ── pseudo-classes ──

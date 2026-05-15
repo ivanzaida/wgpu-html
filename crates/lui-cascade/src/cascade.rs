@@ -226,7 +226,7 @@ fn element_cache_key(node: &HtmlNode, ctx: &MatchContext<'_>, ancestors: &[Ances
   let mut h = FxHasher::default();
 
   // Pre-computed node identity hash (tag + all attrs + styles, XOR for maps)
-  node.node_hash.hash(&mut h);
+  node.node_hash().hash(&mut h);
 
   // Interaction + structural state (packed as bits)
   let flags: u16 = (ctx.is_hover as u16)
@@ -244,7 +244,7 @@ fn element_cache_key(node: &HtmlNode, ctx: &MatchContext<'_>, ancestors: &[Ances
   let depth = ancestors.len().min(3);
   depth.hash(&mut h);
   for entry in ancestors.iter().take(3) {
-    entry.node.node_hash.hash(&mut h);
+    entry.node.node_hash().hash(&mut h);
   }
 
   h.finish()
@@ -343,13 +343,13 @@ fn cascade_node_with_prev<'a>(
     ctx: a.ctx.clone(),
   }));
 
-  let tag = node.element.tag_name();
-  let id = node.id.as_deref();
+  let tag = node.element().tag_name();
+  let id = node.id();
 
-  bloom.push(tag, id, &node.class_list);
+  bloom.push(tag, id, node.class_list().as_slice());
 
   let children: Vec<StyledNode<'a>> = node
-    .children
+    .children()
     .iter()
     .enumerate()
     .map(|(i, child)| {
@@ -397,7 +397,7 @@ fn cascade_node_with_prev<'a>(
     })
     .collect();
 
-  bloom.pop(tag, id, &node.class_list);
+  bloom.pop(tag, id, node.class_list().as_slice());
 
   StyledNode {
     node,
@@ -429,7 +429,7 @@ fn clone_subtree<'a>(
   }
 
   let children: Vec<StyledNode<'a>> = node
-    .children
+    .children()
     .iter()
     .enumerate()
     .map(|(i, child)| {
@@ -511,14 +511,14 @@ fn cascade_node<'a>(
   }));
 
   // Push this node into the bloom filter before cascading children
-  let tag = node.element.tag_name();
-  let id = node.id.as_deref();
+  let tag = node.element().tag_name();
+  let id = node.id();
 
-  bloom.push(tag, id, &node.class_list);
+  bloom.push(tag, id, node.class_list().as_slice());
 
   const PAR_CHILDREN: usize = 16;
 
-  let (children, par_arenas) = if node.children.len() >= PAR_CHILDREN {
+  let (children, par_arenas) = if node.children().len() >= PAR_CHILDREN {
     cascade_children_parallel(
       root,
       node,
@@ -533,7 +533,7 @@ fn cascade_node<'a>(
   } else {
     (
       node
-        .children
+        .children()
         .iter()
         .enumerate()
         .map(|(i, child)| {
@@ -560,7 +560,7 @@ fn cascade_node<'a>(
     )
   };
 
-  bloom.pop(tag, id, &node.class_list);
+  bloom.pop(tag, id, node.class_list().as_slice());
 
   let before =
     crate::pseudo::collect_pseudo_element(CssPseudo::Before, node, &style, sheets, ancestors, &ctx, media, arena);
@@ -649,9 +649,9 @@ fn compute_style<'a>(
   arena: &'a Bump,
   bloom: &AncestorBloom,
 ) -> ComputedStyle<'a> {
-  let tag = node.element.tag_name();
-  let id = node.id.as_deref();
-  let classes: SmallVec<[&str; 8]> = node.class_list.iter().map(|c| c.as_ref()).collect();
+  let tag = node.element().tag_name();
+  let id = node.id();
+  let classes: SmallVec<[&str; 8]> = node.class_list().iter().map(|c| c.as_ref()).collect();
   let mut matched = collect_matching_rules(node, ctx, sheets, ancestors, media, tag, id, &classes, bloom);
 
   matched.sort_by_key(|m| (m.sheet_idx, m.specificity, m.rule_idx));
@@ -748,9 +748,9 @@ fn collect_matching_rules<'a>(
       tag,
       id,
       classes,
-      &node.attrs,
-      &node.data_attrs,
-      &node.aria_attrs,
+      node.attrs(),
+      node.data_attrs(),
+      node.aria_attrs(),
     );
     for rule_ref in candidates {
       let rule = &sheet.rules[rule_ref.rule_idx];
@@ -769,9 +769,9 @@ fn collect_matching_rules<'a>(
       tag,
       id,
       classes,
-      &node.attrs,
-      &node.data_attrs,
-      &node.aria_attrs,
+      node.attrs(),
+      node.data_attrs(),
+      node.aria_attrs(),
     );
     for rule_ref in cond_candidates {
       let cond_rule = &sheet.conditional_rules[rule_ref.rule_idx];
@@ -846,7 +846,7 @@ fn cascade_children_parallel<'a>(
   unsafe impl Send for ParResult {}
 
   let mut results: Vec<(usize, ParResult)> = node
-    .children
+    .children()
     .par_iter()
     .enumerate()
     .map(|(i, child)| {
@@ -1149,7 +1149,7 @@ fn build_match_context<'a>(
   ancestors: &[AncestorEntry<'a>],
 ) -> MatchContext<'a> {
   let sibling_index = path.last().copied().unwrap_or(0);
-  let sibling_count = ancestors.first().map(|a| a.node.children.len()).unwrap_or(1);
+  let sibling_count = ancestors.first().map(|a| a.node.children().len()).unwrap_or(1);
 
   let is_hover = interaction
     .hover_path
@@ -1173,13 +1173,13 @@ fn build_match_context<'a>(
     .unwrap_or(false);
 
   let lang = node
-    .attrs
+    .attrs()
     .get("lang")
     .map(|s| s.as_ref())
     .or_else(|| ancestors.iter().find_map(|a| a.ctx.lang));
 
   let dir = node
-    .attrs
+    .attrs()
     .get("dir")
     .and_then(|s| match s.as_ref() {
       "ltr" => Some(crate::matching::Dir::Ltr),
@@ -1218,7 +1218,7 @@ fn get_cached_or_compute<'a>(
   cache: &mut DeclCache<'a>,
   bloom: &AncestorBloom,
 ) -> ComputedStyle<'a> {
-  if node.element.is_text() || node.element.is_comment() {
+  if node.element().is_text() || node.element().is_comment() {
     return ComputedStyle::default();
   }
 

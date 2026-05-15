@@ -95,6 +95,31 @@ impl WinitHarness {
           WindowEvent::ModifiersChanged(modifiers) => {
             self.modifiers = modifiers.state();
           }
+          WindowEvent::KeyboardInput { event, .. } => {
+            if let winit::keyboard::PhysicalKey::Code(keycode) = event.physical_key {
+              let key = event
+                .logical_key
+                .to_text()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("{:?}", event.logical_key));
+              let code = format!("{keycode:?}");
+              let mods = crate::KeyModifiers {
+                ctrl: self.modifiers.control_key(),
+                shift: self.modifiers.shift_key(),
+                alt: self.modifiers.alt_key(),
+                meta: self.modifiers.super_key(),
+              };
+              match event.state {
+                winit::event::ElementState::Pressed => {
+                  self.lui.handle_key_down(&key, &code, event.repeat, mods);
+                }
+                winit::event::ElementState::Released => {
+                  self.lui.handle_key_up(&key, &code, mods);
+                }
+              }
+              window.request_redraw();
+            }
+          }
           WindowEvent::MouseInput { state, button, .. } => {
             let scale = window.scale_factor() as f32;
             let size = window.inner_size();

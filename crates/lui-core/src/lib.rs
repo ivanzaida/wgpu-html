@@ -46,6 +46,7 @@ pub mod shorthand;
 pub mod stylesheet;
 pub mod supports;
 pub mod text_selection;
+pub mod transform;
 pub mod type_keywords;
 pub mod unit;
 pub mod validate;
@@ -62,7 +63,8 @@ pub use element::{HtmlElement, SVG_ELEMENTS, should_auto_close};
 pub use error::ParseError;
 pub use media::{MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList};
 pub use node::{
-  EventHandler, EventListenerOptions, EventPhase, HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag,
+  ClassList, DIRTY_ALL, DIRTY_ATTRS, DIRTY_CHILDREN, DIRTY_TEXT, EventHandler, EventListenerOptions, EventPhase,
+  HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag,
 };
 pub use scrollbar::{
   DEFAULT_SCROLLBAR_WIDTH, ScrollbarMode, ScrollbarPartStyle, ScrollbarStyles, THIN_SCROLLBAR_WIDTH,

@@ -57,8 +57,8 @@ fn collect_selected_text(
     return;
   }
 
-  if b.node.element.is_text() {
-    if let lui_core::HtmlElement::Text(s) = &b.node.element {
+  if b.node.element().is_text() {
+    if let lui_core::HtmlElement::Text(s) = b.node.element() {
       let ws = style::css_str(b.style.white_space);
       let collapsed;
       let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
@@ -120,8 +120,8 @@ pub fn first_text_cursor(tree_root: &LayoutBox<'_>) -> Option<TextCursor> {
 }
 
 fn first_text_cursor_inner(b: &LayoutBox<'_>, path: &mut Vec<usize>) -> Option<TextCursor> {
-  if b.node.element.is_text() {
-    if let lui_core::HtmlElement::Text(s) = &b.node.element {
+  if b.node.element().is_text() {
+    if let lui_core::HtmlElement::Text(s) = b.node.element() {
       if !s.is_empty() {
         return Some(TextCursor { path: path.clone(), char_index: 0 });
       }
@@ -152,8 +152,8 @@ fn last_text_cursor_inner(b: &LayoutBox<'_>, path: &mut Vec<usize>) -> Option<Te
     }
     path.pop();
   }
-  if b.node.element.is_text() {
-    if let lui_core::HtmlElement::Text(s) = &b.node.element {
+  if b.node.element().is_text() {
+    if let lui_core::HtmlElement::Text(s) = b.node.element() {
       let ws = style::css_str(b.style.white_space);
       let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {
         lui_layout::flow::collapse_whitespace(s.as_ref())
@@ -175,7 +175,7 @@ fn shape_at_cursor<'a>(
   text_ctx: &mut TextContext,
 ) -> Option<(ShapedRun, String)> {
   let b = box_at_path(tree_root, &cursor.path)?;
-  let raw_text = match &b.node.element {
+  let raw_text = match b.node.element() {
     lui_core::HtmlElement::Text(s) => s.as_ref(),
     _ => return None,
   };

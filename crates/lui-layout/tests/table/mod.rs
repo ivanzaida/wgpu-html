@@ -847,7 +847,7 @@ table_test!(
 // ============================================================================
 
 fn find_text_boxes<'a>(b: &'a LayoutBox<'a>, out: &mut Vec<&'a LayoutBox<'a>>) {
-  if b.node.element.is_text() {
+  if b.node.element().is_text() {
     out.push(b);
   }
   for c in &b.children {

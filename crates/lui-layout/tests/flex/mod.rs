@@ -1564,7 +1564,7 @@ fn flex_align_items_center_same_y_for_same_height_children() {
       let span = &card.children[0];
       eprintln!(
         "span tag={} y={:.1} h={:.1} content_y={:.1}",
-        span.node.element.tag_name(),
+        span.node.element().tag_name(),
         span.content.y,
         span.content.height,
         span.content.y

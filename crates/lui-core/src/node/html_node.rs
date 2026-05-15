@@ -5,21 +5,30 @@ use std::{
 
 use crate::{
   ArcStr, Declaration, HtmlElement,
-  node::event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection, EventPhase},
+  node::{
+    class_list::ClassList,
+    event_listeners_collection::{EventHandler, EventListenerOptions, EventListenersCollection, EventPhase},
+  },
 };
+
+pub const DIRTY_ATTRS: u8 = 0x01;
+pub const DIRTY_CHILDREN: u8 = 0x04;
+pub const DIRTY_TEXT: u8 = 0x08;
+pub const DIRTY_ALL: u8 = 0xFF;
 
 /// A node in the parsed HTML tree.
 #[derive(Debug, Clone)]
 pub struct HtmlNode {
-  pub element: HtmlElement,
-  pub id: Option<ArcStr>,
-  pub class_list: Vec<ArcStr>,
-  pub styles: Vec<Declaration>,
-  pub attrs: HashMap<ArcStr, ArcStr>,
-  pub data_attrs: HashMap<ArcStr, ArcStr>,
-  pub aria_attrs: HashMap<ArcStr, ArcStr>,
-  pub children: Vec<HtmlNode>,
-  pub node_hash: u64,
+  pub(crate) element: HtmlElement,
+  pub(crate) id: Option<ArcStr>,
+  pub(crate) class_list: ClassList,
+  pub(crate) styles: Vec<Declaration>,
+  pub(crate) attrs: HashMap<ArcStr, ArcStr>,
+  pub(crate) data_attrs: HashMap<ArcStr, ArcStr>,
+  pub(crate) aria_attrs: HashMap<ArcStr, ArcStr>,
+  pub(crate) children: Vec<HtmlNode>,
+  pub(crate) node_hash: u64,
+  pub(crate) dirty: u8,
 
   event_listeners: EventListenersCollection,
 }
@@ -34,6 +43,7 @@ impl PartialEq for HtmlNode {
       && self.data_attrs == other.data_attrs
       && self.aria_attrs == other.aria_attrs
       && self.children == other.children
+    // dirty and node_hash are intentionally excluded
   }
 }
 
@@ -43,13 +53,14 @@ impl HtmlNode {
     Self {
       element,
       id: None,
-      class_list: Vec::new(),
+      class_list: ClassList::new(),
       styles: Vec::new(),
       attrs: HashMap::new(),
       data_attrs: HashMap::new(),
       aria_attrs: HashMap::new(),
       children: Vec::new(),
       node_hash,
+      dirty: DIRTY_ALL,
       event_listeners: EventListenersCollection::new(),
     }
   }
@@ -58,15 +69,79 @@ impl HtmlNode {
     Self {
       element: HtmlElement::Text(content.into()),
       id: None,
-      class_list: Vec::new(),
+      class_list: ClassList::new(),
       styles: Vec::new(),
       attrs: HashMap::new(),
       data_attrs: HashMap::new(),
       aria_attrs: HashMap::new(),
       children: Vec::new(),
       node_hash: 0,
+      dirty: DIRTY_ALL,
       event_listeners: EventListenersCollection::new(),
     }
+  }
+
+  pub fn is_dirty(&self) -> bool {
+    self.dirty != 0 || self.class_list.is_dirty()
+  }
+
+  pub fn clear_dirty(&mut self) {
+    self.dirty = 0;
+    self.class_list.clear_dirty();
+  }
+
+  pub fn element(&self) -> &HtmlElement {
+    &self.element
+  }
+
+  pub fn tag_name(&self) -> &str {
+    self.element.tag_name()
+  }
+
+  pub fn id(&self) -> Option<&str> {
+    self.id.as_deref()
+  }
+
+  pub fn class_list(&self) -> &ClassList {
+    &self.class_list
+  }
+
+  pub fn class_list_mut(&mut self) -> &mut ClassList {
+    &mut self.class_list
+  }
+
+  pub fn styles(&self) -> &[Declaration] {
+    &self.styles
+  }
+
+  pub fn set_styles(&mut self, styles: Vec<Declaration>) {
+    self.styles = styles;
+    self.dirty |= DIRTY_ATTRS;
+    self.recompute_hash();
+  }
+
+  pub fn attrs(&self) -> &HashMap<ArcStr, ArcStr> {
+    &self.attrs
+  }
+
+  pub fn data_attrs(&self) -> &HashMap<ArcStr, ArcStr> {
+    &self.data_attrs
+  }
+
+  pub fn aria_attrs(&self) -> &HashMap<ArcStr, ArcStr> {
+    &self.aria_attrs
+  }
+
+  pub fn children(&self) -> &[HtmlNode] {
+    &self.children
+  }
+
+  pub fn into_children(self) -> Vec<HtmlNode> {
+    self.children
+  }
+
+  pub fn node_hash(&self) -> u64 {
+    self.node_hash
   }
 
   pub fn attr(&self, name: &str) -> Option<&ArcStr> {
@@ -158,7 +233,7 @@ pub fn compute_node_hash(node: &HtmlNode) -> u64 {
   node.element.tag_name().hash(&mut h);
   node.id.hash(&mut h);
   node.class_list.len().hash(&mut h);
-  for c in &node.class_list {
+  for c in node.class_list.iter() {
     c.as_ref().hash(&mut h);
   }
   node.styles.len().hash(&mut h);

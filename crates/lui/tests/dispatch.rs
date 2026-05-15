@@ -50,3 +50,21 @@ mod pointer_events_none_children;
 
 #[path = "dispatch/pointer_events/cursor_resolves.rs"]
 mod cursor_resolves;
+
+#[path = "dispatch/pointer/pointer_fires_before_mouse.rs"]
+mod pointer_fires_before_mouse;
+
+#[path = "dispatch/pointer/pointermove_fires_before_mousemove.rs"]
+mod pointermove_fires_before_mousemove;
+
+#[path = "dispatch/pointer/pointer_has_correct_fields.rs"]
+mod pointer_has_correct_fields;
+
+#[path = "dispatch/wheel/wheel_event_dispatches.rs"]
+mod wheel_event_dispatches;
+
+#[path = "dispatch/keyboard/keydown_dispatches.rs"]
+mod keydown_dispatches;
+
+#[path = "dispatch/focus/focus_style_applies.rs"]
+mod focus_style_applies;

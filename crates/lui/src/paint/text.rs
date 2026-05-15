@@ -13,7 +13,7 @@ pub fn paint_text(
   dl: &mut DisplayList,
   dpi_scale: f32,
 ) {
-  let raw_text = match &b.node.element {
+  let raw_text = match b.node.element() {
     lui_core::HtmlElement::Text(s) => s.as_ref(),
     _ => return,
   };
@@ -96,7 +96,7 @@ pub fn paint_text_with_selection(
   selection: Option<&lui_core::TextSelection>,
   sel_colors: &lui_core::SelectionColors,
 ) {
-  let raw_text = match &b.node.element {
+  let raw_text = match b.node.element() {
     lui_core::HtmlElement::Text(s) => s.as_ref(),
     _ => return,
   };

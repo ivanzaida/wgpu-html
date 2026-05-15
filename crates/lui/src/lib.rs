@@ -8,7 +8,7 @@ pub mod dispatch;
 pub mod paint;
 
 mod lui;
-pub use lui::Lui;
+pub use lui::{KeyModifiers, Lui};
 
 mod text_hit;
 mod text_select;

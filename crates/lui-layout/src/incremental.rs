@@ -225,7 +225,7 @@ fn expand_dirty_walk(
     return;
   }
   set.insert(node as *const HtmlNode);
-  for (i, child) in node.children.iter().enumerate() {
+  for (i, child) in node.children().iter().enumerate() {
     path.push(i);
     expand_dirty_walk(child, dirty_paths, path, set);
     path.pop();

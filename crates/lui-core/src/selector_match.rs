@@ -260,7 +260,7 @@ pub fn matches_compound(
 
   if !compound.classes.is_empty() {
     for class in &compound.classes {
-      if !node.class_list.iter().any(|c| c.as_ref() == class) {
+      if !node.class_list.contains(class) {
         return false;
       }
     }

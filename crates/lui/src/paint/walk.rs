@@ -1,4 +1,5 @@
 use lui_core::display_list::{DisplayList, Rect as DlRect};
+use lui_core::transform::{Transform2D, parse_transform, parse_transform_origin};
 use lui_glyph::TextContext;
 use lui_layout::LayoutBox;
 
@@ -58,13 +59,19 @@ pub fn paint_box_sel(
     let br = b.border_rect();
     DlRect::new(br.x + dx, br.y + dy, br.width, br.height)
   };
+
+  let xf = resolve_box_transform(b, border_rect.w, border_rect.h);
+  let quad_start = dl.quads.len();
+  let glyph_start = dl.glyphs.len();
+  let image_start = dl.images.len();
+
   let (radii_h, radii_v) = style::border_radii(b.style, border_rect.w, border_rect.h);
 
   shadow::paint_box_shadows(b.style.box_shadow, border_rect, radii_h, radii_v, opacity, dl);
   background::paint_background(b, border_rect, radii_h, radii_v, opacity, dl);
   border::paint_borders(b, border_rect, radii_h, radii_v, opacity, dl);
 
-  if b.node.element.is_text() {
+  if b.node.element().is_text() {
     text::paint_text_with_selection(
       b,
       b.content.x + dx,
@@ -130,6 +137,65 @@ pub fn paint_box_sel(
   }
 
   scrollbar::paint_scrollbars(b, dx, dy, opacity, dl);
+
+  if let Some((mat, origin)) = xf {
+    let xf_mat = [mat.a, mat.b, mat.c, mat.d];
+    for q in &mut dl.quads[quad_start..] {
+      q.transform = xf_mat;
+      q.transform_origin = origin;
+    }
+    for g in &mut dl.glyphs[glyph_start..] {
+      g.transform = xf_mat;
+      g.transform_origin = origin;
+    }
+    for img in &mut dl.images[image_start..] {
+      img.transform = xf_mat;
+      img.transform_origin = origin;
+    }
+  }
+}
+
+fn resolve_box_transform(b: &LayoutBox, w: f32, h: f32) -> Option<(Transform2D, [f32; 2])> {
+  let val = b.style.transform?;
+  let mat = resolve_transform_value(val, w, h)?;
+  let origin_str = b.style.transform_origin.and_then(css_value_as_str);
+  let (ox, oy) = parse_transform_origin(origin_str, w, h);
+  Some((mat, [ox, oy]))
+}
+
+fn resolve_transform_value(val: &lui_core::CssValue, w: f32, h: f32) -> Option<Transform2D> {
+  match val {
+    lui_core::CssValue::String(s) | lui_core::CssValue::Unknown(s) => parse_transform(s, w, h),
+    lui_core::CssValue::Function { function, args } => {
+      let formatted = format_css_function(function, args);
+      parse_transform(&formatted, w, h)
+    }
+    _ => None,
+  }
+}
+
+fn format_css_function(func: &lui_core::css_function::CssFunction, args: &[lui_core::CssValue]) -> String {
+  let mut s = format!("{}(", func.name());
+  for (i, arg) in args.iter().enumerate() {
+    if i > 0 {
+      s.push_str(", ");
+    }
+    match arg {
+      lui_core::CssValue::Number(n) => s.push_str(&format!("{n}")),
+      lui_core::CssValue::Percentage(n) => s.push_str(&format!("{n}%")),
+      lui_core::CssValue::Dimension { value, unit } => s.push_str(&format!("{value}{}", unit.as_str())),
+      _ => {}
+    }
+  }
+  s.push(')');
+  s
+}
+
+fn css_value_as_str(v: &lui_core::CssValue) -> Option<&str> {
+  match v {
+    lui_core::CssValue::String(s) | lui_core::CssValue::Unknown(s) => Some(s.as_ref()),
+    _ => None,
+  }
 }
 
 fn z_index_sort_key(b: &LayoutBox) -> (i32, i32) {

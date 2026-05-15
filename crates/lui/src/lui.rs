@@ -220,6 +220,12 @@ impl Lui {
     let Some((cursor_x, cursor_y)) = self.cursor_pos else {
       return false;
     };
+
+    let prevented = self.dispatch_wheel_event(physical_width, physical_height, scale, delta_x, delta_y);
+    if prevented {
+      return true;
+    }
+
     let viewport_scroll = self.viewport_scroll;
     let outcome = self.with_layout(
       physical_width,
@@ -276,6 +282,33 @@ impl Lui {
     crate::dispatch::find_node_path(&self.doc.root, ptr)
   }
 
+  fn fire_pointer_at(&mut self, path: &[usize], event_type: &str, button: i16, bubbles: bool, cancelable: bool) -> bool {
+    let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
+    let mut event = lui_core::events::DocumentEvent::PointerEvent(lui_core::events::PointerEventInit {
+      mouse: lui_core::events::MouseEventInit {
+        ui: lui_core::events::UiEventInit {
+          base: lui_core::events::EventInit {
+            event_type: event_type.into(),
+            bubbles,
+            cancelable,
+            ..Default::default()
+          },
+          ..Default::default()
+        },
+        client_x: cx as f64,
+        client_y: cy as f64,
+        button,
+        ..Default::default()
+      },
+      pointer_id: MOUSE_POINTER_ID,
+      pointer_type: "mouse".to_string(),
+      is_primary: true,
+      ..Default::default()
+    });
+    crate::dispatch::dispatch_event(&mut self.doc, path, &mut event);
+    event.is_default_prevented()
+  }
+
   fn fire_mouse_at(&mut self, path: &[usize], event_type: &str, button: i16, bubbles: bool, cancelable: bool) -> bool {
     let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
     let mut event = lui_core::events::DocumentEvent::MouseEvent(lui_core::events::MouseEventInit {
@@ -293,12 +326,80 @@ impl Lui {
       button,
       ..Default::default()
     });
-    crate::dispatch::dispatch_event(&mut self.doc.root, path, &mut event);
+    crate::dispatch::dispatch_event(&mut self.doc, path, &mut event);
     event.is_default_prevented()
   }
 
   fn fire_mouse_event(&mut self, path: &[usize], event_type: &str, button: i16) -> bool {
     self.fire_mouse_at(path, event_type, button, true, true)
+  }
+
+  fn dispatch_wheel_event(&mut self, pw: u32, ph: u32, scale: f32, dx: f32, dy: f32) -> bool {
+    let Some(path) = self.resolve_cursor_target(pw, ph, scale) else {
+      return false;
+    };
+    let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
+    let mut event = lui_core::events::DocumentEvent::WheelEvent(lui_core::events::WheelEventInit {
+      mouse: lui_core::events::MouseEventInit {
+        ui: lui_core::events::UiEventInit {
+          base: lui_core::events::EventInit {
+            event_type: "wheel".into(),
+            bubbles: true,
+            cancelable: true,
+            ..Default::default()
+          },
+          ..Default::default()
+        },
+        client_x: cx as f64,
+        client_y: cy as f64,
+        ..Default::default()
+      },
+      delta_x: dx as f64,
+      delta_y: dy as f64,
+      delta_z: 0.0,
+      delta_mode: 0,
+    });
+    crate::dispatch::dispatch_event(&mut self.doc, &path, &mut event);
+    event.is_default_prevented()
+  }
+
+  pub fn handle_key_down(&mut self, key: &str, code: &str, repeat: bool, modifiers: KeyModifiers) {
+    self.fire_keyboard_event("keydown", key, code, repeat, &modifiers);
+  }
+
+  pub fn handle_key_up(&mut self, key: &str, code: &str, modifiers: KeyModifiers) {
+    self.fire_keyboard_event("keyup", key, code, false, &modifiers);
+  }
+
+  fn fire_keyboard_event(
+    &mut self,
+    event_type: &str,
+    key: &str,
+    code: &str,
+    repeat: bool,
+    _modifiers: &KeyModifiers,
+  ) {
+    let path = self.doc.focus_path.clone().unwrap_or_default();
+    let mut event = lui_core::events::DocumentEvent::KeyboardEvent(lui_core::events::KeyboardEventInit {
+      ui: lui_core::events::UiEventInit {
+        base: lui_core::events::EventInit {
+          event_type: event_type.into(),
+          bubbles: true,
+          cancelable: true,
+          ..Default::default()
+        },
+        ..Default::default()
+      },
+      key: key.to_string(),
+      code: code.to_string(),
+      location: 0,
+      repeat,
+      is_composing: false,
+    });
+    if let lui_core::events::DocumentEvent::KeyboardEvent(ref mut kb) = event {
+      kb.ui.base.event_type = event_type.into();
+    }
+    crate::dispatch::dispatch_event(&mut self.doc, &path, &mut event);
   }
 
   fn dispatch_hover_transitions(&mut self, prev: &Option<Vec<usize>>, did_move: bool) {
@@ -313,29 +414,29 @@ impl Lui {
     let common = common_prefix_len(prev_path, curr);
 
     if hover_changed {
-      // 1. mouseout on old target (bubbles)
       if !prev_path.is_empty() {
+        self.fire_pointer_at(prev_path, "pointerout", 0, true, true);
         self.fire_mouse_at(prev_path, "mouseout", 0, true, true);
       }
 
-      // 2. mouseleave on ancestors being left, deepest first (no bubble)
       for depth in (common..prev_path.len()).rev() {
+        self.fire_pointer_at(&prev_path[..=depth], "pointerleave", 0, false, false);
         self.fire_mouse_at(&prev_path[..=depth], "mouseleave", 0, false, false);
       }
 
-      // 3. mouseover on new target (bubbles)
       if !curr.is_empty() {
+        self.fire_pointer_at(curr, "pointerover", 0, true, true);
         self.fire_mouse_at(curr, "mouseover", 0, true, true);
       }
 
-      // 4. mouseenter on ancestors being entered, shallowest first (no bubble)
       for depth in common..curr.len() {
+        self.fire_pointer_at(&curr[..=depth], "pointerenter", 0, false, false);
         self.fire_mouse_at(&curr[..=depth], "mouseenter", 0, false, false);
       }
     }
 
-    // 5. mousemove on current target
     if did_move && !curr.is_empty() {
+      self.fire_pointer_at(curr, "pointermove", 0, true, true);
       self.fire_mouse_at(curr, "mousemove", 0, true, true);
     }
   }
@@ -399,7 +500,10 @@ impl Lui {
       self.set_focus(path.as_deref());
     }
     match path {
-      Some(p) => self.fire_mouse_event(&p, "mousedown", button),
+      Some(p) => {
+        self.fire_pointer_at(&p, "pointerdown", button, true, true);
+        self.fire_mouse_event(&p, "mousedown", button)
+      }
       None => false,
     }
   }
@@ -448,7 +552,7 @@ impl Lui {
       },
       related_target: None,
     });
-    crate::dispatch::dispatch_event(&mut self.doc.root, path, &mut event);
+    crate::dispatch::dispatch_event(&mut self.doc, &path, &mut event);
   }
 
   pub fn handle_mouse_up(&mut self, pw: u32, ph: u32, scale: f32, button: i16) -> bool {
@@ -456,7 +560,11 @@ impl Lui {
       return true;
     }
     self.active_path = None;
-    self.dispatch_mouse_event(pw, ph, scale, "mouseup", button)
+    let Some(path) = self.resolve_cursor_target(pw, ph, scale) else {
+      return false;
+    };
+    self.fire_pointer_at(&path, "pointerup", button, true, true);
+    self.fire_mouse_event(&path, "mouseup", button)
   }
 
   pub fn handle_click(&mut self, pw: u32, ph: u32, scale: f32, button: i16) -> bool {
@@ -478,6 +586,7 @@ impl Lui {
     let Some(path) = self.resolve_cursor_target(pw, ph, scale) else {
       return false;
     };
+    self.fire_pointer_at(&path, "pointerup", button, true, true);
     let up = self.fire_mouse_event(&path, "mouseup", button);
 
     match button {
@@ -654,6 +763,7 @@ impl Lui {
     let interaction = InteractionState {
       hover_path: self.hover_path.clone(),
       active_path: self.active_path.clone(),
+      focus_path: self.doc.focus_path.clone(),
       scrollbar_hover: self.scrollbar_hover.clone(),
       ..Default::default()
     };
@@ -774,6 +884,16 @@ fn common_prefix_len(a: &[usize], b: &[usize]) -> usize {
   a.iter().zip(b.iter()).take_while(|(x, y)| x == y).count()
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct KeyModifiers {
+  pub ctrl: bool,
+  pub shift: bool,
+  pub alt: bool,
+  pub meta: bool,
+}
+
+const MOUSE_POINTER_ID: i32 = 1;
+
 const DBLCLICK_THRESHOLD_MS: u128 = 500;
 const DBLCLICK_DISTANCE_PX: f32 = 5.0;
 
@@ -858,7 +978,7 @@ fn is_focusable(node: &lui_parse::HtmlNode) -> bool {
   if matches!(tabindex, Some(t) if t < 0) {
     return false;
   }
-  match &node.element {
+  match node.element() {
     HtmlElement::Input => {
       if node.attr("disabled").is_some() {
         return false;

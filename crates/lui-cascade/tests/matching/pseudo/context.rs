@@ -8,7 +8,7 @@ use crate::helpers::root_ctx;
 #[test]
 fn target_matches_when_is_target() {
   let doc = parse(r#"<div id="section1"></div>"#);
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":target").unwrap();
 
   let ctx = MatchContext {
@@ -21,7 +21,7 @@ fn target_matches_when_is_target() {
 #[test]
 fn target_rejects_when_not_target() {
   let doc = parse(r#"<div id="section1"></div>"#);
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":target").unwrap();
 
   assert!(any_selector_matches(&sel, div, &root_ctx(), &[], Some(&doc.root)).is_none());
@@ -32,7 +32,7 @@ fn target_rejects_when_not_target() {
 #[test]
 fn lang_matches_exact() {
   let doc = parse(r#"<p lang="en">text</p>"#);
-  let p = &doc.root.children[0];
+  let p = &doc.root.children()[0];
   let sel = parse_selector_list(":lang(en)").unwrap();
 
   let ctx = MatchContext {
@@ -45,7 +45,7 @@ fn lang_matches_exact() {
 #[test]
 fn lang_matches_subtag() {
   let doc = parse(r#"<p lang="en-US">text</p>"#);
-  let p = &doc.root.children[0];
+  let p = &doc.root.children()[0];
   let sel = parse_selector_list(":lang(en)").unwrap();
 
   let ctx = MatchContext {
@@ -58,7 +58,7 @@ fn lang_matches_subtag() {
 #[test]
 fn lang_rejects_wrong_language() {
   let doc = parse(r#"<p lang="fr">text</p>"#);
-  let p = &doc.root.children[0];
+  let p = &doc.root.children()[0];
   let sel = parse_selector_list(":lang(en)").unwrap();
 
   let ctx = MatchContext {
@@ -71,7 +71,7 @@ fn lang_rejects_wrong_language() {
 #[test]
 fn lang_rejects_when_no_lang() {
   let doc = parse("<p>text</p>");
-  let p = &doc.root.children[0];
+  let p = &doc.root.children()[0];
   let sel = parse_selector_list(":lang(en)").unwrap();
 
   assert!(any_selector_matches(&sel, p, &root_ctx(), &[], Some(&doc.root)).is_none());
@@ -82,7 +82,7 @@ fn lang_rejects_when_no_lang() {
 #[test]
 fn dir_ltr_matches() {
   let doc = parse(r#"<div dir="ltr"></div>"#);
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":dir(ltr)").unwrap();
 
   let ctx = MatchContext {
@@ -95,7 +95,7 @@ fn dir_ltr_matches() {
 #[test]
 fn dir_rtl_matches() {
   let doc = parse(r#"<div dir="rtl"></div>"#);
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":dir(rtl)").unwrap();
 
   let ctx = MatchContext {
@@ -108,7 +108,7 @@ fn dir_rtl_matches() {
 #[test]
 fn dir_rejects_mismatch() {
   let doc = parse(r#"<div dir="ltr"></div>"#);
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":dir(rtl)").unwrap();
 
   let ctx = MatchContext {
@@ -123,7 +123,7 @@ fn dir_rejects_mismatch() {
 #[test]
 fn defined_matches_known_element() {
   let doc = parse("<div></div>");
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":defined").unwrap();
 
   assert!(any_selector_matches(&sel, div, &root_ctx(), &[], Some(&doc.root)).is_some());
@@ -132,7 +132,7 @@ fn defined_matches_known_element() {
 #[test]
 fn defined_rejects_unknown_element() {
   let doc = parse("<my-widget></my-widget>");
-  let widget = &doc.root.children[0];
+  let widget = &doc.root.children()[0];
   let sel = parse_selector_list(":defined").unwrap();
 
   assert!(any_selector_matches(&sel, widget, &root_ctx(), &[], Some(&doc.root)).is_none());
@@ -143,7 +143,7 @@ fn defined_rejects_unknown_element() {
 #[test]
 fn scope_matches_root() {
   let doc = parse("<div></div>");
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":scope").unwrap();
 
   let ctx = MatchContext {
@@ -156,7 +156,7 @@ fn scope_matches_root() {
 #[test]
 fn scope_rejects_non_root() {
   let doc = parse("<div></div>");
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":scope").unwrap();
 
   let ctx = MatchContext {
@@ -171,7 +171,7 @@ fn scope_rejects_non_root() {
 #[test]
 fn fullscreen_matches_when_set() {
   let doc = parse("<div></div>");
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":fullscreen").unwrap();
 
   let ctx = MatchContext {
@@ -184,7 +184,7 @@ fn fullscreen_matches_when_set() {
 #[test]
 fn fullscreen_rejects_by_default() {
   let doc = parse("<div></div>");
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":fullscreen").unwrap();
 
   assert!(any_selector_matches(&sel, div, &root_ctx(), &[], Some(&doc.root)).is_none());
@@ -193,7 +193,7 @@ fn fullscreen_rejects_by_default() {
 #[test]
 fn modal_matches_when_set() {
   let doc = parse("<dialog></dialog>");
-  let dialog = &doc.root.children[0];
+  let dialog = &doc.root.children()[0];
   let sel = parse_selector_list(":modal").unwrap();
 
   let ctx = MatchContext {
@@ -208,7 +208,7 @@ fn modal_matches_when_set() {
 #[test]
 fn unknown_pseudo_rejects() {
   let doc = parse("<div></div>");
-  let div = &doc.root.children[0];
+  let div = &doc.root.children()[0];
   let sel = parse_selector_list(":nonsense").unwrap();
 
   assert!(any_selector_matches(&sel, div, &root_ctx(), &[], Some(&doc.root)).is_none());

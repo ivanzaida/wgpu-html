@@ -5,6 +5,30 @@ pub struct TextCursor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditCursor {
+  pub cursor: usize,
+  pub selection_anchor: Option<usize>,
+}
+
+impl EditCursor {
+  pub fn collapsed(pos: usize) -> Self {
+    Self {
+      cursor: pos,
+      selection_anchor: None,
+    }
+  }
+
+  pub fn has_selection(&self) -> bool {
+    self.selection_anchor.is_some_and(|a| a != self.cursor)
+  }
+
+  pub fn selection_range(&self) -> (usize, usize) {
+    let anchor = self.selection_anchor.unwrap_or(self.cursor);
+    (anchor.min(self.cursor), anchor.max(self.cursor))
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextSelection {
   pub anchor: TextCursor,
   pub focus: TextCursor,

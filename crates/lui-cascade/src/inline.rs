@@ -4,7 +4,7 @@ use lui_parse::{HtmlNode, parse_declaration};
 /// Return inline style declarations for a node.
 /// The parser already parses `style=""` into `node.styles`.
 pub fn node_inline_style(node: &HtmlNode) -> Vec<Declaration> {
-  node.styles.clone()
+  node.styles().to_vec()
 }
 
 /// Parse a `style=""` attribute value into declarations.

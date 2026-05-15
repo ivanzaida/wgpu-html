@@ -6,8 +6,8 @@ use crate::helpers::{child_ctx, root_ctx};
 #[test]
 fn not_with_descendant_selector() {
   let doc = parse(r#"<div class="outer"><span class="inner"></span></div>"#);
-  let outer = &doc.root.children[0];
-  let inner = &outer.children[0];
+  let outer = &doc.root.children()[0];
+  let inner = &outer.children()[0];
 
   let sel = parse_selector_list(":not(.outer span)").unwrap();
   let ancestors = [AncestorEntry {
@@ -25,8 +25,8 @@ fn not_with_descendant_selector() {
 #[test]
 fn is_with_multiple_complex_selectors() {
   let doc = parse(r#"<div class="a"><p class="b"></p></div>"#);
-  let div = &doc.root.children[0];
-  let p = &div.children[0];
+  let div = &doc.root.children()[0];
+  let p = &div.children()[0];
 
   let sel = parse_selector_list(":is(.a > .b)").unwrap();
   let ancestors = [AncestorEntry {
@@ -40,8 +40,8 @@ fn is_with_multiple_complex_selectors() {
 #[test]
 fn is_with_comma_separated_complex() {
   let doc = parse(r#"<div class="x"><span></span></div>"#);
-  let div = &doc.root.children[0];
-  let span = &div.children[0];
+  let div = &doc.root.children()[0];
+  let span = &div.children()[0];
 
   // span matches the second alternative (.x > span)
   let sel = parse_selector_list(":is(.nope > p, .x > span)").unwrap();
@@ -56,8 +56,8 @@ fn is_with_comma_separated_complex() {
 #[test]
 fn not_with_child_combinator() {
   let doc = parse(r#"<div class="parent"><p></p></div>"#);
-  let parent = &doc.root.children[0];
-  let p = &parent.children[0];
+  let parent = &doc.root.children()[0];
+  let p = &parent.children()[0];
 
   let sel = parse_selector_list(":not(.parent > p)").unwrap();
   let ancestors = [AncestorEntry {

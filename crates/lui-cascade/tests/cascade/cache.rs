@@ -30,7 +30,7 @@ fn identical_siblings_get_same_style() {
 
   let div = &styled.children[0];
   for child in &div.children {
-    if child.node.element.is_text() {
+    if child.node.element().is_text() {
       continue;
     }
     assert!(child.style.color.is_some(), "cached style should have color");
@@ -80,12 +80,12 @@ fn cache_distinguishes_different_classes() {
   let a = div
     .children
     .iter()
-    .find(|c| !c.node.element.is_text() && c.node.class_list.iter().any(|cl| cl.as_ref() == "a"))
+    .find(|c| !c.node.element().is_text() && c.node.class_list().contains("a"))
     .unwrap();
   let b = div
     .children
     .iter()
-    .find(|c| !c.node.element.is_text() && c.node.class_list.iter().any(|cl| cl.as_ref() == "b"))
+    .find(|c| !c.node.element().is_text() && c.node.class_list().contains("b"))
     .unwrap();
   assert_ne!(a.style.color.unwrap(), b.style.color.unwrap());
 }
@@ -105,8 +105,8 @@ fn cache_distinguishes_different_ids() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let div = &styled.children[0];
-  let x = div.children.iter().find(|c| c.node.id.as_deref() == Some("x")).unwrap();
-  let y = div.children.iter().find(|c| c.node.id.as_deref() == Some("y")).unwrap();
+  let x = div.children.iter().find(|c| c.node.id() == Some("x")).unwrap();
+  let y = div.children.iter().find(|c| c.node.id() == Some("y")).unwrap();
   assert_ne!(x.style.color.unwrap(), y.style.color.unwrap());
 }
 
@@ -125,7 +125,7 @@ fn cache_distinguishes_inline_styles() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let div = &styled.children[0];
-  let spans: Vec<_> = div.children.iter().filter(|c| !c.node.element.is_text()).collect();
+  let spans: Vec<_> = div.children.iter().filter(|c| !c.node.element().is_text()).collect();
   assert_ne!(spans[0].style.color.unwrap(), spans[1].style.color.unwrap());
 }
 
@@ -147,7 +147,7 @@ fn cache_distinguishes_hover_state() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let div = &styled.children[0];
-  let spans: Vec<_> = div.children.iter().filter(|c| !c.node.element.is_text()).collect();
+  let spans: Vec<_> = div.children.iter().filter(|c| !c.node.element().is_text()).collect();
   // First span is hovered, second is not — they should have different colors
   assert_ne!(spans[0].style.color.unwrap(), spans[1].style.color.unwrap());
 }
@@ -164,7 +164,7 @@ fn many_identical_list_items_all_styled() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let ul = &styled.children[0];
-  let items: Vec<_> = ul.children.iter().filter(|c| !c.node.element.is_text()).collect();
+  let items: Vec<_> = ul.children.iter().filter(|c| !c.node.element().is_text()).collect();
   assert_eq!(items.len(), 50);
   for item in &items {
     assert!(item.style.color.is_some());
@@ -198,7 +198,7 @@ fn cache_respects_first_child_last_child() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let ul = &styled.children[0];
-  let items: Vec<_> = ul.children.iter().filter(|c| !c.node.element.is_text()).collect();
+  let items: Vec<_> = ul.children.iter().filter(|c| !c.node.element().is_text()).collect();
   assert_eq!(items.len(), 3);
   // first, middle, last should all have color but potentially different values
   // because :first-child and :last-child affect the cache key
@@ -281,7 +281,7 @@ fn cache_distinguishes_attribute_selectors() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let div = &styled.children[0];
-  let inputs: Vec<_> = div.children.iter().filter(|c| !c.node.element.is_text()).collect();
+  let inputs: Vec<_> = div.children.iter().filter(|c| !c.node.element().is_text()).collect();
   assert_eq!(inputs.len(), 5);
   // text and email inputs must get different colors
   assert_ne!(inputs[1].style.color.unwrap(), inputs[2].style.color.unwrap());
@@ -315,7 +315,7 @@ fn cache_distinguishes_data_attributes() {
   let styled = ctx.cascade(&doc.root, &media, &interaction);
 
   let div = &styled.children[0];
-  let spans: Vec<_> = div.children.iter().filter(|c| !c.node.element.is_text()).collect();
+  let spans: Vec<_> = div.children.iter().filter(|c| !c.node.element().is_text()).collect();
   assert_ne!(spans[0].style.color.unwrap(), spans[1].style.color.unwrap());
 }
 

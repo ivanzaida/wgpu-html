@@ -569,7 +569,7 @@ fn estimate_cell_height(cell: &LayoutBox, cell_w: f32, ctx: &LayoutContext, text
 }
 
 fn estimate_subtree_height(b: &LayoutBox, max_w: f32, ctx: &LayoutContext, text_ctx: &mut TextContext) -> f32 {
-  if let lui_core::HtmlElement::Text(ref content) = b.node.element {
+  if let lui_core::HtmlElement::Text(ref content) = *b.node.element() {
     let style = crate::text::text_style_from_cascade(b.style);
     let ws = css_str(b.style.white_space);
     let text = if !matches!(ws, "pre" | "pre-wrap" | "nowrap") {

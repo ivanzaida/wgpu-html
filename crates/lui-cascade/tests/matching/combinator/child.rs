@@ -6,8 +6,8 @@ use crate::helpers::child_ctx;
 #[test]
 fn matches_direct_child() {
   let doc = parse(r#"<div class="parent"><span></span></div>"#);
-  let parent = &doc.root.children[0];
-  let span = &parent.children[0];
+  let parent = &doc.root.children()[0];
+  let span = &parent.children()[0];
 
   let sel = parse_selector_list(".parent > span").unwrap();
   let ancestors = [AncestorEntry {
@@ -26,9 +26,9 @@ fn matches_direct_child() {
 #[test]
 fn rejects_grandchild() {
   let doc = parse(r#"<div class="gp"><div><span></span></div></div>"#);
-  let gp = &doc.root.children[0];
-  let mid = &gp.children[0];
-  let span = &mid.children[0];
+  let gp = &doc.root.children()[0];
+  let mid = &gp.children()[0];
+  let span = &mid.children()[0];
 
   let sel = parse_selector_list(".gp > span").unwrap();
   let ancestors = [
@@ -53,9 +53,9 @@ fn rejects_grandchild() {
 #[test]
 fn chained_child_combinators() {
   let doc = parse(r#"<div class="a"><div class="b"><span></span></div></div>"#);
-  let a = &doc.root.children[0];
-  let b = &a.children[0];
-  let span = &b.children[0];
+  let a = &doc.root.children()[0];
+  let b = &a.children()[0];
+  let span = &b.children()[0];
 
   let sel = parse_selector_list(".a > .b > span").unwrap();
   let ancestors = [
@@ -74,10 +74,10 @@ fn chained_child_combinators() {
 #[test]
 fn mixed_descendant_and_child() {
   let doc = parse(r#"<div class="root"><section><div class="inner"><p></p></div></section></div>"#);
-  let root = &doc.root.children[0];
-  let section = &root.children[0];
-  let inner = &section.children[0];
-  let p = &inner.children[0];
+  let root = &doc.root.children()[0];
+  let section = &root.children()[0];
+  let inner = &section.children()[0];
+  let p = &inner.children()[0];
 
   let sel = parse_selector_list(".root .inner > p").unwrap();
   let ancestors = [

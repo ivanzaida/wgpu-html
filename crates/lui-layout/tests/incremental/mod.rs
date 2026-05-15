@@ -272,7 +272,7 @@ fn rects_populated_for_cloned_subtrees() {
     assert!(
       found,
       "full layout rect for {} not found in incremental rects",
-      node.element.tag_name()
+      node.element().tag_name()
     );
   }
 }

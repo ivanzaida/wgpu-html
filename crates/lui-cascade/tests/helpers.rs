@@ -27,7 +27,7 @@ pub fn child_ctx(index: usize, count: usize) -> MatchContext<'static> {
 #[track_caller]
 pub fn assert_matches(selector: &str, html: &str) {
   let doc = parse(html);
-  let node = &doc.root.children[0];
+  let node = &doc.root.children()[0];
   let sel = parse_selector_list(selector).unwrap();
   assert!(
     any_selector_matches(&sel, node, &root_ctx(), &[], Some(&doc.root)).is_some(),
@@ -40,7 +40,7 @@ pub fn assert_matches(selector: &str, html: &str) {
 #[track_caller]
 pub fn assert_no_match(selector: &str, html: &str) {
   let doc = parse(html);
-  let node = &doc.root.children[0];
+  let node = &doc.root.children()[0];
   let sel = parse_selector_list(selector).unwrap();
   assert!(
     any_selector_matches(&sel, node, &root_ctx(), &[], Some(&doc.root)).is_none(),

@@ -8,22 +8,25 @@ use crate::{
 /// Build an `HtmlNode` from raw attribute pairs, parsing inline styles.
 pub fn html_node_with_attrs(mut node: HtmlNode, attrs: Vec<(String, String)>) -> HtmlNode {
   for (k, v) in attrs {
-    if k == "id" {
-      node.id = Some(ArcStr::from(v.as_str()));
-    } else if k == "class" {
-      node.class_list = v.split_ascii_whitespace().map(|c| ArcStr::from(c)).collect();
-    } else if k == "style" {
-      node.styles = parse_declaration_block(&v).unwrap_or_default();
-    } else if let Some(rest) = k.strip_prefix("data-") {
-      node.data_attrs.insert(ArcStr::from(rest), ArcStr::from(v.as_str()));
-    } else if let Some(rest) = k.strip_prefix("aria-") {
-      node.aria_attrs.insert(ArcStr::from(rest), ArcStr::from(v.as_str()));
+    if k == "style" {
+      node.set_styles(parse_declaration_block(&v).unwrap_or_default());
     } else {
-      node.attrs.insert(ArcStr::from(k.as_str()), ArcStr::from(v.as_str()));
+      node.set_attribute(&k, &v);
     }
   }
-  node.recompute_hash();
   node
+}
+
+/// Parse an HTML fragment and replace `target`'s children with the result.
+pub fn set_inner_html(target: &mut HtmlNode, html: &str) {
+  let doc = parse(&format!("<html><body>{html}</body></html>"));
+  let body = doc
+    .root
+    .into_children()
+    .into_iter()
+    .find(|n| matches!(n.element(), HtmlElement::Body));
+  let body_children = body.map(|n| n.into_children()).unwrap_or_default();
+  target.set_children(body_children);
 }
 
 /// Parse an HTML string into a `HtmlDocument`.
@@ -98,7 +101,7 @@ impl TreeBuilder {
   }
 
   fn finish(self) -> HtmlDocument {
-    let root = if self.document.len() == 1 && self.document[0].element == HtmlElement::Html {
+    let root = if self.document.len() == 1 && *self.document[0].element() == HtmlElement::Html {
       self.document.into_iter().next().unwrap()
     } else {
       HtmlNode::new(HtmlElement::Html).with_children(self.document)
@@ -123,7 +126,7 @@ impl TreeBuilder {
     if element == HtmlElement::Style {
       let css_text: String = children
         .iter()
-        .filter_map(|c| match &c.element {
+        .filter_map(|c| match c.element() {
           HtmlElement::Text(s) => Some(s.as_ref()),
           _ => None,
         })

@@ -398,7 +398,7 @@ fn apply_vertical_align(children: &mut [LayoutBox], line_height: f32) {
 }
 
 fn get_text(node: &lui_core::HtmlNode) -> Option<String> {
-  if let lui_core::HtmlElement::Text(t) = &node.element {
+  if let lui_core::HtmlElement::Text(t) = node.element() {
     Some(t.to_string())
   } else {
     None

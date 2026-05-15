@@ -47,9 +47,9 @@ impl HtmlNode {
     out
   }
 
-  pub fn get_elements_by_tag_name_mut(&mut self, tag_name: ArcStr) -> Vec<&HtmlNode> {
+  pub fn get_elements_by_tag_name_mut(&mut self, tag_name: ArcStr) -> Vec<&mut HtmlNode> {
     let mut out = Vec::new();
-    collect_by_tag(self, tag_name.as_ref(), &mut out);
+    collect_by_tag_mut(self, tag_name.as_ref(), &mut out);
     out
   }
 
@@ -95,7 +95,7 @@ impl HtmlNode {
 }
 
 fn collect_by_class<'a>(node: &'a HtmlNode, class: &ArcStr, out: &mut Vec<&'a HtmlNode>) {
-  if node.class_list.iter().any(|c| c == class) {
+  if node.class_list.contains(class) {
     out.push(node);
   }
   for child in &node.children {
@@ -104,7 +104,7 @@ fn collect_by_class<'a>(node: &'a HtmlNode, class: &ArcStr, out: &mut Vec<&'a Ht
 }
 
 fn collect_by_class_mut<'a>(node: &'a mut HtmlNode, class: &ArcStr, out: &mut Vec<&'a mut HtmlNode>) {
-  let matches = node.class_list.iter().any(|c| c == class);
+  let matches = node.class_list.contains(class);
   if matches {
     out.push(node);
   } else {
@@ -120,6 +120,17 @@ fn collect_by_tag<'a>(node: &'a HtmlNode, tag: &str, out: &mut Vec<&'a HtmlNode>
   }
   for child in &node.children {
     collect_by_tag(child, tag, out);
+  }
+}
+
+fn collect_by_tag_mut<'a>(node: &'a mut HtmlNode, tag: &str, out: &mut Vec<&'a mut HtmlNode>) {
+  let matches = node.element.tag_name() == tag;
+  if matches {
+    out.push(node);
+  } else {
+    for child in &mut node.children {
+      collect_by_tag_mut(child, tag, out);
+    }
   }
 }
 

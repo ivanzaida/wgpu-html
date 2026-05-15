@@ -66,6 +66,6 @@ fn text_node_inherits_from_parent() {
   let interaction = InteractionState::default();
   let styled = ctx.cascade(&doc.root, &media, &interaction);
   let text = &styled.children[0].children[0];
-  assert!(text.node.element.is_text());
+  assert!(text.node.element().is_text());
   assert_eq!(*text.style.color.unwrap(), val("red"));
 }

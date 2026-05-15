@@ -1,5 +1,5 @@
 use lui_core::{EventPhase, events::DocumentEvent};
-use lui_parse::HtmlNode;
+use lui_parse::{HtmlDocument, HtmlNode};
 
 /// Find the path (child indices) from `root` to the node at `target` pointer.
 pub fn find_node_path(root: &HtmlNode, target: *const HtmlNode) -> Option<Vec<usize>> {
@@ -15,7 +15,7 @@ fn find_path_inner(node: &HtmlNode, target: *const HtmlNode, path: &mut Vec<usiz
   if std::ptr::eq(node, target) {
     return true;
   }
-  for (i, child) in node.children.iter().enumerate() {
+  for (i, child) in node.children().iter().enumerate() {
     path.push(i);
     if find_path_inner(child, target, path) {
       return true;
@@ -25,8 +25,17 @@ fn find_path_inner(node: &HtmlNode, target: *const HtmlNode, path: &mut Vec<usiz
   false
 }
 
-/// Dispatch `event` along the DOM path with W3C capture → target → bubble phases.
-pub fn dispatch_event(root: &mut HtmlNode, path: &[usize], event: &mut DocumentEvent) {
+/// Dispatch `event` along the DOM path with W3C capture → target → bubble phases,
+/// then fire document-level listeners at the end of the bubble chain.
+pub fn dispatch_event(doc: &mut HtmlDocument, path: &[usize], event: &mut DocumentEvent) {
+  dispatch_on_nodes(&mut doc.root, path, event);
+
+  if event.base().bubbles && !event.is_propagation_stopped() {
+    doc.dispatch_event(event);
+  }
+}
+
+fn dispatch_on_nodes(root: &mut HtmlNode, path: &[usize], event: &mut DocumentEvent) {
   // Capture phase: root → parent of target
   for depth in 0..path.len() {
     if event.is_propagation_stopped() {
@@ -58,9 +67,5 @@ pub fn dispatch_event(root: &mut HtmlNode, path: &[usize], event: &mut DocumentE
 }
 
 fn node_at_path_mut<'a>(root: &'a mut HtmlNode, path: &[usize]) -> Option<&'a mut HtmlNode> {
-  let mut current = root;
-  for &idx in path {
-    current = current.children.get_mut(idx)?;
-  }
-  Some(current)
+  root.at_path_mut(path)
 }

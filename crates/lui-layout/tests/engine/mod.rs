@@ -28,7 +28,7 @@ fn full_layout_simple_div_with_paragraphs() {
   assert!(!lt.root.children.is_empty(), "root should have children");
 
   // Find the body
-  let body = lt.root.children.iter().find(|c| c.node.element.tag_name() == "body");
+  let body = lt.root.children.iter().find(|c| c.node.element().tag_name() == "body");
   assert!(body.is_some(), "should have a body element");
 
   let body = body.unwrap();
@@ -123,7 +123,7 @@ fn full_layout_content_rects_are_stacked_vertically() {
   // Parser: html > div > [p, p, p] (no head/body)
   // lt.root is the html block. Its children are the div and any text/anonymous wrappers.
   // Find the div
-  let div = lt.root.children.iter().find(|c| c.node.element.tag_name() == "div");
+  let div = lt.root.children.iter().find(|c| c.node.element().tag_name() == "div");
   assert!(div.is_some(), "should have div");
   let div = div.unwrap();
 

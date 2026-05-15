@@ -85,8 +85,8 @@ fn walk_collect<'a>(
   path: &mut Vec<usize>,
   results: &mut Vec<&'a HtmlNode>,
 ) {
-  let count = node.children.len();
-  for (i, child) in node.children.iter().enumerate() {
+  let count = node.children().len();
+  for (i, child) in node.children().iter().enumerate() {
     let ctx = child_ctx(i, count);
 
     let mut child_ancestors = vec![AncestorEntry {
@@ -118,8 +118,8 @@ fn walk_first<'a>(
   ancestors: &[AncestorEntry<'a>],
   path: &mut Vec<usize>,
 ) -> Option<&'a HtmlNode> {
-  let count = node.children.len();
-  for (i, child) in node.children.iter().enumerate() {
+  let count = node.children().len();
+  for (i, child) in node.children().iter().enumerate() {
     let ctx = child_ctx(i, count);
 
     let mut child_ancestors = vec![AncestorEntry {

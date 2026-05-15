@@ -27,7 +27,7 @@ pub fn auto() -> CssValue {
 }
 
 pub fn find_by_tag<'a>(b: &'a LayoutBox<'a>, tag: &str) -> Option<&'a LayoutBox<'a>> {
-  if b.node.element.tag_name() == tag {
+  if b.node.element().tag_name() == tag {
     return Some(b);
   }
   for child in &b.children {

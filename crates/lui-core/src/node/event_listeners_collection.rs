@@ -1,8 +1,4 @@
-use std::{
-  fmt,
-  ops::{Deref, DerefMut},
-  sync::Arc,
-};
+use std::{fmt, sync::Arc};
 
 use crate::{ArcStr, HtmlNode, events::DocumentEvent};
 
@@ -21,25 +17,6 @@ pub struct EventListenerOptions {
 }
 
 pub type EventHandler = Arc<dyn Fn(&mut HtmlNode, &mut DocumentEvent) + Send + Sync>;
-
-struct NodeGuard<'a> {
-  node: &'a mut HtmlNode,
-  changed: bool,
-}
-
-impl Deref for NodeGuard<'_> {
-  type Target = HtmlNode;
-  fn deref(&self) -> &HtmlNode {
-    self.node
-  }
-}
-
-impl DerefMut for NodeGuard<'_> {
-  fn deref_mut(&mut self) -> &mut HtmlNode {
-    self.changed = true;
-    self.node
-  }
-}
 
 #[derive(Clone)]
 struct ListenerWithOptions {
@@ -118,18 +95,12 @@ impl EventListenersCollection {
         let is_once = options.once;
         let is_passive = options.passive;
 
-        let mut guard = NodeGuard { node, changed: false };
-
         if is_passive {
           let saved = event.base().default_prevented;
-          (handler)(&mut guard, event);
+          (handler)(node, event);
           event.base_mut().default_prevented = saved;
         } else {
-          (handler)(&mut guard, event);
-        }
-
-        if guard.changed {
-          guard.node.recompute_hash();
+          (handler)(node, event);
         }
 
         is_once
