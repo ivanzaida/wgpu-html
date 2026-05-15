@@ -3,7 +3,7 @@ use lui_core::{
   transform::{parse_transform, parse_transform_origin, Transform2D},
 };
 use lui_glyph::TextContext;
-use lui_layout::LayoutBox;
+use lui_layout::{BoxKind, LayoutBox};
 
 use super::{background, border, clip, form, scrollbar, shadow, style, text};
 
@@ -45,9 +45,12 @@ pub fn paint_box_sel(
 
   let (radii_h, radii_v) = style::border_radii(b.style, border_rect.w, border_rect.h);
 
-  shadow::paint_box_shadows(b.style.box_shadow, border_rect, radii_h, radii_v, opacity, dl);
-  background::paint_background(b, border_rect, radii_h, radii_v, opacity, dl);
-  border::paint_borders(b, border_rect, radii_h, radii_v, opacity, dl);
+  let is_anon = matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline);
+  if !is_anon {
+    shadow::paint_box_shadows(b.style.box_shadow, border_rect, radii_h, radii_v, opacity, dl);
+    background::paint_background(b, border_rect, radii_h, radii_v, opacity, dl);
+    border::paint_borders(b, border_rect, radii_h, radii_v, opacity, dl);
+  }
 
   if b.node.element().is_text() {
     text::paint_text_with_selection(
