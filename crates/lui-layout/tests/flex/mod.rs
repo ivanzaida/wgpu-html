@@ -1733,3 +1733,26 @@ fn flex_column_center_preserves_explicit_child_sizes() {
     layout_center
   );
 }
+
+#[test]
+fn flex_items_no_grow_padding_not_doubled() {
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:flex; width:400px"><div style="padding:0 20px">A</div><div style="padding:0 20px">B</div></div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let a = &flex.children[0];
+  let b = &flex.children[1];
+  let a_outer = a.content.width + a.padding.left + a.padding.right + a.border.left + a.border.right;
+  let b_outer = b.content.width + b.padding.left + b.padding.right + b.border.left + b.border.right;
+  let total = a_outer + b_outer;
+  assert!(
+    total < 200.0,
+    "items with no flex-grow should be content-sized, total outer={}",
+    total
+  );
+}

@@ -47,6 +47,19 @@ fn is_auto(v: Option<&lui_core::CssValue>) -> bool {
   matches!(css_str(v), "auto")
 }
 
+fn is_whitespace_only_anon(b: &LayoutBox) -> bool {
+  if !matches!(b.kind, BoxKind::AnonymousBlock) {
+    return false;
+  }
+  b.children.iter().all(|child| {
+    if let lui_core::HtmlElement::Text(ref content) = *child.node.element() {
+      content.chars().all(|c| c.is_ascii_whitespace())
+    } else {
+      false
+    }
+  })
+}
+
 // ── Public entry point ────────────────────────────────────────────────
 
 pub fn layout_flex<'a>(
@@ -122,7 +135,7 @@ pub fn layout_flex<'a>(
   }
   .unwrap_or(0.0);
 
-  // Phase 1: build flex items (filter out-of-flow children)
+  // Phase 1: build flex items (filter out-of-flow children and whitespace-only anon items)
   let mut items: Vec<FlexItem<'a>> = Vec::with_capacity(b.children.len());
   let mut out_of_flow: Vec<LayoutBox<'a>> = Vec::new();
   let taken_children = std::mem::replace(&mut b.children, bumpalo::collections::Vec::new_in(bump));
@@ -132,6 +145,9 @@ pub fn layout_flex<'a>(
     }
     if crate::positioned::is_out_of_flow(child.style) {
       out_of_flow.push(child);
+      continue;
+    }
+    if is_whitespace_only_anon(&child) {
       continue;
     }
     let item = build_item(child, idx, is_row, main_axis_size, cross_axis_size, ctx, text_ctx);
@@ -570,28 +586,29 @@ fn build_item<'a>(
     (auto_left, auto_right)
   };
 
-  // Flex basis
+  // Flex basis — measure_max/min_content_width returns border-box,
+  // but base_size must be content-box (frame is added separately).
   let main_prop = if is_row { style.width } else { style.height };
   let basis_keyword = css_str(style.flex_basis);
   let basis = match basis_keyword {
     "content" | "max-content" => Some(if is_row {
-      measure_max_content_width(&child, text_ctx)
+      (measure_max_content_width(&child, text_ctx) - frame_main).max(0.0)
     } else {
-      measure_max_content_height(&child, text_ctx)
+      (measure_max_content_height(&child, text_ctx) - frame_main).max(0.0)
     }),
     "min-content" => Some(if is_row {
-      measure_min_content_width(&child, text_ctx)
+      (measure_min_content_width(&child, text_ctx) - frame_main).max(0.0)
     } else {
-      measure_min_content_height(&child, text_ctx)
+      (measure_min_content_height(&child, text_ctx) - frame_main).max(0.0)
     }),
     _ => sizes::resolve_length(style.flex_basis, containing).or_else(|| sizes::resolve_length(main_prop, containing)),
   };
   let base_size = basis
     .unwrap_or_else(|| {
       if is_row {
-        measure_max_content_width(&child, text_ctx)
+        (measure_max_content_width(&child, text_ctx) - frame_main).max(0.0)
       } else {
-        measure_max_content_height(&child, text_ctx)
+        (measure_max_content_height(&child, text_ctx) - frame_main).max(0.0)
       }
     })
     .max(0.0);
@@ -603,9 +620,9 @@ fn build_item<'a>(
   };
   let main_min = sizes::resolve_length(min_prop, containing).unwrap_or_else(|| {
     let content_min = if is_row {
-      measure_min_content_width(&child, text_ctx)
+      (measure_min_content_width(&child, text_ctx) - frame_main).max(0.0)
     } else {
-      measure_min_content_height(&child, text_ctx)
+      (measure_min_content_height(&child, text_ctx) - frame_main).max(0.0)
     };
     content_min.min(base_size)
   });
@@ -737,13 +754,28 @@ fn layout_flex_item<'a>(
       }
     }
     _ => {
-      crate::block::layout_block(b, &child_ctx, origin, text_ctx, rects, cache, bump);
-      if let Some(w) = override_w {
-        b.content.width = w;
+      let mut cursor_y = b.content.y;
+      for child in b.children.iter_mut() {
+        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
+        let old = std::mem::replace(child, placeholder);
+        let result = crate::engine::layout_node(
+          old,
+          &child_ctx,
+          Point::new(b.content.x, cursor_y),
+          text_ctx,
+          rects,
+          cache,
+          bump,
+        );
+        *child = result;
+        cursor_y += child.outer_height();
       }
-      if let Some(h) = override_h {
-        b.content.height = h;
-      }
+      let content_h = (cursor_y - b.content.y).max(0.0);
+      b.content.height = override_h
+        .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height))
+        .unwrap_or(content_h);
+
+      finalize_flex_item_scroll(b);
     }
   }
 }
@@ -777,7 +809,7 @@ fn finalize_flex_item_scroll(b: &mut LayoutBox) {
   let show_y = matches!(ov_y, Overflow::Scroll) || (ov_y == Overflow::Auto && overflows_y);
   let show_x = matches!(ov_x, Overflow::Scroll) || (ov_x == Overflow::Auto && overflows_x);
 
-  let scrollbar_w = lui_core::resolve_scrollbar_width(b.style.scrollbar_width);
+  let scrollbar_w = crate::block::resolve_scrollbar_width(b);
   let sb_w = if show_y || show_x { scrollbar_w } else { 0.0 };
 
   b.scroll = Some(ScrollInfo {
@@ -803,6 +835,10 @@ fn translate_box(b: &mut LayoutBox, target_x: f32, target_y: f32) {
 fn translate_box_delta(b: &mut LayoutBox, dx: f32, dy: f32) {
   b.content.x += dx;
   b.content.y += dy;
+  if let Some(ref mut clip) = b.clip {
+    clip.x += dx;
+    clip.y += dy;
+  }
   for child in &mut b.children {
     translate_box_delta(child, dx, dy);
   }

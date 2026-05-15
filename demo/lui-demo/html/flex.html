@@ -1,0 +1,954 @@
+<style>
+    .fx-section {
+        margin-bottom: 24px;
+        box-sizing: border-box;
+        color: #eee;
+        font-size: 14px;
+    }
+    .fx-label {
+        color: #8888cc;
+        margin-bottom: 8px;
+        font-size: 12px;
+        box-sizing: border-box;
+    }
+    .fx-box {
+        background: #16213e;
+        border: 1px solid #0f3460;
+        padding: 4px;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    .fx-a {
+        background: #e94560;
+        padding: 8px 12px;
+        color: white;
+        box-sizing: border-box;
+    }
+    .fx-b {
+        background: #0f3460;
+        padding: 8px 12px;
+        color: white;
+        box-sizing: border-box;
+    }
+    .fx-c {
+        background: #533483;
+        padding: 8px 12px;
+        color: white;
+        box-sizing: border-box;
+    }
+    .fx-d {
+        background: #e98020;
+        padding: 8px 12px;
+        color: white;
+        box-sizing: border-box;
+    }
+
+    /* 1. FLEX DIRECTION */
+    .fx-dir-row {
+        display: flex;
+        flex-direction: row;
+    }
+    .fx-dir-row-reverse {
+        display: flex;
+        flex-direction: row-reverse;
+    }
+    .fx-dir-column {
+        display: flex;
+        flex-direction: column;
+    }
+    .fx-dir-column-reverse {
+        display: flex;
+        flex-direction: column-reverse;
+        height: 120px;
+    }
+
+    /* 2. JUSTIFY-CONTENT */
+    .fx-jc-start {
+        display: flex;
+        justify-content: flex-start;
+    }
+    .fx-jc-end {
+        display: flex;
+        justify-content: flex-end;
+    }
+    .fx-jc-center {
+        display: flex;
+        justify-content: center;
+    }
+    .fx-jc-between {
+        display: flex;
+        justify-content: space-between;
+    }
+    .fx-jc-around {
+        display: flex;
+        justify-content: space-around;
+    }
+    .fx-jc-evenly {
+        display: flex;
+        justify-content: space-evenly;
+    }
+
+    /* 3. ALIGN-ITEMS */
+    .fx-ai-stretch {
+        display: flex;
+        align-items: stretch;
+        height: 80px;
+    }
+    .fx-ai-start {
+        display: flex;
+        align-items: flex-start;
+        height: 80px;
+    }
+    .fx-ai-end {
+        display: flex;
+        align-items: flex-end;
+        height: 80px;
+    }
+    .fx-ai-center {
+        display: flex;
+        align-items: center;
+        height: 80px;
+    }
+    .fx-ai-baseline {
+        display: flex;
+        align-items: baseline;
+        height: 80px;
+    }
+
+    /* 4. ALIGN-SELF */
+    .fx-as-container {
+        display: flex;
+        align-items: flex-start;
+        height: 100px;
+    }
+    .fx-as-center {
+        align-self: center;
+    }
+    .fx-as-end {
+        align-self: flex-end;
+    }
+    .fx-as-stretch {
+        align-self: stretch;
+    }
+
+    /* 5. FLEX-WRAP */
+    .fx-wrap-nowrap {
+        display: flex;
+        flex-wrap: nowrap;
+        width: 300px;
+    }
+    .fx-wrap-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        width: 300px;
+    }
+    .fx-wrap-reverse {
+        display: flex;
+        flex-wrap: wrap-reverse;
+        width: 300px;
+        height: 150px;
+    }
+
+    /* 6. ALIGN-CONTENT */
+    .fx-ac-start {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        width: 250px;
+        height: 180px;
+    }
+    .fx-ac-end {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-end;
+        width: 250px;
+        height: 180px;
+    }
+    .fx-ac-center {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        width: 250px;
+        height: 180px;
+    }
+    .fx-ac-between {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: space-between;
+        width: 250px;
+        height: 180px;
+    }
+    .fx-ac-around {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: space-around;
+        width: 250px;
+        height: 180px;
+    }
+    .fx-ac-stretch {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: stretch;
+        width: 250px;
+        height: 180px;
+    }
+
+    /* 7. FLEX-GROW */
+    .fx-grow-container {
+        display: flex;
+        width: 400px;
+    }
+    .fx-grow-0 { flex-grow: 0; }
+    .fx-grow-1 { flex-grow: 1; }
+    .fx-grow-2 { flex-grow: 2; }
+    .fx-grow-3 { flex-grow: 3; }
+
+    /* 8. FLEX-SHRINK */
+    .fx-shrink-container {
+        display: flex;
+        width: 200px;
+    }
+    .fx-shrink-0 { flex-shrink: 0; width: 150px; }
+    .fx-shrink-1 { flex-shrink: 1; width: 150px; }
+    .fx-shrink-3 { flex-shrink: 3; width: 150px; }
+
+    /* 9. FLEX-BASIS */
+    .fx-basis-container {
+        display: flex;
+        width: 400px;
+    }
+    .fx-basis-auto { flex-basis: auto; }
+    .fx-basis-0 { flex-basis: 0; flex-grow: 1; }
+    .fx-basis-100 { flex-basis: 100px; }
+    .fx-basis-50pct { flex-basis: 50%; }
+
+    /* 10. FLEX SHORTHAND */
+    .fx-short-container {
+        display: flex;
+        width: 400px;
+    }
+    .fx-flex-none { flex: none; }
+    .fx-flex-1 { flex: 1; }
+    .fx-flex-auto { flex: auto; }
+    .fx-flex-initial { flex: initial; }
+    .fx-flex-2-1-100 { flex: 2 1 100px; }
+
+    /* 11. GAP */
+    .fx-gap-uniform {
+        display: flex;
+        gap: 12px;
+    }
+    .fx-gap-row-col {
+        display: flex;
+        flex-wrap: wrap;
+        width: 300px;
+        row-gap: 8px;
+        column-gap: 20px;
+    }
+
+    /* 12. ORDER */
+    .fx-order-container {
+        display: flex;
+    }
+    .fx-order-3 { order: 3; }
+    .fx-order-1 { order: 1; }
+    .fx-order-2 { order: 2; }
+    .fx-order-n1 { order: -1; }
+
+    /* 13. NESTED FLEX */
+    .fx-nested-outer {
+        display: flex;
+        gap: 8px;
+        height: 120px;
+    }
+    .fx-nested-inner-col {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        gap: 4px;
+    }
+    .fx-nested-inner-row {
+        display: flex;
+        flex: 2;
+        gap: 4px;
+        align-items: center;
+    }
+
+    /* 14. MIN/MAX SIZE CONSTRAINTS */
+    .fx-minmax-container {
+        display: flex;
+        width: 500px;
+    }
+    .fx-min-w { flex: 1; min-width: 150px; }
+    .fx-max-w { flex: 1; max-width: 100px; }
+
+    /* 15. MARGIN AUTO */
+    .fx-margin-auto-container {
+        display: flex;
+        width: 400px;
+        height: 60px;
+    }
+    .fx-ml-auto { margin-left: auto; }
+    .fx-m-auto { margin: auto; }
+
+    /* 16. PERCENTAGE SIZING */
+    .fx-pct-container {
+        display: flex;
+        width: 400px;
+    }
+    .fx-pct-25 { width: 25%; }
+    .fx-pct-50 { width: 50%; }
+
+    /* 17. OVERFLOW */
+    .fx-overflow-container {
+        display: flex;
+        width: 200px;
+        height: 60px;
+    }
+    .fx-overflow-hidden {
+        overflow: hidden;
+        flex: 1;
+    }
+    .fx-overflow-scroll {
+        overflow: auto;
+        flex: 1;
+    }
+
+    /* 18. ABSOLUTE POSITIONING IN FLEX */
+    .fx-pos-container {
+        display: flex;
+        position: relative;
+        height: 80px;
+        width: 300px;
+    }
+    .fx-pos-abs {
+        position: absolute;
+        right: 0;
+        top: 0;
+        background: #e94560;
+        padding: 4px 8px;
+    }
+
+    /* 19. COLUMN + JUSTIFY/ALIGN */
+    .fx-col-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 150px;
+        width: 200px;
+    }
+    .fx-col-between {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 150px;
+        width: 200px;
+    }
+
+    /* 20. INTRINSIC SIZING */
+    .fx-intrinsic-container {
+        display: flex;
+    }
+    .fx-intrinsic-wide {
+        padding: 8px 60px;
+    }
+    .fx-intrinsic-narrow {
+        padding: 8px 10px;
+    }
+
+    /* 21. FLEX + BORDER + PADDING */
+    .fx-bp-container {
+        display: flex;
+        width: 300px;
+        padding: 10px;
+        border: 3px solid #e94560;
+        gap: 8px;
+        box-sizing: border-box;
+    }
+    .fx-bp-item {
+        flex: 1;
+        padding: 12px;
+        border: 2px solid #533483;
+        background: #16213e;
+        box-sizing: border-box;
+    }
+
+    /* 22. ZERO-SIZE FLEX ITEMS */
+    .fx-zero-container {
+        display: flex;
+        width: 300px;
+    }
+    .fx-zero-basis {
+        flex: 1 1 0;
+    }
+
+    /* 23. SINGLE ITEM CENTERING */
+    .fx-single-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 200px;
+        height: 100px;
+    }
+
+    /* 24. WRAPPING + GAP + JUSTIFY */
+    .fx-wrap-gap-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 280px;
+        justify-content: center;
+    }
+    .fx-wrap-gap-item {
+        width: 80px;
+        height: 40px;
+        text-align: center;
+    }
+
+    /* 25. COLUMN WRAP */
+    .fx-col-wrap {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: wrap;
+        height: 120px;
+        width: 300px;
+        gap: 4px;
+    }
+    .fx-col-wrap-item {
+        width: 80px;
+        height: 35px;
+    }
+</style>
+
+
+<!-- 1. FLEX DIRECTION -->
+
+<div class="fx-section">
+    <div class="fx-label">1a. flex-direction: row</div>
+    <div class="fx-box fx-dir-row">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">1b. flex-direction: row-reverse</div>
+    <div class="fx-box fx-dir-row-reverse">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">1c. flex-direction: column</div>
+    <div class="fx-box fx-dir-column">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">1d. flex-direction: column-reverse</div>
+    <div class="fx-box fx-dir-column-reverse">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+
+<!-- 2. JUSTIFY-CONTENT -->
+
+<div class="fx-section">
+    <div class="fx-label">2a. justify-content: flex-start</div>
+    <div class="fx-box fx-jc-start">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">2b. justify-content: flex-end</div>
+    <div class="fx-box fx-jc-end">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">2c. justify-content: center</div>
+    <div class="fx-box fx-jc-center">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">2d. justify-content: space-between</div>
+    <div class="fx-box fx-jc-between">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">2e. justify-content: space-around</div>
+    <div class="fx-box fx-jc-around">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">2f. justify-content: space-evenly</div>
+    <div class="fx-box fx-jc-evenly">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+
+<!-- 3. ALIGN-ITEMS -->
+
+<div class="fx-section">
+    <div class="fx-label">3a. align-items: stretch (default)</div>
+    <div class="fx-box fx-ai-stretch">
+        <div class="fx-a">Short</div>
+        <div class="fx-b">Tall<br>Text</div>
+        <div class="fx-c">Med</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">3b. align-items: flex-start</div>
+    <div class="fx-box fx-ai-start">
+        <div class="fx-a">Short</div>
+        <div class="fx-b">Tall<br>Text</div>
+        <div class="fx-c">Med</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">3c. align-items: flex-end</div>
+    <div class="fx-box fx-ai-end">
+        <div class="fx-a">Short</div>
+        <div class="fx-b">Tall<br>Text</div>
+        <div class="fx-c">Med</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">3d. align-items: center</div>
+    <div class="fx-box fx-ai-center">
+        <div class="fx-a">Short</div>
+        <div class="fx-b">Tall<br>Text</div>
+        <div class="fx-c">Med</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">3e. align-items: baseline</div>
+    <div class="fx-box fx-ai-baseline">
+        <div class="fx-a" style="font-size: 20px;">Big</div>
+        <div class="fx-b" style="font-size: 12px;">Small</div>
+        <div class="fx-c" style="padding-top: 20px;">Padded</div>
+    </div>
+</div>
+
+
+<!-- 4. ALIGN-SELF -->
+
+<div class="fx-section">
+    <div class="fx-label">4. align-self overrides</div>
+    <div class="fx-box fx-as-container">
+        <div class="fx-a">start(default)</div>
+        <div class="fx-b fx-as-center">center</div>
+        <div class="fx-c fx-as-end">end</div>
+        <div class="fx-d fx-as-stretch">stretch</div>
+    </div>
+</div>
+
+
+<!-- 5. FLEX-WRAP -->
+
+<div class="fx-section">
+    <div class="fx-label">5a. flex-wrap: nowrap (items overflow)</div>
+    <div class="fx-box fx-wrap-nowrap">
+        <div class="fx-a" style="width:120px;">120px</div>
+        <div class="fx-b" style="width:120px;">120px</div>
+        <div class="fx-c" style="width:120px;">120px</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">5b. flex-wrap: wrap</div>
+    <div class="fx-box fx-wrap-wrap">
+        <div class="fx-a" style="width:120px;">120px</div>
+        <div class="fx-b" style="width:120px;">120px</div>
+        <div class="fx-c" style="width:120px;">120px</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">5c. flex-wrap: wrap-reverse</div>
+    <div class="fx-box fx-wrap-reverse">
+        <div class="fx-a" style="width:120px;">120px</div>
+        <div class="fx-b" style="width:120px;">120px</div>
+        <div class="fx-c" style="width:120px;">120px</div>
+    </div>
+</div>
+
+
+<!-- 6. ALIGN-CONTENT -->
+
+<div class="fx-section">
+    <div class="fx-label">6a. align-content: flex-start</div>
+    <div class="fx-box fx-ac-start">
+        <div class="fx-a" style="width:100px;">A</div>
+        <div class="fx-b" style="width:100px;">B</div>
+        <div class="fx-c" style="width:100px;">C</div>
+        <div class="fx-d" style="width:100px;">D</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">6b. align-content: flex-end</div>
+    <div class="fx-box fx-ac-end">
+        <div class="fx-a" style="width:100px;">A</div>
+        <div class="fx-b" style="width:100px;">B</div>
+        <div class="fx-c" style="width:100px;">C</div>
+        <div class="fx-d" style="width:100px;">D</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">6c. align-content: center</div>
+    <div class="fx-box fx-ac-center">
+        <div class="fx-a" style="width:100px;">A</div>
+        <div class="fx-b" style="width:100px;">B</div>
+        <div class="fx-c" style="width:100px;">C</div>
+        <div class="fx-d" style="width:100px;">D</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">6d. align-content: space-between</div>
+    <div class="fx-box fx-ac-between">
+        <div class="fx-a" style="width:100px;">A</div>
+        <div class="fx-b" style="width:100px;">B</div>
+        <div class="fx-c" style="width:100px;">C</div>
+        <div class="fx-d" style="width:100px;">D</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">6e. align-content: space-around</div>
+    <div class="fx-box fx-ac-around">
+        <div class="fx-a" style="width:100px;">A</div>
+        <div class="fx-b" style="width:100px;">B</div>
+        <div class="fx-c" style="width:100px;">C</div>
+        <div class="fx-d" style="width:100px;">D</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">6f. align-content: stretch</div>
+    <div class="fx-box fx-ac-stretch">
+        <div class="fx-a" style="width:100px;">A</div>
+        <div class="fx-b" style="width:100px;">B</div>
+        <div class="fx-c" style="width:100px;">C</div>
+        <div class="fx-d" style="width:100px;">D</div>
+    </div>
+</div>
+
+
+<!-- 7. FLEX-GROW -->
+
+<div class="fx-section">
+    <div class="fx-label">7. flex-grow: 0 / 1 / 2 / 3</div>
+    <div class="fx-box fx-grow-container">
+        <div class="fx-a fx-grow-0">g:0</div>
+        <div class="fx-b fx-grow-1">g:1</div>
+        <div class="fx-c fx-grow-2">g:2</div>
+        <div class="fx-d fx-grow-3">g:3</div>
+    </div>
+</div>
+
+
+<!-- 8. FLEX-SHRINK -->
+
+<div class="fx-section">
+    <div class="fx-label">8. flex-shrink: 0 vs 1 vs 3 (container 200px, items 150px each)</div>
+    <div class="fx-box fx-shrink-container">
+        <div class="fx-a fx-shrink-0">s:0</div>
+        <div class="fx-b fx-shrink-1">s:1</div>
+        <div class="fx-c fx-shrink-3">s:3</div>
+    </div>
+</div>
+
+
+<!-- 9. FLEX-BASIS -->
+
+<div class="fx-section">
+    <div class="fx-label">9a. flex-basis: auto / 0+grow / 100px</div>
+    <div class="fx-box fx-basis-container">
+        <div class="fx-a fx-basis-auto">auto (content)</div>
+        <div class="fx-b fx-basis-0">0+grow</div>
+        <div class="fx-c fx-basis-100">100px</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">9b. flex-basis: 50%</div>
+    <div class="fx-box fx-basis-container">
+        <div class="fx-a fx-basis-50pct">50%</div>
+        <div class="fx-b fx-basis-50pct">50%</div>
+    </div>
+</div>
+
+
+<!-- 10. FLEX SHORTHAND -->
+
+<div class="fx-section">
+    <div class="fx-label">10a. flex: 1 vs flex: 2 1 100px</div>
+    <div class="fx-box fx-short-container">
+        <div class="fx-a fx-flex-1">flex:1</div>
+        <div class="fx-b fx-flex-2-1-100">flex:2 1 100px</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">10b. flex: none vs flex: auto vs flex: initial</div>
+    <div class="fx-box fx-short-container">
+        <div class="fx-a fx-flex-none">none</div>
+        <div class="fx-b fx-flex-auto">auto</div>
+        <div class="fx-c fx-flex-initial">initial</div>
+    </div>
+</div>
+
+
+<!-- 11. GAP -->
+
+<div class="fx-section">
+    <div class="fx-label">11a. gap: 12px</div>
+    <div class="fx-box fx-gap-uniform">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c">C</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">11b. row-gap: 8px, column-gap: 20px (wrap)</div>
+    <div class="fx-box fx-gap-row-col">
+        <div class="fx-a" style="width:120px;">A</div>
+        <div class="fx-b" style="width:120px;">B</div>
+        <div class="fx-c" style="width:120px;">C</div>
+        <div class="fx-d" style="width:120px;">D</div>
+    </div>
+</div>
+
+
+<!-- 12. ORDER -->
+
+<div class="fx-section">
+    <div class="fx-label">12. order: visual should be D(-1) B(1) C(2) A(3)</div>
+    <div class="fx-box fx-order-container">
+        <div class="fx-a fx-order-3">A(3)</div>
+        <div class="fx-b fx-order-1">B(1)</div>
+        <div class="fx-c fx-order-2">C(2)</div>
+        <div class="fx-d fx-order-n1">D(-1)</div>
+    </div>
+</div>
+
+
+<!-- 13. NESTED FLEX -->
+
+<div class="fx-section">
+    <div class="fx-label">13. Nested flex (outer=row, inner=col+row)</div>
+    <div class="fx-box fx-nested-outer">
+        <div class="fx-nested-inner-col">
+            <div class="fx-a" style="flex:1;">Col 1</div>
+            <div class="fx-b" style="flex:1;">Col 2</div>
+            <div class="fx-c" style="flex:1;">Col 3</div>
+        </div>
+        <div class="fx-nested-inner-row">
+            <div class="fx-d">Row A</div>
+            <div class="fx-a">Row B</div>
+            <div class="fx-b">Row C</div>
+        </div>
+    </div>
+</div>
+
+
+<!-- 14. MIN/MAX CONSTRAINTS -->
+
+<div class="fx-section">
+    <div class="fx-label">14. min-width: 150px / max-width: 100px with flex:1</div>
+    <div class="fx-box fx-minmax-container">
+        <div class="fx-a fx-min-w">min:150</div>
+        <div class="fx-b fx-max-w">max:100</div>
+        <div class="fx-c" style="flex:1;">flex:1</div>
+    </div>
+</div>
+
+
+<!-- 15. MARGIN AUTO -->
+
+<div class="fx-section">
+    <div class="fx-label">15a. margin-left: auto (push last item right)</div>
+    <div class="fx-box fx-margin-auto-container">
+        <div class="fx-a">A</div>
+        <div class="fx-b">B</div>
+        <div class="fx-c fx-ml-auto">C (ml:auto)</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">15b. margin: auto (center single item)</div>
+    <div class="fx-box fx-margin-auto-container">
+        <div class="fx-a fx-m-auto">Centered</div>
+    </div>
+</div>
+
+
+<!-- 16. PERCENTAGE SIZING -->
+
+<div class="fx-section">
+    <div class="fx-label">16. width: 25% + 50% inside flex</div>
+    <div class="fx-box fx-pct-container">
+        <div class="fx-a fx-pct-25">25%</div>
+        <div class="fx-b fx-pct-50">50%</div>
+        <div class="fx-c">auto</div>
+    </div>
+</div>
+
+
+<!-- 17. OVERFLOW -->
+
+<div class="fx-section">
+    <div class="fx-label">17. overflow: hidden vs auto inside flex</div>
+    <div class="fx-box fx-overflow-container">
+        <div class="fx-a fx-overflow-hidden">This text is very long and should be clipped by overflow hidden</div>
+        <div class="fx-b fx-overflow-scroll">This text is very long and should get a scrollbar with overflow auto</div>
+    </div>
+</div>
+
+
+<!-- 18. ABSOLUTE POSITIONING IN FLEX -->
+
+<div class="fx-section">
+    <div class="fx-label">18. position: absolute child in flex container</div>
+    <div class="fx-box fx-pos-container">
+        <div class="fx-b">Normal A</div>
+        <div class="fx-c">Normal B</div>
+        <div class="fx-pos-abs">Abs</div>
+    </div>
+</div>
+
+
+<!-- 19. COLUMN JUSTIFY/ALIGN -->
+
+<div class="fx-section">
+    <div class="fx-label">19a. column + center + center</div>
+    <div class="fx-box fx-col-center">
+        <div class="fx-a">Centered</div>
+        <div class="fx-b">Both axes</div>
+    </div>
+</div>
+
+<div class="fx-section">
+    <div class="fx-label">19b. column + space-between</div>
+    <div class="fx-box fx-col-between">
+        <div class="fx-a">Top</div>
+        <div class="fx-b">Middle</div>
+        <div class="fx-c">Bottom</div>
+    </div>
+</div>
+
+
+<!-- 20. INTRINSIC SIZING -->
+
+<div class="fx-section">
+    <div class="fx-label">20. Intrinsic sizing (no explicit widths)</div>
+    <div class="fx-box fx-intrinsic-container">
+        <div class="fx-a fx-intrinsic-wide">Wide padding</div>
+        <div class="fx-b fx-intrinsic-narrow">Narrow</div>
+        <div class="fx-c fx-intrinsic-narrow">N</div>
+    </div>
+</div>
+
+
+<!-- 21. BORDER + PADDING + FLEX -->
+
+<div class="fx-section">
+    <div class="fx-label">21. flex + border + padding + gap interaction</div>
+    <div class="fx-bp-container">
+        <div class="fx-bp-item">A</div>
+        <div class="fx-bp-item">B</div>
+        <div class="fx-bp-item">C</div>
+    </div>
+</div>
+
+
+<!-- 22. ZERO-SIZE FLEX ITEMS -->
+
+<div class="fx-section">
+    <div class="fx-label">22. flex: 1 1 0 (equal distribution ignoring content)</div>
+    <div class="fx-box fx-zero-container">
+        <div class="fx-a fx-zero-basis">Short</div>
+        <div class="fx-b fx-zero-basis">Much longer content here</div>
+        <div class="fx-c fx-zero-basis">Med</div>
+    </div>
+</div>
+
+
+<!-- 23. SINGLE ITEM CENTERING -->
+
+<div class="fx-section">
+    <div class="fx-label">23. Single item centering (justify+align center)</div>
+    <div class="fx-box fx-single-center">
+        <div class="fx-a">Centered!</div>
+    </div>
+</div>
+
+
+<!-- 24. WRAP + GAP + JUSTIFY-CONTENT -->
+
+<div class="fx-section">
+    <div class="fx-label">24. wrap + gap: 8px + justify-content: center</div>
+    <div class="fx-box fx-wrap-gap-container">
+        <div class="fx-a fx-wrap-gap-item">1</div>
+        <div class="fx-b fx-wrap-gap-item">2</div>
+        <div class="fx-c fx-wrap-gap-item">3</div>
+        <div class="fx-d fx-wrap-gap-item">4</div>
+        <div class="fx-a fx-wrap-gap-item">5</div>
+        <div class="fx-b fx-wrap-gap-item">6</div>
+        <div class="fx-c fx-wrap-gap-item">7</div>
+    </div>
+</div>
+
+
+<!-- 25. COLUMN WRAP -->
+
+<div class="fx-section">
+    <div class="fx-label">25. flex-direction: column + wrap (height-constrained)</div>
+    <div class="fx-box fx-col-wrap">
+        <div class="fx-a fx-col-wrap-item">1</div>
+        <div class="fx-b fx-col-wrap-item">2</div>
+        <div class="fx-c fx-col-wrap-item">3</div>
+        <div class="fx-d fx-col-wrap-item">4</div>
+        <div class="fx-a fx-col-wrap-item">5</div>
+        <div class="fx-b fx-col-wrap-item">6</div>
+    </div>
+</div>
