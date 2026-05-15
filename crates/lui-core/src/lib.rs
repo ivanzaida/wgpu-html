@@ -40,6 +40,8 @@ pub mod media;
 pub mod node;
 pub mod scrollbar;
 pub mod selector;
+pub mod selector_match;
+pub mod selector_parse;
 pub mod shorthand;
 pub mod stylesheet;
 pub mod supports;
@@ -67,6 +69,8 @@ pub use scrollbar::{
   resolve_scrollbar_inset, resolve_scrollbar_min_thumb_size, resolve_scrollbar_width,
 };
 pub use selector::{AttrOp, AttributeSelector, ComplexSelector, CompoundSelector, PseudoSelector, SelectorList};
+pub use selector_match::{AncestorEntry, Dir, MatchContext, is_pseudo_element, matches_compound, matches_selector};
+pub use selector_parse::{complex_specificity, parse_selector_list};
 pub use shorthand::{distribute_values, expand as expand_shorthand, longhands_of};
 pub use stylesheet::{AtRule, Declaration, StyleRule, Stylesheet};
 pub use supports::{SupportsCondition, SupportsFeature};

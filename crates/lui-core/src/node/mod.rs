@@ -2,7 +2,6 @@ mod event_listeners_collection;
 mod html_doc;
 mod html_node;
 mod query;
-mod query_selector;
 
 pub use event_listeners_collection::{EventHandler, EventListenerOptions, EventPhase};
 pub use html_doc::HtmlDocument;
