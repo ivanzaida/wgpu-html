@@ -4,14 +4,14 @@ use lui_cascade::{
   cascade::{CascadeContext, InteractionState},
   media::MediaContext,
 };
-use lui_core::HtmlNode;
+use lui_core::CssPseudo::Default;
 use lui_glyph::{FontFace, FontHandle, TextContext};
 use lui_layout::engine::LayoutEngine;
 use lui_parse::{HtmlDocument, Stylesheet};
 
 use crate::{
-  Driver, RenderBackend, RenderError, WindowHandle,
-  display_list::{DisplayList, FrameOutcome},
+  display_list::{DisplayList, FrameOutcome}, Driver, RenderBackend, RenderError,
+  WindowHandle,
 };
 
 pub struct Lui {
@@ -30,6 +30,10 @@ pub struct Lui {
   last_click: Option<ClickState>,
   scrollbar_drag: Option<ScrollbarDrag>,
   scrollbar_hover: Option<(Vec<usize>, lui_cascade::cascade::ScrollbarPart)>,
+  text_selection: Option<lui_core::TextSelection>,
+  selecting_text: bool,
+  selection_colors: lui_core::SelectionColors,
+  needs_redraw: bool,
   current_cursor: String,
   pub driver: Box<dyn Driver>,
   pub renderer: Box<dyn RenderBackend>,
@@ -51,7 +55,7 @@ impl Lui {
   pub fn new(driver: Box<dyn Driver>, renderer: Box<dyn RenderBackend>) -> Self {
     #[allow(unused_mut)]
     let mut s = Self {
-      doc: lui_parse::parse("<html><body></body></html>"),
+      doc: HtmlDocument::default(),
       text_ctx: TextContext::new(),
       cascade_ctx: CascadeContext::new(),
       layout_engine: LayoutEngine::new(),
@@ -66,6 +70,10 @@ impl Lui {
       last_click: None,
       scrollbar_drag: None,
       scrollbar_hover: None,
+      text_selection: None,
+      selecting_text: false,
+      selection_colors: lui_core::SelectionColors::default(),
+      needs_redraw: false,
       current_cursor: String::from("auto"),
       driver,
       renderer,
@@ -100,9 +108,8 @@ impl Lui {
   }
 
   fn rebuild_stylesheets(&mut self) {
-    let doc_sheets = extract_style_elements(&self.doc.root);
     let mut all = self.base_sheets.clone();
-    all.extend(doc_sheets);
+    all.extend(self.doc.stylesheets.iter().cloned());
     self.cascade_ctx.set_stylesheets(&all);
   }
 
@@ -114,8 +121,33 @@ impl Lui {
     &self.current_cursor
   }
 
+  pub fn take_needs_redraw(&mut self) -> bool {
+    std::mem::take(&mut self.needs_redraw)
+  }
+
   pub fn set_dpi_scale(&mut self, scale: Option<f32>) {
     self.dpi_scale_override = scale;
+  }
+
+  pub fn text_selection(&self) -> Option<&lui_core::TextSelection> {
+    self.text_selection.as_ref()
+  }
+
+  pub fn selected_text(&mut self, pw: u32, ph: u32, scale: f32) -> Option<String> {
+    let sel = self.text_selection.clone()?;
+    self.with_layout(pw, ph, scale, |tree, _, _, _, _| {
+      crate::text_select::selected_text(&sel, &tree.root)
+    })
+  }
+
+  pub fn select_all(&mut self, pw: u32, ph: u32, scale: f32) {
+    let sel = self.with_layout(pw, ph, scale, |tree, _, _, _, _| {
+      let anchor = crate::text_select::first_text_cursor(&tree.root)?;
+      let focus = crate::text_select::last_text_cursor(&tree.root)?;
+      Some(lui_core::TextSelection { anchor, focus })
+    });
+    self.text_selection = sel;
+    self.selecting_text = false;
   }
 
   pub fn set_cursor_position(&mut self, x: f32, y: f32) {
@@ -145,6 +177,7 @@ impl Lui {
   pub fn render_frame(&mut self, physical_width: u32, physical_height: u32, scale: f32) -> FrameOutcome {
     let prev_hover = self.hover_path.clone();
     let did_move = self.cursor_moved;
+    self.needs_redraw = false;
     let list = self.paint(physical_width, physical_height, scale);
     self.dispatch_hover_transitions(&prev_hover, did_move);
     self.flush_atlas();
@@ -167,8 +200,11 @@ impl Lui {
 
   fn paint(&mut self, pw: u32, ph: u32, scale: f32) -> DisplayList {
     let viewport_scroll = self.viewport_scroll;
+    let selection = self.text_selection.clone();
+    let sel_colors = self.selection_colors;
     self.with_layout(pw, ph, scale, |tree, text_ctx, effective_scale, vw, vh| {
-      let mut list = crate::paint::paint_scaled(tree, text_ctx, effective_scale);
+      let mut list =
+        crate::paint::paint_scaled_with_selection(tree, text_ctx, effective_scale, selection.as_ref(), &sel_colors);
       translate_display_list(&mut list, -viewport_scroll.0, -viewport_scroll.1);
       crate::paint::paint_viewport_scrollbars(&mut list, tree, vw, vh, viewport_scroll.0, viewport_scroll.1);
       list.finalize();
@@ -211,19 +247,20 @@ impl Lui {
             (delta_x, delta_y, Vec::new())
           };
 
-        let viewport_change =
-          if remaining_x.abs() > 0.001 || remaining_y.abs() > 0.001 {
-            let (max_x, max_y) = tree.viewport_scroll_bounds(vw, vh);
-            let new_x = (viewport_scroll.0 + remaining_x).clamp(0.0, max_x);
-            let new_y = (viewport_scroll.1 + remaining_y).clamp(0.0, max_y);
-            let changed = (new_x - viewport_scroll.0).abs() > 0.001
-              || (new_y - viewport_scroll.1).abs() > 0.001;
-            if changed { Some((new_x, new_y)) } else { None }
-          } else {
-            None
-          };
+        let viewport_change = if remaining_x.abs() > 0.001 || remaining_y.abs() > 0.001 {
+          let (max_x, max_y) = tree.viewport_scroll_bounds(vw, vh);
+          let new_x = (viewport_scroll.0 + remaining_x).clamp(0.0, max_x);
+          let new_y = (viewport_scroll.1 + remaining_y).clamp(0.0, max_y);
+          let changed = (new_x - viewport_scroll.0).abs() > 0.001 || (new_y - viewport_scroll.1).abs() > 0.001;
+          if changed { Some((new_x, new_y)) } else { None }
+        } else {
+          None
+        };
 
-        WheelOutcome { changed_elements, viewport_change }
+        WheelOutcome {
+          changed_elements,
+          viewport_change,
+        }
       },
     );
 
@@ -249,14 +286,7 @@ impl Lui {
     crate::dispatch::find_node_path(&self.doc.root, ptr)
   }
 
-  fn fire_mouse_at(
-    &mut self,
-    path: &[usize],
-    event_type: &str,
-    button: i16,
-    bubbles: bool,
-    cancelable: bool,
-  ) -> bool {
+  fn fire_mouse_at(&mut self, path: &[usize], event_type: &str, button: i16, bubbles: bool, cancelable: bool) -> bool {
     let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
     let mut event = lui_core::events::DocumentEvent::MouseEvent(lui_core::events::MouseEventInit {
       ui: lui_core::events::UiEventInit {
@@ -322,14 +352,7 @@ impl Lui {
 
   /// Dispatch a mouse event at the current cursor position.
   /// Performs one layout pass for hit-testing.
-  pub fn dispatch_mouse_event(
-    &mut self,
-    pw: u32,
-    ph: u32,
-    scale: f32,
-    event_type: &str,
-    button: i16,
-  ) -> bool {
+  pub fn dispatch_mouse_event(&mut self, pw: u32, ph: u32, scale: f32, event_type: &str, button: i16) -> bool {
     let Some(path) = self.resolve_cursor_target(pw, ph, scale) else {
       return false;
     };
@@ -343,12 +366,99 @@ impl Lui {
         return true;
       }
     }
+
+    if button == 0 {
+      let vp = self.viewport_scroll;
+      let cursor_pos = self.cursor_pos;
+      let click_count = self.click_count(button);
+      let text_cursor = cursor_pos.and_then(|(cx, cy)| {
+        self.with_layout(pw, ph, scale, |tree, text_ctx, _, _, _| {
+          crate::text_hit::hit_text_cursor(tree, cx + vp.0, cy + vp.1, text_ctx)
+        })
+      });
+
+      if let Some(tc) = text_cursor {
+        if click_count >= 3 {
+          let sel = self.with_layout(pw, ph, scale, |tree, text_ctx, _, _, _| {
+            crate::text_select::select_line(&tc, &tree.root, text_ctx)
+          });
+          self.text_selection = sel;
+          self.selecting_text = false;
+        } else if click_count == 2 {
+          let sel = self.with_layout(pw, ph, scale, |tree, text_ctx, _, _, _| {
+            crate::text_select::select_word(&tc, &tree.root, text_ctx)
+          });
+          self.text_selection = sel;
+          self.selecting_text = false;
+        } else {
+          self.text_selection = Some(lui_core::TextSelection {
+            anchor: tc.clone(),
+            focus: tc,
+          });
+          self.selecting_text = true;
+        }
+      } else {
+        self.text_selection = None;
+        self.selecting_text = false;
+      }
+    }
+
     let path = self.resolve_cursor_target(pw, ph, scale);
     self.active_path = path.clone();
+    if button == 0 {
+      self.set_focus(path.as_deref());
+    }
     match path {
       Some(p) => self.fire_mouse_event(&p, "mousedown", button),
       None => false,
     }
+  }
+
+  fn set_focus(&mut self, target: Option<&[usize]>) {
+    let new_focus = target.and_then(|path| {
+      for len in (1..=path.len()).rev() {
+        let candidate = &path[..len];
+        if let Some(node) = self.doc.root.at_path(candidate) {
+          if is_focusable(node) {
+            return Some(candidate.to_vec());
+          }
+        }
+      }
+      None
+    });
+
+    let old_focus = self.doc.focus_path.clone();
+    if old_focus == new_focus {
+      return;
+    }
+
+    if let Some(ref old) = old_focus {
+      self.fire_focus_event(old, "blur", false);
+      self.fire_focus_event(old, "focusout", true);
+    }
+
+    self.doc.focus_path = new_focus.clone();
+
+    if let Some(ref new) = new_focus {
+      self.fire_focus_event(new, "focus", false);
+      self.fire_focus_event(new, "focusin", true);
+    }
+  }
+
+  fn fire_focus_event(&mut self, path: &[usize], event_type: &str, bubbles: bool) {
+    let mut event = lui_core::events::DocumentEvent::FocusEvent(lui_core::events::FocusEventInit {
+      ui: lui_core::events::UiEventInit {
+        base: lui_core::events::EventInit {
+          event_type: event_type.into(),
+          bubbles,
+          cancelable: false,
+          ..Default::default()
+        },
+        ..Default::default()
+      },
+      related_target: None,
+    });
+    crate::dispatch::dispatch_event(&mut self.doc.root, path, &mut event);
   }
 
   pub fn handle_mouse_up(&mut self, pw: u32, ph: u32, scale: f32, button: i16) -> bool {
@@ -367,6 +477,12 @@ impl Lui {
   pub fn handle_mouse_release(&mut self, pw: u32, ph: u32, scale: f32, button: i16) -> bool {
     if button == 0 && self.scrollbar_drag.take().is_some() {
       return true;
+    }
+    if button == 0 {
+      self.selecting_text = false;
+      if self.text_selection.as_ref().is_some_and(|s| s.is_collapsed()) {
+        self.text_selection = None;
+      }
     }
     self.active_path = None;
     let Some(path) = self.resolve_cursor_target(pw, ph, scale) else {
@@ -410,11 +526,28 @@ impl Lui {
 
   fn record_click(&mut self, button: i16) {
     let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
+    let count = self.click_count(button);
     self.last_click = Some(ClickState {
       time: Instant::now(),
       pos: (cx, cy),
       button,
+      count,
     });
+  }
+
+  fn click_count(&self, button: i16) -> u8 {
+    let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
+    self
+      .last_click
+      .as_ref()
+      .filter(|lc| {
+        lc.button == button
+          && lc.time.elapsed().as_millis() < DBLCLICK_THRESHOLD_MS
+          && (lc.pos.0 - cx).abs() < DBLCLICK_DISTANCE_PX
+          && (lc.pos.1 - cy).abs() < DBLCLICK_DISTANCE_PX
+      })
+      .map(|lc| lc.count + 1)
+      .unwrap_or(1)
   }
 
   fn try_start_scrollbar_drag(&mut self, pw: u32, ph: u32, scale: f32) -> Option<ScrollbarDrag> {
@@ -430,10 +563,11 @@ impl Lui {
       }
 
       let bar_w = crate::paint::viewport_scrollbar_width(tree);
-      if bar_w <= 0.0 { return None; }
+      if bar_w <= 0.0 {
+        return None;
+      }
       let (max_x, max_y) = tree.viewport_scroll_bounds(vw, vh);
-      viewport_scrollbar_hit(cx, cy, vw, vh, bar_w, vp.0, vp.1, max_x, max_y)
-        .map(|hit| (hit, true))
+      viewport_scrollbar_hit(cx, cy, vw, vh, bar_w, vp.0, vp.1, max_x, max_y).map(|hit| (hit, true))
     })?;
 
     let (hit, is_viewport) = hit;
@@ -543,6 +677,8 @@ impl Lui {
 
     if self.cursor_moved {
       self.cursor_moved = false;
+      let prev_hover_path = self.hover_path.clone();
+      let prev_scrollbar_hover = self.scrollbar_hover.clone();
       if let Some((cx, cy)) = self.cursor_pos {
         let doc_x = cx + self.viewport_scroll.0;
         let doc_y = cy + self.viewport_scroll.1;
@@ -553,13 +689,58 @@ impl Lui {
 
         self.scrollbar_hover = tree.scrollbar_hit_test(doc_x, doc_y).map(|hit| {
           use lui_cascade::cascade::ScrollbarPart;
-          let part = if hit.on_thumb { ScrollbarPart::Thumb } else { ScrollbarPart::Track };
+          let part = if hit.on_thumb {
+            ScrollbarPart::Thumb
+          } else {
+            ScrollbarPart::Track
+          };
           (hit.path, part)
         });
+        if self.scrollbar_hover.is_none() {
+          let bar_w = crate::paint::viewport_scrollbar_width(&tree);
+          if bar_w > 0.0 {
+            let (max_x, max_y) = tree.viewport_scroll_bounds(vw, vh);
+            self.scrollbar_hover = viewport_scrollbar_hit(
+              cx,
+              cy,
+              vw,
+              vh,
+              bar_w,
+              self.viewport_scroll.0,
+              self.viewport_scroll.1,
+              max_x,
+              max_y,
+            )
+            .map(|hit| {
+              use lui_cascade::cascade::ScrollbarPart;
+              let part = if hit.on_thumb {
+                ScrollbarPart::Thumb
+              } else {
+                ScrollbarPart::Track
+              };
+              (crate::paint::viewport_scrollbar_style_path(&tree), part)
+            });
+          }
+        }
       } else {
         self.hover_path = None;
         self.scrollbar_hover = None;
         self.current_cursor = String::from("auto");
+      }
+      if self.hover_path != prev_hover_path || self.scrollbar_hover != prev_scrollbar_hover {
+        self.needs_redraw = true;
+      }
+
+      if self.selecting_text {
+        if let Some((cx, cy)) = self.cursor_pos {
+          let doc_x = cx + self.viewport_scroll.0;
+          let doc_y = cy + self.viewport_scroll.1;
+          if let Some(tc) = crate::text_hit::hit_text_cursor(&tree, doc_x, doc_y, &mut self.text_ctx) {
+            if let Some(sel) = self.text_selection.as_mut() {
+              sel.focus = tc;
+            }
+          }
+        }
       }
     }
 
@@ -610,6 +791,7 @@ struct ClickState {
   time: Instant,
   pos: (f32, f32),
   button: i16,
+  count: u8,
 }
 
 const VIEWPORT_SCROLLBAR_MARGIN: f32 = 2.0;
@@ -680,30 +862,22 @@ fn viewport_scrollbar_hit(
   None
 }
 
-fn extract_style_elements(root: &HtmlNode) -> Vec<Stylesheet> {
-  let mut sheets = Vec::new();
-  collect_style_nodes(root, &mut sheets);
-  sheets
-}
-
-fn collect_style_nodes(node: &HtmlNode, sheets: &mut Vec<Stylesheet>) {
-  if node.element.tag_name() == "style" {
-    let css: String = node
-      .children
-      .iter()
-      .filter_map(|c| match &c.element {
-        lui_core::HtmlElement::Text(s) => Some(s.as_ref().to_string()),
-        _ => None,
-      })
-      .collect();
-    if !css.is_empty() {
-      if let Ok(sheet) = lui_parse::parse_stylesheet(&css) {
-        sheets.push(sheet);
-      }
-    }
-    return;
+fn is_focusable(node: &lui_parse::HtmlNode) -> bool {
+  use lui_core::HtmlElement;
+  let tabindex = node.attr("tabindex").and_then(|v| v.parse::<i32>().ok());
+  if matches!(tabindex, Some(t) if t < 0) {
+    return false;
   }
-  for child in &node.children {
-    collect_style_nodes(child, sheets);
+  match &node.element {
+    HtmlElement::Input => {
+      if node.attr("disabled").is_some() {
+        return false;
+      }
+      !matches!(node.attr("type"), Some(t) if t.as_ref() == "hidden")
+    }
+    HtmlElement::Textarea | HtmlElement::Select | HtmlElement::Button => node.attr("disabled").is_none(),
+    HtmlElement::A => node.attr("href").is_some(),
+    HtmlElement::Summary => true,
+    _ => tabindex.is_some_and(|t| t >= 0),
   }
 }

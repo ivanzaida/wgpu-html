@@ -14,6 +14,34 @@ pub fn paint_box(
   parent_opacity: f32,
   dpi_scale: f32,
 ) {
+  paint_box_sel(
+    b,
+    dl,
+    clip_stack,
+    text_ctx,
+    scroll_offset_x,
+    scroll_offset_y,
+    parent_opacity,
+    dpi_scale,
+    &mut Vec::new(),
+    None,
+    &lui_core::SelectionColors::default(),
+  );
+}
+
+pub fn paint_box_sel(
+  b: &LayoutBox,
+  dl: &mut DisplayList,
+  clip_stack: &mut Vec<clip::ClipFrame>,
+  text_ctx: &mut TextContext,
+  scroll_offset_x: f32,
+  scroll_offset_y: f32,
+  parent_opacity: f32,
+  dpi_scale: f32,
+  path: &mut Vec<usize>,
+  selection: Option<&lui_core::TextSelection>,
+  sel_colors: &lui_core::SelectionColors,
+) {
   if !style::is_visible(b.style) {
     return;
   }
@@ -37,7 +65,18 @@ pub fn paint_box(
   border::paint_borders(b, border_rect, radii_h, radii_v, opacity, dl);
 
   if b.node.element.is_text() {
-    text::paint_text(b, b.content.x + dx, b.content.y + dy, opacity, text_ctx, dl, dpi_scale);
+    text::paint_text_with_selection(
+      b,
+      b.content.x + dx,
+      b.content.y + dy,
+      opacity,
+      text_ctx,
+      dl,
+      dpi_scale,
+      path,
+      selection,
+      sel_colors,
+    );
   }
 
   let font_size = style::css_f32(b.style.font_size).max(1.0);
@@ -69,7 +108,8 @@ pub fn paint_box(
   child_order.sort_by_key(|&i| z_index_sort_key(&b.children[i]));
 
   for &i in &child_order {
-    paint_box(
+    path.push(i);
+    paint_box_sel(
       &b.children[i],
       dl,
       clip_stack,
@@ -78,7 +118,11 @@ pub fn paint_box(
       child_dy,
       opacity,
       dpi_scale,
+      path,
+      selection,
+      sel_colors,
     );
+    path.pop();
   }
 
   if let Some(ref parent) = parent_clip {

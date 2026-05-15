@@ -10,6 +10,9 @@ pub mod paint;
 mod lui;
 pub use lui::Lui;
 
+mod text_hit;
+mod text_select;
+
 mod render_api;
 pub use render_api::{RenderBackend, RenderError, WindowHandle};
 

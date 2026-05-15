@@ -23,12 +23,35 @@ pub fn paint(tree: &LayoutTree<'_>, text_ctx: &mut TextContext) -> DisplayList {
 }
 
 pub fn paint_scaled(tree: &LayoutTree<'_>, text_ctx: &mut TextContext, dpi_scale: f32) -> DisplayList {
+  paint_scaled_with_selection(tree, text_ctx, dpi_scale, None, &lui_core::SelectionColors::default())
+}
+
+pub fn paint_scaled_with_selection(
+  tree: &LayoutTree<'_>,
+  text_ctx: &mut TextContext,
+  dpi_scale: f32,
+  selection: Option<&lui_core::TextSelection>,
+  sel_colors: &lui_core::SelectionColors,
+) -> DisplayList {
   let mut dl = DisplayList::new();
 
   dl.canvas_color = extract_canvas_color(tree);
 
   let mut clip_stack = Vec::new();
-  walk::paint_box(&tree.root, &mut dl, &mut clip_stack, text_ctx, 0.0, 0.0, 1.0, dpi_scale);
+  let mut path = Vec::new();
+  walk::paint_box_sel(
+    &tree.root,
+    &mut dl,
+    &mut clip_stack,
+    text_ctx,
+    0.0,
+    0.0,
+    1.0,
+    dpi_scale,
+    &mut path,
+    selection,
+    sel_colors,
+  );
 
   dl.finalize();
   dl
@@ -46,9 +69,11 @@ pub fn paint_viewport_scrollbars(
 }
 
 pub fn viewport_scrollbar_width(tree: &LayoutTree<'_>) -> f32 {
-  scrollbar::resolve_scrollbar_width(
-    scrollbar::viewport_scrollbar_style_box(tree).style.scrollbar_width,
-  )
+  scrollbar::resolve_scrollbar_width(scrollbar::viewport_scrollbar_style_box(tree).style.scrollbar_width)
+}
+
+pub(crate) fn viewport_scrollbar_style_path(tree: &LayoutTree<'_>) -> Vec<usize> {
+  scrollbar::viewport_scrollbar_style_path(tree)
 }
 
 fn extract_canvas_color(tree: &LayoutTree) -> Option<[f32; 4]> {

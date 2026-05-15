@@ -21,5 +21,6 @@ pub use font::FontContext;
 pub use font_face::{FontFace, FontHandle, FontStyleAxis};
 pub use font_registry::FontRegistry;
 pub use shape::{
-  PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle, parse_line_height_multiplier, utf8_boundaries,
+  LineRange, PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle, parse_line_height_multiplier,
+  utf8_boundaries,
 };

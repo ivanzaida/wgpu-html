@@ -14,7 +14,8 @@ use crate::{
   font::FontContext,
   font_face::{FontFace, FontHandle, FontStyleAxis},
   shape::{
-    PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle, parse_line_height_multiplier, utf8_boundaries,
+    LineRange, PositionedGlyph, RunMetrics, ShapedLine, ShapedRun, TextStyle, parse_line_height_multiplier,
+    utf8_boundaries,
   },
 };
 
@@ -283,6 +284,7 @@ impl TextContext {
     let bb = utf8_boundaries(text);
     let mut glyphs = Vec::new();
     let mut glyph_chars = Vec::new();
+    let mut lines = Vec::new();
     let mut line_count = 0;
     let mut ascent = 0.0;
     let (atlas_w, atlas_h) = self.atlas.dimensions();
@@ -291,7 +293,7 @@ impl TextContext {
       if line_count == 0 {
         ascent = run.line_y * inv;
       }
-      line_count += 1;
+      let glyph_start = glyphs.len();
       for g in run.glyphs {
         let physical = g.physical((0.0, 0.0), 1.0);
         let key = physical.cache_key;
@@ -344,6 +346,13 @@ impl TextContext {
         let char_idx = bb.partition_point(|&b| b < g.start).min(bb.len().saturating_sub(1));
         glyph_chars.push(char_idx);
       }
+      lines.push(LineRange {
+        glyph_start,
+        glyph_end: glyphs.len(),
+        top: line_count as f32 * line_height,
+        height: line_height,
+      });
+      line_count += 1;
     }
     if let Some(min_x) = glyphs.iter().map(|g| g.x).reduce(f32::min) {
       if min_x != 0.0 {
@@ -364,6 +373,7 @@ impl TextContext {
       line_height,
       font_size,
       line_count,
+      lines,
     };
     self.text_cache.insert(cache_key, shaped.clone());
     shaped

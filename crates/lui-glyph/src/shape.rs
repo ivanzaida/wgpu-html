@@ -47,6 +47,14 @@ pub struct PositionedGlyph {
 }
 
 #[derive(Debug, Clone)]
+pub struct LineRange {
+  pub glyph_start: usize,
+  pub glyph_end: usize,
+  pub top: f32,
+  pub height: f32,
+}
+
+#[derive(Debug, Clone)]
 pub struct ShapedRun {
   pub glyphs: Vec<PositionedGlyph>,
   /// For each glyph, its 0-based character index in `text`.
@@ -65,6 +73,7 @@ pub struct ShapedRun {
   pub line_height: f32,
   pub font_size: f32,
   pub line_count: usize,
+  pub lines: Vec<LineRange>,
 }
 
 impl ShapedRun {
@@ -100,6 +109,43 @@ impl ShapedRun {
     }
     let idx = glyph_index.min(self.byte_boundaries.len().saturating_sub(1));
     self.byte_boundaries[idx]
+  }
+
+  pub fn hit_char_boundary(&self, local_x: f32, local_y: f32) -> usize {
+    let line_idx = if self.lines.is_empty() {
+      0
+    } else {
+      self
+        .lines
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, lr)| {
+          let mid = lr.top + lr.height * 0.5;
+          ((local_y - mid).abs() * 1000.0) as i64
+        })
+        .map(|(i, _)| i)
+        .unwrap_or(0)
+    };
+
+    let (g_start, g_end) = if let Some(lr) = self.lines.get(line_idx) {
+      (lr.glyph_start, lr.glyph_end)
+    } else {
+      (0, self.glyphs.len())
+    };
+
+    for gi in g_start..g_end {
+      let g = &self.glyphs[gi];
+      let mid = g.x + g.w * 0.5;
+      if local_x < mid {
+        return self.glyph_to_char_index(gi);
+      }
+    }
+
+    if g_end > 0 {
+      self.glyph_to_char_index(g_end - 1) + 1
+    } else {
+      0
+    }
   }
 }
 
@@ -271,13 +317,14 @@ impl FontContext {
     let bb = utf8_boundaries(text);
     let mut glyphs = Vec::new();
     let mut glyph_chars = Vec::new();
+    let mut lines = Vec::new();
     let mut line_count = 0;
     let mut ascent = 0.0;
     for run in buffer.layout_runs() {
       if line_count == 0 {
         ascent = run.line_y;
       }
-      line_count += 1;
+      let glyph_start = glyphs.len();
       for g in run.glyphs {
         glyphs.push(PositionedGlyph {
           glyph_id: g.glyph_id,
@@ -292,6 +339,13 @@ impl FontContext {
         let char_idx = bb.partition_point(|&b| b < g.start).min(bb.len().saturating_sub(1));
         glyph_chars.push(char_idx);
       }
+      lines.push(LineRange {
+        glyph_start,
+        glyph_end: glyphs.len(),
+        top: line_count as f32 * line_height,
+        height: line_height,
+      });
+      line_count += 1;
     }
     let width = glyphs.iter().map(|g| g.x + g.w).fold(0.0f32, f32::max);
     ShapedRun {
@@ -305,6 +359,7 @@ impl FontContext {
       line_height,
       font_size,
       line_count,
+      lines,
     }
   }
 

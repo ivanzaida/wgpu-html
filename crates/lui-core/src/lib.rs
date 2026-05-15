@@ -43,6 +43,7 @@ pub mod selector;
 pub mod shorthand;
 pub mod stylesheet;
 pub mod supports;
+pub mod text_selection;
 pub mod type_keywords;
 pub mod unit;
 pub mod validate;
@@ -58,7 +59,9 @@ pub use css_type::CssType;
 pub use element::{HtmlElement, SVG_ELEMENTS, should_auto_close};
 pub use error::ParseError;
 pub use media::{MediaCondition, MediaFeature, MediaModifier, MediaQuery, MediaQueryList};
-pub use node::{EventHandler, EventListenerOptions, EventPhase, HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag};
+pub use node::{
+  EventHandler, EventListenerOptions, EventPhase, HtmlDocument, HtmlNode, compute_node_hash, hash_kv, hash_tag,
+};
 pub use scrollbar::{
   DEFAULT_SCROLLBAR_WIDTH, ScrollbarMode, ScrollbarPartStyle, ScrollbarStyles, THIN_SCROLLBAR_WIDTH,
   resolve_scrollbar_inset, resolve_scrollbar_min_thumb_size, resolve_scrollbar_width,
@@ -67,6 +70,7 @@ pub use selector::{AttrOp, AttributeSelector, ComplexSelector, CompoundSelector,
 pub use shorthand::{distribute_values, expand as expand_shorthand, longhands_of};
 pub use stylesheet::{AtRule, Declaration, StyleRule, Stylesheet};
 pub use supports::{SupportsCondition, SupportsFeature};
+pub use text_selection::{SelectionColors, TextCursor, TextSelection, cursor_less};
 pub use unit::CssUnit;
 pub use validate::{Validation, validate_value};
 pub use value::CssValue;
