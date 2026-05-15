@@ -1,11 +1,6 @@
-use std::sync::{
-  atomic::{AtomicU32, Ordering},
-  Arc,
-};
-
 use lui::{Lui, WgpuRenderer, WinitHarness};
 
-const DEFAULT_HTML: &str = include_str!("../html/test.html");
+const DEFAULT_HTML: &str = include_str!("../html/shell.html");
 
 fn read_html() -> String {
   use std::io::Read;
@@ -30,17 +25,5 @@ fn main() {
   lui.set_html(&read_html());
   let harness = WinitHarness::new(800, 600, "lui v2 demo");
   let renderer = WgpuRenderer::new();
-
-  lui.doc.add_event_listener(
-    "click",
-    Arc::new(|node, event| {
-      println!("click event");
-    }),
-  );
-  let mut counter = AtomicU32::new(0);
-  harness.run(lui, renderer, move |ctx| {
-    let elem = ctx.lui.doc.root.get_element_by_id_mut("test".into()).unwrap();
-    let c = counter.fetch_add(1, Ordering::Relaxed);
-    elem.set_text_content(&format!("test {}", c));
-  });
+  harness.run(lui, renderer);
 }

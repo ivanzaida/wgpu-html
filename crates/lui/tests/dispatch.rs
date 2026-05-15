@@ -68,3 +68,12 @@ mod keydown_dispatches;
 
 #[path = "dispatch/focus/focus_style_applies.rs"]
 mod focus_style_applies;
+
+#[path = "dispatch/clipboard/copy_dispatches.rs"]
+mod copy_dispatches;
+
+#[path = "dispatch/clipboard/cut_dispatches.rs"]
+mod cut_dispatches;
+
+#[path = "dispatch/clipboard/paste_dispatches.rs"]
+mod paste_dispatches;

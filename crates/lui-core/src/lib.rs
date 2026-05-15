@@ -36,6 +36,8 @@ pub mod css_pseudo;
 pub mod css_type;
 pub mod element;
 pub mod error;
+pub mod form_state;
+
 pub mod media;
 pub mod node;
 pub mod scrollbar;
@@ -45,6 +47,7 @@ pub mod selector_parse;
 pub mod shorthand;
 pub mod stylesheet;
 pub mod supports;
+pub mod text_edit;
 pub mod text_selection;
 pub mod transform;
 pub mod type_keywords;

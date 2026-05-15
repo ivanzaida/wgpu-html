@@ -9,8 +9,8 @@ use lui_layout::engine::LayoutEngine;
 use lui_parse::{HtmlDocument, Stylesheet};
 
 use crate::{
-  RenderBackend, RenderError,
-  display_list::{DisplayList, FrameOutcome},
+  display_list::{DisplayList, FrameOutcome}, RenderBackend,
+  RenderError,
 };
 
 pub struct Lui {
@@ -34,6 +34,27 @@ pub struct Lui {
   selection_colors: lui_core::SelectionColors,
   needs_redraw: bool,
   current_cursor: String,
+  form_state: BTreeMap<Vec<usize>, lui_core::form_state::FormControlState>,
+  pub timers: crate::timer::Timers,
+  event_handlers: Vec<LuiEventHandler>,
+  next_handler_id: u64,
+  pending_events: Vec<PendingEvent>,
+}
+
+type LuiHandlerFn = Box<dyn FnMut(&mut Lui, &lui_core::events::DocumentEvent) + Send>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EventHandlerHandle(u64);
+
+struct LuiEventHandler {
+  id: u64,
+  event_type: String,
+  callback: LuiHandlerFn,
+}
+
+#[derive(Clone)]
+struct PendingEvent {
+  event: lui_core::events::DocumentEvent,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +93,11 @@ impl Lui {
       selection_colors: lui_core::SelectionColors::default(),
       needs_redraw: false,
       current_cursor: String::from("auto"),
+      form_state: BTreeMap::new(),
+      timers: crate::timer::Timers::new(),
+      event_handlers: Vec::new(),
+      next_handler_id: 1,
+      pending_events: Vec::new(),
     };
 
     #[cfg(feature = "ua_whatwg")]
@@ -120,8 +146,62 @@ impl Lui {
     std::mem::take(&mut self.needs_redraw)
   }
 
+  pub fn viewport_scroll(&self) -> (f32, f32) {
+    self.viewport_scroll
+  }
+
   pub fn set_dpi_scale(&mut self, scale: Option<f32>) {
     self.dpi_scale_override = scale;
+  }
+
+  pub fn timer_sender(&self) -> crate::timer::TimerSender {
+    self.timers.sender()
+  }
+
+  pub fn set_timeout(
+    &mut self,
+    delay: std::time::Duration,
+    callback: impl FnMut(&mut Lui) + Send + 'static,
+  ) -> crate::timer::TimerHandle {
+    self.timers.set_timeout(delay, callback)
+  }
+
+  pub fn set_interval(
+    &mut self,
+    interval: std::time::Duration,
+    callback: impl FnMut(&mut Lui) + Send + 'static,
+  ) -> crate::timer::TimerHandle {
+    self.timers.set_interval(interval, callback)
+  }
+
+  pub fn set_immediate(
+    &mut self,
+    callback: impl FnMut(&mut Lui) + Send + 'static,
+  ) -> crate::timer::TimerHandle {
+    self.timers.set_immediate(callback)
+  }
+
+  pub fn clear_timer(&mut self, handle: crate::timer::TimerHandle) {
+    self.timers.clear_timer(handle);
+  }
+
+  pub fn on(
+    &mut self,
+    event_type: &str,
+    callback: impl FnMut(&mut Lui, &lui_core::events::DocumentEvent) + Send + 'static,
+  ) -> EventHandlerHandle {
+    let id = self.next_handler_id;
+    self.next_handler_id += 1;
+    self.event_handlers.push(LuiEventHandler {
+      id,
+      event_type: event_type.to_string(),
+      callback: Box::new(callback),
+    });
+    EventHandlerHandle(id)
+  }
+
+  pub fn off(&mut self, handle: EventHandlerHandle) {
+    self.event_handlers.retain(|h| h.id != handle.0);
   }
 
   pub fn text_selection(&self) -> Option<&lui_core::TextSelection> {
@@ -166,11 +246,15 @@ impl Lui {
     physical_height: u32,
     scale: f32,
   ) -> FrameOutcome {
+    if crate::timer::tick_timers(self) {
+      self.needs_redraw = true;
+    }
     let prev_hover = self.hover_path.clone();
     let did_move = self.cursor_moved;
     self.needs_redraw = false;
     let list = self.paint(physical_width, physical_height, scale);
     self.dispatch_hover_transitions(&prev_hover, did_move);
+    flush_pending_events(self);
     self.flush_atlas(renderer);
     renderer.render(&list)
   }
@@ -192,9 +276,13 @@ impl Lui {
     let viewport_scroll = self.viewport_scroll;
     let selection = self.text_selection.clone();
     let sel_colors = self.selection_colors;
+    let form_ctx = crate::paint::form::FormPaintCtx {
+      focus_path: self.doc.focus_path.clone(),
+      form_state: self.form_state.clone(),
+    };
     self.with_layout(pw, ph, scale, |tree, text_ctx, effective_scale, vw, vh| {
       let mut list =
-        crate::paint::paint_scaled_with_selection(tree, text_ctx, effective_scale, selection.as_ref(), &sel_colors);
+        crate::paint::paint_scaled_with_form(tree, text_ctx, effective_scale, selection.as_ref(), &sel_colors, &form_ctx);
       translate_display_list(&mut list, -viewport_scroll.0, -viewport_scroll.1);
       crate::paint::paint_viewport_scrollbars(&mut list, tree, vw, vh, viewport_scroll.0, viewport_scroll.1);
       list.finalize();
@@ -282,7 +370,14 @@ impl Lui {
     crate::dispatch::find_node_path(&self.doc.root, ptr)
   }
 
-  fn fire_pointer_at(&mut self, path: &[usize], event_type: &str, button: i16, bubbles: bool, cancelable: bool) -> bool {
+  fn fire_pointer_at(
+    &mut self,
+    path: &[usize],
+    event_type: &str,
+    button: i16,
+    bubbles: bool,
+    cancelable: bool,
+  ) -> bool {
     let (cx, cy) = self.cursor_pos.unwrap_or((0.0, 0.0));
     let mut event = lui_core::events::DocumentEvent::PointerEvent(lui_core::events::PointerEventInit {
       mouse: lui_core::events::MouseEventInit {
@@ -305,8 +400,16 @@ impl Lui {
       is_primary: true,
       ..Default::default()
     });
-    crate::dispatch::dispatch_event(&mut self.doc, path, &mut event);
+    self.dispatch_and_queue(path, &mut event);
     event.is_default_prevented()
+  }
+
+  fn dispatch_and_queue(&mut self, path: &[usize], event: &mut lui_core::events::DocumentEvent) {
+    crate::dispatch::dispatch_event(&mut self.doc, path, event);
+    let event_type = event.base().event_type.as_ref();
+    if self.event_handlers.iter().any(|h| h.event_type == event_type) {
+      self.pending_events.push(PendingEvent { event: event.clone() });
+    }
   }
 
   fn fire_mouse_at(&mut self, path: &[usize], event_type: &str, button: i16, bubbles: bool, cancelable: bool) -> bool {
@@ -326,7 +429,7 @@ impl Lui {
       button,
       ..Default::default()
     });
-    crate::dispatch::dispatch_event(&mut self.doc, path, &mut event);
+    self.dispatch_and_queue(path, &mut event);
     event.is_default_prevented()
   }
 
@@ -359,26 +462,308 @@ impl Lui {
       delta_z: 0.0,
       delta_mode: 0,
     });
-    crate::dispatch::dispatch_event(&mut self.doc, &path, &mut event);
+    self.dispatch_and_queue(&path, &mut event);
     event.is_default_prevented()
   }
 
   pub fn handle_key_down(&mut self, key: &str, code: &str, repeat: bool, modifiers: KeyModifiers) {
     self.fire_keyboard_event("keydown", key, code, repeat, &modifiers);
+    self.handle_form_key(key, code, &modifiers);
   }
 
   pub fn handle_key_up(&mut self, key: &str, code: &str, modifiers: KeyModifiers) {
     self.fire_keyboard_event("keyup", key, code, false, &modifiers);
   }
 
-  fn fire_keyboard_event(
+  pub fn handle_text_input(&mut self, text: &str) {
+    let Some(path) = self.doc.focus_path.clone() else {
+      return;
+    };
+    if !self.is_text_editable(&path) {
+      return;
+    }
+    self.ensure_form_state(&path);
+    if self.fire_beforeinput_event(&path, Some(text), "insertText") {
+      return;
+    }
+    if let Some(state) = self.form_state.get_mut(&path) {
+      let (new_val, new_cur) = lui_core::text_edit::insert_text(&state.value, &state.edit_cursor, text);
+      state.value = new_val;
+      state.edit_cursor = new_cur;
+      state.reset_blink();
+      self.needs_redraw = true;
+    }
+    self.fire_input_event(&path, Some(text), "insertText");
+  }
+
+  fn handle_form_key(&mut self, key: &str, code: &str, modifiers: &KeyModifiers) {
+    let Some(path) = self.doc.focus_path.clone() else {
+      return;
+    };
+    if !self.is_text_editable(&path) {
+      return;
+    }
+    self.ensure_form_state(&path);
+
+    let is_textarea = self
+      .doc
+      .root
+      .at_path(&path)
+      .is_some_and(|n| matches!(n.element(), lui_core::HtmlElement::Textarea));
+    let extend = modifiers.shift;
+
+    let mutation: Option<(&str, &str)> = match (key, modifiers.ctrl) {
+      ("Backspace", false) => Some(("deleteContentBackward", "Backspace")),
+      ("Backspace", true) => Some(("deleteWordBackward", "Backspace")),
+      ("Delete", false) => Some(("deleteContentForward", "Delete")),
+      ("Delete", true) => Some(("deleteWordForward", "Delete")),
+      ("Enter", _) if is_textarea => Some(("insertLineBreak", "Enter")),
+      _ => None,
+    };
+
+    if let Some((input_type, _trigger)) = mutation {
+      if self.fire_beforeinput_event(&path, None, input_type) {
+        return;
+      }
+      match (key, modifiers.ctrl) {
+        ("Backspace", false) => {
+          self.mutate_form_value(&path, |v, c| lui_core::text_edit::delete_backward(v, c));
+        }
+        ("Backspace", true) => {
+          self.mutate_form_value(&path, |v, c| lui_core::text_edit::delete_word_backward(v, c));
+        }
+        ("Delete", false) => {
+          self.mutate_form_value(&path, |v, c| lui_core::text_edit::delete_forward(v, c));
+        }
+        ("Delete", true) => {
+          self.mutate_form_value(&path, |v, c| lui_core::text_edit::delete_word_forward(v, c));
+        }
+        ("Enter", _) => {
+          self.mutate_form_value(&path, |v, c| lui_core::text_edit::insert_line_break(v, c));
+        }
+        _ => {}
+      }
+      self.fire_input_event(&path, None, input_type);
+      return;
+    }
+
+    // Cursor movement (no value mutation)
+    let moved = match (code, modifiers.ctrl) {
+      ("ArrowLeft", false) => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_left(v, c, extend));
+        true
+      }
+      ("ArrowRight", false) => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_right(v, c, extend));
+        true
+      }
+      ("ArrowLeft", true) => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_word_left(v, c, extend));
+        true
+      }
+      ("ArrowRight", true) => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_word_right(v, c, extend));
+        true
+      }
+      ("Home", _) => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_home(v, c, extend));
+        true
+      }
+      ("End", _) => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_end(v, c, extend));
+        true
+      }
+      ("ArrowUp", _) if is_textarea => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_up(v, c, extend));
+        true
+      }
+      ("ArrowDown", _) if is_textarea => {
+        self.move_form_cursor(&path, |v, c| lui_core::text_edit::move_down(v, c, extend));
+        true
+      }
+      _ => false,
+    };
+
+    if !moved && modifiers.ctrl && key == "a" {
+      self.move_form_cursor(&path, |v, _| lui_core::text_edit::select_all(v));
+      return;
+    }
+
+    if moved {
+      return;
+    }
+
+    // Printable character insertion (single-char keys without ctrl)
+    if !modifiers.ctrl && !modifiers.alt && !modifiers.meta && key.len() <= 4 && !key.starts_with("F") {
+      let ch_count = key.chars().count();
+      if ch_count == 1 && !key.chars().next().unwrap().is_control() {
+        self.handle_text_input(key);
+      }
+    }
+  }
+
+  fn is_text_editable(&self, path: &[usize]) -> bool {
+    let Some(node) = self.doc.root.at_path(path) else {
+      return false;
+    };
+    match node.element() {
+      lui_core::HtmlElement::Textarea => true,
+      lui_core::HtmlElement::Input => {
+        let input_type = node.attr("type").map(|v| v.as_ref()).unwrap_or("text");
+        matches!(
+          input_type,
+          "text" | "password" | "email" | "search" | "tel" | "url" | "number"
+        )
+      }
+      _ => false,
+    }
+  }
+
+  fn ensure_form_state(&mut self, path: &[usize]) {
+    if self.form_state.contains_key(path) {
+      return;
+    }
+    let initial = self
+      .doc
+      .root
+      .at_path(path)
+      .and_then(|n| n.attr("value"))
+      .map(|v| v.as_ref())
+      .unwrap_or("");
+    self
+      .form_state
+      .insert(path.to_vec(), lui_core::form_state::FormControlState::new(initial));
+  }
+
+  pub fn form_value(&self, path: &[usize]) -> Option<&str> {
+    self.form_state.get(path).map(|s| s.value.as_str())
+  }
+
+  fn mutate_form_value(
     &mut self,
-    event_type: &str,
-    key: &str,
-    code: &str,
-    repeat: bool,
-    _modifiers: &KeyModifiers,
+    path: &[usize],
+    op: impl FnOnce(&str, &lui_core::text_selection::EditCursor) -> (String, lui_core::text_selection::EditCursor),
   ) {
+    if let Some(state) = self.form_state.get_mut(path) {
+      let (new_val, new_cur) = op(&state.value, &state.edit_cursor);
+      state.value = new_val;
+      state.edit_cursor = new_cur;
+      state.reset_blink();
+      self.needs_redraw = true;
+    }
+  }
+
+  fn move_form_cursor(
+    &mut self,
+    path: &[usize],
+    op: impl FnOnce(&str, &lui_core::text_selection::EditCursor) -> lui_core::text_selection::EditCursor,
+  ) {
+    if let Some(state) = self.form_state.get_mut(path) {
+      state.edit_cursor = op(&state.value, &state.edit_cursor);
+      state.reset_blink();
+      self.needs_redraw = true;
+    }
+  }
+
+  fn fire_beforeinput_event(&mut self, path: &[usize], data: Option<&str>, input_type: &str) -> bool {
+    let mut event = lui_core::events::DocumentEvent::InputEvent(lui_core::events::InputEventInit {
+      ui: lui_core::events::UiEventInit {
+        base: lui_core::events::EventInit {
+          event_type: "beforeinput".into(),
+          bubbles: true,
+          cancelable: true,
+          ..Default::default()
+        },
+        ..Default::default()
+      },
+      data: data.map(|s| s.to_string()),
+      is_composing: false,
+      input_type: input_type.to_string(),
+    });
+    self.dispatch_and_queue(path, &mut event);
+    event.is_default_prevented()
+  }
+
+  fn fire_input_event(&mut self, path: &[usize], data: Option<&str>, input_type: &str) {
+    let mut event = lui_core::events::DocumentEvent::InputEvent(lui_core::events::InputEventInit {
+      ui: lui_core::events::UiEventInit {
+        base: lui_core::events::EventInit {
+          event_type: "input".into(),
+          bubbles: true,
+          cancelable: false,
+          ..Default::default()
+        },
+        ..Default::default()
+      },
+      data: data.map(|s| s.to_string()),
+      is_composing: false,
+      input_type: input_type.to_string(),
+    });
+    self.dispatch_and_queue(path, &mut event);
+  }
+
+  pub fn handle_copy(&mut self, pw: u32, ph: u32, scale: f32) -> Option<String> {
+    let path = self.doc.focus_path.clone().unwrap_or_default();
+    if self.fire_clipboard_event(&path, "copy") {
+      return None;
+    }
+    if let Some(state) = self.form_state.get(&path) {
+      return state.selected_text();
+    }
+    self.selected_text(pw, ph, scale)
+  }
+
+  pub fn handle_cut(&mut self, pw: u32, ph: u32, scale: f32) -> Option<String> {
+    let path = self.doc.focus_path.clone().unwrap_or_default();
+    if self.fire_clipboard_event(&path, "cut") {
+      return None;
+    }
+    if self.form_state.contains_key(&path) {
+      let text = self.form_state.get(&path).and_then(|s| s.selected_text());
+      if text.is_some() {
+        self.mutate_form_value(&path, |v, c| lui_core::text_edit::delete_selection(v, c));
+        self.fire_input_event(&path, None, "deleteByCut");
+      }
+      return text;
+    }
+    self.selected_text(pw, ph, scale)
+  }
+
+  pub fn handle_paste(&mut self, text: &str) {
+    let path = self.doc.focus_path.clone().unwrap_or_default();
+    if self.fire_clipboard_event_with_data(&path, "paste", Some(text)) {
+      return;
+    }
+    if !self.is_text_editable(&path) {
+      return;
+    }
+    self.ensure_form_state(&path);
+    if self.fire_beforeinput_event(&path, Some(text), "insertFromPaste") {
+      return;
+    }
+    self.mutate_form_value(&path, |v, c| lui_core::text_edit::insert_text(v, c, text));
+    self.fire_input_event(&path, Some(text), "insertFromPaste");
+  }
+
+  fn fire_clipboard_event(&mut self, path: &[usize], event_type: &str) -> bool {
+    self.fire_clipboard_event_with_data(path, event_type, None)
+  }
+
+  fn fire_clipboard_event_with_data(&mut self, path: &[usize], event_type: &str, data: Option<&str>) -> bool {
+    let mut event = lui_core::events::DocumentEvent::ClipboardEvent(lui_core::events::ClipboardEventInit {
+      base: lui_core::events::EventInit {
+        event_type: event_type.into(),
+        bubbles: true,
+        cancelable: true,
+        ..Default::default()
+      },
+      clipboard_data: data.map(|s| s.to_string()),
+    });
+    self.dispatch_and_queue(path, &mut event);
+    event.is_default_prevented()
+  }
+
+  fn fire_keyboard_event(&mut self, event_type: &str, key: &str, code: &str, repeat: bool, _modifiers: &KeyModifiers) {
     let path = self.doc.focus_path.clone().unwrap_or_default();
     let mut event = lui_core::events::DocumentEvent::KeyboardEvent(lui_core::events::KeyboardEventInit {
       ui: lui_core::events::UiEventInit {
@@ -399,7 +784,7 @@ impl Lui {
     if let lui_core::events::DocumentEvent::KeyboardEvent(ref mut kb) = event {
       kb.ui.base.event_type = event_type.into();
     }
-    crate::dispatch::dispatch_event(&mut self.doc, &path, &mut event);
+    self.dispatch_and_queue(&path, &mut event);
   }
 
   fn dispatch_hover_transitions(&mut self, prev: &Option<Vec<usize>>, did_move: bool) {
@@ -527,6 +912,13 @@ impl Lui {
     }
 
     if let Some(ref old) = old_focus {
+      if self
+        .form_state
+        .get(old.as_slice())
+        .is_some_and(|s| s.value_changed_since_focus())
+      {
+        self.fire_change_event(old);
+      }
       self.fire_focus_event(old, "blur", false);
       self.fire_focus_event(old, "focusout", true);
     }
@@ -534,9 +926,22 @@ impl Lui {
     self.doc.focus_path = new_focus.clone();
 
     if let Some(ref new) = new_focus {
+      if self.is_text_editable(new) {
+        self.ensure_form_state(new);
+      }
       self.fire_focus_event(new, "focus", false);
       self.fire_focus_event(new, "focusin", true);
     }
+  }
+
+  fn fire_change_event(&mut self, path: &[usize]) {
+    let mut event = lui_core::events::DocumentEvent::Event(lui_core::events::EventInit {
+      event_type: "change".into(),
+      bubbles: true,
+      cancelable: false,
+      ..Default::default()
+    });
+    self.dispatch_and_queue(path, &mut event);
   }
 
   fn fire_focus_event(&mut self, path: &[usize], event_type: &str, bubbles: bool) {
@@ -552,7 +957,7 @@ impl Lui {
       },
       related_target: None,
     });
-    crate::dispatch::dispatch_event(&mut self.doc, &path, &mut event);
+    self.dispatch_and_queue(&path, &mut event);
   }
 
   pub fn handle_mouse_up(&mut self, pw: u32, ph: u32, scale: f32, button: i16) -> bool {
@@ -852,6 +1257,23 @@ fn apply_element_scroll_state(tree: &mut lui_layout::LayoutTree<'_>, state: &BTr
   for (path, (sx, sy)) in state {
     tree.set_scroll_at_path(path, *sx, *sy);
   }
+}
+
+fn flush_pending_events(lui: &mut Lui) {
+  let events = std::mem::take(&mut lui.pending_events);
+  if events.is_empty() {
+    return;
+  }
+  let mut handlers = std::mem::take(&mut lui.event_handlers);
+  for pending in &events {
+    let event_type = pending.event.base().event_type.as_ref();
+    for handler in handlers.iter_mut() {
+      if handler.event_type == event_type {
+        (handler.callback)(lui, &pending.event);
+      }
+    }
+  }
+  lui.event_handlers = handlers;
 }
 
 fn translate_display_list(list: &mut DisplayList, dx: f32, dy: f32) {

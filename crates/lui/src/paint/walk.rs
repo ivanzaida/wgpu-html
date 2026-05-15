@@ -1,34 +1,11 @@
-use lui_core::display_list::{DisplayList, Rect as DlRect};
-use lui_core::transform::{Transform2D, parse_transform, parse_transform_origin};
+use lui_core::{
+  display_list::{DisplayList, Rect as DlRect},
+  transform::{parse_transform, parse_transform_origin, Transform2D},
+};
 use lui_glyph::TextContext;
 use lui_layout::LayoutBox;
 
-use super::{background, border, clip, scrollbar, shadow, style, text};
-
-pub fn paint_box(
-  b: &LayoutBox,
-  dl: &mut DisplayList,
-  clip_stack: &mut Vec<clip::ClipFrame>,
-  text_ctx: &mut TextContext,
-  scroll_offset_x: f32,
-  scroll_offset_y: f32,
-  parent_opacity: f32,
-  dpi_scale: f32,
-) {
-  paint_box_sel(
-    b,
-    dl,
-    clip_stack,
-    text_ctx,
-    scroll_offset_x,
-    scroll_offset_y,
-    parent_opacity,
-    dpi_scale,
-    &mut Vec::new(),
-    None,
-    &lui_core::SelectionColors::default(),
-  );
-}
+use super::{background, border, clip, form, scrollbar, shadow, style, text};
 
 pub fn paint_box_sel(
   b: &LayoutBox,
@@ -42,6 +19,7 @@ pub fn paint_box_sel(
   path: &mut Vec<usize>,
   selection: Option<&lui_core::TextSelection>,
   sel_colors: &lui_core::SelectionColors,
+  form_ctx: &form::FormPaintCtx,
 ) {
   if !style::is_visible(b.style) {
     return;
@@ -100,6 +78,18 @@ pub fn paint_box_sel(
 
   text::paint_list_marker(b, b.content.x + dx, b.content.y + dy, opacity, text_ctx, dl, dpi_scale);
 
+  form::paint_form_control(
+    b,
+    b.content.x + dx,
+    b.content.y + dy,
+    opacity,
+    text_ctx,
+    dl,
+    dpi_scale,
+    path,
+    form_ctx,
+  );
+
   let clipped = clip::should_clip(b);
   let parent_clip = if clipped {
     Some(clip::push_overflow_clip(b, dx, dy, clip_stack, dl))
@@ -128,6 +118,7 @@ pub fn paint_box_sel(
       path,
       selection,
       sel_colors,
+      form_ctx,
     );
     path.pop();
   }

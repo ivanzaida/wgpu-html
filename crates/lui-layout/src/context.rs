@@ -23,7 +23,7 @@ impl LayoutContext {
       viewport_width,
       viewport_height,
       containing_width: viewport_width,
-      containing_height: f32::NAN,
+      containing_height: viewport_height,
       root_font_size: 16.0,
       parent_font_size: 16.0,
     }

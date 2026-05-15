@@ -12,6 +12,9 @@ mod nested_scroll_chains_to_viewport;
 #[path = "scrolling/element/partial_delta_chains_remainder.rs"]
 mod partial_delta_chains_remainder;
 
+#[path = "scrolling/element/shell_panels_scroll_independently.rs"]
+mod shell_panels_scroll_independently;
+
 #[path = "scrolling/paint/uses_scrollbar_color_thumb_and_track.rs"]
 mod uses_scrollbar_color_thumb_and_track;
 

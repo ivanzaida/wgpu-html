@@ -8,6 +8,8 @@ use bumpalo::Bump;
 use lui_core::Rect;
 use lui_parse::HtmlNode;
 
+use crate::box_tree::{Overflow, ScrollInfo};
+
 use crate::{
   box_tree::{BoxKind, LayoutBox},
   context::LayoutContext,
@@ -180,6 +182,7 @@ pub fn layout_flex<'a>(
   // Phase 4: per-item layout at resolved main size
   let child_ctx = LayoutContext {
     containing_width: inner_width,
+    containing_height: inner_height.unwrap_or(ctx.containing_height),
     ..*ctx
   };
   for item in &mut items {
@@ -463,6 +466,8 @@ pub fn layout_flex<'a>(
     rects.push((oof.node, oof.content));
     b.children.push(oof);
   }
+
+  finalize_flex_item_scroll(b);
 }
 
 // ── FlexItem ──────────────────────────────────────────────────────────
@@ -673,8 +678,11 @@ fn layout_flex_item<'a>(
   b.content.x = margin.edges.left + border.left + padding.left;
   b.content.y = margin.edges.top + border.top + padding.top;
 
+  let resolved_h = override_h
+    .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height));
   let child_ctx = LayoutContext {
     containing_width: b.content.width,
+    containing_height: resolved_h.unwrap_or(ctx.containing_height),
     ..*ctx
   };
   let origin = Point::new(b.content.x, b.content.y);
@@ -729,31 +737,58 @@ fn layout_flex_item<'a>(
       }
     }
     _ => {
-      let mut cursor_y = b.content.y;
-      for child in b.children.iter_mut() {
-        let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
-        let old = std::mem::replace(child, placeholder);
-        let result = crate::engine::layout_node(
-          old,
-          &child_ctx,
-          Point::new(b.content.x, cursor_y),
-          text_ctx,
-          rects,
-          cache,
-          bump,
-        );
-        *child = result;
-        cursor_y += child.outer_height();
+      crate::block::layout_block(b, &child_ctx, origin, text_ctx, rects, cache, bump);
+      if let Some(w) = override_w {
+        b.content.width = w;
       }
-      let content_h = (cursor_y - b.content.y).max(0.0);
-      b.content.height = override_h
-        .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height))
-        .unwrap_or(content_h);
+      if let Some(h) = override_h {
+        b.content.height = h;
+      }
     }
   }
 }
 
 // ── Translation helpers ───────────────────────────────────────────────
+
+fn finalize_flex_item_scroll(b: &mut LayoutBox) {
+  let ov_x = crate::block::parse_overflow_value(b.style.overflow_x);
+  let ov_y = crate::block::parse_overflow_value(b.style.overflow_y);
+  b.overflow_x = ov_x;
+  b.overflow_y = ov_y;
+
+  let is_scroll = !matches!(ov_x, Overflow::Visible) || !matches!(ov_y, Overflow::Visible);
+  if !is_scroll {
+    return;
+  }
+
+  let mut max_right = 0.0_f32;
+  let mut max_bottom = 0.0_f32;
+  for child in &b.children {
+    let cr = child.content.x + child.content.width + child.padding.right + child.border.right + child.margin.right;
+    let cb = child.content.y + child.content.height + child.padding.bottom + child.border.bottom + child.margin.bottom;
+    max_right = max_right.max(cr);
+    max_bottom = max_bottom.max(cb);
+  }
+
+  let scroll_width = (max_right - b.content.x).max(b.content.width);
+  let scroll_height = (max_bottom - b.content.y).max(b.content.height);
+  let overflows_y = scroll_height > b.content.height + 0.5;
+  let overflows_x = scroll_width > b.content.width + 0.5;
+  let show_y = matches!(ov_y, Overflow::Scroll) || (ov_y == Overflow::Auto && overflows_y);
+  let show_x = matches!(ov_x, Overflow::Scroll) || (ov_x == Overflow::Auto && overflows_x);
+
+  let scrollbar_w = lui_core::resolve_scrollbar_width(b.style.scrollbar_width);
+  let sb_w = if show_y || show_x { scrollbar_w } else { 0.0 };
+
+  b.scroll = Some(ScrollInfo {
+    scroll_width,
+    scroll_height,
+    scroll_x: 0.0,
+    scroll_y: 0.0,
+    scrollbar_width: sb_w,
+  });
+  b.clip = Some(b.padding_rect());
+}
 
 fn translate_box(b: &mut LayoutBox, target_x: f32, target_y: f32) {
   let cur_x = b.content.x - b.padding.left - b.border.left - b.margin.left;

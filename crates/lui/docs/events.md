@@ -114,9 +114,9 @@ and which CSS interactive pseudo-classes are fed into the cascade.
 
 | Event | Status | Notes |
 |-------|--------|-------|
-| `copy` | todo | |
-| `cut` | todo | |
-| `paste` | todo | |
+| `copy` | done | dispatched to focused element via `handle_copy`; `preventDefault()` cancels; returns selected text |
+| `cut` | done | dispatched to focused element via `handle_cut`; deletes selection from form controls; `preventDefault()` cancels |
+| `paste` | done | dispatched with `clipboard_data` via `handle_paste`; inserts into focused form control; `preventDefault()` cancels |
 
 ## Animation / transition events
 

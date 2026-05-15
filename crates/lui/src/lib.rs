@@ -12,6 +12,7 @@ pub use lui::{KeyModifiers, Lui};
 
 mod text_hit;
 mod text_select;
+pub mod timer;
 
 mod render_api;
 pub use render_api::{RenderBackend, RenderError, WindowHandle};

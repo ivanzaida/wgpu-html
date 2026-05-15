@@ -1154,7 +1154,7 @@ fn build_match_context<'a>(
   let is_hover = interaction
     .hover_path
     .as_ref()
-    .map(|hp| path.starts_with(hp) || hp.starts_with(path))
+    .map(|hp| hp.starts_with(path))
     .unwrap_or(false);
   let is_active = interaction
     .active_path

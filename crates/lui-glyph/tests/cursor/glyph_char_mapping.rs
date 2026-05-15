@@ -60,6 +60,7 @@ fn glyph_to_char_index_identity_fallback() {
     line_height: 0.0,
     font_size: 0.0,
     line_count: 0,
+    lines: vec![],
   };
   assert_eq!(run.glyph_to_char_index(0), 0);
   assert_eq!(run.glyph_to_char_index(5), 5);
@@ -78,6 +79,7 @@ fn char_to_glyph_index_identity_fallback() {
     line_height: 0.0,
     font_size: 0.0,
     line_count: 0,
+    lines: vec![],
   };
   assert_eq!(run.char_to_glyph_index(0), 0);
   assert_eq!(run.char_to_glyph_index(100), 0);
@@ -149,6 +151,7 @@ fn byte_offset_for_boundary_empty_returns_zero() {
     line_height: 0.0,
     font_size: 0.0,
     line_count: 0,
+    lines: vec![],
   };
   assert_eq!(run.byte_offset_for_boundary(0), 0);
 }

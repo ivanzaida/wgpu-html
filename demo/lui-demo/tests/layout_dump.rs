@@ -5,7 +5,7 @@ use lui_cascade::{
   media::MediaContext,
 };
 use lui_glyph::TextContext;
-use lui_layout::{LayoutBox, engine::LayoutEngine};
+use lui_layout::{engine::LayoutEngine, LayoutBox};
 use lui_parse::Stylesheet;
 
 const HTML: &str = include_str!("../html/test.html");
@@ -21,9 +21,9 @@ fn dump_css_val(v: Option<&lui_parse::CssValue>) -> String {
 }
 
 fn dump(b: &LayoutBox, indent: usize) {
-  let tag = b.node.element.tag_name();
+  let tag = b.node.element().tag_name();
   let kind = format!("{:?}", b.kind);
-  let text = if let lui_parse::HtmlElement::Text(t) = &b.node.element {
+  let text = if let lui_parse::HtmlElement::Text(t) = &b.node.element() {
     let s = t.to_string();
     let escaped: String = s.chars().take(30).map(|c| if c == '\n' { '↵' } else { c }).collect();
     format!(" {:?}", escaped.trim())
@@ -43,13 +43,14 @@ fn dump(b: &LayoutBox, indent: usize) {
     b.border.left,
   );
   let font_size = dump_css_val(b.style.font_size);
-  let border_raw = if b.border.top > 0.01 && !b.node.element.is_text() {
+  let border_raw = if b.border.top > 0.01 && !b.node.element().is_text() {
     format!("  border_top_width_raw={}", dump_css_val(b.style.border_top_width))
   } else {
     String::new()
   };
   let font_info =
-    if b.node.element.tag_name() == "table" || b.kind == lui_layout::BoxKind::TableCell || b.node.element.is_text() {
+    if b.node.element().tag_name() == "table" || b.kind == lui_layout::BoxKind::TableCell || b.node.element().is_text()
+    {
       format!("  font_size={font_size}")
     } else {
       String::new()
@@ -120,7 +121,7 @@ fn dump_table_structure() {
       "  child[{}]: kind={:?} tag={} w={} h={} x={} y={}",
       i,
       child.kind,
-      child.node.element.tag_name(),
+      child.node.element().tag_name(),
       child.content.width,
       child.content.height,
       child.content.x,

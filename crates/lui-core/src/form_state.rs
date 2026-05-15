@@ -34,4 +34,12 @@ impl FormControlState {
   pub fn value_changed_since_focus(&self) -> bool {
     self.value != self.focus_value_snapshot
   }
+
+  pub fn selected_text(&self) -> Option<String> {
+    if !self.edit_cursor.has_selection() {
+      return None;
+    }
+    let (start, end) = self.edit_cursor.selection_range();
+    Some(self.value[start..end].to_string())
+  }
 }

@@ -231,10 +231,3 @@ fn walk_collect_paths(
   }
 }
 
-fn at_path_split<'a>(root: &'a mut HtmlNode, path: &[usize]) -> Option<&'a mut HtmlNode> {
-  let mut node = root;
-  for &idx in path {
-    node = node.children.get_mut(idx)?;
-  }
-  Some(node)
-}

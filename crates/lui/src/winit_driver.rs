@@ -43,7 +43,11 @@ impl WinitHarness {
     }
   }
 
-  pub fn run<R: RenderBackend + 'static>(
+  pub fn run<R: RenderBackend + 'static>(self, lui: Lui, renderer: R) {
+    self.run_with(lui, renderer, |_ctx| {});
+  }
+
+  pub fn run_with<R: RenderBackend + 'static>(
     self,
     lui: Lui,
     renderer: R,
@@ -57,6 +61,7 @@ impl WinitHarness {
       initial_size: (u32, u32),
       window: Option<Arc<Window>>,
       modifiers: ModifiersState,
+      clipboard: Option<arboard::Clipboard>,
     }
 
     impl<R: RenderBackend, F: FnMut(&mut HarnessCtx)> ApplicationHandler for App<R, F> {
@@ -109,6 +114,42 @@ impl WinitHarness {
                 alt: self.modifiers.alt_key(),
                 meta: self.modifiers.super_key(),
               };
+
+              if event.state == winit::event::ElementState::Pressed && mods.ctrl {
+                let size = window.inner_size();
+                let scale = window.scale_factor() as f32;
+                match key.as_str() {
+                  "c" => {
+                    if let Some(text) = self.lui.handle_copy(size.width, size.height, scale) {
+                      if let Some(cb) = &mut self.clipboard {
+                        let _ = cb.set_text(&text);
+                      }
+                    }
+                    window.request_redraw();
+                    return;
+                  }
+                  "x" => {
+                    if let Some(text) = self.lui.handle_cut(size.width, size.height, scale) {
+                      if let Some(cb) = &mut self.clipboard {
+                        let _ = cb.set_text(&text);
+                      }
+                    }
+                    window.request_redraw();
+                    return;
+                  }
+                  "v" => {
+                    if let Some(cb) = &mut self.clipboard {
+                      if let Ok(text) = cb.get_text() {
+                        self.lui.handle_paste(&text);
+                      }
+                    }
+                    window.request_redraw();
+                    return;
+                  }
+                  _ => {}
+                }
+              }
+
               match event.state {
                 winit::event::ElementState::Pressed => {
                   self.lui.handle_key_down(&key, &code, event.repeat, mods);
@@ -151,7 +192,12 @@ impl WinitHarness {
             let size = window.inner_size();
             let scale = window.scale_factor() as f32;
 
-            let Self { lui, renderer, on_frame, .. } = self;
+            let Self {
+              lui,
+              renderer,
+              on_frame,
+              ..
+            } = self;
             {
               let mut ctx = HarnessCtx {
                 lui,
@@ -200,6 +246,7 @@ impl WinitHarness {
       initial_size: (self.width, self.height),
       window: None,
       modifiers: ModifiersState::default(),
+      clipboard: arboard::Clipboard::new().ok(),
     };
     event_loop.run_app(&mut app).unwrap();
   }

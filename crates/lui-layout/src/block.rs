@@ -24,6 +24,10 @@ fn is_border_box(style: &lui_cascade::ComputedStyle) -> bool {
 }
 
 fn parse_overflow(v: Option<&lui_core::CssValue>) -> Overflow {
+  parse_overflow_value(v)
+}
+
+pub fn parse_overflow_value(v: Option<&lui_core::CssValue>) -> Overflow {
   match css_str(v) {
     "hidden" => Overflow::Hidden,
     "scroll" => Overflow::Scroll,

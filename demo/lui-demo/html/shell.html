@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Shell</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      font-family: sans-serif;
+      background: #f5f7fb;
+      color: #172033;
+    }
+
+    *::lui-scrollbar {
+      scrollbar-width: thin;
+    }
+
+    *::lui-scrollbar-track {
+      background-color: #e5e9f1;
+      border-radius: 8px;
+    }
+
+    *::lui-scrollbar-thumb {
+      background-color: #7b8798;
+      border-radius: 8px;
+    }
+
+    *::lui-scrollbar-thumb:hover {
+      background-color: #2f6fed;
+    }
+
+    .shell {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f5f7fb;
+    }
+
+    .sidebar {
+      width: 260px;
+      height: 100%;
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding: 16px 12px;
+      background: #111827;
+      color: #d6deeb;
+      border-right: 1px solid #273244;
+    }
+
+    .brand {
+      padding: 8px 10px 18px;
+      margin-bottom: 8px;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .nav-section {
+      margin-bottom: 18px;
+    }
+
+    .nav-title {
+      padding: 8px 10px;
+      color: #8996aa;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 10px 12px;
+      margin: 2px 0;
+      color: #d6deeb;
+      font-size: 14px;
+      border-radius: 6px;
+      background: transparent;
+    }
+
+    .nav-item.active {
+      background: #2f6fed;
+      color: #ffffff;
+    }
+
+    .nav-item:hover {
+      background: #243047;
+      color: #ffffff;
+    }
+
+    .main {
+      flex: 1;
+      height: 100%;
+      overflow-y: auto;
+      min-width: 0;
+      background: #f5f7fb;
+    }
+
+    .topbar {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: #ffffff;
+      border-bottom: 1px solid #dde3ee;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #172033;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #eef3fb;
+      color: #243047;
+      font-size: 13px;
+    }
+
+    .content {
+      padding: 24px;
+    }
+
+    .panel {
+      margin-bottom: 16px;
+      padding: 18px;
+      background: #ffffff;
+      border: 1px solid #dde3ee;
+      border-radius: 8px;
+    }
+
+    .panel-title {
+      margin-bottom: 8px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .panel-text {
+      color: #5c687a;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">Shell</div>
+
+      <div class="nav-section">
+        <div class="nav-title">Workspace</div>
+        <div class="nav-item active">Overview</div>
+        <div class="nav-item">Inbox</div>
+        <div class="nav-item">Calendar</div>
+        <div class="nav-item">Projects</div>
+        <div class="nav-item">Tasks</div>
+        <div class="nav-item">Reports</div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">Teams</div>
+        <div class="nav-item">Design</div>
+        <div class="nav-item">Engineering</div>
+        <div class="nav-item">Operations</div>
+        <div class="nav-item">Support</div>
+        <div class="nav-item">Finance</div>
+        <div class="nav-item">Marketing</div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">Settings</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Notifications</div>
+        <div class="nav-item">Security</div>
+        <div class="nav-item">Billing</div>
+        <div class="nav-item">Integrations</div>
+        <div class="nav-item">Audit Log</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="title">Overview</div>
+        <div class="actions">
+          <div class="button">Filter</div>
+          <div class="button">Export</div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="panel">
+          <div class="panel-title">Main Content</div>
+          <div class="panel-text">This area scrolls independently from the left navigation.</div>
+        </div>
+        <div class="panel"><div class="panel-title">Section 1</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 2</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 3</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 4</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 5</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 6</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 7</div><div class="panel-text">Scrollable content row.</div></div>
+        <div class="panel"><div class="panel-title">Section 8</div><div class="panel-text">Scrollable content row.</div></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
