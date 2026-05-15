@@ -1756,3 +1756,25 @@ fn flex_items_no_grow_padding_not_doubled() {
     total
   );
 }
+
+#[test]
+fn flex_whitespace_nodes_filtered_and_items_content_sized() {
+  let html = r#"<div style="display:flex; width:400px; border:1px solid gray; padding:4px">
+        <div style="padding:8px 12px">A</div>
+        <div style="padding:8px 12px">B</div>
+        <div style="padding:8px 12px">C</div>
+    </div>"#;
+  let (doc, ctx) = flex_lt(html, 800.0);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(flex.children.len(), 3, "whitespace nodes should be filtered");
+  let total_outer: f32 = flex.children.iter().map(|c| c.outer_width()).sum();
+  assert!(
+    total_outer < 200.0,
+    "3 items with small text should be content-sized (~100px total), got {}",
+    total_outer,
+  );
+}

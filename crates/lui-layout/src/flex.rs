@@ -1086,9 +1086,13 @@ fn measure_max_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f3
     return run.width;
   }
 
-  let border = sides::resolve_border(box_.style);
-  let padding = sides::resolve_padding(box_.style);
-  let frame = border.horizontal() + padding.horizontal();
+  let frame = if matches!(box_.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline) {
+    0.0
+  } else {
+    let border = sides::resolve_border(box_.style);
+    let padding = sides::resolve_padding(box_.style);
+    border.horizontal() + padding.horizontal()
+  };
 
   if let Some(w) = sizes::resolve_length(box_.style.width, 0.0) {
     return w + frame;
@@ -1152,9 +1156,13 @@ fn measure_min_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f3
     return max_word;
   }
 
-  let border = sides::resolve_border(box_.style);
-  let padding = sides::resolve_padding(box_.style);
-  let frame = border.horizontal() + padding.horizontal();
+  let frame = if matches!(box_.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline) {
+    0.0
+  } else {
+    let border = sides::resolve_border(box_.style);
+    let padding = sides::resolve_padding(box_.style);
+    border.horizontal() + padding.horizontal()
+  };
 
   let mut max_child = 0.0_f32;
   for child in &box_.children {
