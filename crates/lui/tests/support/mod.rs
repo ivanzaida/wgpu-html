@@ -4,28 +4,12 @@ use std::{
 };
 
 use lui::{
-  Driver, Lui, RenderBackend, RenderError, WindowHandle,
+  Lui, RenderBackend, RenderError, WindowHandle,
   display_list::{DisplayList, FrameOutcome},
 };
 
 pub const TEST_WIDTH: u32 = 200;
 pub const TEST_HEIGHT: u32 = 200;
-
-pub struct TestDriver;
-
-impl Driver for TestDriver {
-  fn inner_size(&self) -> (u32, u32) {
-    (TEST_WIDTH, TEST_HEIGHT)
-  }
-
-  fn scale_factor(&self) -> f64 {
-    1.0
-  }
-
-  fn request_redraw(&self) {}
-
-  fn run(self: Box<Self>, _lui: Lui) {}
-}
 
 #[derive(Clone, Default)]
 pub struct RenderSpy {
@@ -71,7 +55,7 @@ impl RenderBackend for RenderSpy {
 
 pub fn test_lui(html: &str) -> (Lui, RenderSpy) {
   let spy = RenderSpy::default();
-  let mut lui = Lui::new(Box::new(TestDriver), Box::new(spy.clone()));
+  let mut lui = Lui::new();
   lui.set_stylesheets(&[lui_parse::parse_stylesheet("* { margin: 0; padding: 0; border-width: 0; }").unwrap()]);
   lui.set_html(html);
   (lui, spy)
@@ -80,7 +64,7 @@ pub fn test_lui(html: &str) -> (Lui, RenderSpy) {
 #[cfg(feature = "ua_whatwg")]
 pub fn ua_lui(html: &str) -> (Lui, RenderSpy) {
   let spy = RenderSpy::default();
-  let mut lui = Lui::new(Box::new(TestDriver), Box::new(spy.clone()));
+  let mut lui = Lui::new();
   lui.set_html(html);
   (lui, spy)
 }

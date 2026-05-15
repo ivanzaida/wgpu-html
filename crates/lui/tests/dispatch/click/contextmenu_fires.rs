@@ -7,7 +7,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
 #[test]
 fn contextmenu_fires_on_right_click() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="target" style="width: 100px; height: 100px; background: red"></div>
     </body></html>"#,
@@ -25,7 +25,7 @@ fn contextmenu_fires_on_right_click() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
 
   lui.handle_mouse_down(TEST_WIDTH, TEST_HEIGHT, 1.0, 2);
@@ -40,7 +40,7 @@ fn contextmenu_fires_on_right_click() {
 
 #[test]
 fn right_click_does_not_fire_click_event() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="target" style="width: 100px; height: 100px; background: red"></div>
     </body></html>"#,
@@ -58,7 +58,7 @@ fn right_click_does_not_fire_click_event() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
 
   lui.handle_mouse_down(TEST_WIDTH, TEST_HEIGHT, 1.0, 2);

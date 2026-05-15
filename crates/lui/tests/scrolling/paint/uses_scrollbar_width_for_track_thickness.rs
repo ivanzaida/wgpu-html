@@ -2,7 +2,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, test_lui};
 
 #[test]
 fn paints_scrollbar_track_using_layout_scrollbar_width() {
-  let (mut lui, spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"
     <html>
       <body>
@@ -14,7 +14,7 @@ fn paints_scrollbar_track_using_layout_scrollbar_width() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let scrollbar_track = list

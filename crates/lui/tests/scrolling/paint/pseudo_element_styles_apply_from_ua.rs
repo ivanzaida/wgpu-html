@@ -16,7 +16,7 @@ fn find_quads_approx(list: &lui::display_list::DisplayList, color: [f32; 4]) -> 
 
 #[test]
 fn element_scrollbar_uses_pseudo_styles_from_ua() {
-  let (mut lui, spy) = ua_lui(
+  let (mut lui, mut spy) = ua_lui(
     r#"
     <html>
       <body>
@@ -28,7 +28,7 @@ fn element_scrollbar_uses_pseudo_styles_from_ua() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let ua_thumb_color = resolve_color("#888");

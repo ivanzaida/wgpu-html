@@ -21,17 +21,13 @@ pub mod renderer_wgpu;
 #[cfg(feature = "wgpu")]
 pub use renderer_wgpu::WgpuRenderer;
 
-mod driver_api;
-pub use driver_api::Driver;
-pub(crate) use driver_api::NullDriver;
-
 #[cfg(feature = "winit")]
 mod winit_driver;
 
 #[cfg(feature = "winit")]
 pub use winit;
 #[cfg(feature = "winit")]
-pub use winit_driver::WinitDriver;
+pub use winit_driver::{HarnessCtx, WinitHarness};
 #[cfg(feature = "winit")]
 #[doc(hidden)]
 pub use winit_driver::wheel_delta_to_css;

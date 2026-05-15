@@ -1,17 +1,16 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, path::Path, time::Instant};
 
 use lui_cascade::{
   cascade::{CascadeContext, InteractionState},
   media::MediaContext,
 };
-use lui_core::CssPseudo::Default;
 use lui_glyph::{FontFace, FontHandle, TextContext};
 use lui_layout::engine::LayoutEngine;
 use lui_parse::{HtmlDocument, Stylesheet};
 
 use crate::{
-  display_list::{DisplayList, FrameOutcome}, Driver, RenderBackend, RenderError,
-  WindowHandle,
+  RenderBackend, RenderError,
+  display_list::{DisplayList, FrameOutcome},
 };
 
 pub struct Lui {
@@ -35,8 +34,6 @@ pub struct Lui {
   selection_colors: lui_core::SelectionColors,
   needs_redraw: bool,
   current_cursor: String,
-  pub driver: Box<dyn Driver>,
-  pub renderer: Box<dyn RenderBackend>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,7 +49,7 @@ struct ScrollbarDrag {
 }
 
 impl Lui {
-  pub fn new(driver: Box<dyn Driver>, renderer: Box<dyn RenderBackend>) -> Self {
+  pub fn new() -> Self {
     #[allow(unused_mut)]
     let mut s = Self {
       doc: HtmlDocument::default(),
@@ -75,8 +72,6 @@ impl Lui {
       selection_colors: lui_core::SelectionColors::default(),
       needs_redraw: false,
       current_cursor: String::from("auto"),
-      driver,
-      renderer,
     };
 
     #[cfg(feature = "ua_whatwg")]
@@ -164,38 +159,33 @@ impl Lui {
     self.hover_path = None;
   }
 
-  pub fn run(mut self) {
-    let driver = std::mem::replace(&mut self.driver, Box::new(crate::NullDriver));
-    driver.run(self);
-  }
-
-  /// Called by the driver when the window is ready.
-  pub fn init_renderer(&mut self, window: Arc<dyn WindowHandle>, width: u32, height: u32) {
-    self.renderer.init(window, width, height);
-  }
-
-  pub fn render_frame(&mut self, physical_width: u32, physical_height: u32, scale: f32) -> FrameOutcome {
+  pub fn render_frame(
+    &mut self,
+    renderer: &mut dyn RenderBackend,
+    physical_width: u32,
+    physical_height: u32,
+    scale: f32,
+  ) -> FrameOutcome {
     let prev_hover = self.hover_path.clone();
     let did_move = self.cursor_moved;
     self.needs_redraw = false;
     let list = self.paint(physical_width, physical_height, scale);
     self.dispatch_hover_transitions(&prev_hover, did_move);
-    self.flush_atlas();
-    self.renderer.render(&list)
+    self.flush_atlas(renderer);
+    renderer.render(&list)
   }
 
   pub fn screenshot_to(
     &mut self,
+    renderer: &mut dyn RenderBackend,
     physical_width: u32,
     physical_height: u32,
     scale: f32,
     path: impl AsRef<Path>,
   ) -> Result<(), RenderError> {
     let list = self.paint(physical_width, physical_height, scale);
-    self.flush_atlas();
-    self
-      .renderer
-      .capture_to(&list, physical_width, physical_height, path.as_ref())
+    self.flush_atlas(renderer);
+    renderer.capture_to(&list, physical_width, physical_height, path.as_ref())
   }
 
   fn paint(&mut self, pw: u32, ph: u32, scale: f32) -> DisplayList {
@@ -213,9 +203,9 @@ impl Lui {
     })
   }
 
-  fn flush_atlas(&mut self) {
+  fn flush_atlas(&mut self, renderer: &mut dyn RenderBackend) {
     self.text_ctx.flush_dirty(|rect, data| {
-      self.renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
+      renderer.upload_atlas_region(rect.x, rect.y, rect.w, rect.h, data);
     });
   }
 

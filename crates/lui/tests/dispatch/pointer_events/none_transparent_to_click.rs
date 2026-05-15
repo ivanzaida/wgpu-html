@@ -7,7 +7,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
 #[test]
 fn pointer_events_none_makes_element_transparent_to_click() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="behind" style="width: 100px; height: 100px; background: red"></div>
       <div id="overlay" style="width: 100px; height: 100px; pointer-events: none;
@@ -39,7 +39,7 @@ fn pointer_events_none_makes_element_transparent_to_click() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
   lui.handle_click(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
 

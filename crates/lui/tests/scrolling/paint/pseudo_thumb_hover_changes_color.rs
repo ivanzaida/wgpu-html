@@ -1,4 +1,4 @@
-use crate::support::{RenderSpy, TEST_HEIGHT, TEST_WIDTH, TestDriver};
+use crate::support::{RenderSpy, TEST_HEIGHT, TEST_WIDTH};
 
 fn resolve_color(s: &str) -> [f32; 4] {
   let v = lui_parse::parse_value(s).unwrap();
@@ -16,7 +16,7 @@ fn find_quads_approx(list: &lui::display_list::DisplayList, color: [f32; 4]) -> 
 
 fn scroller_lui(css: &str) -> (lui::Lui, RenderSpy) {
   let spy = RenderSpy::default();
-  let mut lui = lui::Lui::new(Box::new(TestDriver), Box::new(spy.clone()));
+  let mut lui = lui::Lui::new();
   let reset = "* { margin: 0; padding: 0; border-width: 0; }";
   let combined = format!("{reset}\n{css}");
   lui.set_stylesheets(&[lui_parse::parse_stylesheet(&combined).unwrap()]);
@@ -32,7 +32,7 @@ fn scroller_lui(css: &str) -> (lui::Lui, RenderSpy) {
 
 #[test]
 fn thumb_hover_pseudo_changes_background_color() {
-  let (mut lui, spy) = scroller_lui(
+  let (mut lui, mut spy) = scroller_lui(
     r#"
       #scroller::lui-scrollbar-thumb {
         background-color: green;
@@ -46,7 +46,7 @@ fn thumb_hover_pseudo_changes_background_color() {
   let red = resolve_color("red");
 
   // Frame 1: no hover — thumb should be green
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let green_quads = find_quads_approx(&list, green);
@@ -63,10 +63,10 @@ fn thumb_hover_pseudo_changes_background_color() {
 
   // Frame 2: move cursor over the thumb — computes scrollbar_hover
   lui.set_cursor_position(thumb_cx, thumb_cy);
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
 
   // Frame 3: scrollbar_hover feeds into cascade — thumb should now be red
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let red_quads = find_quads_approx(&list, red);
@@ -79,7 +79,7 @@ fn thumb_hover_pseudo_changes_background_color() {
 
 #[test]
 fn track_hover_does_not_affect_thumb_color() {
-  let (mut lui, spy) = scroller_lui(
+  let (mut lui, mut spy) = scroller_lui(
     r#"
       #scroller::lui-scrollbar-thumb {
         background-color: green;
@@ -94,7 +94,7 @@ fn track_hover_does_not_affect_thumb_color() {
   let blue = resolve_color("blue");
 
   // Frame 1: render to get layout
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let track_quads = find_quads_approx(&list, blue);
@@ -105,10 +105,10 @@ fn track_hover_does_not_affect_thumb_color() {
   let track_cx = track.rect.x + track.rect.w * 0.5;
   let track_cy = track.rect.y + track.rect.h - 2.0;
   lui.set_cursor_position(track_cx, track_cy);
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
 
   // Frame 3: hover state feeds into cascade — thumb should still be green
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let green_quads = find_quads_approx(&list, green);

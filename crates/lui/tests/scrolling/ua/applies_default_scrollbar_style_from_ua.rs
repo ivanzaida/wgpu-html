@@ -2,7 +2,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, ua_lui};
 
 #[test]
 fn applies_default_scrollbar_style_from_ua() {
-  let (mut lui, spy) = ua_lui(
+  let (mut lui, mut spy) = ua_lui(
     r#"
     <html>
       <body>
@@ -12,7 +12,7 @@ fn applies_default_scrollbar_style_from_ua() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let track = list

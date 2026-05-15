@@ -2,7 +2,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, test_lui};
 
 #[test]
 fn nested_scroll_chains_through_element_to_viewport() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"
     <html>
       <body>
@@ -15,7 +15,7 @@ fn nested_scroll_chains_through_element_to_viewport() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(10.0, 10.0);
 
   // Scroll container to its limit (max = 200 - 100 = 100)

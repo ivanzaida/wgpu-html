@@ -7,7 +7,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
 #[test]
 fn pointer_events_none_children_with_auto_still_receive_clicks() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="parent" style="width: 100px; height: 100px; pointer-events: none">
         <div id="child" style="width: 100px; height: 100px; pointer-events: auto; background: red"></div>
@@ -27,7 +27,7 @@ fn pointer_events_none_children_with_auto_still_receive_clicks() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
   lui.handle_click(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
 

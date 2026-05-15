@@ -14,7 +14,7 @@ fn find_quad_by_color(list: &DisplayList, color: [f32; 4]) -> Option<lui::displa
 
 #[test]
 fn paints_scrollbar_thumb_and_track_using_hex_scrollbar_color_pair() {
-  let (mut lui, spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"
     <html>
       <body>
@@ -26,7 +26,7 @@ fn paints_scrollbar_thumb_and_track_using_hex_scrollbar_color_pair() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let thumb = find_quad_by_color(&list, [1.0, 0.0, 0.0, 1.0]).expect("expected red scrollbar thumb quad");

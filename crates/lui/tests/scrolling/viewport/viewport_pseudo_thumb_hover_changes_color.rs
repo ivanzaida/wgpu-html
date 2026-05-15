@@ -16,7 +16,7 @@ fn find_quads_approx(list: &lui::display_list::DisplayList, color: [f32; 4]) -> 
 
 #[test]
 fn viewport_thumb_uses_nested_hover_and_later_base_rule() {
-  let (mut lui, spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"
     <html>
       <style>
@@ -40,7 +40,7 @@ fn viewport_thumb_uses_nested_hover_and_later_base_rule() {
   let blue = resolve_color("blue");
   let red = resolve_color("red");
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
   let blue_quads = find_quads_approx(&list, blue);
   assert!(
@@ -51,12 +51,12 @@ fn viewport_thumb_uses_nested_hover_and_later_base_rule() {
 
   let thumb = blue_quads[0];
   lui.set_cursor_position(thumb.rect.x + thumb.rect.w * 0.5, thumb.rect.y + thumb.rect.h * 0.5);
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   assert!(
     lui.take_needs_redraw(),
     "hovering the viewport scrollbar thumb should schedule a follow-up redraw for the recascade"
   );
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
 
   let list = spy.take_last_list();
   let red_quads = find_quads_approx(&list, red);

@@ -2,7 +2,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, red_quad_y, test_lui};
 
 #[test]
 fn wheel_scroll_persists_element_scroll_between_frames() {
-  let (mut lui, spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"
     <html>
       <body>
@@ -14,16 +14,16 @@ fn wheel_scroll_persists_element_scroll_between_frames() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let before = red_quad_y(&spy.take_last_list());
 
   lui.set_cursor_position(10.0, 10.0);
   assert!(lui.handle_wheel(TEST_WIDTH, TEST_HEIGHT, 1.0, 0.0, 60.0));
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let after_first_render = red_quad_y(&spy.take_last_list());
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let after_second_render = red_quad_y(&spy.take_last_list());
 
   assert!(

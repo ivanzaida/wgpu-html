@@ -8,9 +8,15 @@ use winit::{
   window::{CursorIcon, Window, WindowAttributes, WindowId},
 };
 
-use crate::{Driver, Lui};
+use crate::{Lui, RenderBackend};
 
-pub struct WinitDriver {
+pub struct HarnessCtx<'a> {
+  pub lui: &'a mut Lui,
+  pub renderer: &'a mut dyn RenderBackend,
+  pub window: &'a Window,
+}
+
+pub struct WinitHarness {
   width: u32,
   height: u32,
   title: String,
@@ -18,8 +24,6 @@ pub struct WinitDriver {
 
 pub fn wheel_delta_to_css(delta: &MouseScrollDelta, scale: f32, modifiers: ModifiersState) -> (f32, f32) {
   let (mut dx, mut dy) = match delta {
-    // Winit uses positive Y for wheel-up; CSS scroll deltas are positive when content
-    // should move down, so invert here at the platform boundary.
     MouseScrollDelta::LineDelta(x, y) => (-*x * 40.0, -*y * 40.0),
     MouseScrollDelta::PixelDelta(pos) => (-(pos.x as f32) / scale, -(pos.y as f32) / scale),
   };
@@ -30,7 +34,7 @@ pub fn wheel_delta_to_css(delta: &MouseScrollDelta, scale: f32, modifiers: Modif
   (dx, dy)
 }
 
-impl WinitDriver {
+impl WinitHarness {
   pub fn new(width: u32, height: u32, title: &str) -> Self {
     Self {
       width,
@@ -38,27 +42,24 @@ impl WinitDriver {
       title: title.to_string(),
     }
   }
-}
 
-impl Driver for WinitDriver {
-  fn inner_size(&self) -> (u32, u32) {
-    (self.width, self.height)
-  }
-  fn scale_factor(&self) -> f64 {
-    1.0
-  }
-  fn request_redraw(&self) {}
-
-  fn run(self: Box<Self>, lui: Lui) {
-    struct App {
+  pub fn run<R: RenderBackend + 'static>(
+    self,
+    lui: Lui,
+    renderer: R,
+    on_frame: impl FnMut(&mut HarnessCtx) + 'static,
+  ) {
+    struct App<R: RenderBackend, F: FnMut(&mut HarnessCtx)> {
       lui: Lui,
+      renderer: R,
+      on_frame: F,
       title: String,
       initial_size: (u32, u32),
       window: Option<Arc<Window>>,
       modifiers: ModifiersState,
     }
 
-    impl ApplicationHandler for App {
+    impl<R: RenderBackend, F: FnMut(&mut HarnessCtx)> ApplicationHandler for App<R, F> {
       fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
           return;
@@ -71,12 +72,13 @@ impl Driver for WinitDriver {
           let s = window.inner_size();
           (s.width.max(1), s.height.max(1))
         };
-        self.lui.init_renderer(window.clone(), w, h);
+        self.renderer.init(window.clone(), w, h);
         self.window = Some(window);
       }
 
       fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let Some(window) = &self.window else { return };
+        let window = window.clone();
         match &event {
           WindowEvent::CloseRequested => event_loop.exit(),
           WindowEvent::CursorMoved { position, .. } => {
@@ -123,23 +125,34 @@ impl Driver for WinitDriver {
           WindowEvent::RedrawRequested => {
             let size = window.inner_size();
             let scale = window.scale_factor() as f32;
-            let outcome = self.lui.render_frame(size.width, size.height, scale);
-            let needs_redraw = self.lui.take_needs_redraw();
+
+            let Self { lui, renderer, on_frame, .. } = self;
+            {
+              let mut ctx = HarnessCtx {
+                lui,
+                renderer,
+                window: &window,
+              };
+              on_frame(&mut ctx);
+            }
+
+            let outcome = lui.render_frame(renderer, size.width, size.height, scale);
+            let needs_redraw = lui.take_needs_redraw();
             if matches!(outcome, crate::display_list::FrameOutcome::Reconfigure) {
-              self.lui.renderer.resize(size.width, size.height);
+              renderer.resize(size.width, size.height);
               window.request_redraw();
             } else if needs_redraw {
               window.request_redraw();
             }
-            window.set_cursor(css_cursor_to_winit(self.lui.current_cursor()));
+            window.set_cursor(css_cursor_to_winit(lui.current_cursor()));
           }
           WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
-            self.lui.renderer.resize(size.width, size.height);
+            self.renderer.resize(size.width, size.height);
             window.request_redraw();
           }
           WindowEvent::ScaleFactorChanged { .. } => {
             let s = window.inner_size();
-            self.lui.renderer.resize(s.width, s.height);
+            self.renderer.resize(s.width, s.height);
             window.request_redraw();
           }
           _ => {}
@@ -156,6 +169,8 @@ impl Driver for WinitDriver {
     let event_loop = EventLoop::new().unwrap();
     let mut app = App {
       lui,
+      renderer,
+      on_frame,
       title: self.title,
       initial_size: (self.width, self.height),
       window: None,

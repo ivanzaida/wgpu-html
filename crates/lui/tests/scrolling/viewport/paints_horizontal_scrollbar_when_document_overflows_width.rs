@@ -2,7 +2,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, test_lui};
 
 #[test]
 fn paints_horizontal_scrollbar_when_document_overflows_width() {
-  let (mut lui, spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"
     <html>
       <body style="scrollbar-width: thin; scrollbar-color: red blue;">
@@ -12,7 +12,7 @@ fn paints_horizontal_scrollbar_when_document_overflows_width() {
     "#,
   );
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   let list = spy.take_last_list();
 
   let horizontal_track = list

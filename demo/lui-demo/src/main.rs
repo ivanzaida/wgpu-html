@@ -1,4 +1,4 @@
-use lui::{Lui, WgpuRenderer, WinitDriver};
+use lui::{Lui, WgpuRenderer, WinitHarness};
 
 const DEFAULT_HTML: &str = include_str!("../html/test.html");
 
@@ -21,9 +21,9 @@ fn read_html() -> String {
 }
 
 fn main() {
-  let driver = WinitDriver::new(800, 600, "lui v2 demo");
-  let renderer = WgpuRenderer::new();
-  let mut lui = Lui::new(Box::new(driver), Box::new(renderer));
+  let mut lui = Lui::new();
   lui.set_html(&read_html());
-  lui.run();
+  let harness = WinitHarness::new(800, 600, "lui v2 demo");
+  let renderer = WgpuRenderer::new();
+  harness.run(lui, renderer, |_ctx| {});
 }

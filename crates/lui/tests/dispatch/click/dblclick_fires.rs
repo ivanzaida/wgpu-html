@@ -7,7 +7,7 @@ use crate::support::{TEST_HEIGHT, TEST_WIDTH, find_node_by_id_mut, test_lui};
 
 #[test]
 fn dblclick_fires_on_rapid_double_click() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="target" style="width: 100px; height: 100px; background: red"></div>
     </body></html>"#,
@@ -37,7 +37,7 @@ fn dblclick_fires_on_rapid_double_click() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
 
   // First click
@@ -54,7 +54,7 @@ fn dblclick_fires_on_rapid_double_click() {
 
 #[test]
 fn single_click_does_not_fire_dblclick() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="target" style="width: 100px; height: 100px; background: red"></div>
     </body></html>"#,
@@ -72,7 +72,7 @@ fn single_click_does_not_fire_dblclick() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
 
   lui.handle_mouse_down(TEST_WIDTH, TEST_HEIGHT, 1.0, 0);
@@ -87,7 +87,7 @@ fn single_click_does_not_fire_dblclick() {
 
 #[test]
 fn triple_click_fires_only_one_dblclick() {
-  let (mut lui, _spy) = test_lui(
+  let (mut lui, mut spy) = test_lui(
     r#"<html><body>
       <div id="target" style="width: 100px; height: 100px; background: red"></div>
     </body></html>"#,
@@ -105,7 +105,7 @@ fn triple_click_fires_only_one_dblclick() {
     );
   }
 
-  lui.render_frame(TEST_WIDTH, TEST_HEIGHT, 1.0);
+  lui.render_frame(&mut spy, TEST_WIDTH, TEST_HEIGHT, 1.0);
   lui.set_cursor_position(50.0, 50.0);
 
   for _ in 0..3 {
