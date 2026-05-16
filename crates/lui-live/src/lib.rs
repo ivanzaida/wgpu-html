@@ -1,3 +1,4 @@
+mod app;
 pub mod builder;
 mod signal;
 
