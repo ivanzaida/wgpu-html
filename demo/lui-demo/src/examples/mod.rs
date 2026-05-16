@@ -4,6 +4,7 @@ use lui_core::HtmlNode;
 
 pub mod flex;
 pub mod grid;
+pub mod images;
 
 pub enum ExampleOutput {
   Node(HtmlNode),
@@ -27,6 +28,7 @@ impl ExampleRegistry {
       factories: vec![
         ("flex", || Box::new(flex::FlexExample::default())),
         ("grid", || Box::new(grid::GridExample::default())),
+        ("images", || Box::new(images::ImagesExample::default())),
       ],
       active: HashMap::new(),
     }

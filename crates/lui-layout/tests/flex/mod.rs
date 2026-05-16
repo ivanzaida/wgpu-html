@@ -2389,3 +2389,134 @@ fn flex_text_centered_in_display_flex_box_with_border() {
     text_mid_y, box_mid_y, (text_mid_y - box_mid_y).abs(),
   );
 }
+
+#[test]
+fn flex_box_centered_in_row_with_padding_and_min_height() {
+  // Exact demo structure: .tf-row > .tf-box
+  // .tf-row: display:flex; align-items:center; padding:20px; border:1px; min-height:120px; box-sizing:border-box
+  // .tf-box: 80x80 border-box with 2px border, display:flex; align-items:center; justify-content:center
+  //
+  // Browser: the 80x80 box should be vertically centered in the row.
+  // Row content height = max(120 - 42, 80) = 80. Box centered means offset = 0.
+  // Text "0" centered within the box.
+  // No global reset: matches the demo exactly.
+  let html = r#"<style>
+    .row {
+      display: flex; gap: 20px; align-items: center;
+      padding: 20px; border: 1px solid gray;
+      min-height: 120px; flex-wrap: wrap;
+    }
+    .box {
+      width: 80px; height: 80px;
+      display: flex; align-items: center; justify-content: center;
+      box-sizing: border-box; border: 2px solid red;
+    }
+  </style>
+  <div class="row"><div class="box">0</div></div>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  ctx.set_stylesheets(&doc.stylesheets);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  fn find_cls<'a>(b: &'a lui_layout::LayoutBox<'a>, cls: &str) -> Option<&'a lui_layout::LayoutBox<'a>> {
+    if b.node.class_list().contains(cls) {
+      return Some(b);
+    }
+    for c in &b.children {
+      if let Some(f) = find_cls(c, cls) {
+        return Some(f);
+      }
+    }
+    None
+  }
+  let row = find_cls(&lt.root, "row").expect("should find .row");
+  let box_ = find_cls(&lt.root, "box").expect("should find .box");
+
+  // Row should grow to fit the box
+  let row_h = row.content.height;
+  assert!(row_h >= 80.0, "row content height should be >= 80, got {}", row_h);
+
+  // Box outer = 80. Box should be vertically centered in row.
+  let box_outer_top = box_.content.y - box_.border.top - box_.padding.top;
+  let box_center_in_row = (box_outer_top - row.content.y) + 80.0 / 2.0;
+  let row_center = row_h / 2.0;
+  assert!(
+    (box_center_in_row - row_center).abs() < 2.0,
+    "box should be vertically centered in row: box_center={}, row_center={}",
+    box_center_in_row, row_center,
+  );
+
+  // Text should be centered inside box
+  let mut text_node = box_;
+  while !text_node.children.is_empty() {
+    text_node = &text_node.children[0];
+  }
+  let text_mid_y = text_node.content.y + text_node.content.height / 2.0;
+  let box_mid_y = box_.content.y + box_.content.height / 2.0;
+  assert!(
+    (text_mid_y - box_mid_y).abs() < 3.0,
+    "text should be centered in box: text_mid={}, box_mid={}",
+    text_mid_y, box_mid_y,
+  );
+}
+
+#[test]
+fn transform_demo_tf_box_text_is_centered_on_both_axes() {
+  let html = r#"<html><body>
+    <div class="tf-row"><div class="tf-box tf-a">45</div></div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+    .tf-row {
+      display: flex; gap: 20px; align-items: center;
+      padding: 20px; border: 1px solid #33415f;
+      min-height: 120px; flex-wrap: wrap;
+    }
+    .tf-box {
+      width: 80px; height: 80px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      box-sizing: border-box;
+    }
+    .tf-a { border: 2px solid #fca5a5; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+
+  let body = find_by_tag(&lt.root, "body").unwrap();
+  let row = &body.children[0];
+  let box_ = &row.children[0];
+  let mut text = box_;
+  while !text.children.is_empty() {
+    text = &text.children[0];
+  }
+
+  let box_mid_x = box_.content.x + box_.content.width / 2.0;
+  let box_mid_y = box_.content.y + box_.content.height / 2.0;
+  let text_mid_x = text.content.x + text.content.width / 2.0;
+  let text_mid_y = text.content.y + text.content.height / 2.0;
+
+  assert!(
+    (text_mid_x - box_mid_x).abs() < 3.0,
+    "text should be horizontally centered: text_mid={}, box_mid={}, text={:?}, box={:?}",
+    text_mid_x,
+    box_mid_x,
+    text.content,
+    box_.content,
+  );
+  assert!(
+    (text_mid_y - box_mid_y).abs() < 3.0,
+    "text should be vertically centered: text_mid={}, box_mid={}",
+    text_mid_y,
+    box_mid_y,
+  );
+}

@@ -1138,8 +1138,10 @@ fn measure_max_content_width(box_: &LayoutBox, text_ctx: &mut TextContext) -> f3
     border.horizontal() + padding.horizontal()
   };
 
-  if let Some(w) = sizes::resolve_length(box_.style.width, 0.0) {
-    return w + frame;
+  if !matches!(box_.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline) {
+    if let Some(w) = sizes::resolve_length(box_.style.width, 0.0) {
+      return w + frame;
+    }
   }
 
   if matches!(box_.kind, BoxKind::FlexContainer | BoxKind::InlineFlex) {
@@ -1318,8 +1320,10 @@ fn measure_max_content_height(box_: &LayoutBox, text_ctx: &mut TextContext) -> f
   let padding = sides::resolve_padding(box_.style);
   let frame = border.vertical() + padding.vertical();
 
-  if let Some(h) = sizes::resolve_length(box_.style.height, 0.0) {
-    return h + frame;
+  if !matches!(box_.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline) {
+    if let Some(h) = sizes::resolve_length(box_.style.height, 0.0) {
+      return h + frame;
+    }
   }
 
   if matches!(box_.kind, BoxKind::FlexContainer | BoxKind::InlineFlex) {

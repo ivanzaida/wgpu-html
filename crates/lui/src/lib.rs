@@ -13,6 +13,7 @@ pub use lui::{KeyModifiers, Lui, StylesheetHandle};
 mod text_hit;
 mod text_select;
 pub mod timer;
+pub mod resource;
 
 mod render_api;
 pub use render_api::{RenderBackend, RenderError, WindowHandle};
@@ -32,3 +33,6 @@ pub use winit_driver::{HarnessCtx, WinitHarness};
 #[cfg(feature = "winit")]
 #[doc(hidden)]
 pub use winit_driver::wheel_delta_to_css;
+
+#[cfg(feature = "live")]
+pub mod live;

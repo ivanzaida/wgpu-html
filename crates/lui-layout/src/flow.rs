@@ -363,8 +363,10 @@ fn layout_inline_container<'a>(
   } else {
     sizes::resolve_length(b.style.height, ctx.containing_height)
   };
-  b.content.width = explicit_w.unwrap_or(max_line_width);
-  b.content.height = explicit_h.unwrap_or(cursor_y + line_height);
+  let intrinsic_w = b.intrinsic.as_ref().map(|sz| sz.width);
+  let intrinsic_h = b.intrinsic.as_ref().map(|sz| sz.height);
+  b.content.width = explicit_w.or(intrinsic_w).unwrap_or(max_line_width);
+  b.content.height = explicit_h.or(intrinsic_h).unwrap_or(cursor_y + line_height);
 
   if css_str(b.style.direction) == "rtl" {
     let container_w = b.content.width;

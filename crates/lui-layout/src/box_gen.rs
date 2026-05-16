@@ -5,7 +5,10 @@ use bumpalo::Bump;
 use lui_cascade::{ComputedStyle, StyledNode};
 use lui_core::CssValue;
 
+use lui_core::HtmlNode;
+
 use crate::box_tree::{BoxKind, LayoutBox};
+use crate::geometry::Size;
 
 /// Build a `LayoutBox` tree from a `StyledNode` tree. Text nodes become
 /// `AnonymousInline` boxes; elements are classified by `display`.
@@ -26,6 +29,7 @@ pub fn build_box<'a>(styled: &'a StyledNode<'a>, bump: &'a Bump) -> LayoutBox<'a
   let mut b = LayoutBox::new(kind, styled.node, &styled.style, bump);
   b.children = child_boxes;
   b.scrollbar_pseudo = styled.scrollbar_pseudo.as_deref();
+  b.intrinsic = resolve_intrinsic_size(styled.node);
   fixup_anonymous_table_wrappers(&mut b, styled, bump);
   b
 }
@@ -96,6 +100,9 @@ fn flush_inlines<'a>(
 /// Map the `display` property to a `BoxKind`.
 fn resolve_box_kind_with_node(style: &ComputedStyle, node: &lui_parse::HtmlNode) -> BoxKind {
   if let Some(kind) = resolve_display_property(style) {
+    if kind == BoxKind::Inline && is_replaced_element(node) {
+      return BoxKind::InlineBlock;
+    }
     return kind;
   }
   match node.element().tag_name() {
@@ -109,6 +116,10 @@ fn resolve_box_kind_with_node(style: &ComputedStyle, node: &lui_parse::HtmlNode)
     "col" => BoxKind::TableColumn,
     _ => BoxKind::Block,
   }
+}
+
+fn is_replaced_element(node: &HtmlNode) -> bool {
+  matches!(node.tag_name(), "img" | "video" | "canvas" | "svg" | "embed" | "iframe")
 }
 
 fn _resolve_box_kind(style: &ComputedStyle) -> BoxKind {
@@ -242,6 +253,7 @@ pub fn build_box_incremental<'a>(
   let mut b = LayoutBox::new(kind, styled.node, &styled.style, bump);
   b.children = child_boxes;
   b.scrollbar_pseudo = styled.scrollbar_pseudo.as_deref();
+  b.intrinsic = resolve_intrinsic_size(styled.node);
   fixup_anonymous_table_wrappers(&mut b, styled, bump);
   b
 }
@@ -283,6 +295,21 @@ fn collect_child_incremental<'a>(
       pending_inlines.push(child);
     }
     _ => child_boxes.push(build_box_incremental(child, dirty, bump)),
+  }
+}
+
+fn resolve_intrinsic_size(node: &HtmlNode) -> Option<Size> {
+  match node.tag_name() {
+    "img" | "video" | "canvas" | "svg" | "embed" | "iframe" => {}
+    _ => return None,
+  }
+  let w = node.attr("width").and_then(|s| s.trim().trim_end_matches("px").parse::<f32>().ok());
+  let h = node.attr("height").and_then(|s| s.trim().trim_end_matches("px").parse::<f32>().ok());
+  match (w, h) {
+    (Some(w), Some(h)) => Some(Size { width: w, height: h }),
+    (Some(w), None) => Some(Size { width: w, height: w }),
+    (None, Some(h)) => Some(Size { width: h, height: h }),
+    (None, None) => None,
   }
 }
 

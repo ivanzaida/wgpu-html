@@ -10,7 +10,7 @@ use lui_parse::{HtmlDocument, Stylesheet};
 
 use crate::{
   display_list::{DisplayList, FrameOutcome}, RenderBackend,
-  RenderError,
+  RenderError, paint::image::ImageCache,
 };
 
 pub struct Lui {
@@ -37,6 +37,8 @@ pub struct Lui {
   needs_redraw: bool,
   current_cursor: String,
   form_state: BTreeMap<Vec<usize>, lui_core::form_state::FormControlState>,
+  pub image_cache: ImageCache,
+  resources: crate::resource::ResourceManager,
   pub timers: crate::timer::Timers,
   event_handlers: Vec<LuiEventHandler>,
   next_handler_id: u64,
@@ -102,6 +104,8 @@ impl Lui {
       needs_redraw: false,
       current_cursor: String::from("auto"),
       form_state: BTreeMap::new(),
+      image_cache: ImageCache::new(),
+      resources: crate::resource::ResourceManager::new(),
       timers: crate::timer::Timers::new(),
       event_handlers: Vec::new(),
       next_handler_id: 1,
@@ -185,6 +189,14 @@ impl Lui {
 
   pub fn register_font(&mut self, face: FontFace) -> FontHandle {
     self.text_ctx.register_font(face)
+  }
+
+  pub fn resources(&self) -> &crate::resource::ResourceManager {
+    &self.resources
+  }
+
+  pub fn resources_mut(&mut self) -> &mut crate::resource::ResourceManager {
+    &mut self.resources
   }
 
   pub fn current_cursor(&self) -> &str {
@@ -295,6 +307,9 @@ impl Lui {
     if crate::timer::tick_timers(self) {
       self.needs_redraw = true;
     }
+    if self.resources.poll() {
+      self.needs_redraw = true;
+    }
     let prev_hover = self.hover_path.clone();
     let did_move = self.cursor_moved;
     self.needs_redraw = false;
@@ -326,7 +341,8 @@ impl Lui {
       focus_path: self.doc.focus_path.clone(),
       form_state: self.form_state.clone(),
     };
-    self.with_layout(pw, ph, scale, |tree, text_ctx, effective_scale, vw, vh| {
+    let image_cache = std::mem::take(&mut self.image_cache);
+    let list = self.with_layout(pw, ph, scale, |tree, text_ctx, effective_scale, vw, vh| {
       let mut list = crate::paint::paint_scaled_with_form(
         tree,
         text_ctx,
@@ -334,13 +350,16 @@ impl Lui {
         selection.as_ref(),
         &sel_colors,
         &form_ctx,
+        &image_cache,
       );
       translate_display_list(&mut list, -viewport_scroll.0, -viewport_scroll.1);
       crate::paint::paint_viewport_scrollbars(&mut list, tree, vw, vh, viewport_scroll.0, viewport_scroll.1);
       list.finalize();
       list.dpi_scale = effective_scale;
       list
-    })
+    });
+    self.image_cache = image_cache;
+    list
   }
 
   fn flush_atlas(&mut self, renderer: &mut dyn RenderBackend) {

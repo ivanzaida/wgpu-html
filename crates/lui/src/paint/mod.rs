@@ -4,6 +4,7 @@ mod clip;
 pub mod color;
 mod convert;
 pub mod form;
+pub mod image;
 mod scrollbar;
 mod shadow;
 pub mod style;
@@ -34,7 +35,7 @@ pub fn paint_scaled_with_selection(
   selection: Option<&lui_core::TextSelection>,
   sel_colors: &lui_core::SelectionColors,
 ) -> DisplayList {
-  paint_scaled_with_form(tree, text_ctx, dpi_scale, selection, sel_colors, &form::FormPaintCtx::default())
+  paint_scaled_with_form(tree, text_ctx, dpi_scale, selection, sel_colors, &form::FormPaintCtx::default(), &image::ImageCache::new())
 }
 
 pub fn paint_scaled_with_form(
@@ -44,6 +45,7 @@ pub fn paint_scaled_with_form(
   selection: Option<&lui_core::TextSelection>,
   sel_colors: &lui_core::SelectionColors,
   form_ctx: &form::FormPaintCtx,
+  image_cache: &image::ImageCache,
 ) -> DisplayList {
   let mut dl = DisplayList::new();
 
@@ -64,6 +66,7 @@ pub fn paint_scaled_with_form(
     selection,
     sel_colors,
     form_ctx,
+    image_cache,
   );
 
   dl.finalize();

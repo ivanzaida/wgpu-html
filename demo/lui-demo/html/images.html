@@ -1,0 +1,88 @@
+<style>
+    .img-section {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 16px;
+    }
+
+    .img-section h2 {
+        font-size: 13px;
+        color: #64748b;
+        margin: 0;
+    }
+
+    .img-row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .img-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .img-card img {
+        border-radius: 4px;
+    }
+
+    .img-label {
+        font-size: 11px;
+        color: #94a3b8;
+    }
+
+    .bg-demo {
+        width: 180px;
+        height: 100px;
+        background-image: url(gradient);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+</style>
+
+<div class="img-section">
+    <h2>img element (decoded)</h2>
+    <div class="img-row">
+        <div class="img-card">
+            <img alt="Checkerboard" height="100" src="checkerboard" width="100"/>
+            <span class="img-label">checkerboard 100x100</span>
+        </div>
+        <div class="img-card">
+            <img alt="Gradient" height="80" src="gradient" width="160"/>
+            <span class="img-label">gradient 160x80</span>
+        </div>
+    </div>
+
+    <h2>img element (failed — shows alt text)</h2>
+    <div class="img-row">
+        <div class="img-card">
+            <img alt="Image not found" height="60" src="missing.png" style="font-size: 12px; color: #f87171"
+                 width="140"/>
+            <span class="img-label">missing.png → alt text</span>
+        </div>
+        <div class="img-card">
+            <img alt="Broken source" height="60" src="broken" style="font-size: 12px; color: #fbbf24" width="140"/>
+            <span class="img-label">broken → alt text</span>
+        </div>
+    </div>
+
+    <h2>background-image: url()</h2>
+    <div class="img-row">
+        <div class="img-card">
+            <div class="bg-demo">background-image</div>
+            <span class="img-label">url(gradient)</span>
+        </div>
+    </div>
+</div>

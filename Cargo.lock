@@ -3647,8 +3647,10 @@ dependencies = [
  "lui-glyph",
  "lui-layout",
  "lui-parse",
+ "parking_lot",
  "pollster",
  "raw-window-handle",
+ "rayon",
  "wgpu 29.0.3",
  "winit",
 ]
@@ -3841,14 +3843,6 @@ dependencies = [
  "lui-text",
  "lui-tree",
  "resvg",
-]
-
-[[package]]
-name = "lui-live"
-version = "0.1.0"
-dependencies = [
- "lui-core",
- "lui-parse",
 ]
 
 [[package]]

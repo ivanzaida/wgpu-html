@@ -179,7 +179,10 @@ pub fn layout_block<'a>(
         w
       }
     }
-    None => available.max(0.0),
+    None => match b.intrinsic {
+      Some(ref sz) => sz.width,
+      None => available.max(0.0),
+    },
   };
   let min_w = sizes::resolve_length_ctx(b.style.min_width, ctx.containing_width, &self_ctx).map(|v| {
     if is_border_box(b.style) {
@@ -494,7 +497,8 @@ pub fn layout_block<'a>(
   }
 
   let content_h = (cursor_y - b.content.y).max(0.0);
-  let raw_h = explicit_h.unwrap_or(content_h);
+  let intrinsic_h = b.intrinsic.as_ref().map(|sz| sz.height);
+  let raw_h = explicit_h.or(intrinsic_h).unwrap_or(content_h);
   let min_h = sizes::resolve_length_ctx(b.style.min_height, ctx.containing_height, &self_ctx).map(|v| {
     if is_border_box(b.style) {
       (v - frame_v).max(0.0)

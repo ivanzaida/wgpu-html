@@ -5,7 +5,7 @@ use lui_core::{
 use lui_glyph::TextContext;
 use lui_layout::{BoxKind, LayoutBox};
 
-use super::{background, border, clip, form, scrollbar, shadow, style, text};
+use super::{background, border, clip, form, image, scrollbar, shadow, style, text};
 
 pub fn paint_box_sel(
   b: &LayoutBox,
@@ -20,6 +20,7 @@ pub fn paint_box_sel(
   selection: Option<&lui_core::TextSelection>,
   sel_colors: &lui_core::SelectionColors,
   form_ctx: &form::FormPaintCtx,
+  image_cache: &image::ImageCache,
 ) {
   if !style::is_visible(b.style) {
     return;
@@ -49,8 +50,11 @@ pub fn paint_box_sel(
   if !is_anon {
     shadow::paint_box_shadows(b.style.box_shadow, border_rect, radii_h, radii_v, opacity, dl);
     background::paint_background(b, border_rect, radii_h, radii_v, opacity, dl);
+    image::paint_background_image(b, border_rect, opacity, image_cache, dl);
     border::paint_borders(b, border_rect, radii_h, radii_v, opacity, dl);
   }
+
+  image::paint_img_element(b, dx, dy, opacity, image_cache, text_ctx, dpi_scale, dl);
 
   if b.node.element().is_text() {
     text::paint_text_with_selection(
@@ -122,6 +126,7 @@ pub fn paint_box_sel(
       selection,
       sel_colors,
       form_ctx,
+      image_cache,
     );
     path.pop();
   }
