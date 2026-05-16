@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+  sync::Arc,
+  time::{SystemTime, UNIX_EPOCH},
+};
 
 use winit::{
   application::ApplicationHandler,
@@ -114,6 +117,18 @@ impl WinitHarness {
                 alt: self.modifiers.alt_key(),
                 meta: self.modifiers.super_key(),
               };
+
+              if event.state == winit::event::ElementState::Pressed && code == "F12" {
+                let stamp = SystemTime::now()
+                  .duration_since(UNIX_EPOCH)
+                  .map(|d| d.as_millis())
+                  .unwrap_or(0);
+                let path = std::env::temp_dir().join(format!("lui-surface-{stamp}.png"));
+                self.renderer.capture_next_frame_to(path.clone());
+                eprintln!("scheduled screenshot to {}", path.display());
+                window.request_redraw();
+                return;
+              }
 
               if event.state == winit::event::ElementState::Pressed && mods.ctrl {
                 let size = window.inner_size();

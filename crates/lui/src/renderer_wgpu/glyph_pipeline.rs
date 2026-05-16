@@ -117,8 +117,8 @@ impl GlyphPipeline {
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
       label: Some("glyph atlas sampler"),
-      mag_filter: wgpu::FilterMode::Nearest,
-      min_filter: wgpu::FilterMode::Nearest,
+      mag_filter: wgpu::FilterMode::Linear,
+      min_filter: wgpu::FilterMode::Linear,
       mipmap_filter: wgpu::MipmapFilterMode::Nearest,
       address_mode_u: wgpu::AddressMode::ClampToEdge,
       address_mode_v: wgpu::AddressMode::ClampToEdge,
