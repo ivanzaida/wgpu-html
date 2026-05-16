@@ -1126,16 +1126,15 @@ pub fn apply_declaration_ref<'a>(
   if longhands.is_empty() {
     style.set(prop, value);
   } else {
-    let has_custom_expansion = matches!(
+    let skip_value_parsing = matches!(
       prop,
-      CssProperty::Flex
-        | CssProperty::GridArea
+      CssProperty::GridArea
         | CssProperty::GridColumn
         | CssProperty::GridRow
         | CssProperty::GridTemplate
     );
     let values = match value {
-      CssValue::String(s) | CssValue::Unknown(s) if !has_custom_expansion => {
+      CssValue::String(s) | CssValue::Unknown(s) if !skip_value_parsing => {
         lui_parse::parse_values(s.as_ref()).unwrap_or_else(|_| vec![value.clone()])
       }
       _ => vec![value.clone()],

@@ -763,6 +763,45 @@ fn flex_shrink_weighted_by_base_size() {
 }
 
 #[test]
+fn flex_shrink_border_box_does_not_double_count_padding() {
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:flex; width:200px">
+        <div style="width:150px; flex-shrink:0; padding:0 12px; box-sizing:border-box; min-width:0">s:0</div>
+        <div style="width:150px; flex-shrink:1; padding:0 12px; box-sizing:border-box; min-width:0">s:1</div>
+        <div style="width:150px; flex-shrink:3; padding:0 12px; box-sizing:border-box; min-width:0">s:3</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let s0 = &flex.children[0];
+  let s1 = &flex.children[1];
+  let s3 = &flex.children[2];
+  let s0_outer = s0.content.width + s0.padding.left + s0.padding.right;
+  let s1_outer = s1.content.width + s1.padding.left + s1.padding.right;
+  let s3_outer = s3.content.width + s3.padding.left + s3.padding.right;
+  // s:0 doesn't shrink → stays at 150px border-box
+  assert!(
+    (s0_outer - 150.0).abs() < 1.0,
+    "s:0 should stay at 150px, got {s0_outer}"
+  );
+  // Total outer widths should equal container
+  let total = s0_outer + s1_outer + s3_outer;
+  assert!(
+    (total - 200.0).abs() < 1.0,
+    "total outer should be 200px, got {total} (s0={s0_outer}, s1={s1_outer}, s3={s3_outer})"
+  );
+  // s:3 should be smaller than s:1 (shrinks 3x faster)
+  assert!(
+    s3_outer < s1_outer,
+    "s:3 ({s3_outer}) should be smaller than s:1 ({s1_outer})"
+  );
+}
+
+#[test]
 fn flex_align_self_center_with_parent_stretch() {
   let (doc, ctx) = flex_lt(
     r#"<div style="display:flex; width:300px; height:200px; align-items:stretch">
@@ -880,6 +919,63 @@ fn flex_nested_flex_in_flex() {
     inner.content.width > 200.0,
     "inner flex should grow, got {}",
     inner.content.width
+  );
+}
+
+#[test]
+fn flex_nested_outer_row_inner_col_stretches_height() {
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:flex; height:120px; gap:8px">
+        <div style="display:flex; flex-direction:column; flex:1; gap:4px">
+            <div style="flex:1">Col1</div>
+            <div style="flex:1">Col2</div>
+            <div style="flex:1">Col3</div>
+        </div>
+        <div style="display:flex; flex:2; gap:4px; align-items:center">
+            <div>RowA</div>
+            <div>RowB</div>
+            <div>RowC</div>
+        </div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let outer = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let inner_col = &outer.children[0];
+  let inner_row = &outer.children[1];
+
+  // Inner col should stretch to full height (120px)
+  let col_outer_h = inner_col.content.height + inner_col.padding.top + inner_col.padding.bottom;
+  assert!(
+    col_outer_h > 100.0,
+    "inner-col should stretch to ~120px, got {col_outer_h}"
+  );
+
+  // Col children with flex:1 should each fill ~1/3 of the height (minus gaps)
+  let col1 = &inner_col.children[0];
+  let col3 = &inner_col.children[2];
+  let expected_child_h = (120.0 - 2.0 * 4.0) / 3.0; // ~37.3
+  assert!(
+    col1.content.height > expected_child_h - 5.0,
+    "col child should be ~{expected_child_h}px, got {}", col1.content.height
+  );
+  assert!(
+    (col3.content.y + col3.content.height) <= inner_col.content.y + inner_col.content.height + 1.0,
+    "last col child should fit within container"
+  );
+
+  // Inner row children should be vertically centered (align-items:center)
+  let row_a = &inner_row.children[0];
+  let row_top_gap = row_a.content.y - row_a.padding.top - inner_row.content.y;
+  let row_bottom = inner_row.content.y + inner_row.content.height;
+  let row_a_bottom = row_a.content.y + row_a.content.height + row_a.padding.bottom;
+  let row_bottom_gap = row_bottom - row_a_bottom;
+  assert!(
+    (row_top_gap - row_bottom_gap).abs() < 5.0,
+    "row children should be vertically centered: top_gap={row_top_gap}, bottom_gap={row_bottom_gap}"
   );
 }
 
@@ -1844,5 +1940,216 @@ fn flex_whitespace_nodes_filtered_and_items_content_sized() {
     total_outer < 200.0,
     "3 items with small text should be content-sized (~100px total), got {}",
     total_outer,
+  );
+}
+
+#[test]
+fn flex_overflow_hidden_text_wraps_within_item() {
+  // Use a stylesheet like the demo does, not just inline styles
+  let html = r#"<html><body>
+    <div class="container">
+      <div class="item-a">This text is very long and should be clipped by overflow hidden</div>
+      <div class="item-b">This text is very long and should get a scrollbar with overflow auto</div>
+    </div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+    .container { display: flex; width: 200px; height: 60px; padding: 4px; }
+    .item-a { overflow: hidden; flex: 1; padding: 8px 12px; }
+    .item-b { overflow: auto; flex: 1; padding: 8px 12px; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(flex.children.len(), 2, "flex children: {}", flex.children.len());
+  let item0 = &flex.children[0];
+  // Container inner width = 200 - 2*4 (padding) = 192 (no border in reset)
+  // Each flex:1 item outer = 96px, content = 96 - 24 (padding) = 72px
+  assert!(
+    item0.content.width < 100.0,
+    "item0 content width should be < 100px, got {}",
+    item0.content.width
+  );
+  // Text inside should wrap to multiple lines at ~72px width.
+  // A single line of text at default size is ~16-20px.
+  let anon_block0 = &item0.children[0];
+  assert!(
+    anon_block0.content.height > 30.0,
+    "text should wrap to multiple lines (height should be > 30px), got {}",
+    anon_block0.content.height
+  );
+
+  // The overflow:auto item should have scroll info when content overflows
+  let item1 = &flex.children[1];
+  eprintln!(
+    "item1: h={} scroll={:?} overflow_y={:?} children={}",
+    item1.content.height,
+    item1.scroll,
+    item1.overflow_y,
+    item1.children.len()
+  );
+  if !item1.children.is_empty() {
+    let child = &item1.children[0];
+    eprintln!("  child0: y={} h={}", child.content.y, child.content.height);
+  }
+  assert!(
+    item1.scroll.is_some(),
+    "overflow:auto flex item should have scroll info"
+  );
+  let scroll = item1.scroll.as_ref().unwrap();
+  assert!(
+    scroll.scroll_height > item1.content.height,
+    "scroll_height ({}) should exceed content height ({})",
+    scroll.scroll_height,
+    item1.content.height
+  );
+  assert!(
+    scroll.scrollbar_width > 0.0,
+    "scrollbar should be visible when content overflows"
+  );
+}
+
+#[test]
+fn flex_border_padding_gap_even_spacing() {
+  let html = r#"<html><body>
+    <div class="c">
+      <div class="i">A</div>
+      <div class="i">B</div>
+      <div class="i">C</div>
+    </div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+    .c { display: flex; width: 300px; padding: 10px; border: 3px solid red; gap: 8px; }
+    .i { flex: 1; padding: 12px; border: 2px solid blue; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(flex.children.len(), 3);
+
+  let item0 = &flex.children[0];
+  let item2 = &flex.children[2];
+
+  // Left space: distance from container content left to item0 outer left
+  let left_space = (item0.content.x - item0.border.left - item0.padding.left) - flex.content.x;
+  // Right space: distance from item2 outer right to container content right
+  let item2_right = item2.content.x + item2.content.width + item2.padding.right + item2.border.right;
+  let right_space = (flex.content.x + flex.content.width) - item2_right;
+
+  assert!(
+    (left_space - right_space).abs() < 1.0,
+    "left space ({}) and right space ({}) should be equal",
+    left_space,
+    right_space,
+  );
+  assert!(
+    left_space.abs() < 1.0,
+    "items should start at container content edge, gap from edge = {}",
+    left_space,
+  );
+}
+
+#[test]
+fn flex_1_1_0_equal_distribution_ignoring_content() {
+  let html = r#"<html><body>
+    <div class="c">
+      <div class="a">Short</div>
+      <div class="b">Much longer content here</div>
+      <div class="a">Med</div>
+    </div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; font-size: 12px; }
+    .c { display: flex; width: 300px; padding: 4px; border: 1px solid gray; }
+    .a, .b { flex: 1 1 0; padding: 8px 12px; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(flex.children.len(), 3);
+  let w0 = flex.children[0].outer_width();
+  let w1 = flex.children[1].outer_width();
+  let w2 = flex.children[2].outer_width();
+  assert!(
+    (w0 - w1).abs() < 1.0 && (w1 - w2).abs() < 1.0,
+    "all flex:1 1 0 items should have equal width, got {}, {}, {}",
+    w0, w1, w2,
+  );
+}
+
+#[test]
+fn flex_item_border_box_height() {
+  // Items: width:80px, height:40px, padding:8px 12px, box-sizing:border-box
+  // In the browser with border-box:
+  //   border-box outer = 80x40
+  //   content width  = 80 - 12 - 12 = 56
+  //   content height = 40 - 8 - 8   = 24
+  let html = r#"<html><body>
+    <div class="c">
+      <div class="i">1</div>
+      <div class="i">2</div>
+      <div class="i">3</div>
+    </div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+    .c { display: flex; width: 300px; }
+    .i { width: 80px; height: 40px; padding: 8px 12px; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(flex.children.len(), 3);
+  let item = &flex.children[0];
+  // border-box: content = specified - padding
+  assert!(
+    (item.content.width - 56.0).abs() < 1.0,
+    "content width should be 56 (80 - 24 padding), got {}",
+    item.content.width,
+  );
+  assert!(
+    (item.content.height - 24.0).abs() < 1.0,
+    "content height should be 24 (40 - 16 padding), got {}",
+    item.content.height,
+  );
+  // outer dimensions should match the CSS specified border-box size
+  assert!(
+    (item.outer_width() - 80.0).abs() < 1.0,
+    "outer width should be 80, got {}",
+    item.outer_width(),
+  );
+  assert!(
+    (item.outer_height() - 40.0).abs() < 1.0,
+    "outer height should be 40, got {}",
+    item.outer_height(),
   );
 }

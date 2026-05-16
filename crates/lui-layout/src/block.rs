@@ -590,7 +590,7 @@ fn is_bfc_root(style: &lui_cascade::ComputedStyle) -> bool {
     || positioned::is_out_of_flow(style)
 }
 
-fn apply_text_align(child: &mut LayoutBox, text_align: &str, container_width: f32) {
+pub(crate) fn apply_text_align(child: &mut LayoutBox, text_align: &str, container_width: f32) {
   if matches!(text_align, "" | "left" | "start") {
     return;
   }

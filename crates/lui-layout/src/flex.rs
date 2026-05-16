@@ -79,34 +79,39 @@ pub fn layout_flex<'a>(
   b.border = border;
   b.padding = padding;
 
-  let available = ctx.containing_width - margin.edges.horizontal() - border.horizontal() - padding.horizontal();
-  let w = sizes::resolve_length(b.style.width, ctx.containing_width).unwrap_or(available.max(0.0));
+  let is_border_box = css_str(b.style.box_sizing) == "border-box";
+  let frame_h = border.horizontal() + padding.horizontal();
+  let frame_v = border.vertical() + padding.vertical();
+
+  let available = ctx.containing_width - margin.edges.horizontal() - frame_h;
+  let raw_w = sizes::resolve_length(b.style.width, ctx.containing_width);
+  let w = raw_w
+    .map(|v| if is_border_box { (v - frame_h).max(0.0) } else { v })
+    .unwrap_or(available.max(0.0));
   let inner_width = w.min(available.max(0.0));
   b.content.width = inner_width;
 
   let has_auto_left = margin.auto_mask & (1 << 3) != 0;
   let has_auto_right = margin.auto_mask & (1 << 1) != 0;
-  let has_explicit_w = sizes::resolve_length(b.style.width, ctx.containing_width).is_some();
+  let has_explicit_w = raw_w.is_some();
   if has_explicit_w && has_auto_left && has_auto_right {
-    let free = (ctx.containing_width - b.content.width - border.horizontal() - padding.horizontal()).max(0.0);
+    let free = (ctx.containing_width - b.content.width - frame_h).max(0.0);
     b.margin.left = free / 2.0;
     b.margin.right = free / 2.0;
   } else if has_explicit_w && has_auto_left {
-    let free =
-      (ctx.containing_width - b.content.width - border.horizontal() - padding.horizontal() - margin.edges.right)
-        .max(0.0);
+    let free = (ctx.containing_width - b.content.width - frame_h - margin.edges.right).max(0.0);
     b.margin.left = free;
   } else if has_explicit_w && has_auto_right {
-    let free =
-      (ctx.containing_width - b.content.width - border.horizontal() - padding.horizontal() - margin.edges.left)
-        .max(0.0);
+    let free = (ctx.containing_width - b.content.width - frame_h - margin.edges.left).max(0.0);
     b.margin.right = free;
   }
 
   b.content.x = pos.x + b.margin.left + border.left + padding.left;
   b.content.y = pos.y + margin.edges.top + border.top + padding.top;
 
-  let inner_height = sizes::resolve_length(b.style.height, ctx.containing_height);
+  let inner_height = sizes::resolve_length(b.style.height, ctx.containing_height)
+    .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v })
+    .or_else(|| if b.content.height > 0.0 { Some(b.content.height) } else { None });
 
   let direction = css_str(b.style.flex_direction);
   let wrap_str = css_str(b.style.flex_wrap);
@@ -447,13 +452,15 @@ pub fn layout_flex<'a>(
   } else {
     (used_cross, used_main)
   };
-  b.content.width = sizes::resolve_length(b.style.width, ctx.containing_width).unwrap_or_else(|| {
-    if matches!(b.kind, BoxKind::InlineFlex) {
-      content_w
-    } else {
-      inner_width
-    }
-  });
+  b.content.width = sizes::resolve_length(b.style.width, ctx.containing_width)
+    .map(|v| if is_border_box { (v - frame_h).max(0.0) } else { v })
+    .unwrap_or_else(|| {
+      if matches!(b.kind, BoxKind::InlineFlex) {
+        content_w
+      } else {
+        inner_width
+      }
+    });
   b.content.height = inner_height.unwrap_or(content_h);
 
   // Layout out-of-flow children against the flex container's padding box
@@ -601,7 +608,11 @@ fn build_item<'a>(
     } else {
       (measure_min_content_height(&child, text_ctx) - frame_main).max(0.0)
     }),
-    _ => sizes::resolve_length(style.flex_basis, containing).or_else(|| sizes::resolve_length(main_prop, containing)),
+    _ => {
+      let raw = sizes::resolve_length(style.flex_basis, containing)
+        .or_else(|| sizes::resolve_length(main_prop, containing));
+      raw.map(|v| if css_str(style.box_sizing) == "border-box" { (v - frame_main).max(0.0) } else { v })
+    }
   };
   let base_size = basis
     .unwrap_or_else(|| {
@@ -687,16 +698,21 @@ fn layout_flex_item<'a>(
   b.border = border;
   b.padding = padding;
 
-  let available = ctx.containing_width - margin.edges.horizontal() - border.horizontal() - padding.horizontal();
+  let is_border_box = css_str(b.style.box_sizing) == "border-box";
+  let frame_h = border.horizontal() + padding.horizontal();
+  let frame_v = border.vertical() + padding.vertical();
+
+  let available = ctx.containing_width - margin.edges.horizontal() - frame_h;
   let w = override_w
-    .or_else(|| sizes::resolve_length(b.style.width, ctx.containing_width))
+    .or_else(|| sizes::resolve_length(b.style.width, ctx.containing_width)
+      .map(|v| if is_border_box { (v - frame_h).max(0.0) } else { v }))
     .unwrap_or(available.max(0.0));
   b.content.width = w;
   b.content.x = margin.edges.left + border.left + padding.left;
   b.content.y = margin.edges.top + border.top + padding.top;
-
   let resolved_h = override_h
-    .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height));
+    .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height)
+      .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v }));
   let child_ctx = LayoutContext {
     containing_width: b.content.width,
     containing_height: resolved_h.unwrap_or(ctx.containing_height),
@@ -715,8 +731,12 @@ fn layout_flex_item<'a>(
       let outer = override_w.map(|w| w + b.border.horizontal() + b.padding.horizontal() + b.margin.horizontal());
       let flex_ctx = LayoutContext {
         containing_width: outer.unwrap_or(child_ctx.containing_width),
+        containing_height: override_h.unwrap_or(child_ctx.containing_height),
         ..child_ctx
       };
+      if let Some(h) = override_h {
+        b.content.height = h;
+      }
       crate::flex::layout_flex(b, &flex_ctx, origin, text_ctx, rects, cache, bump);
       if let Some(w) = override_w {
         b.content.width = w;
@@ -754,6 +774,7 @@ fn layout_flex_item<'a>(
       }
     }
     _ => {
+      let text_align = css_str(b.style.text_align);
       let mut cursor_y = b.content.y;
       for child in b.children.iter_mut() {
         let placeholder = LayoutBox::new(BoxKind::Block, child.node, child.style, bump);
@@ -768,12 +789,11 @@ fn layout_flex_item<'a>(
           bump,
         );
         *child = result;
+        crate::block::apply_text_align(child, text_align, b.content.width);
         cursor_y += child.outer_height();
       }
       let content_h = (cursor_y - b.content.y).max(0.0);
-      b.content.height = override_h
-        .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height))
-        .unwrap_or(content_h);
+      b.content.height = resolved_h.unwrap_or(content_h);
 
       finalize_flex_item_scroll(b);
     }
@@ -928,7 +948,7 @@ fn resolve_flexible_lengths(items: &mut [FlexItem<'_>], line: &[usize], main_axi
         it.hypothetical_main
       } else {
         let ratio = (it.flex_shrink * it.base_size) / sum_scaled_shrink;
-        (it.hypothetical_main + free * ratio).max(0.0)
+        it.hypothetical_main + free * ratio
       };
       it.resolved_main = new;
     }
