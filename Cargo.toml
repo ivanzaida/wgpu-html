@@ -26,7 +26,7 @@ members = [
     "demo/lui-demo",
     "demo-v1/lui-demo",
     "demo-v1/lui-demo-bevy",
-    "demo-v1/lui-ui-demo", "crates/lui",
+    "demo-v1/lui-ui-demo", "crates/lui", "crates/lui-live",
 ]
 
 [workspace.dependencies]

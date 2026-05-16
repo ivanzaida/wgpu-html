@@ -1,11 +1,11 @@
 mod examples;
 
+use std::sync::{Arc, Mutex};
+
 use lui::{
   lui_core::{HtmlElement::Div, HtmlNode}, Lui, WgpuRenderer,
   WinitHarness,
 };
-
-use std::sync::{Arc, Mutex};
 
 use crate::examples::ExampleRegistry;
 
@@ -31,7 +31,9 @@ fn read_html() -> String {
 
 fn read_example_arg() -> Option<String> {
   let args: Vec<String> = std::env::args().collect();
-  args.iter().position(|a| a == "--example")
+  args
+    .iter()
+    .position(|a| a == "--example")
     .and_then(|pos| args.get(pos + 1).cloned())
 }
 
@@ -83,6 +85,25 @@ fn main() {
 
     if let Some(wrapper) = lui.doc_mut().root.get_element_by_id_mut("content-wrapper".into()) {
       wrapper.set_children(res);
+    }
+
+    let mut cleanup_names = Vec::new();
+
+    {
+      let curr_actives = lui.doc_mut().root.get_elements_by_class_name_mut("active".into());
+
+      for x in curr_actives {
+        if let Some(name) = x.data_attrs().get("example") {
+          cleanup_names.push(name.clone());
+        }
+
+        x.class_list_mut().remove("active");
+      }
+    }
+
+    let mut r = reg.lock().unwrap();
+    for name in cleanup_names {
+      r.cleanup(&name, lui);
     }
 
     if let Some(node) = lui.doc_mut().root.at_path_mut(&path) {

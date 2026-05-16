@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use lui_core::HtmlNode;
 
 pub mod flex;
+pub mod grid;
 
 pub enum ExampleOutput {
   Node(HtmlNode),
@@ -25,6 +26,7 @@ impl ExampleRegistry {
     Self {
       factories: vec![
         ("flex", || Box::new(flex::FlexExample::default())),
+        ("grid", || Box::new(grid::GridExample::default())),
       ],
       active: HashMap::new(),
     }

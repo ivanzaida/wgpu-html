@@ -4,8 +4,8 @@
 //! space and copies the coverage mask. Dirty rects are tracked so the
 //! GPU can upload only changed regions via `flush_dirty`.
 
-/// One-pixel gutter so bilinear filtering doesn't bleed zeros from
-/// neighbouring entries into glyph edges.
+/// One-pixel gutter so texture filtering doesn't bleed neighbouring
+/// entries into glyph edges.
 const ATLAS_PAD: u32 = 1;
 
 /// Integer rectangle inside the atlas, in pixels.
@@ -84,10 +84,20 @@ impl Atlas {
         rect: AtlasRect { x: 0, y: 0, w: 0, h: 0 },
       });
     }
-    if w > self.width {
+    if w > self.width || h > self.height {
       return None;
     }
-    let rect = self.allocate(w, h)?;
+    let pad_x = w + ATLAS_PAD * 2 <= self.width;
+    let pad_y = h + ATLAS_PAD * 2 <= self.height;
+    let alloc_w = w + if pad_x { ATLAS_PAD * 2 } else { 0 };
+    let alloc_h = h + if pad_y { ATLAS_PAD * 2 } else { 0 };
+    let outer = self.allocate(alloc_w, alloc_h)?;
+    let rect = AtlasRect {
+      x: outer.x + if pad_x { ATLAS_PAD } else { 0 },
+      y: outer.y + if pad_y { ATLAS_PAD } else { 0 },
+      w,
+      h,
+    };
     self.write_pixels(rect, src);
 
     let dx = if rect.x > 0 { 1u32 } else { 0 };
@@ -130,24 +140,24 @@ impl Atlas {
 
   fn allocate(&mut self, w: u32, h: u32) -> Option<AtlasRect> {
     for shelf in &mut self.shelves {
-      if shelf.cursor_x + w + ATLAS_PAD <= self.width && h <= shelf.h {
+      if shelf.cursor_x + w <= self.width && h <= shelf.h {
         let rect = AtlasRect {
           x: shelf.cursor_x,
           y: shelf.y,
           w,
           h,
         };
-        shelf.cursor_x += w + ATLAS_PAD;
+        shelf.cursor_x += w;
         return Some(rect);
       }
     }
-    if self.next_shelf_y + h + ATLAS_PAD > self.height {
+    if self.next_shelf_y + h > self.height {
       return None;
     }
     let shelf = Shelf {
       y: self.next_shelf_y,
       h,
-      cursor_x: w + ATLAS_PAD,
+      cursor_x: w,
     };
     let rect = AtlasRect { x: 0, y: shelf.y, w, h };
     self.next_shelf_y += h + ATLAS_PAD;

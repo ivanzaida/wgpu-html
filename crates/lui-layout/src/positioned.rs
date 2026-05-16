@@ -84,7 +84,10 @@ pub fn layout_out_of_flow<'a>(
   } else if inset_left.is_some() && inset_right.is_some() {
     (cb.width - inset_left.unwrap() - inset_right.unwrap() - frame_h).max(0.0)
   } else {
-    (cb.width - frame_h).max(0.0)
+    let available = (cb.width - frame_h).max(0.0);
+    let shrink = crate::flex::measure_max_content_width_pub(b, text_ctx);
+    let content_only = (shrink - border.horizontal() - padding.horizontal()).max(0.0);
+    content_only.min(available)
   };
   b.content.width = content_w;
 

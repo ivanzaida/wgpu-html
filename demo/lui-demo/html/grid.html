@@ -1,0 +1,620 @@
+<style>
+    .gd-demo {
+        box-sizing: border-box;
+        min-height: 100%;
+        padding: 16px;
+        background: #12151f;
+        color: #eef2ff;
+        font-family: sans-serif;
+        font-size: 14px;
+    }
+
+    .gd-demo .gd-title {
+        margin: 0 0 8px 0;
+        color: #ffffff;
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    .gd-demo .gd-note {
+        margin: 0 0 20px 0;
+        color: #9aa6bd;
+        font-size: 13px;
+    }
+
+    .gd-demo .gd-section {
+        box-sizing: border-box;
+        margin-bottom: 28px;
+        padding: 12px;
+        border: 1px solid #27324a;
+        border-radius: 6px;
+        background: #181d2b;
+    }
+
+    .gd-demo .gd-label {
+        box-sizing: border-box;
+        margin-bottom: 10px;
+        color: #8ecae6;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .gd-demo .gd-hint {
+        box-sizing: border-box;
+        margin-top: 8px;
+        color: #7f8aa3;
+        font-size: 12px;
+    }
+
+    .gd-demo .gd-grid {
+        box-sizing: border-box;
+        display: grid;
+        padding: 8px;
+        border: 1px solid #33415f;
+        border-radius: 6px;
+        background: #0f1724;
+    }
+
+    .gd-demo .gd-cell {
+        box-sizing: border-box;
+        min-width: 0;
+        min-height: 0;
+        padding: 8px;
+        border: 1px solid #44546f;
+        border-radius: 4px;
+        background: #24324d;
+        color: #f8fafc;
+        font-size: 13px;
+    }
+
+    .gd-demo .gd-a {
+        background: #2563eb;
+        border-color: #60a5fa;
+    }
+
+    .gd-demo .gd-b {
+        background: #0891b2;
+        border-color: #67e8f9;
+    }
+
+    .gd-demo .gd-c {
+        background: #16a34a;
+        border-color: #86efac;
+    }
+
+    .gd-demo .gd-d {
+        background: #ca8a04;
+        border-color: #fde68a;
+    }
+
+    .gd-demo .gd-e {
+        background: #dc2626;
+        border-color: #fca5a5;
+    }
+
+    .gd-demo .gd-f {
+        background: #7c3aed;
+        border-color: #c4b5fd;
+    }
+
+    .gd-demo .gd-small {
+        width: 54px;
+        height: 34px;
+        padding: 6px;
+    }
+
+    .gd-demo .gd-tall-content {
+        height: 86px;
+    }
+
+    .gd-demo .gd-fixed {
+        grid-template-columns: 90px 120px 160px;
+        grid-template-rows: 48px 72px;
+        gap: 8px;
+        width: 420px;
+    }
+
+    .gd-demo .gd-fr {
+        grid-template-columns: 1fr 2fr 1fr;
+        grid-template-rows: 56px 56px;
+        gap: 8px;
+        width: 520px;
+    }
+
+    .gd-demo .gd-repeat {
+        grid-template-columns: repeat(4, 1fr);
+        grid-auto-rows: 64px;
+        gap: 10px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-mixed {
+        grid-template-columns: 100px 25% 1fr 2fr;
+        grid-template-rows: 58px 58px;
+        gap: 8px;
+        width: 620px;
+    }
+
+    .gd-demo .gd-minmax {
+        grid-template-columns: minmax(80px, 1fr) minmax(100px, 2fr) 120px;
+        grid-template-rows: 60px 60px;
+        gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-auto-tracks {
+        grid-template-columns: auto 1fr auto;
+        grid-template-rows: auto auto;
+        column-gap: 14px;
+        row-gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-line-placement {
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: 48px 70px 48px;
+        gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-header {
+        grid-column: 1 / 5;
+    }
+
+    .gd-demo .gd-sidebar {
+        grid-column: 1 / 2;
+        grid-row: 2 / 4;
+    }
+
+    .gd-demo .gd-main {
+        grid-column: 2 / 4;
+        grid-row: 2 / 3;
+    }
+
+    .gd-demo .gd-aside {
+        grid-column: 4 / 5;
+        grid-row: 2 / 3;
+    }
+
+    .gd-demo .gd-footer {
+        grid-column: 2 / 5;
+        grid-row: 3 / 4;
+    }
+
+    .gd-demo .gd-span {
+        grid-template-columns: repeat(4, 1fr);
+        grid-auto-rows: 52px;
+        gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-span-two-cols {
+        grid-column: span 2;
+    }
+
+    .gd-demo .gd-span-three-cols {
+        grid-column: span 3;
+    }
+
+    .gd-demo .gd-span-two-rows {
+        grid-row: span 2;
+    }
+
+    .gd-demo .gd-gaps {
+        grid-template-columns: repeat(3, 120px);
+        grid-template-rows: 48px 48px;
+        column-gap: 24px;
+        row-gap: 12px;
+        width: 440px;
+    }
+
+    .gd-demo .gd-flow-row {
+        grid-template-columns: repeat(3, 120px);
+        grid-auto-rows: 52px;
+        grid-auto-flow: row;
+        gap: 8px;
+        width: 420px;
+    }
+
+    .gd-demo .gd-flow-column {
+        grid-template-rows: repeat(3, 52px);
+        grid-auto-columns: 110px;
+        grid-auto-flow: column;
+        gap: 8px;
+        width: 500px;
+    }
+
+    .gd-demo .gd-flow-dense {
+        grid-template-columns: repeat(4, 1fr);
+        grid-auto-rows: 48px;
+        grid-auto-flow: dense;
+        gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-align-grid {
+        grid-template-columns: repeat(3, 120px);
+        grid-template-rows: 90px;
+        gap: 8px;
+        width: 430px;
+        height: 120px;
+        justify-items: center;
+        align-items: center;
+    }
+
+    .gd-demo .gd-justify-start {
+        justify-self: start;
+    }
+
+    .gd-demo .gd-justify-end {
+        justify-self: end;
+    }
+
+    .gd-demo .gd-align-start {
+        align-self: start;
+    }
+
+    .gd-demo .gd-align-end {
+        align-self: end;
+    }
+
+    .gd-demo .gd-content-base {
+        grid-template-columns: 80px 80px 80px;
+        grid-template-rows: 44px 44px;
+        gap: 8px;
+        width: 420px;
+        height: 150px;
+        margin-bottom: 12px;
+    }
+
+    .gd-demo .gd-content-start {
+        justify-content: start;
+        align-content: start;
+    }
+
+    .gd-demo .gd-content-center {
+        justify-content: center;
+        align-content: center;
+    }
+
+    .gd-demo .gd-content-between {
+        justify-content: space-between;
+        align-content: space-between;
+    }
+
+    .gd-demo .gd-content-evenly {
+        justify-content: space-evenly;
+        align-content: space-evenly;
+    }
+
+    .gd-demo .gd-areas {
+        grid-template-areas:
+            "mast mast mast"
+            "nav main rail"
+            "foot foot foot";
+        grid-template-columns: 120px 1fr 120px;
+        grid-template-rows: 48px 110px 42px;
+        gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-area-mast {
+        grid-area: mast;
+    }
+
+    .gd-demo .gd-area-nav {
+        grid-area: nav;
+    }
+
+    .gd-demo .gd-area-main {
+        grid-area: main;
+    }
+
+    .gd-demo .gd-area-rail {
+        grid-area: rail;
+    }
+
+    .gd-demo .gd-area-foot {
+        grid-area: foot;
+    }
+
+    .gd-demo .gd-named-lines {
+        grid-template-columns: [left] 120px [content-start] 1fr [content-end] 120px [right];
+        grid-template-rows: [top] 54px [body-start] 78px [bottom];
+        gap: 8px;
+        width: 560px;
+    }
+
+    .gd-demo .gd-named-main {
+        grid-column: content-start / content-end;
+        grid-row: top / bottom;
+    }
+
+    .gd-demo .gd-named-left {
+        grid-column: left / content-start;
+        grid-row: top / bottom;
+    }
+
+    .gd-demo .gd-named-right {
+        grid-column: content-end / right;
+        grid-row: body-start / bottom;
+    }
+
+    .gd-demo .gd-auto-fill {
+        grid-template-columns: repeat(auto-fill, 96px);
+        grid-auto-rows: 50px;
+        gap: 8px;
+        width: 520px;
+    }
+
+    .gd-demo .gd-nested-shell {
+        grid-template-columns: 160px 1fr;
+        grid-template-rows: 52px 160px;
+        gap: 10px;
+        width: 620px;
+    }
+
+    .gd-demo .gd-nested-top {
+        grid-column: 1 / 3;
+    }
+
+    .gd-demo .gd-nested-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-auto-rows: 46px;
+        gap: 8px;
+        padding: 8px;
+        background: #111827;
+    }
+</style>
+
+<div class="gd-demo">
+    <h1 class="gd-title">Grid layout capabilities</h1>
+    <p class="gd-note">A scoped demo for explicit tracks, fr sizing, repeat, placement, spanning, gaps, auto-flow, alignment, areas, named lines, and nested grids.</p>
+
+    <div class="gd-section">
+        <div class="gd-label">1. Fixed columns and explicit rows</div>
+        <div class="gd-grid gd-fixed">
+            <div class="gd-cell gd-a">90px</div>
+            <div class="gd-cell gd-b">120px</div>
+            <div class="gd-cell gd-c">160px</div>
+            <div class="gd-cell gd-d">row 2</div>
+            <div class="gd-cell gd-e">row 2</div>
+            <div class="gd-cell gd-f">row 2</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">2. Fraction tracks: 1fr 2fr 1fr</div>
+        <div class="gd-grid gd-fr">
+            <div class="gd-cell gd-a">1fr</div>
+            <div class="gd-cell gd-b">2fr</div>
+            <div class="gd-cell gd-c">1fr</div>
+            <div class="gd-cell gd-d">A</div>
+            <div class="gd-cell gd-e">B</div>
+            <div class="gd-cell gd-f">C</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">3. repeat(4, 1fr) gallery with implicit rows</div>
+        <div class="gd-grid gd-repeat">
+            <div class="gd-cell gd-a">1</div>
+            <div class="gd-cell gd-b">2</div>
+            <div class="gd-cell gd-c">3</div>
+            <div class="gd-cell gd-d">4</div>
+            <div class="gd-cell gd-e">5</div>
+            <div class="gd-cell gd-f">6</div>
+            <div class="gd-cell gd-a">7</div>
+            <div class="gd-cell gd-b">8</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">4. Mixed px, percent, and fr tracks</div>
+        <div class="gd-grid gd-mixed">
+            <div class="gd-cell gd-a">100px</div>
+            <div class="gd-cell gd-b">25%</div>
+            <div class="gd-cell gd-c">1fr</div>
+            <div class="gd-cell gd-d">2fr</div>
+            <div class="gd-cell gd-e">fixed</div>
+            <div class="gd-cell gd-f">percent</div>
+            <div class="gd-cell gd-a">fluid</div>
+            <div class="gd-cell gd-b">fluid x2</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">5. minmax tracks</div>
+        <div class="gd-grid gd-minmax">
+            <div class="gd-cell gd-a">minmax(80px, 1fr)</div>
+            <div class="gd-cell gd-b">minmax(100px, 2fr)</div>
+            <div class="gd-cell gd-c">120px</div>
+            <div class="gd-cell gd-d">A</div>
+            <div class="gd-cell gd-e">B</div>
+            <div class="gd-cell gd-f">C</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">6. Auto tracks sized by content</div>
+        <div class="gd-grid gd-auto-tracks">
+            <div class="gd-cell gd-a">auto label</div>
+            <div class="gd-cell gd-b">1fr content track fills the middle</div>
+            <div class="gd-cell gd-c">auto</div>
+            <div class="gd-cell gd-d">short</div>
+            <div class="gd-cell gd-e gd-tall-content">content decides row height</div>
+            <div class="gd-cell gd-f">end</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">7. Explicit line placement</div>
+        <div class="gd-grid gd-line-placement">
+            <div class="gd-cell gd-a gd-header">header: grid-column 1 / 5</div>
+            <div class="gd-cell gd-b gd-sidebar">sidebar: row 2 / 4</div>
+            <div class="gd-cell gd-c gd-main">main: col 2 / 4</div>
+            <div class="gd-cell gd-d gd-aside">aside</div>
+            <div class="gd-cell gd-e gd-footer">footer: col 2 / 5</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">8. Spanning auto-placed items</div>
+        <div class="gd-grid gd-span">
+            <div class="gd-cell gd-a gd-span-two-cols">span 2 columns</div>
+            <div class="gd-cell gd-b">1</div>
+            <div class="gd-cell gd-c gd-span-two-rows">span 2 rows</div>
+            <div class="gd-cell gd-d">2</div>
+            <div class="gd-cell gd-e gd-span-three-cols">span 3 columns</div>
+            <div class="gd-cell gd-f">3</div>
+            <div class="gd-cell gd-a">4</div>
+            <div class="gd-cell gd-b">5</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">9. Independent row-gap and column-gap</div>
+        <div class="gd-grid gd-gaps">
+            <div class="gd-cell gd-a">A</div>
+            <div class="gd-cell gd-b">B</div>
+            <div class="gd-cell gd-c">C</div>
+            <div class="gd-cell gd-d">D</div>
+            <div class="gd-cell gd-e">E</div>
+            <div class="gd-cell gd-f">F</div>
+        </div>
+        <div class="gd-hint">column-gap: 24px; row-gap: 12px</div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">10. grid-auto-flow: row</div>
+        <div class="gd-grid gd-flow-row">
+            <div class="gd-cell gd-a gd-span-two-cols">wide</div>
+            <div class="gd-cell gd-b">B</div>
+            <div class="gd-cell gd-c">C</div>
+            <div class="gd-cell gd-d gd-span-two-cols">wide</div>
+            <div class="gd-cell gd-e">E</div>
+            <div class="gd-cell gd-f">F</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">11. grid-auto-flow: column with implicit columns</div>
+        <div class="gd-grid gd-flow-column">
+            <div class="gd-cell gd-a">1</div>
+            <div class="gd-cell gd-b">2</div>
+            <div class="gd-cell gd-c">3</div>
+            <div class="gd-cell gd-d">4</div>
+            <div class="gd-cell gd-e">5</div>
+            <div class="gd-cell gd-f">6</div>
+            <div class="gd-cell gd-a">7</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">12. grid-auto-flow: dense backfills holes</div>
+        <div class="gd-grid gd-flow-dense">
+            <div class="gd-cell gd-a gd-span-three-cols">span 3</div>
+            <div class="gd-cell gd-b gd-span-two-cols">span 2</div>
+            <div class="gd-cell gd-c">small backfill</div>
+            <div class="gd-cell gd-d">small</div>
+            <div class="gd-cell gd-e gd-span-two-cols">span 2</div>
+            <div class="gd-cell gd-f">small</div>
+            <div class="gd-cell gd-a">small</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">13. justify-items and align-items with per-item overrides</div>
+        <div class="gd-grid gd-align-grid">
+            <div class="gd-cell gd-a gd-small gd-justify-start gd-align-start">start</div>
+            <div class="gd-cell gd-b gd-small">center</div>
+            <div class="gd-cell gd-c gd-small gd-justify-end gd-align-end">end</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">14. justify-content and align-content distribution</div>
+        <div class="gd-grid gd-content-base gd-content-start">
+            <div class="gd-cell gd-a">start</div>
+            <div class="gd-cell gd-b">start</div>
+            <div class="gd-cell gd-c">start</div>
+            <div class="gd-cell gd-d">start</div>
+            <div class="gd-cell gd-e">start</div>
+            <div class="gd-cell gd-f">start</div>
+        </div>
+        <div class="gd-grid gd-content-base gd-content-center">
+            <div class="gd-cell gd-a">center</div>
+            <div class="gd-cell gd-b">center</div>
+            <div class="gd-cell gd-c">center</div>
+            <div class="gd-cell gd-d">center</div>
+            <div class="gd-cell gd-e">center</div>
+            <div class="gd-cell gd-f">center</div>
+        </div>
+        <div class="gd-grid gd-content-base gd-content-between">
+            <div class="gd-cell gd-a">between</div>
+            <div class="gd-cell gd-b">between</div>
+            <div class="gd-cell gd-c">between</div>
+            <div class="gd-cell gd-d">between</div>
+            <div class="gd-cell gd-e">between</div>
+            <div class="gd-cell gd-f">between</div>
+        </div>
+        <div class="gd-grid gd-content-base gd-content-evenly">
+            <div class="gd-cell gd-a">evenly</div>
+            <div class="gd-cell gd-b">evenly</div>
+            <div class="gd-cell gd-c">evenly</div>
+            <div class="gd-cell gd-d">evenly</div>
+            <div class="gd-cell gd-e">evenly</div>
+            <div class="gd-cell gd-f">evenly</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">15. grid-template-areas and grid-area</div>
+        <div class="gd-grid gd-areas">
+            <div class="gd-cell gd-a gd-area-mast">mast</div>
+            <div class="gd-cell gd-b gd-area-nav">nav</div>
+            <div class="gd-cell gd-c gd-area-main">main</div>
+            <div class="gd-cell gd-d gd-area-rail">rail</div>
+            <div class="gd-cell gd-e gd-area-foot">foot</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">16. Named grid lines</div>
+        <div class="gd-grid gd-named-lines">
+            <div class="gd-cell gd-a gd-named-left">left / content-start</div>
+            <div class="gd-cell gd-b gd-named-main">content-start / content-end</div>
+            <div class="gd-cell gd-c gd-named-right">content-end / right</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">17. repeat(auto-fill, 96px)</div>
+        <div class="gd-grid gd-auto-fill">
+            <div class="gd-cell gd-a">1</div>
+            <div class="gd-cell gd-b">2</div>
+            <div class="gd-cell gd-c">3</div>
+            <div class="gd-cell gd-d">4</div>
+            <div class="gd-cell gd-e">5</div>
+            <div class="gd-cell gd-f">6</div>
+            <div class="gd-cell gd-a">7</div>
+            <div class="gd-cell gd-b">8</div>
+            <div class="gd-cell gd-c">9</div>
+        </div>
+    </div>
+
+    <div class="gd-section">
+        <div class="gd-label">18. Nested grids</div>
+        <div class="gd-grid gd-nested-shell">
+            <div class="gd-cell gd-a gd-nested-top">top spans the shell</div>
+            <div class="gd-cell gd-b">side panel</div>
+            <div class="gd-cell gd-nested-panel">
+                <div class="gd-cell gd-c">nested 1</div>
+                <div class="gd-cell gd-d">nested 2</div>
+                <div class="gd-cell gd-e">nested 3</div>
+                <div class="gd-cell gd-f">nested 4</div>
+            </div>
+        </div>
+    </div>
+</div>

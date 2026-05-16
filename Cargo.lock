@@ -3844,6 +3844,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lui-live"
+version = "0.1.0"
+dependencies = [
+ "lui-core",
+ "lui-parse",
+]
+
+[[package]]
 name = "lui-models"
 version = "0.1.0"
 dependencies = [

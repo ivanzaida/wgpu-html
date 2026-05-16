@@ -1,4 +1,7 @@
-use crate::{ArcStr, HtmlElement, HtmlNode, node::html_node::{DIRTY_ATTRS, DIRTY_CHILDREN, DIRTY_TEXT}};
+use crate::{
+  node::html_node::{DIRTY_ATTRS, DIRTY_CHILDREN, DIRTY_TEXT},
+  ArcStr, HtmlElement, HtmlNode,
+};
 
 impl HtmlNode {
   pub fn text_content(&self) -> String {
@@ -15,9 +18,18 @@ impl HtmlNode {
     self.dirty |= DIRTY_TEXT | DIRTY_CHILDREN;
   }
 
+  pub fn set_id(&mut self, id: &str) {
+    self.id = Some(ArcStr::from(id));
+    self.dirty |= DIRTY_ATTRS;
+    self.recompute_hash();
+  }
+
   pub fn set_attribute(&mut self, name: &str, value: &str) {
     match name {
-      "id" => self.id = Some(ArcStr::from(value)),
+      "id" => {
+        self.set_id(value);
+        return;
+      }
       "class" => self.class_list.set(value),
       _ if name.starts_with("data-") => {
         self.data_attrs.insert(ArcStr::from(&name[5..]), ArcStr::from(value));
