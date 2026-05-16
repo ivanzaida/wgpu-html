@@ -109,9 +109,14 @@ pub fn layout_flex<'a>(
   b.content.x = pos.x + b.margin.left + border.left + padding.left;
   b.content.y = pos.y + margin.edges.top + border.top + padding.top;
 
+  let min_height = sizes::resolve_length(b.style.min_height, ctx.containing_height)
+    .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v });
+  let has_explicit_height = sizes::resolve_length(b.style.height, ctx.containing_height).is_some();
   let inner_height = sizes::resolve_length(b.style.height, ctx.containing_height)
     .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v })
-    .or_else(|| if b.content.height > 0.0 { Some(b.content.height) } else { None });
+    .or_else(|| if b.content.height > 0.0 { Some(b.content.height) } else { None })
+    .map(|v| if let Some(m) = min_height { v.max(m) } else { v })
+    .or(min_height);
 
   let direction = css_str(b.style.flex_direction);
   let wrap_str = css_str(b.style.flex_wrap);
@@ -291,7 +296,11 @@ pub fn layout_flex<'a>(
 
   if single_line {
     if let Some(c) = cross_axis_size {
-      line_cross_sizes[0] = c;
+      if has_explicit_height {
+        line_cross_sizes[0] = c;
+      } else {
+        line_cross_sizes[0] = line_cross_sizes[0].max(c);
+      }
     }
   } else {
     // Phase 6: align-content for multi-line
@@ -461,7 +470,15 @@ pub fn layout_flex<'a>(
         inner_width
       }
     });
-  b.content.height = inner_height.unwrap_or(content_h);
+  let has_explicit_h = sizes::resolve_length(b.style.height, ctx.containing_height).is_some();
+  let raw_h = if has_explicit_h {
+    inner_height.unwrap_or(content_h)
+  } else {
+    content_h.max(min_height.unwrap_or(0.0))
+  };
+  let max_h = sizes::resolve_length(b.style.max_height, ctx.containing_height)
+    .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v });
+  b.content.height = sizes::clamp_with_minmax(raw_h, min_height, max_h);
 
   // Layout out-of-flow children against the flex container's padding box
   let containing_block = Rect::new(
@@ -691,28 +708,33 @@ fn layout_flex_item<'a>(
   cache: &crate::incremental::CacheView,
   bump: &'a Bump,
 ) {
-  let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
-  let border = sides::resolve_border(b.style);
-  let padding = sides::resolve_padding_against(b.style, ctx.containing_width);
-  b.margin = margin.edges;
-  b.border = border;
-  b.padding = padding;
+  let is_anon = matches!(b.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline);
+  if !is_anon {
+    let margin = sides::resolve_margin_against(b.style, ctx.containing_width);
+    b.margin = margin.edges;
+    b.border = sides::resolve_border(b.style);
+    b.padding = sides::resolve_padding_against(b.style, ctx.containing_width);
+  }
 
-  let is_border_box = css_str(b.style.box_sizing) == "border-box";
-  let frame_h = border.horizontal() + padding.horizontal();
-  let frame_v = border.vertical() + padding.vertical();
+  let is_border_box = !is_anon && css_str(b.style.box_sizing) == "border-box";
+  let frame_h = b.border.horizontal() + b.padding.horizontal();
+  let frame_v = b.border.vertical() + b.padding.vertical();
 
-  let available = ctx.containing_width - margin.edges.horizontal() - frame_h;
+  let available = ctx.containing_width - b.margin.horizontal() - frame_h;
   let w = override_w
-    .or_else(|| sizes::resolve_length(b.style.width, ctx.containing_width)
-      .map(|v| if is_border_box { (v - frame_h).max(0.0) } else { v }))
+    .or_else(|| if is_anon { None } else {
+      sizes::resolve_length(b.style.width, ctx.containing_width)
+        .map(|v| if is_border_box { (v - frame_h).max(0.0) } else { v })
+    })
     .unwrap_or(available.max(0.0));
   b.content.width = w;
-  b.content.x = margin.edges.left + border.left + padding.left;
-  b.content.y = margin.edges.top + border.top + padding.top;
+  b.content.x = b.margin.left + b.border.left + b.padding.left;
+  b.content.y = b.margin.top + b.border.top + b.padding.top;
   let resolved_h = override_h
-    .or_else(|| sizes::resolve_length(b.style.height, ctx.containing_height)
-      .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v }));
+    .or_else(|| if is_anon { None } else {
+      sizes::resolve_length(b.style.height, ctx.containing_height)
+        .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v })
+    });
   let child_ctx = LayoutContext {
     containing_width: b.content.width,
     containing_height: resolved_h.unwrap_or(ctx.containing_height),

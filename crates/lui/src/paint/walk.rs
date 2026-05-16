@@ -134,17 +134,19 @@ pub fn paint_box_sel(
 
   if let Some((mat, origin)) = xf {
     let xf_mat = [mat.a, mat.b, mat.c, mat.d];
+    let abs_ox = border_rect.x + origin[0];
+    let abs_oy = border_rect.y + origin[1];
     for q in &mut dl.quads[quad_start..] {
       q.transform = xf_mat;
-      q.transform_origin = origin;
+      q.transform_origin = [abs_ox - q.rect.x, abs_oy - q.rect.y];
     }
     for g in &mut dl.glyphs[glyph_start..] {
       g.transform = xf_mat;
-      g.transform_origin = origin;
+      g.transform_origin = [abs_ox - g.rect.x, abs_oy - g.rect.y];
     }
     for img in &mut dl.images[image_start..] {
       img.transform = xf_mat;
-      img.transform_origin = origin;
+      img.transform_origin = [abs_ox - img.rect.x, abs_oy - img.rect.y];
     }
   }
 }

@@ -2206,3 +2206,141 @@ fn flex_column_wrap_item_width() {
     );
   }
 }
+
+#[test]
+fn flex_center_text_in_fixed_size_box() {
+  // display:flex; align-items:center; justify-content:center; width:80px; height:80px
+  // Text should be roughly centered both vertically and horizontally.
+  let html = r#"<html><body>
+    <div style="display:flex; align-items:center; justify-content:center; width:80px; height:80px; box-sizing:border-box; border:2px solid red;">45</div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut cascade = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet("* { margin:0; padding:0; border-width:0; }").unwrap();
+  cascade.set_stylesheets(&[sheet]);
+  let ctx = cascade;
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  // border-box 80px with 2px border → 76px content
+  assert!((flex.content.width - 76.0).abs() < 1.0, "w={}", flex.content.width);
+  assert!((flex.content.height - 76.0).abs() < 1.0, "h={}", flex.content.height);
+  let item = &flex.children[0];
+  let item_mid_y = (item.content.y + item.content.height / 2.0) - flex.content.y;
+  let item_mid_x = (item.content.x + item.content.width / 2.0) - flex.content.x;
+  assert!(
+    (item_mid_y - 38.0).abs() < 10.0,
+    "text should be vertically centered (~38), mid_y={}",
+    item_mid_y,
+  );
+  assert!(
+    (item_mid_x - 38.0).abs() < 10.0,
+    "text should be horizontally centered (~38), mid_x={}",
+    item_mid_x,
+  );
+}
+
+#[test]
+fn flex_align_items_center_with_min_height() {
+  // min-height:120px with align-items:center — items should be vertically centered
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:flex; align-items:center; min-height:120px; width:300px">
+      <div style="width:80px; height:80px">A</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  // Container should be at least 120px tall
+  assert!(
+    flex.content.height >= 120.0,
+    "container should be >= 120px (min-height), got {}",
+    flex.content.height,
+  );
+  let item = &flex.children[0];
+  // Item should be vertically centered: offset ≈ (120 - 80) / 2 = 20
+  let offset_y = item.content.y - flex.content.y;
+  assert!(
+    (offset_y - 20.0).abs() < 2.0,
+    "item should be centered at ~20px offset, got {}",
+    offset_y,
+  );
+}
+
+#[test]
+fn flex_nested_centering_matches_browser() {
+  // Exact demo structure: .tf-row > .tf-box.tf-a with text "45°"
+  // .tf-row: display:flex; align-items:center; padding:20px; border:1px solid; min-height:120px; box-sizing:border-box
+  // .tf-box: width:80px; height:80px; display:flex; align-items:center; justify-content:center; box-sizing:border-box
+  // .tf-a: border:2px solid
+  //
+  // Expected browser layout:
+  //   .tf-row content height = max(120 - 2 - 40, content) = 78px (border-box 120 minus border+padding)
+  //   .tf-box is 80px border-box → 76px content (minus 2px border each side)
+  //   .tf-box vertically centered in .tf-row
+  //   text "45°" vertically centered inside .tf-box
+  let html = r#"<html><body>
+    <div class="row">
+      <div class="box">45</div>
+    </div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+    .row { display: flex; align-items: center; padding: 20px; border: 1px solid gray; min-height: 120px; }
+    .box { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border: 2px solid red; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let body = find_by_tag(&lt.root, "body").unwrap();
+  let row = &body.children[0];
+  let box_ = &row.children[0];
+
+  // Row: border-box 120px min-height → content >= 120 - 2(border) - 40(padding) = 78.
+  // But child is 80px outer, so row must grow to 80px content.
+  eprintln!("row: y={} h={} padding_t={} border_t={}", row.content.y, row.content.height, row.padding.top, row.border.top);
+  assert!(
+    row.content.height >= 80.0,
+    "row content height should grow to fit 80px child, got {}",
+    row.content.height,
+  );
+
+  // Box: 80px border-box → 76px content, centered in row
+  eprintln!("box: y={} h={} border_t={}", box_.content.y, box_.content.height, box_.border.top);
+  assert!(
+    (box_.content.height - 76.0).abs() < 1.0,
+    "box content height should be 76 (80 - 4 border), got {}",
+    box_.content.height,
+  );
+  let box_offset_y = (box_.content.y - box_.border.top) - row.content.y;
+  let expected_offset = (row.content.height - 80.0) / 2.0;
+  assert!(
+    (box_offset_y - expected_offset).abs() < 2.0,
+    "box should be vertically centered in row: offset={}, expected={}",
+    box_offset_y, expected_offset,
+  );
+
+  // Text inside box: should be vertically centered
+  // The anonymous block wrapping the text should be centered by align-items:center
+  assert!(!box_.children.is_empty(), "box should have children");
+  let text_item = &box_.children[0];
+  eprintln!("text_item: y={} h={}", text_item.content.y, text_item.content.height);
+  let text_mid_y = text_item.content.y + text_item.content.height / 2.0;
+  let box_mid_y = box_.content.y + box_.content.height / 2.0;
+  assert!(
+    (text_mid_y - box_mid_y).abs() < 5.0,
+    "text should be vertically centered in box: text_mid={}, box_mid={}",
+    text_mid_y, box_mid_y,
+  );
+}
