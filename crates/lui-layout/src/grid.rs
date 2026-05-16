@@ -33,14 +33,14 @@ enum TrackMax {
   Auto,
 }
 
-fn parse_track_list(value: Option<&CssValue>, container_width: f32) -> (Vec<TrackSize>, LineNames) {
+fn parse_track_list(value: Option<&CssValue>, container_width: f32, gap: f32) -> (Vec<TrackSize>, LineNames) {
   match value {
     Some(CssValue::Unknown(s)) | Some(CssValue::String(s)) => {
       let raw = s.as_ref();
       if raw == "none" || raw.is_empty() {
         return (vec![], LineNames::new());
       }
-      parse_track_str(raw, container_width)
+      parse_track_str(raw, container_width, gap)
     }
     Some(CssValue::Dimension {
       value,
@@ -52,13 +52,13 @@ fn parse_track_list(value: Option<&CssValue>, container_width: f32) -> (Vec<Trac
     }) => (vec![TrackSize::Fr(*value as f32)], LineNames::new()),
     Some(CssValue::Number(n)) if *n == 0.0 => (vec![TrackSize::Px(0.0)], LineNames::new()),
     Some(CssValue::Function { function, args }) => {
-      (parse_track_function(function, args, container_width), LineNames::new())
+      (parse_track_function(function, args, container_width, gap), LineNames::new())
     }
     _ => (vec![], LineNames::new()),
   }
 }
 
-fn parse_track_function(function: &lui_core::CssFunction, args: &[CssValue], container_width: f32) -> Vec<TrackSize> {
+fn parse_track_function(function: &lui_core::CssFunction, args: &[CssValue], container_width: f32, gap: f32) -> Vec<TrackSize> {
   let name = function.name();
   if name == "repeat" || name.contains("repeat") {
     if args.len() >= 2 {
@@ -73,7 +73,7 @@ fn parse_track_function(function: &lui_core::CssFunction, args: &[CssValue], con
       let count = if let Some(_) = auto_mode {
         let track_size = estimate_track_px(&args[1..], container_width);
         if track_size > 0.0 {
-          (container_width / track_size).floor().max(1.0) as usize
+          ((container_width + gap) / (track_size + gap)).floor().max(1.0) as usize
         } else {
           1
         }
@@ -149,7 +149,7 @@ fn estimate_track_px(args: &[CssValue], container_width: f32) -> f32 {
   total
 }
 
-fn parse_track_str(raw: &str, container_width: f32) -> (Vec<TrackSize>, LineNames) {
+fn parse_track_str(raw: &str, container_width: f32, gap: f32) -> (Vec<TrackSize>, LineNames) {
   let mut tracks = Vec::new();
   let mut names = LineNames::new();
   let mut chars = raw.chars().peekable();
@@ -215,7 +215,7 @@ fn parse_track_str(raw: &str, container_width: f32) -> (Vec<TrackSize>, LineName
       let inner = &buf[7..buf.len() - 1];
       if let Some((count_str, pattern)) = inner.split_once(',') {
         let count_str = count_str.trim();
-        let (pattern_tracks, _pattern_names) = parse_track_str(pattern.trim(), container_width);
+        let (pattern_tracks, _pattern_names) = parse_track_str(pattern.trim(), container_width, gap);
         let count = if count_str == "auto-fill" || count_str == "auto-fit" {
           let track_px: f32 = pattern_tracks
             .iter()
@@ -225,7 +225,7 @@ fn parse_track_str(raw: &str, container_width: f32) -> (Vec<TrackSize>, LineName
             })
             .sum();
           if track_px > 0.0 {
-            (container_width / track_px).floor().max(1.0) as usize
+            ((container_width + gap) / (track_px + gap)).floor().max(1.0) as usize
           } else {
             1
           }
@@ -316,7 +316,6 @@ fn resolve_tracks(defs: &[TrackSize], available: f32, gap: f32, auto_sizes: &[f3
       TrackSize::MinMax(min, max) => match max {
         TrackMax::Fr(v) => {
           fr_sum += v;
-          fixed_sum += min;
           *min
         }
         TrackMax::Px(v) => {
@@ -685,14 +684,21 @@ pub fn layout_grid<'a>(
   b.border = border;
   b.padding = padding;
 
-  let available = ctx.containing_width - margin.edges.horizontal() - border.horizontal() - padding.horizontal();
-  let w = sizes::resolve_length(b.style.width, ctx.containing_width).unwrap_or(available.max(0.0));
+  let is_border_box = css_str(b.style.box_sizing) == "border-box";
+  let frame_h = border.horizontal() + padding.horizontal();
+  let frame_v = border.vertical() + padding.vertical();
+
+  let available = ctx.containing_width - margin.edges.horizontal() - frame_h;
+  let w = sizes::resolve_length(b.style.width, ctx.containing_width)
+    .map(|v| if is_border_box { (v - frame_h).max(0.0) } else { v })
+    .unwrap_or(available.max(0.0));
   let inner_width = w.min(available.max(0.0));
   b.content.width = inner_width;
   b.content.x = pos.x + margin.edges.left + border.left + padding.left;
   b.content.y = pos.y + margin.edges.top + border.top + padding.top;
 
-  let inner_height = sizes::resolve_length(b.style.height, ctx.containing_height);
+  let inner_height = sizes::resolve_length(b.style.height, ctx.containing_height)
+    .map(|v| if is_border_box { (v - frame_v).max(0.0) } else { v });
 
   let gap_col = sizes::resolve_length(b.style.column_gap, inner_width).unwrap_or(0.0);
   let gap_row = sizes::resolve_length(b.style.row_gap, inner_width).unwrap_or(0.0);
@@ -704,8 +710,8 @@ pub fn layout_grid<'a>(
   let align_items = css_str(b.style.align_items);
   let justify_items = css_str(b.style.justify_items);
 
-  let (mut col_defs, mut col_names) = parse_track_list(b.style.grid_template_columns, inner_width);
-  let (mut row_defs, mut row_names) = parse_track_list(b.style.grid_template_rows, inner_width);
+  let (mut col_defs, mut col_names) = parse_track_list(b.style.grid_template_columns, inner_width, gap_col);
+  let (mut row_defs, mut row_names) = parse_track_list(b.style.grid_template_rows, inner_width, gap_row);
 
   // Parse grid-template-areas and generate implicit named lines + area map
   let area_map = parse_template_areas(
@@ -771,8 +777,21 @@ pub fn layout_grid<'a>(
     col_defs.push(auto_col_size.clone());
   }
 
+  // Compute auto column sizes from item content widths
+  let mut col_auto_sizes = vec![0.0_f32; col_defs.len()];
+  for (placement, child) in placements.iter().zip(children.iter()) {
+    let span = placement.col_end - placement.col_start;
+    if span == 1 {
+      let c = placement.col_start;
+      if c < col_auto_sizes.len() && matches!(col_defs.get(c), Some(TrackSize::Auto)) {
+        let w = crate::flex::measure_max_content_width_pub(child, text_ctx);
+        col_auto_sizes[c] = col_auto_sizes[c].max(w);
+      }
+    }
+  }
+
   // Resolve column sizes
-  let col_sizes = resolve_tracks(&col_defs, inner_width, gap_col, &vec![0.0; col_defs.len()]);
+  let col_sizes = resolve_tracks(&col_defs, inner_width, gap_col, &col_auto_sizes);
 
   // Phase 1b: layout items at resolved column widths
   let mut items: Vec<(GridPlacement, LayoutBox<'a>)> = Vec::with_capacity(children.len());
@@ -836,9 +855,12 @@ pub fn layout_grid<'a>(
     }
   }
 
-  // Compute positions
-  let col_positions = compute_positions(&col_sizes, gap_col);
-  let row_positions = compute_positions(&row_heights, gap_row);
+  // Apply justify-content / align-content distribution
+  let justify_content = css_str(b.style.justify_content);
+  let align_content = css_str(b.style.align_content);
+
+  let col_positions = distribute_content(&col_sizes, gap_col, inner_width, justify_content);
+  let row_positions = distribute_content(&row_heights, gap_row, inner_height.unwrap_or(0.0), align_content);
 
   // Phase 2: position items
   for (placement, item) in &mut items {
@@ -866,6 +888,23 @@ pub fn layout_grid<'a>(
     } else {
       item_justify
     };
+
+    // Grid default is stretch — resize item to fill cell
+    let has_explicit_h = item.style.height.is_some()
+      && !matches!(css_str(item.style.height), "auto" | "");
+    let stretch_h = matches!(align, "" | "normal" | "stretch") && !has_explicit_h;
+    if stretch_h && cell_h > 0.0 {
+      let target_h = (cell_h - item.margin.vertical() - item.border.vertical() - item.padding.vertical()).max(0.0);
+      item.content.height = target_h;
+    }
+
+    let has_explicit_w = item.style.width.is_some()
+      && !matches!(css_str(item.style.width), "auto" | "");
+    let stretch_w = matches!(justify, "" | "normal" | "stretch") && !has_explicit_w;
+    if stretch_w && cell_w > 0.0 {
+      let target_w = (cell_w - item.margin.horizontal() - item.border.horizontal() - item.padding.horizontal()).max(0.0);
+      item.content.width = target_w;
+    }
 
     let item_w = item.outer_width();
     let item_h = item.outer_height();
@@ -910,6 +949,63 @@ fn parse_auto_track_size(value: Option<&CssValue>) -> TrackSize {
       unit: CssUnit::Fr,
     }) => TrackSize::Fr(*value as f32),
     _ => TrackSize::Auto,
+  }
+}
+
+fn distribute_content(sizes: &[f32], gap: f32, available: f32, mode: &str) -> Vec<f32> {
+  if sizes.is_empty() || available <= 0.0 {
+    return compute_positions(sizes, gap);
+  }
+  let n = sizes.len() as f32;
+  let total_track: f32 = sizes.iter().sum();
+  let total_gap = gap * (n - 1.0).max(0.0);
+  let used = total_track + total_gap;
+  let free = (available - used).max(0.0);
+
+  match mode {
+    "center" => {
+      let offset = free / 2.0;
+      let base = compute_positions(sizes, gap);
+      base.iter().map(|p| p + offset).collect()
+    }
+    "end" | "flex-end" => {
+      let base = compute_positions(sizes, gap);
+      base.iter().map(|p| p + free).collect()
+    }
+    "space-between" => {
+      if sizes.len() < 2 {
+        return compute_positions(sizes, gap);
+      }
+      let between = free / (n - 1.0) + gap;
+      let mut positions = Vec::with_capacity(sizes.len());
+      let mut cursor = 0.0;
+      for (i, s) in sizes.iter().enumerate() {
+        positions.push(cursor);
+        cursor += s + if i + 1 < sizes.len() { between } else { 0.0 };
+      }
+      positions
+    }
+    "space-evenly" => {
+      let slot = free / (n + 1.0);
+      let mut positions = Vec::with_capacity(sizes.len());
+      let mut cursor = slot;
+      for (i, s) in sizes.iter().enumerate() {
+        positions.push(cursor);
+        cursor += s + slot + if i + 1 < sizes.len() { gap } else { 0.0 };
+      }
+      positions
+    }
+    "space-around" => {
+      let half = free / (2.0 * n);
+      let mut positions = Vec::with_capacity(sizes.len());
+      let mut cursor = half;
+      for (i, s) in sizes.iter().enumerate() {
+        positions.push(cursor);
+        cursor += s + 2.0 * half + if i + 1 < sizes.len() { gap } else { 0.0 };
+      }
+      positions
+    }
+    _ => compute_positions(sizes, gap),
   }
 }
 

@@ -721,3 +721,214 @@ fn grid_area_shorthand_four_values() {
     item.content.width
   );
 }
+
+#[test]
+fn grid_explicit_row_heights_applied_to_items() {
+  // grid-template-rows: 48px 72px — items should stretch to fill row height
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:grid; grid-template-columns:90px 120px 160px; grid-template-rows:48px 72px; gap:8px">
+      <div>A</div><div>B</div><div>C</div>
+      <div>D</div><div>E</div><div>F</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(grid.children.len(), 6);
+  // Row 1 items (indices 0,1,2) should be 48px outer height
+  for i in 0..3 {
+    assert!(
+      (grid.children[i].outer_height() - 48.0).abs() < 1.0,
+      "row 1 item {} outer height should be 48, got {}",
+      i, grid.children[i].outer_height(),
+    );
+  }
+  // Row 2 items (indices 3,4,5) should be 72px outer height
+  for i in 3..6 {
+    assert!(
+      (grid.children[i].outer_height() - 72.0).abs() < 1.0,
+      "row 2 item {} outer height should be 72, got {}",
+      i, grid.children[i].outer_height(),
+    );
+  }
+}
+
+#[test]
+fn grid_minmax_fr_columns_distribute_proportionally() {
+  // minmax(80px,1fr) minmax(100px,2fr) 120px in a 500px container
+  // Available for fr = 500 - 120 - 2*8(gap) = 364
+  // 1fr = 364/3 ≈ 121.3, 2fr = 364*2/3 ≈ 242.7
+  // Both exceed their minimums (80, 100), so fr sizing applies.
+  // Col2 should be ~2x col1.
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:grid; grid-template-columns:minmax(80px,1fr) minmax(100px,2fr) 120px; gap:8px; width:500px">
+      <div>A</div><div>B</div><div>C</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(grid.children.len(), 3);
+
+  let w0 = grid.children[0].content.width;
+  let w1 = grid.children[1].content.width;
+  let w2 = grid.children[2].content.width;
+
+  // Col3 should be exactly 120px
+  assert!(
+    (w2 - 120.0).abs() < 1.0,
+    "fixed col should be 120, got {}", w2,
+  );
+  // Col2 should be roughly 2x col1
+  let ratio = w1 / w0;
+  assert!(
+    (ratio - 2.0).abs() < 0.3,
+    "col2/col1 ratio should be ~2.0, got {} (w0={}, w1={})",
+    ratio, w0, w1,
+  );
+}
+
+#[test]
+fn grid_auto_columns_sized_by_content() {
+  // auto 1fr auto — auto columns should size to content, 1fr gets remaining space
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; width:500px">
+      <div>Label</div><div>Middle fills</div><div>End</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(grid.children.len(), 3);
+
+  let w0 = grid.children[0].outer_width();
+  let w1 = grid.children[1].outer_width();
+  let w2 = grid.children[2].outer_width();
+
+  // Auto columns should have non-trivial width (content-based)
+  assert!(
+    w0 > 10.0,
+    "first auto column should be content-sized, got {}",
+    w0,
+  );
+  assert!(
+    w2 > 10.0,
+    "last auto column should be content-sized, got {}",
+    w2,
+  );
+  // 1fr column should be the widest
+  assert!(
+    w1 > w0 && w1 > w2,
+    "1fr column ({}) should be wider than auto columns ({}, {})",
+    w1, w0, w2,
+  );
+}
+
+#[test]
+fn grid_justify_content_center() {
+  // 3 fixed 80px columns in a 420px container — justify-content:center should
+  // center the track group horizontally.
+  // Total tracks = 80*3 + 8*2(gap) = 256. Free = 420 - 256 = 164. Offset = 82.
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:grid; grid-template-columns:80px 80px 80px; gap:8px; width:420px; justify-content:center">
+      <div>A</div><div>B</div><div>C</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let first = &grid.children[0];
+  let last = &grid.children[2];
+  let left_offset = first.content.x - grid.content.x;
+  let right_edge = last.content.x + last.content.width;
+  let right_offset = (grid.content.x + grid.content.width) - right_edge;
+  assert!(
+    (left_offset - right_offset).abs() < 2.0,
+    "justify-content:center — left ({}) and right ({}) offsets should be equal",
+    left_offset, right_offset,
+  );
+  assert!(
+    left_offset > 10.0,
+    "justify-content:center — should have offset from left, got {}",
+    left_offset,
+  );
+}
+
+#[test]
+fn grid_justify_content_space_between() {
+  // 3 fixed 80px columns in 420px — space-between puts first at start, last at end
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:grid; grid-template-columns:80px 80px 80px; gap:0px; width:420px; justify-content:space-between">
+      <div>A</div><div>B</div><div>C</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let first = &grid.children[0];
+  let last = &grid.children[2];
+  let left_offset = first.content.x - grid.content.x;
+  let right_edge = last.content.x + last.content.width;
+  let right_offset = (grid.content.x + grid.content.width) - right_edge;
+  assert!(
+    left_offset.abs() < 1.0,
+    "space-between — first item should be at start, offset={}",
+    left_offset,
+  );
+  assert!(
+    right_offset.abs() < 1.0,
+    "space-between — last item should be at end, offset={}",
+    right_offset,
+  );
+}
+
+#[test]
+fn grid_repeat_auto_fill_column_count() {
+  // repeat(auto-fill, 96px) in 500px with gap:8px
+  // Columns: (500+8)/(96+8) = 4.88 → 4 columns
+  // 9 items → 4 cols × 3 rows, items wrap to row 2 at index 4
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:grid; grid-template-columns:repeat(auto-fill,96px); grid-auto-rows:50px; gap:8px; width:500px">
+      <div>1</div><div>2</div><div>3</div><div>4</div>
+      <div>5</div><div>6</div><div>7</div><div>8</div><div>9</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let grid = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  assert_eq!(grid.children.len(), 9);
+  // Item 5 (index 4) should be on row 2 — its y should be below item 1
+  let row1_y = grid.children[0].content.y;
+  let row2_y = grid.children[4].content.y;
+  assert!(
+    row2_y > row1_y + 40.0,
+    "item 5 should be on row 2 (y={}) below row 1 (y={})",
+    row2_y, row1_y,
+  );
+  // Item 5 should be in the first column (same x as item 1)
+  let col1_x = grid.children[0].content.x;
+  let item5_x = grid.children[4].content.x;
+  assert!(
+    (item5_x - col1_x).abs() < 1.0,
+    "item 5 should be in col 1 (x={}), but is at x={}",
+    col1_x, item5_x,
+  );
+}
