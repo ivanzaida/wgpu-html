@@ -5,7 +5,7 @@ use std::{
   hash::{Hash, Hasher},
 };
 
-use cosmic_text::{Attrs, Buffer, CacheKey, Family, Metrics, Shaping, Weight};
+use cosmic_text::{Attrs, Buffer, CacheKey, Family, Metrics, Shaping, SwashContent, Weight};
 use lui_cascade::ComputedStyle;
 use lui_core::{CssUnit, CssValue};
 
@@ -311,10 +311,18 @@ impl TextContext {
             };
             let w = image.placement.width;
             let h = image.placement.height;
+            let alpha_data;
+            let src = match image.content {
+              SwashContent::Mask => &image.data[..],
+              _ => {
+                alpha_data = image.data.iter().skip(3).step_by(4).copied().collect::<Vec<_>>();
+                &alpha_data[..]
+              }
+            };
             let rect = if w == 0 || h == 0 {
               AtlasRect { x: 0, y: 0, w: 0, h: 0 }
             } else {
-              match self.atlas.insert(w, h, &image.data) {
+              match self.atlas.insert(w, h, src) {
                 Some(e) => e.rect,
                 None => continue,
               }
@@ -472,10 +480,18 @@ impl TextContext {
             };
             let w = image.placement.width;
             let h = image.placement.height;
+            let alpha_data;
+            let src = match image.content {
+              SwashContent::Mask => &image.data[..],
+              _ => {
+                alpha_data = image.data.iter().skip(3).step_by(4).copied().collect::<Vec<_>>();
+                &alpha_data[..]
+              }
+            };
             let rect = if w == 0 || h == 0 {
               AtlasRect { x: 0, y: 0, w: 0, h: 0 }
             } else {
-              match self.atlas.insert(w, h, &image.data) {
+              match self.atlas.insert(w, h, src) {
                 Some(e) => e.rect,
                 None => continue,
               }
