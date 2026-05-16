@@ -47,16 +47,13 @@ pub fn paint_text(
 
     let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale, b.text_wrap_width);
 
-    let snap_y = if dpi_scale > 1.0 {
-        (content_y * dpi_scale).round() / dpi_scale
-    } else {
-        content_y
-    };
+    let snap_x = (content_x * dpi_scale).round() / dpi_scale;
+    let snap_y = (content_y * dpi_scale).round() / dpi_scale;
 
     for glyph in &run.glyphs {
         if glyph.uv_min == [0.0; 2] && glyph.uv_max == [0.0; 2] { continue; }
         let rect = DlRect::new(
-            content_x + glyph.x,
+            snap_x + glyph.x,
             snap_y + glyph.y,
             glyph.w,
             glyph.h,

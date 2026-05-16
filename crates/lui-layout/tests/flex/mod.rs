@@ -2153,3 +2153,56 @@ fn flex_item_border_box_height() {
     item.outer_height(),
   );
 }
+
+#[test]
+fn flex_column_wrap_item_width() {
+  // Matches demo test 25 exactly: column + wrap + height-constrained
+  // align-content: stretch (default) stretches columns, but items with
+  // explicit width should NOT be stretched wider than 80px.
+  let html = r#"<html><body>
+    <div class="fx-section">
+      <div class="fx-box fx-col-wrap">
+        <div class="fx-a fx-col-wrap-item">1</div>
+        <div class="fx-b fx-col-wrap-item">2</div>
+        <div class="fx-c fx-col-wrap-item">3</div>
+        <div class="fx-d fx-col-wrap-item">4</div>
+        <div class="fx-a fx-col-wrap-item">5</div>
+        <div class="fx-b fx-col-wrap-item">6</div>
+      </div>
+    </div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    .fx-section { margin-bottom: 24px; box-sizing: border-box; color: #eee; font-size: 14px; }
+    .fx-box { background: #16213e; border: 1px solid #0f3460; padding: 4px; min-width: 0; box-sizing: border-box; }
+    .fx-a { background: #e94560; padding: 8px 12px; color: white; box-sizing: border-box; }
+    .fx-b { background: #0f3460; padding: 8px 12px; color: white; box-sizing: border-box; }
+    .fx-c { background: #533483; padding: 8px 12px; color: white; box-sizing: border-box; }
+    .fx-d { background: #e98020; padding: 8px 12px; color: white; box-sizing: border-box; }
+    .fx-col-wrap { display: flex; flex-direction: column; flex-wrap: wrap; height: 120px; width: 300px; gap: 4px; }
+    .fx-col-wrap-item { width: 80px; height: 35px; }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let body = find_by_tag(&lt.root, "body").unwrap();
+  let section = &body.children[0];
+  let flex = &section.children[0];
+  for (i, item) in flex.children.iter().enumerate() {
+    assert!(
+      (item.outer_width() - 80.0).abs() < 1.0,
+      "item {} outer width should be 80, got {}",
+      i, item.outer_width(),
+    );
+    assert!(
+      (item.outer_height() - 35.0).abs() < 1.0,
+      "item {} outer height should be 35, got {}",
+      i, item.outer_height(),
+    );
+  }
+}

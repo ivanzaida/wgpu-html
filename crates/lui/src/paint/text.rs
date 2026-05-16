@@ -67,11 +67,8 @@ pub fn paint_text_with_selection(
     paint_selection_bg(&run, content_x, content_y, from_glyph, to_glyph, sel_colors.background, opacity, dl);
   }
 
-  let snap_y = if dpi_scale > 1.0 {
-    (content_y * dpi_scale).round() / dpi_scale
-  } else {
-    content_y
-  };
+  let snap_x = (content_x * dpi_scale).round() / dpi_scale;
+  let snap_y = (content_y * dpi_scale).round() / dpi_scale;
 
   for (gi, glyph) in run.glyphs.iter().enumerate() {
     if glyph.uv_min == [0.0; 2] && glyph.uv_max == [0.0; 2] {
@@ -81,7 +78,7 @@ pub fn paint_text_with_selection(
     let in_selection = sel_range.is_some_and(|(from, to)| char_idx >= from && char_idx < to);
     let glyph_color = if in_selection { sel_colors.foreground } else { color };
 
-    let rect = DlRect::new(content_x + glyph.x, snap_y + glyph.y, glyph.w, glyph.h);
+    let rect = DlRect::new(snap_x + glyph.x, snap_y + glyph.y, glyph.w, glyph.h);
     let index = dl.glyphs.len() as u32;
     dl.glyphs.push(GlyphQuad {
       rect,
