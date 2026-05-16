@@ -164,6 +164,7 @@ fn layout_text_node(b: &mut LayoutBox, ctx: &LayoutContext, pos: Point, text: &s
     b.content.width = adjust_width(max_line_width, text);
     b.content.height = total_height;
     b.baseline = first_ascent;
+    b.text_wrap_width = Some(max_width);
     return;
   }
 
@@ -192,6 +193,7 @@ fn layout_text_node(b: &mut LayoutBox, ctx: &LayoutContext, pos: Point, text: &s
     b.content.y = pos.y;
     b.content.width = adjust_width(max_line_width, text);
     b.content.height = total_height;
+    b.text_wrap_width = Some(max_width);
     let first_line_run = text_ctx.shape(text, &style);
     b.baseline = Some(first_line_run.ascent);
   } else {

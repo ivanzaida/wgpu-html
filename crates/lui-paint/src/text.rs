@@ -45,7 +45,7 @@ pub fn paint_text(
     };
     let font_family = style::css_str(b.style.font_family);
 
-    let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale);
+    let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale, b.text_wrap_width);
 
     let snap_y = if dpi_scale > 1.0 {
         (content_y * dpi_scale).round() / dpi_scale
@@ -133,7 +133,7 @@ pub fn paint_list_marker(
     let weight = 400;
 
     let font_family = style::css_str(b.style.font_family);
-    let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family, dpi_scale);
+    let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family, dpi_scale, None);
     let marker_x = content_x - run.width;
 
     for glyph in &run.glyphs {

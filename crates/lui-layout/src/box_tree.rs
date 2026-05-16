@@ -102,6 +102,7 @@ pub struct LayoutBox<'a> {
   pub writing_mode: Option<String>,
   pub list_marker: Option<String>,
   pub scrollbar_pseudo: Option<&'a ScrollbarPseudoStyles<'a>>,
+  pub text_wrap_width: Option<f32>,
 }
 
 /// Sticky positioning thresholds. Values are the distance from the scroll
@@ -148,6 +149,7 @@ impl<'a> LayoutBox<'a> {
       writing_mode: None,
       list_marker: None,
       scrollbar_pseudo: None,
+      text_wrap_width: None,
     }
   }
 

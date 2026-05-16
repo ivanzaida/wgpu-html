@@ -57,7 +57,7 @@ pub fn paint_text_with_selection(
   };
   let font_family = style::css_str(b.style.font_family);
 
-  let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale);
+  let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale, b.text_wrap_width);
 
   let sel_range = selection.and_then(|sel| selection_char_range(path, sel, run.char_count()));
 
@@ -222,7 +222,7 @@ pub fn paint_list_marker(
   let weight = 400;
 
   let font_family = style::css_str(b.style.font_family);
-  let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family, dpi_scale);
+  let run = text_ctx.shape_and_pack(marker, font_size, line_height, weight, color, font_family, dpi_scale, None);
   let marker_x = content_x - run.width;
 
   for glyph in &run.glyphs {

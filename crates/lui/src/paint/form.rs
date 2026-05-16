@@ -182,7 +182,7 @@ fn paint_text_run(
     return;
   }
 
-  let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale);
+  let run = text_ctx.shape_and_pack(text, font_size, line_height, weight, color, font_family, dpi_scale, None);
 
   let snap_y = if dpi_scale > 1.0 {
     (content_y * dpi_scale).round() / dpi_scale
@@ -260,7 +260,7 @@ fn byte_offset_to_x(
   let offset = byte_offset.min(text.len());
   let prefix = &text[..offset];
   let color = [0.0; 4];
-  let run = text_ctx.shape_and_pack(prefix, font_size, line_height, weight, color, font_family, dpi_scale);
+  let run = text_ctx.shape_and_pack(prefix, font_size, line_height, weight, color, font_family, dpi_scale, None);
   run.width
 }
 

@@ -31,6 +31,7 @@ struct TextCacheKey {
   line_height_bits: u32,
   weight: u16,
   style: FontStyleAxis,
+  max_width_bits: u32,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -57,6 +58,7 @@ fn shape_cache_key(text: &str, style: &TextStyle) -> TextCacheKey {
     line_height_bits: style.line_height.to_bits(),
     weight: style.weight,
     style: FontStyleAxis::Normal,
+    max_width_bits: f32::INFINITY.to_bits(),
   }
 }
 
@@ -199,6 +201,7 @@ impl TextContext {
       line_height_bits: ts.line_height.to_bits(),
       weight: ts.weight,
       style: FontStyleAxis::Normal,
+      max_width_bits: f32::INFINITY.to_bits(),
     };
     if let Some(cached) = self.text_cache.get(&cache_key) {
       return RunMetrics {
@@ -232,6 +235,7 @@ impl TextContext {
     color: [f32; 4],
     font_family: &str,
     dpi_scale: f32,
+    max_width: Option<f32>,
   ) -> ShapedRun {
     self.maybe_invalidate_text_cache();
 
@@ -242,6 +246,7 @@ impl TextContext {
     };
     let phys_size = font_size * dpi_scale;
     let phys_lh = line_height * dpi_scale;
+    let phys_max_w = max_width.map(|w| w * dpi_scale);
     let cache_key = TextCacheKey {
       text_hash: hash_str(text),
       family_hash: hash_str(family),
@@ -249,6 +254,7 @@ impl TextContext {
       line_height_bits: phys_lh.to_bits(),
       weight,
       style: FontStyleAxis::Normal,
+      max_width_bits: phys_max_w.unwrap_or(f32::INFINITY).to_bits(),
     };
     if let Some(cached) = self.text_cache.get(&cache_key) {
       let has_uvs = cached
@@ -276,7 +282,7 @@ impl TextContext {
 
     let metrics = Metrics::new(phys_size, phys_lh);
     let mut buffer = Buffer::new(self.font_ctx.font_system_mut(), metrics);
-    buffer.set_size(None, None);
+    buffer.set_size(phys_max_w, None);
     buffer.set_text(text, &attrs, Shaping::Advanced, None);
     buffer.shape_until_scroll(self.font_ctx.font_system_mut(), false);
 
@@ -295,7 +301,7 @@ impl TextContext {
       }
       let glyph_start = glyphs.len();
       for g in run.glyphs {
-        let physical = g.physical((0.0, 0.0), 1.0);
+        let physical = g.physical((0.0, run.line_y), 1.0);
         let key = physical.cache_key;
         let entry = match self.glyph_cache.get(&key).copied() {
           Some(e) => e,
@@ -331,8 +337,8 @@ impl TextContext {
           (entry.rect.x + entry.rect.w) as f32 / atlas_w as f32,
           (entry.rect.y + entry.rect.h) as f32 / atlas_h as f32,
         ];
-        let gx = (g.x + entry.left as f32) * inv;
-        let gy = (run.line_y - entry.top as f32).round() * inv;
+        let gx = (physical.x + entry.left) as f32 * inv;
+        let gy = (physical.y - entry.top) as f32 * inv;
         glyphs.push(PositionedGlyph {
           glyph_id: g.glyph_id,
           x: gx,
@@ -353,13 +359,6 @@ impl TextContext {
         height: line_height,
       });
       line_count += 1;
-    }
-    if let Some(min_x) = glyphs.iter().map(|g| g.x).reduce(f32::min) {
-      if min_x != 0.0 {
-        for g in &mut glyphs {
-          g.x -= min_x;
-        }
-      }
     }
     let width = glyphs.iter().map(|g| g.x + g.w).fold(0.0f32, f32::max);
     let shaped = ShapedRun {
@@ -462,7 +461,7 @@ impl TextContext {
 
       for g in run.glyphs {
         let leaf_id = g.metadata as u32;
-        let physical = g.physical((0.0, 0.0), 1.0);
+        let physical = g.physical((0.0, run.line_y), 1.0);
         let key = physical.cache_key;
 
         let entry = match self.glyph_cache.get(&key).copied() {
@@ -503,8 +502,8 @@ impl TextContext {
           })
           .unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
-        let pos_x = physical.x as f32 + entry.left as f32;
-        let pos_y = (run.line_y - entry.top as f32).round();
+        let pos_x = (physical.x + entry.left) as f32;
+        let pos_y = (physical.y - entry.top) as f32;
 
         if entry.rect.w > 0 && entry.rect.h > 0 {
           let uv_min = [
