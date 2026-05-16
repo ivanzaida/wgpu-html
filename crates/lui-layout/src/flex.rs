@@ -576,9 +576,11 @@ fn build_item<'a>(
   let flex_shrink = css_f32(style.flex_shrink).unwrap_or(1.0).max(0.0);
 
   let containing = parent_main.unwrap_or(ctx.containing_width);
-  let margin = sides::resolve_margin_against(style, containing);
-  let border = sides::resolve_border(style);
-  let padding = sides::resolve_padding_against(style, containing);
+  let is_anon = matches!(child.kind, BoxKind::AnonymousBlock | BoxKind::AnonymousInline);
+  let zero_margin = sides::MarginResult { edges: Default::default(), auto_mask: 0 };
+  let margin = if is_anon { zero_margin } else { sides::resolve_margin_against(style, containing) };
+  let border: crate::geometry::RectEdges<f32> = if is_anon { Default::default() } else { sides::resolve_border(style) };
+  let padding: crate::geometry::RectEdges<f32> = if is_anon { Default::default() } else { sides::resolve_padding_against(style, containing) };
 
   let frame_h = border.horizontal() + padding.horizontal();
   let frame_v = border.vertical() + padding.vertical();
@@ -612,8 +614,8 @@ fn build_item<'a>(
 
   // Flex basis — measure_max/min_content_width returns border-box,
   // but base_size must be content-box (frame is added separately).
-  let main_prop = if is_row { style.width } else { style.height };
-  let basis_keyword = css_str(style.flex_basis);
+  let main_prop = if is_anon { None } else if is_row { style.width } else { style.height };
+  let basis_keyword = if is_anon { "" } else { css_str(style.flex_basis) };
   let basis = match basis_keyword {
     "content" | "max-content" => Some(if is_row {
       (measure_max_content_width(&child, text_ctx) - frame_main).max(0.0)
@@ -658,10 +660,10 @@ fn build_item<'a>(
 
   let hypothetical_main = base_size.clamp(main_min, main_max);
 
-  let cross_prop = if is_row { style.height } else { style.width };
+  let cross_prop = if is_anon { None } else if is_row { style.height } else { style.width };
   let is_pct_cross = matches!(cross_prop, Some(lui_core::CssValue::Percentage(_)));
   let has_explicit_cross_size =
-    cross_prop.is_some() && !is_auto(cross_prop) && !(is_pct_cross && parent_cross.is_none());
+    !is_anon && cross_prop.is_some() && !is_auto(cross_prop) && !(is_pct_cross && parent_cross.is_none());
 
   let align_self_str = css_str(style.align_self);
   let collapsed = css_str(style.visibility) == "collapse";

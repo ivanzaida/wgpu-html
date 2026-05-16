@@ -2344,3 +2344,48 @@ fn flex_nested_centering_matches_browser() {
     text_mid_y, box_mid_y,
   );
 }
+
+#[test]
+fn flex_text_centered_in_display_flex_box_with_border() {
+  // Reproduces exact demo: display:flex box with align-items:center justify-content:center
+  // containing bare text, with border and box-sizing:border-box.
+  // Text must be vertically AND horizontally centered.
+  let html = r#"<html><body>
+    <div class="box">0</div>
+  </body></html>"#;
+  let doc = lui_parse::parse(html);
+  let mut ctx = lui_cascade::cascade::CascadeContext::new();
+  let sheet = lui_parse::parse_stylesheet(
+    r#"
+    * { margin: 0; padding: 0; border-width: 0; box-sizing: border-box; }
+    .box {
+      width: 80px; height: 80px;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid red;
+    }
+    "#,
+  ).unwrap();
+  ctx.set_stylesheets(&[sheet]);
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let body = find_by_tag(&lt.root, "body").unwrap();
+  let box_ = &body.children[0];
+
+  // box content = 76x76 (80 - 4 border)
+  // The text node (deepest child) should be vertically centered in the box
+  let box_mid_y = box_.content.y + box_.content.height / 2.0;
+  // Find the deepest child (text node)
+  let mut node = box_;
+  while !node.children.is_empty() {
+    node = &node.children[0];
+  }
+  let text_mid_y = node.content.y + node.content.height / 2.0;
+  eprintln!("box_mid_y={} text_mid_y={}", box_mid_y, text_mid_y);
+  assert!(
+    (text_mid_y - box_mid_y).abs() < 3.0,
+    "text mid_y ({}) should be near box mid_y ({}), diff={}",
+    text_mid_y, box_mid_y, (text_mid_y - box_mid_y).abs(),
+  );
+}
