@@ -417,14 +417,14 @@ pub fn layout_flex<'a>(
         if is_row {
           let cur =
             item.box_.content.x - item.box_.padding.left - item.box_.border.left - item.box_.margin.left - b.content.x;
-          let new_x = b.content.x + (main_size - cur - item.box_.outer_width()).max(0.0);
+          let new_x = b.content.x + main_size - cur - item.box_.outer_width();
           let dx =
             new_x - (item.box_.content.x - item.box_.padding.left - item.box_.border.left - item.box_.margin.left);
           translate_box_delta(&mut item.box_, dx, 0.0);
         } else {
           let cur =
             item.box_.content.y - item.box_.padding.top - item.box_.border.top - item.box_.margin.top - b.content.y;
-          let new_y = b.content.y + (main_size - cur - item.box_.outer_height()).max(0.0);
+          let new_y = b.content.y + main_size - cur - item.box_.outer_height();
           let dy = new_y - (item.box_.content.y - item.box_.padding.top - item.box_.border.top - item.box_.margin.top);
           translate_box_delta(&mut item.box_, 0.0, dy);
         }
@@ -619,12 +619,12 @@ fn build_item<'a>(
     (style.min_height, style.max_height)
   };
   let main_min = sizes::resolve_length(min_prop, containing).unwrap_or_else(|| {
-    let content_min = if is_row {
-      (measure_min_content_width(&child, text_ctx) - frame_main).max(0.0)
+    if is_row {
+      let content_min = (measure_min_content_width(&child, text_ctx) - frame_main).max(0.0);
+      content_min.min(base_size)
     } else {
-      (measure_min_content_height(&child, text_ctx) - frame_main).max(0.0)
-    };
-    content_min.min(base_size)
+      0.0
+    }
   });
   let main_max = sizes::resolve_length(max_prop, containing).unwrap_or(f32::INFINITY);
 

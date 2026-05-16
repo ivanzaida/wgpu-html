@@ -434,6 +434,74 @@ fn flex_column_reverse() {
 }
 
 #[test]
+fn flex_column_reverse_three_items() {
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:flex; flex-direction:column-reverse; width:300px; height:300px">
+        <div style="height:50px">A</div><div style="height:50px">B</div><div style="height:50px">C</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let ch = &flex.children;
+  assert_eq!(ch.len(), 3, "should have 3 children");
+  // column-reverse: C on top, B in middle, A on bottom
+  let a_y = ch[0].content.y;
+  let b_y = ch[1].content.y;
+  let c_y = ch[2].content.y;
+  assert!(
+    c_y < b_y && b_y < a_y,
+    "column-reverse: C ({c_y}) < B ({b_y}) < A ({a_y})"
+  );
+  assert!(
+    c_y + 50.0 <= b_y,
+    "C and B overlap: c_y+50={} vs b_y={b_y}", c_y + 50.0
+  );
+  assert!(
+    b_y + 50.0 <= a_y,
+    "B and A overlap: b_y+50={} vs a_y={a_y}", b_y + 50.0
+  );
+}
+
+#[test]
+fn flex_column_reverse_auto_height_items() {
+  let (doc, ctx) = flex_lt(
+    r#"<div style="display:flex; flex-direction:column-reverse; width:300px; height:120px;
+                   border:1px solid black; padding:4px; box-sizing:border-box">
+        <div style="padding:8px 12px; box-sizing:border-box">A</div>
+        <div style="padding:8px 12px; box-sizing:border-box">B</div>
+        <div style="padding:8px 12px; box-sizing:border-box">C</div>
+    </div>"#,
+    800.0,
+  );
+  let media = MediaContext::default();
+  let interaction = InteractionState::default();
+  let styled = ctx.cascade(&doc.root, &media, &interaction);
+  let lt = layout_tree(&styled, 800.0, 600.0);
+  let flex = find_by_tag(&lt.root, "body").unwrap().children.first().unwrap();
+  let ch = &flex.children;
+  assert_eq!(ch.len(), 3, "should have 3 children");
+  let a_y = ch[0].content.y;
+  let b_y = ch[1].content.y;
+  let c_y = ch[2].content.y;
+  // column-reverse: C should be on top, B in middle, A on bottom
+  assert!(
+    c_y < b_y && b_y < a_y,
+    "column-reverse ordering wrong: C ({c_y}) < B ({b_y}) < A ({a_y})"
+  );
+  // Items should shrink to fit the container (flex-shrink:1 default)
+  let container_content_h = flex.content.height;
+  let total_outer: f32 = ch.iter().map(|c| c.content.height + c.padding.top + c.padding.bottom).sum();
+  assert!(
+    total_outer <= container_content_h + 1.0,
+    "items should shrink to fit: total_outer={total_outer} vs container={container_content_h}"
+  );
+}
+
+#[test]
 fn flex_justify_content_flex_end() {
   let (doc, ctx) = flex_lt(
     r#"<div style="display:flex; width:300px; justify-content:flex-end">
